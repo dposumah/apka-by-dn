@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import * as React from "react"
 import Link from "next/link"
@@ -72,8 +72,8 @@ export function SntSidebar() {
                   Keluar
                 </button>
                 {userRole !== "FASILITATOR" && (
-                  <Link href="/dashboard" className="text-xs text-emerald-400 hover:underline border-l border-emerald-700 pl-2">
-                    Ke APKA Utama
+                  <Link href="/" className="text-xs text-emerald-400 hover:underline border-l border-emerald-700 pl-2">
+                    Ganti Aplikasi
                   </Link>
                 )}
               </div>

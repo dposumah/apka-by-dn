@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { usePathname } from "next/navigation"
+import Link from "next/link"
 import { signOut } from "next-auth/react"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import { Menu } from "lucide-react"
@@ -40,6 +41,9 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
       </div>
 
       <div className="flex items-center gap-2 md:gap-4">
+        <Link href="/" className="text-xs sm:text-sm font-medium text-blue-600 hover:underline border-r pr-2 md:pr-4">
+          &#8644; Ganti Aplikasi
+        </Link>
         <span className="text-xs sm:text-sm font-medium text-gray-600 border-r pr-2 md:pr-4 truncate max-w-[120px] sm:max-w-xs">{companyName}</span>
         
         <DropdownMenu>
