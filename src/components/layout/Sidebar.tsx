@@ -100,7 +100,10 @@ export function Sidebar({ onMobileItemClick }: { onMobileItemClick?: () => void 
   return (
     <div className="flex h-full w-full flex-col border-r bg-white overflow-y-auto">
       <div className="flex h-16 shrink-0 items-center justify-between border-b px-6">
-        <h1 className="text-xl font-bold text-blue-700 tracking-tight">APKA</h1>
+        <div className="flex items-center gap-2">
+          <img src="/logo.jpg" alt="Logo APKA" className="h-8 w-8 object-contain rounded-md" />
+          <h1 className="text-xl font-bold text-blue-700 tracking-tight">APKA</h1>
+        </div>
       </div>
 
       <nav className="flex-1 space-y-1 p-3">
