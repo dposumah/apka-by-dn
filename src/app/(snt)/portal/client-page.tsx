@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -154,9 +154,18 @@ export function PortalClient({ fasilitator, isIncomplete }: { fasilitator: any, 
                 <CardTitle>Riwayat Laporan & Honorarium</CardTitle>
                 <CardDescription>Daftar kegiatan yang telah Anda laporkan</CardDescription>
               </div>
-              <Link href="/portal/laporan" className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors bg-emerald-600 text-white hover:bg-emerald-700 h-9 px-4">
-                + Buat Laporan
-              </Link>
+              {isIncomplete ? (
+                <button 
+                  onClick={() => alert('Harap lengkapi Profil dan Data Pembayaran Anda (Nama Bank, No Rekening, NIK/NPWP) dan klik "Simpan Profil" terlebih dahulu sebelum membuat laporan.')}
+                  className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors bg-gray-400 text-white cursor-not-allowed h-9 px-4"
+                >
+                  + Buat Laporan
+                </button>
+              ) : (
+                <Link href="/portal/laporan" className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors bg-emerald-600 text-white hover:bg-emerald-700 h-9 px-4">
+                  + Buat Laporan
+                </Link>
+              )}
             </CardHeader>
             <CardContent>
               {fasilitator.laporan && fasilitator.laporan.length > 0 ? (

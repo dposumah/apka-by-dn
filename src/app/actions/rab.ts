@@ -140,7 +140,8 @@ export async function updateFasilitatorBank(id: string, bankName: string, bankAc
     data: { bankName, bankAccount, npwpNik }
   })
   revalidatePath('/fasilitator')
-  revalidatePath(/fasilitator/ + id)
+  revalidatePath('/fasilitator/' + id)
+  revalidatePath('/portal')
 }
 export async function createFasilitator(data: any) {
   const newFasilitator = await prisma.fasilitator.create({
@@ -190,7 +191,8 @@ export async function updateFasilitatorProfile(id: string, data: any) {
     }
   })
   revalidatePath('/fasilitator')
-  revalidatePath(/fasilitator/ + id)
+  revalidatePath('/fasilitator/' + id)
+  revalidatePath('/portal')
   return updated
 }
 export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
@@ -235,5 +237,6 @@ export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
   revalidatePath('/dashboard-rab');
   return laporan;
 }
+
 
 
