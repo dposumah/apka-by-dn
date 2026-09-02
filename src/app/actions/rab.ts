@@ -143,7 +143,29 @@ export async function updateFasilitatorBank(id: string, bankName: string, bankAc
   revalidatePath('/fasilitator/' + id)
   revalidatePath('/portal')
 }
+import * as bcrypt from 'bcryptjs'
+
 export async function createFasilitator(data: any) {
+  let userId = null;
+  
+  if (data.email) {
+    const existingUser = await prisma.user.findUnique({ where: { email: data.email } })
+    if (!existingUser) {
+      const hashedPassword = await bcrypt.hash('SNT2026', 10)
+      const newUser = await prisma.user.create({
+        data: {
+          email: data.email,
+          name: data.namaLengkap,
+          password: hashedPassword,
+          role: 'FASILITATOR',
+        }
+      })
+      userId = newUser.id
+    } else {
+      userId = existingUser.id
+    }
+  }
+
   const newFasilitator = await prisma.fasilitator.create({
     data: {
       namaLengkap: data.namaLengkap,
@@ -162,6 +184,7 @@ export async function createFasilitator(data: any) {
       bankName: data.bankName || null,
       bankAccount: data.bankAccount || null,
       npwpNik: data.npwpNik || null,
+      userId: userId,
     }
   })
   revalidatePath('/fasilitator')
@@ -237,6 +260,9 @@ export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
   revalidatePath('/dashboard-rab');
   return laporan;
 }
+
+
+
 
 
 

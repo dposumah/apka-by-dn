@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -41,10 +41,12 @@ export function FasilitatorForm({ initialData }: { initialData?: any }) {
         await updateFasilitatorProfile(initialData.id, payload)
         alert('Data berhasil diperbarui!')
         router.push('/fasilitator/' + initialData.id)
+        router.refresh()
       } else {
         await createFasilitator(payload)
         alert('Fasilitator baru berhasil ditambahkan!')
         router.push('/fasilitator')
+        router.refresh()
       }
     } catch(err) {
       alert('Gagal menyimpan data')
