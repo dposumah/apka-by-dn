@@ -1,0 +1,494 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== USER & AUTH ====================
+
+enum UserRole {
+  ADMIN
+  ACCOUNTANT
+  VIEWER
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String
+  name          String
+  role          UserRole  @default(VIEWER)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  createdJournals   JournalEntry[] @relation("CreatedBy")
+  approvedJournals  JournalEntry[] @relation("ApprovedBy")
+
+  @@map("users")
+}
+
+// ==================== COMPANY & SETTINGS ====================
+
+model Company {
+  id            String   @id @default(cuid())
+  name          String
+  address       String?
+  phone         String?
+  email         String?
+  npwp          String?
+  taxType       String?  // PKP / Non-PKP
+  logoUrl       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  fiscalPeriods FiscalPeriod[]
+
+  @@map("companies")
+}
+
+enum PeriodStatus {
+  OPEN
+  CLOSED
+}
+
+model FiscalPeriod {
+  id          String       @id @default(cuid())
+  name        String       // e.g., "2026"
+  startDate   DateTime
+  endDate     DateTime
+  status      PeriodStatus @default(OPEN)
+  companyId   String
+  company     Company      @relation(fields: [companyId], references: [id])
+  createdAt   DateTime     @default(now())
+
+  journalEntries JournalEntry[]
+  budgets        Budget[]
+
+  @@map("fiscal_periods")
+}
+
+// ==================== CHART OF ACCOUNTS ====================
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum NormalBalance {
+  DEBIT
+  CREDIT
+}
+
+model Account {
+  id            String        @id @default(cuid())
+  code          String        @unique
+  name          String
+  type          AccountType
+  subType       String?       // e.g., "Kas", "Bank", "Piutang", "Persediaan"
+  normalBalance NormalBalance
+  parentId      String?
+  parent        Account?      @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children      Account[]     @relation("AccountHierarchy")
+  level         Int           @default(1)
+  isActive      Boolean       @default(true)
+  description   String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  journalLines     JournalEntryLine[]
+  budgetLines      BudgetLine[]
+  bankAccounts     BankAccount[]
+
+  @@map("accounts")
+}
+
+// ==================== JOURNAL & LEDGER ====================
+
+enum JournalStatus {
+  DRAFT
+  POSTED
+  VOID
+}
+
+model JournalEntry {
+  id             String        @id @default(cuid())
+  entryNumber    String        @unique
+  date           DateTime
+  description    String
+  attachmentUrl  String?
+  reference      String?
+  status         JournalStatus @default(DRAFT)
+  totalDebit     Float         @default(0)
+  totalCredit    Float         @default(0)
+  fiscalPeriodId String?
+  fiscalPeriod   FiscalPeriod? @relation(fields: [fiscalPeriodId], references: [id])
+  createdById    String?
+  createdBy      User?         @relation("CreatedBy", fields: [createdById], references: [id])
+  approvedById   String?
+  approvedBy     User?         @relation("ApprovedBy", fields: [approvedById], references: [id])
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  lines            JournalEntryLine[]
+  bankTransactions BankTransaction[]
+
+  @@map("journal_entries")
+}
+
+model JournalEntryLine {
+  id             String       @id @default(cuid())
+  journalEntryId String
+  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  accountId      String
+  account        Account      @relation(fields: [accountId], references: [id])
+  debit          Float        @default(0)
+  credit         Float        @default(0)
+  description    String?
+
+  @@map("journal_entry_lines")
+}
+
+// ==================== CUSTOMERS & ACCOUNTS RECEIVABLE ====================
+
+model Customer {
+  id          String   @id @default(cuid())
+  name        String
+  address     String?
+  phone       String?
+  email       String?
+  npwp        String?
+  creditLimit Float    @default(0)
+  balance     Float    @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  invoices Invoice[]
+
+  @@map("customers")
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIAL
+  PAID
+  OVERDUE
+  VOID
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique
+  customerId    String
+  customer      Customer      @relation(fields: [customerId], references: [id])
+  date          DateTime
+  dueDate       DateTime
+  subtotal      Float         @default(0)
+  taxAmount     Float         @default(0)
+  totalAmount   Float         @default(0)
+  paidAmount    Float         @default(0)
+  status        InvoiceStatus @default(DRAFT)
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  lines    InvoiceLine[]
+  payments Payment[]
+
+  @@map("invoices")
+}
+
+model InvoiceLine {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Float    @default(1)
+  unitPrice   Float    @default(0)
+  taxRate     Float    @default(0)
+  amount      Float    @default(0)
+  productId   String?
+  product     Product? @relation(fields: [productId], references: [id])
+
+  @@map("invoice_lines")
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CHECK
+  GIRO
+  OTHER
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  paymentNumber String        @unique
+  invoiceId     String
+  invoice       Invoice       @relation(fields: [invoiceId], references: [id])
+  amount        Float
+  date          DateTime
+  method        PaymentMethod @default(BANK_TRANSFER)
+  reference     String?
+  notes         String?
+  createdAt     DateTime      @default(now())
+
+  @@map("payments")
+}
+
+// ==================== SUPPLIERS & ACCOUNTS PAYABLE ====================
+
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String
+  address   String?
+  phone     String?
+  email     String?
+  npwp      String?
+  balance   Float    @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bills Bill[]
+
+  @@map("suppliers")
+}
+
+enum BillStatus {
+  DRAFT
+  RECEIVED
+  PARTIAL
+  PAID
+  OVERDUE
+  VOID
+}
+
+model Bill {
+  id          String     @id @default(cuid())
+  billNumber  String     @unique
+  supplierId  String
+  supplier    Supplier   @relation(fields: [supplierId], references: [id])
+  date        DateTime
+  dueDate     DateTime
+  subtotal    Float      @default(0)
+  taxAmount   Float      @default(0)
+  totalAmount Float      @default(0)
+  paidAmount  Float      @default(0)
+  status      BillStatus @default(DRAFT)
+  notes       String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  lines    BillLine[]
+  payments BillPayment[]
+
+  @@map("bills")
+}
+
+model BillLine {
+  id          String   @id @default(cuid())
+  billId      String
+  bill        Bill     @relation(fields: [billId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Float    @default(1)
+  unitPrice   Float    @default(0)
+  taxRate     Float    @default(0)
+  amount      Float    @default(0)
+  productId   String?
+  product     Product? @relation(fields: [productId], references: [id])
+
+  @@map("bill_lines")
+}
+
+model BillPayment {
+  id            String        @id @default(cuid())
+  paymentNumber String        @unique
+  billId        String
+  bill          Bill          @relation(fields: [billId], references: [id])
+  amount        Float
+  date          DateTime
+  method        PaymentMethod @default(BANK_TRANSFER)
+  reference     String?
+  notes         String?
+  createdAt     DateTime      @default(now())
+
+  @@map("bill_payments")
+}
+
+// ==================== INVENTORY ====================
+
+enum ProductType {
+  GOODS
+  SERVICE
+}
+
+model Product {
+  id            String      @id @default(cuid())
+  sku           String      @unique
+  name          String
+  description   String?
+  category      String?
+  unitOfMeasure String      @default("Pcs")
+  purchasePrice Float       @default(0)
+  sellingPrice  Float       @default(0)
+  averageCost   Float       @default(0)
+  stockQuantity Float       @default(0)
+  minStock      Float       @default(0)
+  isActive      Boolean     @default(true)
+  type          ProductType @default(GOODS)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  stockMovements StockMovement[]
+  invoiceLines   InvoiceLine[]
+  billLines      BillLine[]
+
+  @@map("products")
+}
+
+enum MovementType {
+  IN
+  OUT
+  ADJUSTMENT
+}
+
+model StockMovement {
+  id          String       @id @default(cuid())
+  productId   String
+  product     Product      @relation(fields: [productId], references: [id])
+  type        MovementType
+  quantity    Float
+  unitCost    Float        @default(0)
+  totalCost   Float        @default(0)
+  reference   String?
+  date        DateTime
+  notes       String?
+  createdAt   DateTime     @default(now())
+
+  @@map("stock_movements")
+}
+
+// ==================== BANKING ====================
+
+model BankAccount {
+  id            String   @id @default(cuid())
+  name          String
+  bankName      String
+  accountNumber String
+  balance       Float    @default(0)
+  accountId     String?  // Link to Chart of Accounts
+  account       Account? @relation(fields: [accountId], references: [id])
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  transactions BankTransaction[]
+
+  @@map("bank_accounts")
+}
+
+enum BankTransactionType {
+  DEBIT
+  CREDIT
+}
+
+model BankTransaction {
+  id             String              @id @default(cuid())
+  bankAccountId  String
+  bankAccount    BankAccount         @relation(fields: [bankAccountId], references: [id])
+  date           DateTime
+  description    String
+  amount         Float
+  type           BankTransactionType
+  isReconciled   Boolean             @default(false)
+  journalEntryId String?
+  journalEntry   JournalEntry?       @relation(fields: [journalEntryId], references: [id])
+  createdAt      DateTime            @default(now())
+
+  @@map("bank_transactions")
+}
+
+// ==================== TAX ====================
+
+enum TaxType {
+  PPN
+  PPH21
+  PPH23
+  PPH_FINAL
+}
+
+model TaxRate {
+  id       String  @id @default(cuid())
+  name     String
+  rate     Float
+  type     TaxType
+  isActive Boolean @default(true)
+
+  transactions TaxTransaction[]
+
+  @@map("tax_rates")
+}
+
+enum TaxTransactionType {
+  INPUT
+  OUTPUT
+}
+
+model TaxTransaction {
+  id          String             @id @default(cuid())
+  taxRateId   String
+  taxRate     TaxRate            @relation(fields: [taxRateId], references: [id])
+  baseAmount  Float
+  taxAmount   Float
+  date        DateTime
+  reference   String?
+  type        TaxTransactionType
+  periodMonth Int
+  periodYear  Int
+  createdAt   DateTime           @default(now())
+
+  @@map("tax_transactions")
+}
+
+// ==================== BUDGET ====================
+
+enum BudgetStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+}
+
+model Budget {
+  id             String       @id @default(cuid())
+  name           String
+  fiscalPeriodId String
+  fiscalPeriod   FiscalPeriod @relation(fields: [fiscalPeriodId], references: [id])
+  status         BudgetStatus @default(DRAFT)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  lines BudgetLine[]
+
+  @@map("budgets")
+}
+
+model BudgetLine {
+  id             String  @id @default(cuid())
+  budgetId       String
+  budget         Budget  @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  accountId      String
+  account        Account @relation(fields: [accountId], references: [id])
+  monthlyAmounts Json    // Array of 12 monthly amounts
+  totalAmount    Float   @default(0)
+
+  @@map("budget_lines")
+}
