@@ -1,4 +1,4 @@
-﻿import { PrismaClient } from '@prisma/client'
+import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 import { hash } from 'bcryptjs' // Asumsi pakai bcryptjs untuk next-auth
 
@@ -41,5 +41,5 @@ main()
     process.exit(1)
   })
   .finally(async () => {
-    await prisma.()
+    await prisma.$disconnect()
   })
