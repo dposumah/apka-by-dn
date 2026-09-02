@@ -85,7 +85,7 @@ export async function approveExpense(expenseId: string, status: 'APPROVED' | 'RE
   revalidatePath('/dashboard-rab')
 }
 
-export async function submitExpense(data: { rabItemId: string, amount: number, description: string, receiptUrl?: string, userId: string }) {
+export async function submitExpense(data: { rabItemId: string, amount: number, description: string, receiptUrl?: string, userId: string, fasilitatorId?: string }) {
   let user = await prisma.user.findFirst()
   
   if (!user) {
@@ -105,9 +105,38 @@ export async function submitExpense(data: { rabItemId: string, amount: number, d
       amount: data.amount,
       description: data.description,
       receiptUrl: data.receiptUrl,
-      createdById: user.id
+      createdById: user.id,
+      fasilitatorId: data.fasilitatorId || null
     }
   })
   revalidatePath('/dashboard-rab')
   revalidatePath('/pengeluaran')
+}
+export async function getFasilitators() {
+  return await prisma.fasilitator.findMany({
+    orderBy: { namaLengkap: 'asc' }
+  })
+}
+
+export async function getFasilitatorDetail(id: string) {
+  return await prisma.fasilitator.findUnique({
+    where: { id },
+    include: {
+      expenses: {
+        include: {
+          rabItem: true
+        },
+        orderBy: { date: 'desc' }
+      }
+    }
+  })
+}
+
+export async function updateFasilitatorBank(id: string, bankName: string, bankAccount: string, npwpNik: string) {
+  await prisma.fasilitator.update({
+    where: { id },
+    data: { bankName, bankAccount, npwpNik }
+  })
+  revalidatePath('/fasilitator')
+  revalidatePath(/fasilitator/ + id)
 }

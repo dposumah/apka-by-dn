@@ -8,12 +8,14 @@ import { Label } from '@/components/ui/label'
 import { formatCurrency } from '@/lib/format'
 import { Textarea } from '@/components/ui/textarea'
 
-export function PengeluaranForm({ items }: { items: any[] }) {
+export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilitators: any[] }) {
   const [loading, setLoading] = useState(false)
   const [selectedItemId, setSelectedItemId] = useState('')
+  const [selectedFasilitatorId, setSelectedFasilitatorId] = useState('')
   const [file, setFile] = useState<File | null>(null)
 
   const selectedItem = items.find(i => i.id === selectedItemId)
+  const isHonorarium = selectedItem?.name?.toLowerCase().includes('fasilitator')
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -49,11 +51,13 @@ export function PengeluaranForm({ items }: { items: any[] }) {
         amount,
         description,
         receiptUrl,
-        userId: 'demo-user-id' 
+        userId: 'demo-user-id',
+        fasilitatorId: isHonorarium ? selectedFasilitatorId : undefined
       })
       alert('Pengeluaran berhasil diajukan!')
       e.currentTarget.reset()
       setSelectedItemId('')
+      setSelectedFasilitatorId('')
       setFile(null)
     } catch (err: any) {
       alert(err.message || 'Gagal mengirim data')
@@ -86,6 +90,26 @@ export function PengeluaranForm({ items }: { items: any[] }) {
           <p><strong>Kategori:</strong> {selectedItem.categoryName}</p>
           <p><strong>Anggaran:</strong> {formatCurrency(selectedItem.totalBudget)}</p>
           <p><strong>Telah Terealisasi:</strong> {formatCurrency(selectedItem.realized)}</p>
+        </div>
+      )}
+
+      {isHonorarium && (
+        <div className="space-y-2 border border-blue-200 p-4 rounded-md bg-white shadow-sm">
+          <Label className="text-blue-700">Penerima Honor (Fasilitator)</Label>
+          <select 
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            value={selectedFasilitatorId}
+            onChange={e => setSelectedFasilitatorId(e.target.value)}
+            required
+          >
+            <option value="">-- Pilih Fasilitator --</option>
+            {fasilitators.map(f => (
+              <option key={f.id} value={f.id}>
+                {f.namaLengkap} - {f.instansi}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-500">Karena pengeluaran ini terkait Fasilitator, mohon pilih penerimanya.</p>
         </div>
       )}
 

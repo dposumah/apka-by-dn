@@ -69,6 +69,7 @@ const menuItems: MenuItem[] = [
     submenu: [
       { title: "Dashboard RAB", href: "/dashboard-rab" },
       { title: "Pengeluaran Lapangan", href: "/pengeluaran" },
+      { title: "Master Fasilitator", href: "/fasilitator" },
     ],
   },
   {

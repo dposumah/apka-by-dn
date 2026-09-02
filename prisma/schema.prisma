@@ -552,8 +552,36 @@ model ExpenseRequest {
   createdBy     User          @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
   approvedById  String?
   approvedBy    User?         @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
+  fasilitatorId String?
+  fasilitator   Fasilitator?  @relation(fields: [fasilitatorId], references: [id])
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
   @@map("expense_requests")
+}
+
+model Fasilitator {
+  id           String   @id @default(cuid())
+  namaLengkap  String
+  jabatan      String?
+  instansi     String?
+  nipNuptk     String?
+  nidn         String?
+  pendidikan   String?
+  klusterKeahlian String?
+  mataPelajaran String?
+  kompetensi   String?
+  sertifikasi  String?
+  alamat       String?
+  kontak       String?
+  email        String?
+  bankName     String?
+  bankAccount  String?
+  npwpNik      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  expenses     ExpenseRequest[]
+
+  @@map("fasilitator")
 }

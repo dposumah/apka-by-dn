@@ -1,0 +1,8 @@
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+async function checkUsers() {
+  const users = await prisma.user.findMany();
+  console.log(users.map(u => ({ email: u.email, role: u.role, name: u.name })));
+  await prisma.$disconnect();
+}
+checkUsers();

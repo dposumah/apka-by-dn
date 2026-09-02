@@ -1,4 +1,4 @@
-import { getRabDashboardData, submitExpense } from '@/app/actions/rab'
+import { getRabDashboardData, getFasilitators } from '@/app/actions/rab'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency } from '@/lib/format'
 import { PengeluaranForm } from './form'
@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function PengeluaranPage() {
   const data = await getRabDashboardData()
+  const fasilitators = await getFasilitators()
   
   if (!data) return <div className="p-8">RAB data not found.</div>
 
@@ -27,7 +28,7 @@ export default async function PengeluaranPage() {
           <CardTitle>Formulir Pengeluaran (Korwil)</CardTitle>
         </CardHeader>
         <CardContent>
-          <PengeluaranForm items={items} />
+          <PengeluaranForm items={items} fasilitators={fasilitators} />
         </CardContent>
       </Card>
     </div>
