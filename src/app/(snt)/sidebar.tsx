@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import * as React from "react"
 import Link from "next/link"
@@ -11,13 +11,16 @@ interface MenuItem {
   href: string
   icon: string
   adminOnly?: boolean
+  fasilOnly?: boolean
 }
 
 const menuItems: MenuItem[] = [
   { title: "Dashboard Proyek", href: "/dashboard-rab", icon: "📊", adminOnly: true },
   { title: "Pengeluaran Lapangan", href: "/pengeluaran", icon: "💸", adminOnly: true },
   { title: "Master Fasilitator", href: "/fasilitator", icon: "👩‍🏫", adminOnly: true },
-  { title: "Portal Fasilitator", href: "/portal", icon: "🖥️" },
+  { title: "Dashboard", href: "/portal", icon: "🏠", fasilOnly: true },
+  { title: "Profil Fasilitator", href: "/portal/profil", icon: "👤", fasilOnly: true },
+  { title: "Pengaturan Sandi", href: "/portal/password", icon: "🔒", fasilOnly: true },
 ]
 
 export function SntSidebar() {
@@ -25,11 +28,18 @@ export function SntSidebar() {
   const { data: session } = useSession()
   const userRole = session?.user?.role
 
-  const isActive = (href: string) => pathname?.startsWith(href)
+  const isActive = (href: string) => {
+    if (href === "/portal") {
+      return pathname === "/portal"
+    }
+    return pathname?.startsWith(href)
+  }
 
   // Filter menu: If FASILITATOR, only show non-adminOnly items
+  // If Admin, maybe hide fasilOnly? Or keep them. Let's hide fasilOnly for Admin.
   const filteredMenus = menuItems.filter(item => {
     if (userRole === "FASILITATOR" && item.adminOnly) return false
+    if (userRole !== "FASILITATOR" && item.fasilOnly) return false
     return true
   })
 

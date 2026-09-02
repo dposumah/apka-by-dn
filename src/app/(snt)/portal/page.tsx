@@ -33,6 +33,7 @@ export default async function PortalPage() {
     <PortalClient 
       fasilitator={fasilitator} 
       isIncomplete={isIncomplete}
+      userName={session.user.name || fasilitator.namaLengkap || 'Fasilitator'}
     />
   )
 }
