@@ -1,7 +1,9 @@
-'use server'
+﻿'use server'
 
 import prisma from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 
 export async function getRabDashboardData() {
   const project = await prisma.rabProject.findFirst({
@@ -192,7 +194,9 @@ export async function updateFasilitatorProfile(id: string, data: any) {
   return updated
 }
 export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
-  // 1. Buat Laporan Kegiatan
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id || 'unknown';
+
   const laporan = await prisma.laporanKegiatan.create({
     data: {
       fasilitatorId,
@@ -202,35 +206,34 @@ export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
       evaluation: data.evaluation,
       materialLink: data.materialLink,
     }
-  })
+  });
 
-  // 2. Buat Draft ExpenseRequest (Tagihan Honor) untuk Admin
-  // Kita hubungkan dengan RAB Item "Honor Fasilitator"
-  // Asumsi: cari RabItem yang namanya mirip "Honor"
   const rabItem = await prisma.rabItem.findFirst({
     where: { name: { contains: 'Honor', mode: 'insensitive' } }
-  })
+  });
   
   if (rabItem) {
     const expense = await prisma.expenseRequest.create({
       data: {
         rabItemId: rabItem.id,
-        amount: data.honorAmount || 200000, // Default honor per pertemuan
+        amount: parseInt(data.honorAmount) || 200000,
         description: 'Honor Pengajar: ' + data.topic,
+        receiptUrl: data.materialLink,
         status: 'PENDING',
-        createdById: 'clxxxx', // Ini harusnya ID user yg login, tp mock dulu
+        createdById: userId,
         fasilitatorId,
       }
-    })
+    });
     
-    // Hubungkan ExpenseRequest dengan Laporan
     await prisma.laporanKegiatan.update({
       where: { id: laporan.id },
       data: { expenseRequestId: expense.id }
-    })
+    });
   }
 
-  revalidatePath('/portal')
-  revalidatePath('/dashboard-rab')
-  return laporan
+  revalidatePath('/portal');
+  revalidatePath('/dashboard-rab');
+  return laporan;
 }
+
+

@@ -1,20 +1,28 @@
-﻿import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import Link from 'next/link'
+﻿import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
+import { redirect } from "next/navigation"
+import { LaporanClientForm } from "./client-form"
 
-export default function LaporanPage() {
-  return (
-    <div className="p-8 space-y-6 max-w-3xl mx-auto">
-      <Link href="/portal" className="text-emerald-600 hover:underline mb-4 inline-block">&larr; Kembali ke Portal</Link>
-      <h1 className="text-3xl font-bold tracking-tight">Kirim Laporan Kegiatan</h1>
-      
-      <Card>
-        <CardHeader>
-          <CardTitle>Formulir Laporan Mengajar SNT 2026</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-slate-500 mb-4 text-sm">Fitur formulir akan dibangun di tahap selanjutnya. Saat ini halaman sudah aktif.</p>
-        </CardContent>
-      </Card>
-    </div>
-  )
+export default async function LaporanPage() {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    redirect("/login")
+  }
+
+  const fasilitator = await prisma.fasilitator.findUnique({
+    where: { userId: session.user.id }
+  })
+
+  if (!fasilitator) {
+    return <div className="p-8">Akses ditolak.</div>
+  }
+
+  // Cek kalau profil belum lengkap, tidak boleh buat laporan
+  const isIncomplete = !fasilitator.bankName || !fasilitator.bankAccount || !fasilitator.npwpNik
+  if (isIncomplete) {
+    redirect("/portal")
+  }
+
+  return <LaporanClientForm fasilitatorId={fasilitator.id} />
 }
