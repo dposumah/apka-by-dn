@@ -63,6 +63,15 @@ const menuItems: MenuItem[] = [
   { title: "Pajak", href: "/pajak", icon: "🧾" },
   { title: "Anggaran", href: "/anggaran", icon: "📈" },
   {
+    title: "Proyek RAB",
+    href: "/dashboard-rab",
+    icon: "📋",
+    submenu: [
+      { title: "Dashboard RAB", href: "/dashboard-rab" },
+      { title: "Pengeluaran Lapangan", href: "/pengeluaran" },
+    ],
+  },
+  {
     title: "Laporan",
     href: "/laporan",
     icon: "📑",

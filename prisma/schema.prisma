@@ -13,6 +13,7 @@ enum UserRole {
   ADMIN
   ACCOUNTANT
   VIEWER
+  KORWIL
 }
 
 model User {
@@ -27,6 +28,8 @@ model User {
 
   createdJournals   JournalEntry[] @relation("CreatedBy")
   approvedJournals  JournalEntry[] @relation("ApprovedBy")
+  createdExpenses   ExpenseRequest[] @relation("ExpenseCreatedBy")
+  approvedExpenses  ExpenseRequest[] @relation("ExpenseApprovedBy")
 
   @@map("users")
 }
@@ -491,4 +494,66 @@ model BudgetLine {
   totalAmount    Float   @default(0)
 
   @@map("budget_lines")
+}
+
+// ==================== RAB & PENGELUARAN LAPANGAN ====================
+
+model RabProject {
+  id          String        @id @default(cuid())
+  name        String
+  totalBudget Float
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  categories  RabCategory[]
+
+  @@map("rab_projects")
+}
+
+model RabCategory {
+  id        String      @id @default(cuid())
+  projectId String
+  project   RabProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  items     RabItem[]
+
+  @@map("rab_categories")
+}
+
+model RabItem {
+  id          String      @id @default(cuid())
+  categoryId  String
+  category    RabCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  code        String
+  name        String
+  volume      String?
+  unitPrice   Float       @default(0)
+  totalBudget Float       @default(0)
+  expenses    ExpenseRequest[]
+
+  @@map("rab_items")
+}
+
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model ExpenseRequest {
+  id            String        @id @default(cuid())
+  rabItemId     String
+  rabItem       RabItem       @relation(fields: [rabItemId], references: [id])
+  amount        Float
+  description   String
+  receiptUrl    String?
+  date          DateTime      @default(now())
+  status        ExpenseStatus @default(PENDING)
+  createdById   String
+  createdBy     User          @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
+  approvedById  String?
+  approvedBy    User?         @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@map("expense_requests")
 }
