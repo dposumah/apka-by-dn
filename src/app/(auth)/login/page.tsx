@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
@@ -43,11 +43,11 @@ export default function LoginPage() {
       {/* Shine effect overlay */}
       <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-white/0 pointer-events-none rounded-3xl"></div>
       
-      <div className="relative z-10 text-center mb-8">
-        <h1 className="text-4xl font-bold text-white tracking-tight drop-shadow-md mb-2">APKA by DN</h1>
-        <p className="text-sm font-medium text-blue-100 opacity-90 tracking-wide">
-          Aplikasi Pelaporan Keuangan & Akuntansi
-        </p>
+      <div className="relative z-10 text-center mb-8 flex flex-col items-center">
+        <div className="bg-white/80 p-3 rounded-2xl mb-4 shadow-lg inline-block">
+          <img src="/login-logo.png" alt="PT. JTR Explorer Logo" className="h-16 w-auto" />
+        </div>
+        <h1 className="text-3xl font-bold text-white tracking-tight drop-shadow-md mb-2">PT. JTR Explorer</h1>
       </div>
 
       <form onSubmit={handleLogin} className="relative z-10 space-y-6">
