@@ -5,7 +5,8 @@ import { formatCurrency } from '@/lib/format'
 import { BankForm } from './bank-form'
 import Link from 'next/link'
 
-export default async function FasilitatorDetailPage({ params }: { params: { id: string } }) {
+export default async function FasilitatorDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
   const f = await getFasilitatorDetail(params.id)
   
   if (!f) return <div className="p-8">Fasilitator tidak ditemukan.</div>
@@ -41,6 +42,14 @@ export default async function FasilitatorDetailPage({ params }: { params: { id: 
               <div>
                 <span className="text-slate-500 block">Pendidikan</span>
                 <span className="font-medium">{f.pendidikan || '-'}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block">Kontak / HP</span>
+                <span className="font-medium">{f.kontak || '-'}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block">Email</span>
+                <span className="font-medium">{f.email || '-'}</span>
               </div>
               <div className="col-span-2">
                 <span className="text-slate-500 block">Bidang Keahlian / Kompetensi</span>

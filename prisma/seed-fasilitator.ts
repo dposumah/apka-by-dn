@@ -1,4 +1,4 @@
-﻿import { PrismaClient } from '@prisma/client'
+import { PrismaClient } from '@prisma/client'
 import * as fs from 'fs'
 import * as path from 'path'
 
@@ -28,7 +28,8 @@ async function main() {
   const csvData = fs.readFileSync(csvPath, 'utf-8')
   const lines = csvData.split('\n').map(l => l.trim()).filter(l => l)
 
-  await prisma.fasilitator.deleteMany({})
+  // Hapus baris ini agar data lama (bank) tidak hilang:
+  // await prisma.fasilitator.deleteMany({})
 
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i]
@@ -37,9 +38,14 @@ async function main() {
     // Check if it's valid data row
     if (cols.length < 5 || !cols[0] || isNaN(Number(cols[0]))) continue
 
-    await prisma.fasilitator.create({
-      data: {
-        namaLengkap: cols[1] || '',
+    const namaLengkap = cols[1] || ''
+    
+    // Cek apakah fasilitator ini sudah ada di database
+    const existingFasilitator = await prisma.fasilitator.findFirst({
+      where: { namaLengkap }
+    })
+
+    const updateData = {
         jabatan: cols[2],
         instansi: cols[3],
         nipNuptk: cols[4],
@@ -52,8 +58,23 @@ async function main() {
         alamat: cols[11],
         kontak: cols[12],
         email: cols[13]
-      }
-    })
+    }
+
+    if (existingFasilitator) {
+      // Update data dari CSV, TAPI BUKAN data bank/keuangan
+      await prisma.fasilitator.update({
+        where: { id: existingFasilitator.id },
+        data: updateData
+      })
+    } else {
+      // Buat baru jika belum ada
+      await prisma.fasilitator.create({
+        data: {
+          namaLengkap,
+          ...updateData
+        }
+      })
+    }
   }
 
   console.log('Fasilitator seeded successfully!')
