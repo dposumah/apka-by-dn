@@ -1,4 +1,4 @@
-﻿import { getFasilitators } from '@/app/actions/rab'
+import { getFasilitators } from '@/app/actions/rab'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
@@ -8,7 +8,12 @@ export default async function FasilitatorPage() {
 
   return (
     <div className="p-8 space-y-6">
-      <h1 className="text-3xl font-bold tracking-tight">Master Data Fasilitator</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold tracking-tight">Master Data Fasilitator</h1>
+        <Link href="/fasilitator/new" className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:pointer-events-none ring-offset-background bg-blue-600 text-white hover:bg-blue-700 h-10 py-2 px-4">
+          + Tambah Fasilitator
+        </Link>
+      </div>
       
       <Card>
         <CardHeader>

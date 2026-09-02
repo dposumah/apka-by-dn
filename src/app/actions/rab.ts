@@ -140,3 +140,54 @@ export async function updateFasilitatorBank(id: string, bankName: string, bankAc
   revalidatePath('/fasilitator')
   revalidatePath(/fasilitator/ + id)
 }
+export async function createFasilitator(data: any) {
+  const newFasilitator = await prisma.fasilitator.create({
+    data: {
+      namaLengkap: data.namaLengkap,
+      jabatan: data.jabatan || null,
+      instansi: data.instansi || null,
+      nipNuptk: data.nipNuptk || null,
+      nidn: data.nidn || null,
+      pendidikan: data.pendidikan || null,
+      klusterKeahlian: data.klusterKeahlian || null,
+      mataPelajaran: data.mataPelajaran || null,
+      kompetensi: data.kompetensi || null,
+      sertifikasi: data.sertifikasi || null,
+      alamat: data.alamat || null,
+      kontak: data.kontak || null,
+      email: data.email || null,
+      bankName: data.bankName || null,
+      bankAccount: data.bankAccount || null,
+      npwpNik: data.npwpNik || null,
+    }
+  })
+  revalidatePath('/fasilitator')
+  return newFasilitator
+}
+
+export async function updateFasilitatorProfile(id: string, data: any) {
+  const updated = await prisma.fasilitator.update({
+    where: { id },
+    data: {
+      namaLengkap: data.namaLengkap,
+      jabatan: data.jabatan || null,
+      instansi: data.instansi || null,
+      nipNuptk: data.nipNuptk || null,
+      nidn: data.nidn || null,
+      pendidikan: data.pendidikan || null,
+      klusterKeahlian: data.klusterKeahlian || null,
+      mataPelajaran: data.mataPelajaran || null,
+      kompetensi: data.kompetensi || null,
+      sertifikasi: data.sertifikasi || null,
+      alamat: data.alamat || null,
+      kontak: data.kontak || null,
+      email: data.email || null,
+      bankName: data.bankName || null,
+      bankAccount: data.bankAccount || null,
+      npwpNik: data.npwpNik || null,
+    }
+  })
+  revalidatePath('/fasilitator')
+  revalidatePath(/fasilitator/ + id)
+  return updated
+}

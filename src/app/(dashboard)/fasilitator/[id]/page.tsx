@@ -18,7 +18,12 @@ export default async function FasilitatorDetailPage(props: { params: Promise<{ i
   return (
     <div className="p-8 space-y-6 max-w-5xl mx-auto">
       <Link href="/fasilitator" className="text-blue-600 hover:underline mb-4 inline-block">&larr; Kembali ke Daftar Fasilitator</Link>
-      <h1 className="text-3xl font-bold tracking-tight">Profil Fasilitator</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold tracking-tight">Profil Fasilitator</h1>
+        <Link href={`/fasilitator/` + f.id + `/edit`} className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:pointer-events-none ring-offset-background border border-slate-200 bg-white hover:bg-slate-100 hover:text-slate-900 h-10 py-2 px-4">
+          ✏️ Edit Profil
+        </Link>
+      </div>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-2 space-y-6">
