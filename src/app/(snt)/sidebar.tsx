@@ -1,8 +1,9 @@
-﻿"use client"
+"use client"
 
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { signOut } from "next-auth/react"
 import { cn } from "@/lib/utils"
 
 interface MenuItem {
@@ -47,13 +48,20 @@ export function SntSidebar() {
       </nav>
 
       <div className="border-t border-emerald-900 p-4">
-        <div className="flex items-center">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-800 text-white font-bold">
-            AD
-          </div>
-          <div className="ml-3">
-            <p className="text-sm font-medium text-white">SNT Admin</p>
-            <Link href="/dashboard" className="text-xs text-emerald-400 hover:underline">← Kembali ke APKA</Link>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-800 text-white font-bold">
+              U
+            </div>
+            <div className="ml-3">
+              <p className="text-sm font-medium text-white">Pengguna SNT</p>
+              <button 
+                onClick={() => signOut({ callbackUrl: '/login' })}
+                className="text-xs text-red-400 hover:underline cursor-pointer bg-transparent border-0 p-0 text-left"
+              >
+                Keluar
+              </button>
+            </div>
           </div>
         </div>
       </div>

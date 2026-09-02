@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { usePathname } from "next/navigation"
+import { signOut } from "next-auth/react"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import { Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -60,7 +61,12 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
             <DropdownMenuItem>Profil</DropdownMenuItem>
             <DropdownMenuItem>Pengaturan</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-red-600">Keluar</DropdownMenuItem>
+            <DropdownMenuItem 
+              className="text-red-600 cursor-pointer" 
+              onClick={() => signOut({ callbackUrl: '/login' })}
+            >
+              Keluar
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
