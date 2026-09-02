@@ -14,6 +14,7 @@ enum UserRole {
   ACCOUNTANT
   VIEWER
   KORWIL
+  FASILITATOR
 }
 
 model User {
@@ -30,6 +31,8 @@ model User {
   approvedJournals  JournalEntry[] @relation("ApprovedBy")
   createdExpenses   ExpenseRequest[] @relation("ExpenseCreatedBy")
   approvedExpenses  ExpenseRequest[] @relation("ExpenseApprovedBy")
+  
+  fasilitator       Fasilitator?
 
   @@map("users")
 }
@@ -554,6 +557,7 @@ model ExpenseRequest {
   approvedBy    User?         @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
   fasilitatorId String?
   fasilitator   Fasilitator?  @relation(fields: [fasilitatorId], references: [id])
+  laporan       LaporanKegiatan?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
@@ -578,10 +582,33 @@ model Fasilitator {
   bankName     String?
   bankAccount  String?
   npwpNik      String?
+  
+  userId       String?  @unique
+  user         User?    @relation(fields: [userId], references: [id])
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   expenses     ExpenseRequest[]
+  laporan      LaporanKegiatan[]
 
   @@map("fasilitator")
 }
+
+model LaporanKegiatan {
+  id             String         @id @default(cuid())
+  fasilitatorId  String
+  fasilitator    Fasilitator    @relation(fields: [fasilitatorId], references: [id])
+  date           DateTime       @default(now())
+  topic          String
+  attendance     Int
+  evaluation     String?
+  materialLink   String?
+  
+  expenseRequestId String? @unique
+  expenseRequest   ExpenseRequest? @relation(fields: [expenseRequestId], references: [id])
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+

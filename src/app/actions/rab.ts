@@ -191,3 +191,46 @@ export async function updateFasilitatorProfile(id: string, data: any) {
   revalidatePath(/fasilitator/ + id)
   return updated
 }
+export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
+  // 1. Buat Laporan Kegiatan
+  const laporan = await prisma.laporanKegiatan.create({
+    data: {
+      fasilitatorId,
+      date: new Date(data.date),
+      topic: data.topic,
+      attendance: parseInt(data.attendance),
+      evaluation: data.evaluation,
+      materialLink: data.materialLink,
+    }
+  })
+
+  // 2. Buat Draft ExpenseRequest (Tagihan Honor) untuk Admin
+  // Kita hubungkan dengan RAB Item "Honor Fasilitator"
+  // Asumsi: cari RabItem yang namanya mirip "Honor"
+  const rabItem = await prisma.rabItem.findFirst({
+    where: { name: { contains: 'Honor', mode: 'insensitive' } }
+  })
+  
+  if (rabItem) {
+    const expense = await prisma.expenseRequest.create({
+      data: {
+        rabItemId: rabItem.id,
+        amount: data.honorAmount || 200000, // Default honor per pertemuan
+        description: 'Honor Pengajar: ' + data.topic,
+        status: 'PENDING',
+        createdById: 'clxxxx', // Ini harusnya ID user yg login, tp mock dulu
+        fasilitatorId,
+      }
+    })
+    
+    // Hubungkan ExpenseRequest dengan Laporan
+    await prisma.laporanKegiatan.update({
+      where: { id: laporan.id },
+      data: { expenseRequestId: expense.id }
+    })
+  }
+
+  revalidatePath('/portal')
+  revalidatePath('/dashboard-rab')
+  return laporan
+}
