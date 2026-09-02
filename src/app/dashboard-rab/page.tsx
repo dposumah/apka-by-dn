@@ -3,6 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency } from '@/lib/format'
 import { Badge } from '@/components/ui/badge'
 
+export const dynamic = 'force-dynamic';
+
 export default async function RabDashboardPage() {
   const data = await getRabDashboardData()
   const expenses = await getRecentExpenses(20)

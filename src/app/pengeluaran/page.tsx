@@ -1,7 +1,9 @@
-﻿import { getRabDashboardData, submitExpense } from '@/app/actions/rab'
+import { getRabDashboardData, submitExpense } from '@/app/actions/rab'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency } from '@/lib/format'
 import { PengeluaranForm } from './form'
+
+export const dynamic = 'force-dynamic';
 
 export default async function PengeluaranPage() {
   const data = await getRabDashboardData()
