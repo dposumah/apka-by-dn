@@ -1,28 +1,37 @@
-"use client"
+﻿"use client"
 
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { signOut } from "next-auth/react"
+import { signOut, useSession } from "next-auth/react"
 import { cn } from "@/lib/utils"
 
 interface MenuItem {
   title: string
   href: string
   icon: string
+  adminOnly?: boolean
 }
 
 const menuItems: MenuItem[] = [
-  { title: "Dashboard Proyek", href: "/dashboard-rab", icon: "📊" },
-  { title: "Pengeluaran Lapangan", href: "/pengeluaran", icon: "💸" },
-  { title: "Master Fasilitator", href: "/fasilitator", icon: "👩‍🏫" },
+  { title: "Dashboard Proyek", href: "/dashboard-rab", icon: "📊", adminOnly: true },
+  { title: "Pengeluaran Lapangan", href: "/pengeluaran", icon: "💸", adminOnly: true },
+  { title: "Master Fasilitator", href: "/fasilitator", icon: "👩‍🏫", adminOnly: true },
   { title: "Portal Fasilitator", href: "/portal", icon: "🖥️" },
 ]
 
 export function SntSidebar() {
   const pathname = usePathname()
+  const { data: session } = useSession()
+  const userRole = session?.user?.role
 
   const isActive = (href: string) => pathname?.startsWith(href)
+
+  // Filter menu: If FASILITATOR, only show non-adminOnly items
+  const filteredMenus = menuItems.filter(item => {
+    if (userRole === "FASILITATOR" && item.adminOnly) return false
+    return true
+  })
 
   return (
     <div className="flex h-full w-full flex-col border-r bg-emerald-950 text-emerald-50 overflow-y-auto">
@@ -32,7 +41,7 @@ export function SntSidebar() {
       </div>
 
       <nav className="flex-1 space-y-1 p-3">
-        {menuItems.map((item) => (
+        {filteredMenus.map((item) => (
           <Link
             key={item.title}
             href={item.href}
@@ -50,17 +59,24 @@ export function SntSidebar() {
       <div className="border-t border-emerald-900 p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-800 text-white font-bold">
-              U
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-800 text-white font-bold uppercase">
+              {session?.user?.name?.[0] || 'U'}
             </div>
             <div className="ml-3">
-              <p className="text-sm font-medium text-white">Pengguna SNT</p>
-              <button 
-                onClick={() => signOut({ callbackUrl: '/login' })}
-                className="text-xs text-red-400 hover:underline cursor-pointer bg-transparent border-0 p-0 text-left"
-              >
-                Keluar
-              </button>
+              <p className="text-sm font-medium text-white truncate w-32">{session?.user?.name || 'Pengguna'}</p>
+              <div className="flex items-center gap-2 mt-1">
+                <button 
+                  onClick={() => signOut({ callbackUrl: '/login' })}
+                  className="text-xs text-red-400 hover:underline cursor-pointer bg-transparent border-0 p-0 text-left"
+                >
+                  Keluar
+                </button>
+                {userRole !== "FASILITATOR" && (
+                  <Link href="/dashboard" className="text-xs text-emerald-400 hover:underline border-l border-emerald-700 pl-2">
+                    Ke APKA Utama
+                  </Link>
+                )}
+              </div>
             </div>
           </div>
         </div>
