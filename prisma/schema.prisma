@@ -18,21 +18,21 @@ enum UserRole {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  password      String
-  name          String
-  role          UserRole  @default(VIEWER)
-  isActive      Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      UserRole @default(VIEWER)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  createdJournals   JournalEntry[] @relation("CreatedBy")
-  approvedJournals  JournalEntry[] @relation("ApprovedBy")
-  createdExpenses   ExpenseRequest[] @relation("ExpenseCreatedBy")
-  approvedExpenses  ExpenseRequest[] @relation("ExpenseApprovedBy")
-  
-  fasilitator       Fasilitator?
+  createdJournals  JournalEntry[]   @relation("CreatedBy")
+  approvedJournals JournalEntry[]   @relation("ApprovedBy")
+  createdExpenses  ExpenseRequest[] @relation("ExpenseCreatedBy")
+  approvedExpenses ExpenseRequest[] @relation("ExpenseApprovedBy")
+
+  fasilitator Fasilitator?
 
   @@map("users")
 }
@@ -40,16 +40,16 @@ model User {
 // ==================== COMPANY & SETTINGS ====================
 
 model Company {
-  id            String   @id @default(cuid())
-  name          String
-  address       String?
-  phone         String?
-  email         String?
-  npwp          String?
-  taxType       String?  // PKP / Non-PKP
-  logoUrl       String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id        String   @id @default(cuid())
+  name      String
+  address   String?
+  phone     String?
+  email     String?
+  npwp      String?
+  taxType   String? // PKP / Non-PKP
+  logoUrl   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   fiscalPeriods FiscalPeriod[]
 
@@ -62,14 +62,14 @@ enum PeriodStatus {
 }
 
 model FiscalPeriod {
-  id          String       @id @default(cuid())
-  name        String       // e.g., "2026"
-  startDate   DateTime
-  endDate     DateTime
-  status      PeriodStatus @default(OPEN)
-  companyId   String
-  company     Company      @relation(fields: [companyId], references: [id])
-  createdAt   DateTime     @default(now())
+  id        String       @id @default(cuid())
+  name      String // e.g., "2026"
+  startDate DateTime
+  endDate   DateTime
+  status    PeriodStatus @default(OPEN)
+  companyId String
+  company   Company      @relation(fields: [companyId], references: [id])
+  createdAt DateTime     @default(now())
 
   journalEntries JournalEntry[]
   budgets        Budget[]
@@ -97,7 +97,7 @@ model Account {
   code          String        @unique
   name          String
   type          AccountType
-  subType       String?       // e.g., "Kas", "Bank", "Piutang", "Persediaan"
+  subType       String? // e.g., "Kas", "Bank", "Piutang", "Persediaan"
   normalBalance NormalBalance
   parentId      String?
   parent        Account?      @relation("AccountHierarchy", fields: [parentId], references: [id])
@@ -108,9 +108,9 @@ model Account {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  journalLines     JournalEntryLine[]
-  budgetLines      BudgetLine[]
-  bankAccounts     BankAccount[]
+  journalLines JournalEntryLine[]
+  budgetLines  BudgetLine[]
+  bankAccounts BankAccount[]
 
   @@map("accounts")
 }
@@ -368,17 +368,17 @@ enum MovementType {
 }
 
 model StockMovement {
-  id          String       @id @default(cuid())
-  productId   String
-  product     Product      @relation(fields: [productId], references: [id])
-  type        MovementType
-  quantity    Float
-  unitCost    Float        @default(0)
-  totalCost   Float        @default(0)
-  reference   String?
-  date        DateTime
-  notes       String?
-  createdAt   DateTime     @default(now())
+  id        String       @id @default(cuid())
+  productId String
+  product   Product      @relation(fields: [productId], references: [id])
+  type      MovementType
+  quantity  Float
+  unitCost  Float        @default(0)
+  totalCost Float        @default(0)
+  reference String?
+  date      DateTime
+  notes     String?
+  createdAt DateTime     @default(now())
 
   @@map("stock_movements")
 }
@@ -391,7 +391,7 @@ model BankAccount {
   bankName      String
   accountNumber String
   balance       Float    @default(0)
-  accountId     String?  // Link to Chart of Accounts
+  accountId     String? // Link to Chart of Accounts
   account       Account? @relation(fields: [accountId], references: [id])
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
@@ -493,7 +493,7 @@ model BudgetLine {
   budget         Budget  @relation(fields: [budgetId], references: [id], onDelete: Cascade)
   accountId      String
   account        Account @relation(fields: [accountId], references: [id])
-  monthlyAmounts Json    // Array of 12 monthly amounts
+  monthlyAmounts Json // Array of 12 monthly amounts
   totalAmount    Float   @default(0)
 
   @@map("budget_lines")
@@ -513,9 +513,9 @@ model RabProject {
 }
 
 model RabCategory {
-  id        String      @id @default(cuid())
+  id        String     @id @default(cuid())
   projectId String
-  project   RabProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   RabProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name      String
   items     RabItem[]
 
@@ -523,14 +523,14 @@ model RabCategory {
 }
 
 model RabItem {
-  id          String      @id @default(cuid())
+  id          String           @id @default(cuid())
   categoryId  String
-  category    RabCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  category    RabCategory      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   code        String
   name        String
   volume      String?
-  unitPrice   Float       @default(0)
-  totalBudget Float       @default(0)
+  unitPrice   Float            @default(0)
+  totalBudget Float            @default(0)
   expenses    ExpenseRequest[]
 
   @@map("rab_items")
@@ -543,72 +543,71 @@ enum ExpenseStatus {
 }
 
 model ExpenseRequest {
-  id            String        @id @default(cuid())
+  id            String           @id @default(cuid())
   rabItemId     String
-  rabItem       RabItem       @relation(fields: [rabItemId], references: [id])
+  rabItem       RabItem          @relation(fields: [rabItemId], references: [id])
   amount        Float
   description   String
   receiptUrl    String?
-  date          DateTime      @default(now())
-  status        ExpenseStatus @default(PENDING)
+  date          DateTime         @default(now())
+  status        ExpenseStatus    @default(PENDING)
   createdById   String
-  createdBy     User          @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
+  createdBy     User             @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
   approvedById  String?
-  approvedBy    User?         @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
+  approvedBy    User?            @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
   fasilitatorId String?
-  fasilitator   Fasilitator?  @relation(fields: [fasilitatorId], references: [id])
+  fasilitator   Fasilitator?     @relation(fields: [fasilitatorId], references: [id])
   laporan       LaporanKegiatan?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 
   @@map("expense_requests")
 }
 
 model Fasilitator {
-  id           String   @id @default(cuid())
-  namaLengkap  String
-  jabatan      String?
-  instansi     String?
-  nipNuptk     String?
-  nidn         String?
-  pendidikan   String?
+  id              String  @id @default(cuid())
+  namaLengkap     String
+  jabatan         String?
+  instansi        String?
+  nipNuptk        String?
+  nidn            String?
+  pendidikan      String?
   klusterKeahlian String?
-  mataPelajaran String?
-  kompetensi   String?
-  sertifikasi  String?
-  alamat       String?
-  kontak       String?
-  email        String?
-  bankName     String?
-  bankAccount  String?
-  npwpNik      String?
-  
-  userId       String?  @unique
-  user         User?    @relation(fields: [userId], references: [id])
+  mataPelajaran   String?
+  kompetensi      String?
+  sertifikasi     String?
+  alamat          String?
+  kontak          String?
+  email           String?
+  bankName        String?
+  bankAccount     String?
+  npwpNik         String?
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  userId String? @unique
+  user   User?   @relation(fields: [userId], references: [id])
 
-  expenses     ExpenseRequest[]
-  laporan      LaporanKegiatan[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  expenses ExpenseRequest[]
+  laporan  LaporanKegiatan[]
 
   @@map("fasilitator")
 }
 
 model LaporanKegiatan {
-  id             String         @id @default(cuid())
-  fasilitatorId  String
-  fasilitator    Fasilitator    @relation(fields: [fasilitatorId], references: [id])
-  date           DateTime       @default(now())
-  topic          String
-  attendance     Int
-  evaluation     String?
-  materialLink   String?
-  
-  expenseRequestId String? @unique
-  expenseRequest   ExpenseRequest? @relation(fields: [expenseRequestId], references: [id])
-  
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-}
+  id            String      @id @default(cuid())
+  fasilitatorId String
+  fasilitator   Fasilitator @relation(fields: [fasilitatorId], references: [id])
+  date          DateTime    @default(now())
+  topic         String
+  attendance    Int
+  evaluation    String?
+  materialLink  String?
 
+  expenseRequestId String?         @unique
+  expenseRequest   ExpenseRequest? @relation(fields: [expenseRequestId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

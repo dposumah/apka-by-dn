@@ -184,6 +184,8 @@ export async function createFasilitator(data: any) {
       bankName: data.bankName || null,
       bankAccount: data.bankAccount || null,
       npwpNik: data.npwpNik || null,
+        statusKepegawaian: data.statusKepegawaian || null,
+        pangkatGolongan: data.pangkatGolongan || null,
       userId: userId,
     }
   })
@@ -211,6 +213,8 @@ export async function updateFasilitatorProfile(id: string, data: any) {
       bankName: data.bankName || null,
       bankAccount: data.bankAccount || null,
       npwpNik: data.npwpNik || null,
+        statusKepegawaian: data.statusKepegawaian || null,
+        pangkatGolongan: data.pangkatGolongan || null,
     }
   })
   revalidatePath('/fasilitator')

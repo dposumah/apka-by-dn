@@ -1,4 +1,4 @@
-﻿import { getFasilitatorDetail } from '@/app/actions/rab'
+import { getFasilitatorDetail } from '@/app/actions/rab'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/format'
@@ -40,6 +40,13 @@ export default async function FasilitatorDetailPage(props: { params: Promise<{ i
               <div>
                 <span className="text-slate-500 block">NIP / NUPTK</span>
                 <span className="font-medium">{f.nipNuptk || '-'}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block">Status Kepegawaian</span>
+                <span className="font-medium">
+                  {f.statusKepegawaian || 'Non-ASN'} 
+                  {f.statusKepegawaian === 'ASN' && f.pangkatGolongan && ` (${f.pangkatGolongan})`}
+                </span>
               </div>
               <div>
                 <span className="text-slate-500 block">Instansi</span>
@@ -132,3 +139,5 @@ export default async function FasilitatorDetailPage(props: { params: Promise<{ i
     </div>
   )
 }
+
+
