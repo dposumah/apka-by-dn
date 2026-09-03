@@ -2,38 +2,51 @@
 
 import prisma from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
-import bcrypt from 'bcryptjs'
+import * as bcrypt from 'bcryptjs'
 
 export async function changeUserPassword(userId: string, currentPass: string, newPass: string) {
-  const user = await prisma.user.findUnique({ where: { id: userId } })
-  if (!user) throw new Error("User not found")
+  try {
+    const user = await prisma.user.findUnique({ where: { id: userId } })
+    if (!user) return { error: "User not found" }
 
-  const isMatch = await bcrypt.compare(currentPass, user.password)
-  if (!isMatch) {
-    throw new Error("Password saat ini salah")
+    const isMatch = await bcrypt.compare(currentPass, user.password)
+    if (!isMatch) {
+      return { error: "Password saat ini salah" }
+    }
+
+    const hashed = await bcrypt.hash(newPass, 10)
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: hashed }
+    })
+    
+    return { success: true }
+  } catch (err: any) {
+    return { error: err.message || "Terjadi kesalahan server" }
   }
-
-  const hashed = await bcrypt.hash(newPass, 10)
-  await prisma.user.update({
-    where: { id: userId },
-    data: { password: hashed }
-  })
-  
-  return { success: true }
 }
+
 export async function resetUserPassword(userId: string) {
-  const hashed = await bcrypt.hash('SNT2026', 10)
-  await prisma.user.update({
-    where: { id: userId },
-    data: { password: hashed }
-  })
-  return { success: true }
+  try {
+    const hashed = await bcrypt.hash('SNT2026', 10)
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: hashed }
+    })
+    return { success: true }
+  } catch (err: any) {
+    return { error: err.message || "Terjadi kesalahan server" }
+  }
 }
 
 export async function updateAdminAccount(userId: string, data: { name: string, email: string }) {
-  await prisma.user.update({
-    where: { id: userId },
-    data: { name: data.name, email: data.email }
-  })
-  return { success: true }
+  try {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { name: data.name, email: data.email }
+    })
+    return { success: true }
+  } catch (err: any) {
+    return { error: err.message || "Terjadi kesalahan server" }
+  }
 }

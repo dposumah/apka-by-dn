@@ -36,7 +36,8 @@ export function SntAkunClient({ user }: { user: any }) {
     setProfileSuccess(false)
     setProfileError('')
     try {
-      await updateAdminAccount(user.id, formData)
+      const res = await updateAdminAccount(user.id, formData)
+      if (res.error) throw new Error(res.error)
       setProfileSuccess(true)
       router.refresh()
     } catch (err: any) {
@@ -59,7 +60,8 @@ export function SntAkunClient({ user }: { user: any }) {
     }
 
     try {
-      await changeUserPassword(user.id, passData.currentPass, passData.newPass)
+      const res = await changeUserPassword(user.id, passData.currentPass, passData.newPass)
+      if (res.error) throw new Error(res.error)
       setPassSuccess(true)
       setPassData({ currentPass: '', newPass: '', confirmPass: '' })
     } catch (err: any) {
@@ -171,3 +173,4 @@ export function SntAkunClient({ user }: { user: any }) {
     </div>
   )
 }
+

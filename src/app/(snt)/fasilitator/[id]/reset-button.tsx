@@ -15,7 +15,8 @@ export function ResetPasswordButton({ userId }: { userId: string }) {
     setLoading(true)
     setStatus('idle')
     try {
-      await resetUserPassword(userId)
+      const res = await resetUserPassword(userId)
+      if (res.error) throw new Error(res.error)
       setStatus('success')
     } catch (error) {
       setStatus('error')
@@ -44,3 +45,4 @@ export function ResetPasswordButton({ userId }: { userId: string }) {
     </div>
   )
 }
+

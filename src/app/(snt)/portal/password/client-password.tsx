@@ -39,7 +39,8 @@ export function PasswordClient({ userId }: { userId: string }) {
 
     setLoading(true)
     try {
-      await changeUserPassword(userId, formData.currentPass, formData.newPass)
+      const res = await changeUserPassword(userId, formData.currentPass, formData.newPass)
+      if (res.error) throw new Error(res.error)
       setSuccess(true)
       setFormData({ currentPass: '', newPass: '', confirmPass: '' })
     } catch (err: any) {
@@ -138,3 +139,4 @@ export function PasswordClient({ userId }: { userId: string }) {
     </div>
   )
 }
+
