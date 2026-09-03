@@ -179,7 +179,7 @@ export function ProfilClient({ fasilitator }: { fasilitator: any }) {
                   <p className="text-slate-500">Status Kepegawaian</p>
                   <p className="font-medium">
                     {fasilitator.statusKepegawaian || 'Non-ASN'} 
-                    {fasilitator.statusKepegawaian === 'ASN' && fasilitator.pangkatGolongan &&  ()}
+                    {fasilitator.statusKepegawaian === 'ASN' && fasilitator.pangkatGolongan && ` (${fasilitator.pangkatGolongan})`}
                   </p>
                 </div>
                 <div>
@@ -208,3 +208,5 @@ export function ProfilClient({ fasilitator }: { fasilitator: any }) {
     </div>
   )
 }
+
+
