@@ -6,8 +6,8 @@ import { Providers } from './providers';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'APKA by DN - Aplikasi Pelaporan Keuangan & Akuntansi',
-  description: 'Aplikasi Pelaporan Keuangan & Akuntansi untuk UMKM Indonesia',
+  title: 'JTR Explorer',
+  description: 'JTR Explorer - Aplikasi Pelaporan Keuangan & Akuntansi',
 };
 
 export default function RootLayout({

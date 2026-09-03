@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import * as React from "react"
 import Link from "next/link"
@@ -18,6 +18,7 @@ const menuItems: MenuItem[] = [
   { title: "Dashboard Proyek", href: "/dashboard-rab", icon: "📊", adminOnly: true },
   { title: "Pengeluaran Lapangan", href: "/pengeluaran", icon: "💸", adminOnly: true },
   { title: "Master Fasilitator", href: "/fasilitator", icon: "👩‍🏫", adminOnly: true },
+  { title: "Pengaturan Akun", href: "/snt-akun", icon: "⚙️", adminOnly: true },
   { title: "Dashboard", href: "/portal", icon: "🏠", fasilOnly: true },
   { title: "Profil Fasilitator", href: "/portal/profil", icon: "👤", fasilOnly: true },
   { title: "Pengaturan Sandi", href: "/portal/password", icon: "🔒", fasilOnly: true },

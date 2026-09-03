@@ -1,8 +1,9 @@
-import { getFasilitatorDetail } from '@/app/actions/rab'
+﻿import { getFasilitatorDetail } from '@/app/actions/rab'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/format'
 import { BankForm } from './bank-form'
+import { ResetPasswordButton } from './reset-button'
 import Link from 'next/link'
 
 export default async function FasilitatorDetailPage(props: { params: Promise<{ id: string }> }) {
@@ -21,7 +22,7 @@ export default async function FasilitatorDetailPage(props: { params: Promise<{ i
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Profil Fasilitator</h1>
         <Link href={`/fasilitator/` + f.id + `/edit`} className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:pointer-events-none ring-offset-background border border-slate-200 bg-white hover:bg-slate-100 hover:text-slate-900 h-10 py-2 px-4">
-          ✏️ Edit Profil
+          âœï¸ Edit Profil
         </Link>
       </div>
       
@@ -118,8 +119,15 @@ export default async function FasilitatorDetailPage(props: { params: Promise<{ i
               <BankForm fasilitator={f} />
             </CardContent>
           </Card>
+
+          {f.userId && (
+            <Card>
+              <CardContent className="pt-6">
+                <ResetPasswordButton userId={f.userId} />
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>
   )
-}

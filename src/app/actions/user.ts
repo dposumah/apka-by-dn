@@ -21,3 +21,19 @@ export async function changeUserPassword(userId: string, currentPass: string, ne
   
   return { success: true }
 }
+export async function resetUserPassword(userId: string) {
+  const hashed = await bcrypt.hash('SNT2026', 10)
+  await prisma.user.update({
+    where: { id: userId },
+    data: { password: hashed }
+  })
+  return { success: true }
+}
+
+export async function updateAdminAccount(userId: string, data: { name: string, email: string }) {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { name: data.name, email: data.email }
+  })
+  return { success: true }
+}
