@@ -131,3 +131,4 @@ export default async function FasilitatorDetailPage(props: { params: Promise<{ i
       </div>
     </div>
   )
+}
