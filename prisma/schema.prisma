@@ -582,6 +582,8 @@ model Fasilitator {
   bankName        String?
   bankAccount     String?
   npwpNik         String?
+  statusKepegawaian String?
+  pangkatGolongan   String?
 
   userId String? @unique
   user   User?   @relation(fields: [userId], references: [id])
