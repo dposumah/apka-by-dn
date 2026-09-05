@@ -193,7 +193,42 @@ export async function createFasilitator(data: any) {
   return newFasilitator
 }
 
-export async function updateFasilitatorProfile(id: string, data: any) {
+﻿export async function updateFasilitatorProfile(id: string, data: any) {
+  const currentFasil = await prisma.fasilitator.findUnique({ where: { id } })
+  let userId = currentFasil?.userId || null
+
+  if (data.email) {
+    if (userId) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { 
+          email: data.email,
+          name: data.namaLengkap
+        }
+      }).catch(() => {})
+    } else {
+      const existingUser = await prisma.user.findUnique({ where: { email: data.email } })
+      if (!existingUser) {
+        const hashedPassword = await bcrypt.hash('SNT2026', 10)
+        const newUser = await prisma.user.create({
+          data: {
+            email: data.email,
+            name: data.namaLengkap,
+            password: hashedPassword,
+            role: 'FASILITATOR',
+          }
+        })
+        userId = newUser.id
+      } else {
+        userId = existingUser.id
+        await prisma.user.update({
+          where: { id: userId },
+          data: { name: data.namaLengkap }
+        })
+      }
+    }
+  }
+
   const updated = await prisma.fasilitator.update({
     where: { id },
     data: {
@@ -213,8 +248,9 @@ export async function updateFasilitatorProfile(id: string, data: any) {
       bankName: data.bankName || null,
       bankAccount: data.bankAccount || null,
       npwpNik: data.npwpNik || null,
-        statusKepegawaian: data.statusKepegawaian || null,
-        pangkatGolongan: data.pangkatGolongan || null,
+      statusKepegawaian: data.statusKepegawaian || null,
+      pangkatGolongan: data.pangkatGolongan || null,
+      userId: userId,
     }
   })
   revalidatePath('/fasilitator')
@@ -222,6 +258,7 @@ export async function updateFasilitatorProfile(id: string, data: any) {
   revalidatePath('/portal')
   return updated
 }
+
 export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id || 'unknown';
