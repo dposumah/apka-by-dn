@@ -199,6 +199,12 @@ export function FasilitatorForm({ initialData }: { initialData?: any }) {
             </div>
           </div>
           
+          <div className="space-y-2 mt-4 pt-4 border-t">
+            <Label>Besaran Transport Darat (Rp) *</Label>
+            <Input name="besaranTransport" type="number" defaultValue={initialData?.besaranTransport ?? 120000} required />
+            <p className="text-xs text-slate-500">Angka ini akan otomatis mengisi transport pada laporan mingguan fasilitator.</p>
+          </div>
+          
           <div className="bg-slate-50 p-4 rounded-md border space-y-4">
             <h3 className="font-semibold text-sm">Data Keuangan (Opsional)</h3>
             <div className="space-y-2">
