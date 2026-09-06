@@ -129,6 +129,12 @@ export async function getFasilitatorDetail(id: string) {
           rabItem: true
         },
         orderBy: { date: 'desc' }
+      },
+      laporan: {
+        orderBy: { date: 'desc' }
+      },
+      rekapHonorarium: {
+        orderBy: { bulan: 'desc' }
       }
     }
   })
