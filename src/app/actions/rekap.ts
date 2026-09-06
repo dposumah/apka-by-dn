@@ -129,13 +129,35 @@ export async function getAdminTransportRecap() {
 }
 
 export async function markTransportPaid(laporanId: string, buktiUrl: string) {
-  await prisma.laporanKegiatan.update({
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id || 'unknown';
+
+  const lap = await prisma.laporanKegiatan.update({
     where: { id: laporanId },
     data: { 
       statusTransport: 'PAID',
       buktiTransferTransport: buktiUrl 
     }
   });
+
+  const rabItem = await prisma.rabItem.findFirst({
+    where: { name: { contains: 'Transport', mode: 'insensitive' } }
+  });
+
+  if (rabItem) {
+    await prisma.expenseRequest.create({
+      data: {
+        rabItemId: rabItem.id,
+        amount: (lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0),
+        description: `Transport Mengajar Fasilitator - ${lap.topic}`,
+        receiptUrl: buktiUrl,
+        status: 'APPROVED',
+        createdById: userId,
+        fasilitatorId: lap.fasilitatorId,
+      }
+    });
+  }
+
   revalidatePath('/fasilitator/transport');
 }
 
