@@ -47,6 +47,8 @@ export function FasilitatorForm({ initialData }: { initialData?: any }) {
       kompetensi: fd.get('kompetensi'),
       sertifikasi: fd.get('sertifikasi'),
       alamat: fd.get('alamat'),
+      propinsi: fd.get('propinsi'),
+      kabKota: fd.get('kabKota'),
       kontak: fd.get('kontak'),
       email: fd.get('email'),
       bankName: fd.get('bankName'),

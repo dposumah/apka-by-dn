@@ -1,4 +1,5 @@
 import { getFasilitators } from '@/app/actions/rab'
+import { DeleteFasilButton } from './delete-fasil-button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
@@ -32,6 +33,7 @@ export default async function FasilitatorPage() {
                   <th className="px-4 py-3">Nama Lengkap</th>
                   <th className="px-4 py-3">Instansi</th>
                   <th className="px-4 py-3">Bidang Keahlian</th>
+                  <th className="px-4 py-3">Alamat / Wilayah</th>
                   <th className="px-4 py-3">Rekening Bank</th>
                   <th className="px-4 py-3">Aksi</th>
                 </tr>
@@ -43,6 +45,9 @@ export default async function FasilitatorPage() {
                     <td className="px-4 py-3 text-slate-600">{f.instansi}</td>
                     <td className="px-4 py-3">
                       <Badge variant="secondary">{f.klusterKeahlian}</Badge>
+                    </td>
+                    <td className="px-4 py-3 max-w-[200px] truncate text-slate-600" title={f.alamat || ''}>
+                      {f.kabKota || f.propinsi ? `${f.kabKota || ''} ${f.propinsi ? '('+f.propinsi+')' : ''}` : (f.alamat || '-')}
                     </td>
                     <td className="px-4 py-3">
                       {f.bankAccount ? (

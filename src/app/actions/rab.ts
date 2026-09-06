@@ -185,6 +185,8 @@ export async function createFasilitator(data: any) {
       kompetensi: data.kompetensi || null,
       sertifikasi: data.sertifikasi || null,
       alamat: data.alamat || null,
+      propinsi: data.propinsi || null,
+      kabKota: data.kabKota || null,
       kontak: data.kontak || null,
       email: data.email || null,
       bankName: data.bankName || null,
@@ -250,6 +252,8 @@ export async function createFasilitator(data: any) {
       kompetensi: data.kompetensi || null,
       sertifikasi: data.sertifikasi || null,
       alamat: data.alamat || null,
+      propinsi: data.propinsi || null,
+      kabKota: data.kabKota || null,
       kontak: data.kontak || null,
       email: data.email || null,
       bankName: data.bankName || null,
@@ -291,4 +295,30 @@ export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
   revalidatePath('/portal');
   revalidatePath('/dashboard-rab');
   return laporan;
+}
+
+export async function deleteFasilitator(id: string) {
+  const session = await getServerSession(authOptions)
+  if (session?.user?.role !== 'SUPER_ADMIN' && session?.user?.role !== 'ADMIN') {
+    throw new Error('Unauthorized')
+  }
+
+  // Cek apakah ada relasi ke user
+  const fasil = await prisma.fasilitator.findUnique({ where: { id } })
+  const userIdToDelete = fasil?.userId;
+
+  // Delete related Laporan Kegiatan and Rekap Honorarium first
+  await prisma.laporanKegiatan.deleteMany({ where: { fasilitatorId: id } })
+  await prisma.rekapHonorarium.deleteMany({ where: { fasilitatorId: id } })
+  await prisma.expenseRequest.deleteMany({ where: { fasilitatorId: id } })
+
+  await prisma.fasilitator.delete({
+    where: { id }
+  })
+  
+  if (userIdToDelete) {
+    await prisma.user.delete({ where: { id: userIdToDelete } }).catch(()=>console.log('User delete failed'))
+  }
+  
+  revalidatePath('/fasilitator')
 }
