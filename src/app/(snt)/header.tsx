@@ -20,7 +20,7 @@ export async function SntHeader() {
   return (
     <header className="flex h-16 items-center justify-between border-b bg-white px-6">
       <div className="flex items-center gap-2 md:hidden">
-        <h1 className="text-xl font-bold tracking-tight">SNT 2026</h1>
+        <h1 className="text-lg font-bold tracking-tight">KKA SNT 2026</h1>
       </div>
       <div className="hidden md:block"></div>
       

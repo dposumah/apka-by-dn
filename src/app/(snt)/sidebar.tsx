@@ -63,7 +63,7 @@ export function SntSidebar() {
     <div className="flex h-full w-full flex-col border-r bg-emerald-950 text-emerald-50 overflow-y-auto">
       <div className="flex h-20 shrink-0 flex-col items-start justify-center border-b border-emerald-900 px-6">
         <h1 className="text-xl font-bold tracking-tight text-white leading-tight">KKA Robotika</h1>
-        <h2 className="text-sm text-emerald-300">SNT 2026 by JTR Explorer</h2>
+        <h2 className="text-xs text-emerald-300">KKA Sekolah Nasional Terintegrasi Tahun 2026</h2>
       </div>
 
       <nav className="flex-1 space-y-1 p-3">

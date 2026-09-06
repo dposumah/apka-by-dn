@@ -24,10 +24,14 @@ export default async function RekapPdfPage({ params }: { params: { id: string } 
   return (
     <div className="bg-white min-h-screen text-black">
       <div className="max-w-4xl mx-auto p-12 bg-white print:p-0 print:w-full">
+        {/* Kop Surat */}
+        <div className="mb-6">
+          <img src="/kop-surat.png" className="w-full max-h-32 object-contain" alt="Kop Surat" />
+        </div>
         {/* Header */}
-        <div className="text-center border-b-2 border-black pb-6 mb-8">
+        <div className="text-center border-b-2 border-black pb-6 mb-8 mt-4">
           <h1 className="text-2xl font-bold uppercase tracking-widest">Laporan Bulanan Fasilitator</h1>
-          <h2 className="text-lg font-semibold mt-1">SNT KKA Robotika 2026</h2>
+          <h2 className="text-lg font-semibold mt-1">KKA Sekolah Nasional Terintegrasi Tahun 2026</h2>
         </div>
 
         {/* Info Fasilitator */}
