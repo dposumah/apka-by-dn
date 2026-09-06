@@ -195,6 +195,7 @@ export async function createFasilitator(data: any) {
         statusKepegawaian: data.statusKepegawaian || null,
         pangkatGolongan: data.pangkatGolongan || null,
         lokasiSNT: data.lokasiSNT || null,
+        besaranTransport: data.besaranTransport !== undefined ? parseFloat(data.besaranTransport) : 120000,
       userId: userId,
     }
   })
@@ -262,6 +263,7 @@ export async function createFasilitator(data: any) {
       statusKepegawaian: data.statusKepegawaian || null,
       pangkatGolongan: data.pangkatGolongan || null,
         lokasiSNT: data.lokasiSNT || null,
+        besaranTransport: data.besaranTransport !== undefined ? parseFloat(data.besaranTransport) : 120000,
       userId: userId,
     }
   })
@@ -274,6 +276,9 @@ export async function createFasilitator(data: any) {
 export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
   const session = await getServerSession(authOptions);
   
+  const fasil = await prisma.fasilitator.findUnique({ where: { id: fasilitatorId } });
+  const besaranTransportDarat = fasil?.besaranTransport ?? 120000;
+  
   const laporan = await prisma.laporanKegiatan.create({
     data: {
       fasilitatorId,
@@ -284,7 +289,8 @@ export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
       tingkatSekolah: data.tingkatSekolah,
       jenisKegiatan: data.jenisKegiatan,
       jumlahJP: parseInt(data.jumlahJP) || 0,
-      biayaTransport: data.biayaTransport ? parseFloat(data.biayaTransport) : 0,
+      biayaTransport: besaranTransportDarat,
+      biayaTransportLaut: data.biayaTransportLaut ? parseFloat(data.biayaTransportLaut) : 0,
       foto1: data.foto1 || null,
       foto2: data.foto2 || null,
       buktiTiketTransport: data.buktiTiketTransport || null,

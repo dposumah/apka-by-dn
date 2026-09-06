@@ -57,6 +57,7 @@ export function FasilitatorForm({ initialData }: { initialData?: any }) {
       statusKepegawaian: fd.get('statusKepegawaian'),
       pangkatGolongan: fd.get('pangkatGolongan'),
       lokasiSNT: fd.get('lokasiSNT'),
+        besaranTransport: fd.get('besaranTransport'),
     }
 
     try {

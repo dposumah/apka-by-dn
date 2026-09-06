@@ -115,9 +115,9 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
                     <td className="py-3 px-4 text-center">{lap.tingkatSekolah}</td>
                     <td className="py-3 px-4 text-center font-medium">{lap.jumlahJP}</td>
                     <td className="py-3 px-4 text-right">
-                      {lap.biayaTransport > 0 ? (
+                      {(lap.biayaTransport || 0) > 0 || (lap.biayaTransportLaut || 0) > 0 ? (
                         <>
-                          <div className="font-medium">{formatCurrency(lap.biayaTransport)}</div>
+                          <div className="font-medium">{formatCurrency((lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0))}</div>
                           <Badge variant={lap.statusTransport === 'PAID' ? 'default' : 'secondary'} className="text-[10px] mt-1">
                             {lap.statusTransport}
                           </Badge>
@@ -132,7 +132,7 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
                       </div>
                     </td>
                     <td className="py-3 px-4 text-right space-y-1">
-                      {lap.biayaTransport > 0 && lap.statusTransport === 'PENDING' && (
+                      {((lap.biayaTransport || 0) > 0 || (lap.biayaTransportLaut || 0) > 0) && lap.statusTransport === 'PENDING' && (
                         <button 
                           onClick={() => cetakInvoiceTransport(lap)}
                           className="w-full text-xs bg-slate-900 text-white hover:bg-slate-800 rounded px-2 py-1.5 transition-colors whitespace-nowrap"
