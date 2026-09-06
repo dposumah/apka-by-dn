@@ -24,8 +24,8 @@ export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) 
     attendance: '',
     evaluation: '',
     tingkatSekolah: 'SMP',
-    jenisKegiatan: 'INTRAKURIKULER',
-    jumlahJP: '',
+    jumlahJPIntra: '',
+    jumlahJPEkstra: '',
     biayaTransportLaut: '',
   })
 
@@ -115,19 +115,7 @@ export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) 
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Jenis Kegiatan</Label>
-                <div className="flex gap-4 mt-2">
-                  <label className="flex items-center gap-2">
-                    <input type="radio" name="jenisKegiatan" value="INTRAKURIKULER" checked={formData.jenisKegiatan === 'INTRAKURIKULER'} onChange={e => setFormData({...formData, jenisKegiatan: e.target.value})} className="w-4 h-4 text-emerald-600" />
-                    Intrakurikuler
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input type="radio" name="jenisKegiatan" value="EKSTRAKURIKULER" checked={formData.jenisKegiatan === 'EKSTRAKURIKULER'} onChange={e => setFormData({...formData, jenisKegiatan: e.target.value})} className="w-4 h-4 text-emerald-600" />
-                    Ekstrakurikuler
-                  </label>
-                </div>
-              </div>
+              
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -151,15 +139,20 @@ export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) 
               <Textarea value={formData.evaluation} onChange={e => setFormData({...formData, evaluation: e.target.value})} placeholder="Catatan singkat tentang pelaksanaan..." />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4 mt-2">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t pt-4 mt-2">
               <div className="space-y-2">
-                <Label>Jumlah JP (Jam Pelajaran)</Label>
-                <Input type="number" min="0" value={formData.jumlahJP} onChange={e => setFormData({...formData, jumlahJP: e.target.value})} placeholder="Misal: 2" required />
-                <p className="text-xs text-slate-500">Rate Honor Rp 65.000 / JP</p>
+                <Label>JP Intrakurikuler</Label>
+                <Input type="number" min="0" value={formData.jumlahJPIntra} onChange={e => setFormData({...formData, jumlahJPIntra: e.target.value})} placeholder="0" />
+                <p className="text-xs text-slate-500">Maksimal 8 JP / minggu / Lokasi</p>
+              </div>
+              <div className="space-y-2">
+                <Label>JP Ekstrakurikuler</Label>
+                <Input type="number" min="0" value={formData.jumlahJPEkstra} onChange={e => setFormData({...formData, jumlahJPEkstra: e.target.value})} placeholder="0" />
+                <p className="text-xs text-slate-500">Maksimal 4 JP / minggu / Lokasi</p>
               </div>
               <div className="space-y-2">
                 <Label>Biaya Transport Antar Pulau (Rp)</Label>
-                <Input type="number" min="0" value={formData.biayaTransportLaut} onChange={e => setFormData({...formData, biayaTransport: e.target.value})} placeholder="Kosongkan jika tidak ada" />
+                <Input type="number" min="0" value={formData.biayaTransportLaut} onChange={e => setFormData({...formData, biayaTransportLaut: e.target.value})} placeholder="Kosongkan jika tidak ada" />
                 <p className="text-xs text-slate-500">Opsional</p>
               </div>
             </div>

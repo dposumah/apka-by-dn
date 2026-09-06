@@ -58,7 +58,7 @@ export async function createRekapBulanan(fasilitatorId: string, bulan: string) {
     throw new Error('Tidak ada laporan yang bisa direkap untuk bulan ini');
   }
 
-  const totalJP = laporan.reduce((sum, lap) => sum + lap.jumlahJP, 0);
+  const totalJP = laporan.reduce((sum, lap) => sum + (lap.jumlahJPIntra || 0) + (lap.jumlahJPEkstra || 0), 0);
   const totalHonor = totalJP * 65000;
 
   const rekap = await prisma.rekapHonorarium.create({

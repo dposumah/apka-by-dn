@@ -77,7 +77,12 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
                     )}
                   </div>
                   <div className="text-right space-y-1">
-                    <div className="text-sm font-medium text-slate-900">{lap.jumlahJP} JP <span className="text-slate-500 font-normal">({lap.tingkatSekolah} - {lap.jenisKegiatan})</span></div>
+                    <div className="text-sm font-medium text-slate-900">
+                      {(lap.jumlahJPIntra || 0) + (lap.jumlahJPEkstra || 0)} JP 
+                      <span className="text-slate-500 font-normal ml-1">
+                        ({lap.tingkatSekolah} - Intra: {lap.jumlahJPIntra}, Ekstra: {lap.jumlahJPEkstra})
+                      </span>
+                    </div>
                     {lap.biayaTransport > 0 && (
                       <div className="text-xs text-blue-600 mt-1">
                         Transport: Rp {lap.biayaTransport.toLocaleString('id-ID')}

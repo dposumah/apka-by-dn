@@ -110,10 +110,13 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
                     </td>
                     <td className="py-3 px-4">
                       {lap.topic}
-                      <div className="text-xs text-slate-500">{lap.jenisKegiatan} &bull; {lap.attendance} Peserta</div>
+                      <div className="text-xs text-slate-500">{lap.attendance} Peserta</div>
                     </td>
                     <td className="py-3 px-4 text-center">{lap.tingkatSekolah}</td>
-                    <td className="py-3 px-4 text-center font-medium">{lap.jumlahJP}</td>
+                    <td className="py-3 px-4 text-center text-sm">
+                      <div>Intra: <strong>{lap.jumlahJPIntra}</strong></div>
+                      <div>Ekstra: <strong>{lap.jumlahJPEkstra}</strong></div>
+                    </td>
                     <td className="py-3 px-4 text-right">
                       {(lap.biayaTransport || 0) > 0 || (lap.biayaTransportLaut || 0) > 0 ? (
                         <>

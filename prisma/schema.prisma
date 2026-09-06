@@ -614,8 +614,9 @@ model LaporanKegiatan {
   evaluation    String?
 
   tingkatSekolah  String @default("SMP")
-  jenisKegiatan   String @default("INTRAKURIKULER")
-  jumlahJP        Int    @default(0)
+  // jenisKegiatan   String @default("INTRAKURIKULER")
+  jumlahJPIntra   Int    @default(0)
+    jumlahJPEkstra  Int    @default(0)
   biayaTransport  Float? @default(0)
     biayaTransportLaut Float? @default(0)
   statusTransport String @default("PENDING")
