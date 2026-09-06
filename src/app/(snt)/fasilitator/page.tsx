@@ -32,9 +32,9 @@ export default async function FasilitatorPage() {
               <thead className="text-xs uppercase bg-slate-50 border-b">
                 <tr>
                   <th className="px-4 py-3">Nama Lengkap</th>
-                  <th className="px-4 py-3">Instansi</th>
-                  <th className="px-4 py-3">Bidang Keahlian</th>
+                  <th className="px-4 py-3">Lokasi SNT</th>
                   <th className="px-4 py-3">Alamat / Wilayah</th>
+                  <th className="px-4 py-3">Email</th>
                   <th className="px-4 py-3">Rekening Bank</th>
                   <th className="px-4 py-3">Akses Login</th>
                   <th className="px-4 py-3">Aksi</th>
@@ -44,13 +44,11 @@ export default async function FasilitatorPage() {
                 {fasilitators.map(f => (
                   <tr key={f.id} className="border-b hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3 font-medium text-blue-700">{f.namaLengkap}</td>
-                    <td className="px-4 py-3 text-slate-600">{f.instansi}</td>
-                    <td className="px-4 py-3">
-                      <Badge variant="secondary">{f.klusterKeahlian}</Badge>
-                    </td>
+                    <td className="px-4 py-3 text-slate-600">{f.lokasiSNT || '-'}</td>
                     <td className="px-4 py-3 max-w-[200px] truncate text-slate-600" title={f.alamat || ''}>
                       {f.kabKota || f.propinsi ? `${f.kabKota || ''} ${f.propinsi ? '('+f.propinsi+')' : ''}` : (f.alamat || '-')}
                     </td>
+                    <td className="px-4 py-3 text-slate-600">{f.email || '-'}</td>
                     <td className="px-4 py-3">
                       {f.bankAccount ? (
                         <span className="text-emerald-600 font-medium">{f.bankName} - {f.bankAccount}</span>
