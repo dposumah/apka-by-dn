@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Eye, EyeOff, ArrowLeft } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { signIn } from 'next-auth/react'
+import { FullPageLoading } from '@/components/ui/LoadingSpinner'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -15,6 +16,7 @@ export default function LoginPage() {
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [isSuccess, setIsSuccess] = useState(false)
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target
@@ -40,6 +42,7 @@ export default function LoginPage() {
         setError('Email atau kata sandi salah')
         setLoading(false)
       } else {
+        setIsSuccess(true)
         router.push('/')
         router.refresh()
       }
@@ -47,6 +50,10 @@ export default function LoginPage() {
       setError('Terjadi kesalahan yang tidak terduga')
       setLoading(false)
     }
+  }
+
+  if (isSuccess) {
+    return <FullPageLoading />
   }
 
   return (
