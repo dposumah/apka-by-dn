@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { FileText, CheckCircle2 } from 'lucide-react'
@@ -12,6 +12,18 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
       <div>
         <h1 className="text-3xl font-bold tracking-tight text-slate-900">Selamat datang, {userName}</h1>
         <p className="text-slate-500 mt-1">Dashboard Portal Fasilitator KKA Robotika SNT 2026</p>
+        
+        {fasilitator.lokasiSNT ? (
+          <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-sm font-medium">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+            Lokasi SNT: {fasilitator.lokasiSNT}
+          </div>
+        ) : (
+          <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-sm font-medium">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+            Lokasi SNT Belum Ditentukan oleh Admin
+          </div>
+        )}
       </div>
       
       {isIncomplete && (
@@ -40,9 +52,14 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
               + Buat Laporan
             </button>
           ) : (
-            <Link href="/portal/laporan" className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors bg-emerald-600 text-white hover:bg-emerald-700 h-9 px-4">
-              + Buat Laporan
-            </Link>
+            <div className="flex gap-2">
+              <Link href="/portal/rekap" className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 h-9 px-4">
+                Rekap Bulanan
+              </Link>
+              <Link href="/portal/laporan" className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors bg-emerald-600 text-white hover:bg-emerald-700 h-9 px-4">
+                + Buat Laporan
+              </Link>
+            </div>
           )}
         </CardHeader>
         <CardContent>
@@ -59,22 +76,26 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
                       </a>
                     )}
                   </div>
-                  <div className="text-right">
-                    {lap.expenseRequest ? (
-                      <>
-                        <div className="font-medium text-slate-900">Rp {lap.expenseRequest.amount.toLocaleString('id-ID')}</div>
-                        <div className="text-xs mt-1 px-2 py-1 bg-slate-100 rounded-md inline-block">
-                          {lap.expenseRequest.status === 'APPROVED' ? (
-                            <span className="text-emerald-600 flex items-center gap-1"><CheckCircle2 className="w-3 h-3"/> Disetujui</span>
-                          ) : lap.expenseRequest.status === 'REJECTED' ? (
-                            <span className="text-red-600">Ditolak</span>
-                          ) : (
-                            <span className="text-amber-600">Menunggu</span>
-                          )}
-                        </div>
-                      </>
+                  <div className="text-right space-y-1">
+                    <div className="text-sm font-medium text-slate-900">{lap.jumlahJP} JP <span className="text-slate-500 font-normal">({lap.tingkatSekolah} - {lap.jenisKegiatan})</span></div>
+                    {lap.biayaTransport > 0 && (
+                      <div className="text-xs text-blue-600 mt-1">
+                        Transport: Rp {lap.biayaTransport.toLocaleString('id-ID')}
+                        {lap.statusTransport === 'PAID' && lap.buktiTransferTransport ? (
+                          <a href={lap.buktiTransferTransport} target="_blank" rel="noreferrer" className="ml-1 text-emerald-600 font-medium hover:underline flex justify-end items-center mt-1">
+                            Lunas (Lihat Bukti)
+                          </a>
+                        ) : lap.statusTransport === 'PAID' ? (
+                          <span className="ml-1 text-emerald-600 font-medium block mt-1">Lunas</span>
+                        ) : (
+                          <span className="ml-1 text-amber-600 block mt-1">Menunggu Transfer Admin</span>
+                        )}
+                      </div>
+                    )}
+                    {lap.rekapHonorariumId ? (
+                      <div className="text-xs text-emerald-600 mt-1 flex items-center justify-end gap-1"><CheckCircle2 className="w-3 h-3"/> Direkap (Bulanan)</div>
                     ) : (
-                      <span className="text-xs text-slate-400">Belum ada tagihan</span>
+                      <div className="text-xs text-amber-600 mt-1 flex justify-end">Honor Belum direkap</div>
                     )}
                   </div>
                 </div>

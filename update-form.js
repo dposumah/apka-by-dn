@@ -1,4 +1,6 @@
-﻿"use client"
+﻿const fs = require('fs')
+
+const content = "use client"
 
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -196,3 +198,6 @@ export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) 
     </div>
   )
 }
+
+
+fs.writeFileSync('src/app/(snt)/portal/laporan/client-form.tsx', content)

@@ -2,6 +2,7 @@ import { getRabDashboardData, getRecentExpenses, approveExpense } from '@/app/ac
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency } from '@/lib/format'
 import { Badge } from '@/components/ui/badge'
+import { ApproveButton } from './ApproveButton'
 
 export const dynamic = 'force-dynamic';
 
@@ -109,16 +110,13 @@ export default async function RabDashboardPage() {
                       </Badge>
                     </td>
                     <td className="px-6 py-4">
-                      {exp.status === 'PENDING' && (
-                        <div className="flex gap-2">
-                          <form action={async () => { 'use server'; await approveExpense(exp.id, 'APPROVED') }}>
-                            <button type="submit" className="text-green-600 hover:underline">Setujui</button>
-                          </form>
-                          <form action={async () => { 'use server'; await approveExpense(exp.id, 'REJECTED') }}>
-                            <button type="submit" className="text-red-600 hover:underline">Tolak</button>
-                          </form>
-                        </div>
-                      )}
+                      {exp.status === 'PENDING' ? (
+                        <ApproveButton expenseId={exp.id} />
+                      ) : exp.paymentReceiptUrl ? (
+                        <a href={exp.paymentReceiptUrl} target="_blank" rel="noreferrer" className="text-emerald-600 font-medium hover:underline text-xs bg-emerald-50 px-2 py-1 rounded">
+                          Lihat Bukti Transfer
+                        </a>
+                      ) : null}
                     </td>
                   </tr>
                 ))}

@@ -1,4 +1,4 @@
-﻿'use server'
+'use server'
 
 import prisma from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
@@ -186,6 +186,7 @@ export async function createFasilitator(data: any) {
       npwpNik: data.npwpNik || null,
         statusKepegawaian: data.statusKepegawaian || null,
         pangkatGolongan: data.pangkatGolongan || null,
+        lokasiSNT: data.lokasiSNT || null,
       userId: userId,
     }
   })
@@ -250,6 +251,7 @@ export async function createFasilitator(data: any) {
       npwpNik: data.npwpNik || null,
       statusKepegawaian: data.statusKepegawaian || null,
       pangkatGolongan: data.pangkatGolongan || null,
+        lokasiSNT: data.lokasiSNT || null,
       userId: userId,
     }
   })
@@ -261,8 +263,7 @@ export async function createFasilitator(data: any) {
 
 export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
   const session = await getServerSession(authOptions);
-  const userId = session?.user?.id || 'unknown';
-
+  
   const laporan = await prisma.laporanKegiatan.create({
     data: {
       fasilitatorId,
@@ -270,40 +271,17 @@ export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
       topic: data.topic,
       attendance: parseInt(data.attendance),
       evaluation: data.evaluation,
-      materialLink: data.materialLink,
+      tingkatSekolah: data.tingkatSekolah,
+      jenisKegiatan: data.jenisKegiatan,
+      jumlahJP: parseInt(data.jumlahJP) || 0,
+      biayaTransport: data.biayaTransport ? parseFloat(data.biayaTransport) : 0,
+      foto1: data.foto1 || null,
+      foto2: data.foto2 || null,
+      statusTransport: 'PENDING',
     }
   });
-
-  const rabItem = await prisma.rabItem.findFirst({
-    where: { name: { contains: 'Honor', mode: 'insensitive' } }
-  });
-  
-  if (rabItem) {
-    const expense = await prisma.expenseRequest.create({
-      data: {
-        rabItemId: rabItem.id,
-        amount: parseInt(data.honorAmount) || 200000,
-        description: 'Honor Pengajar: ' + data.topic,
-        receiptUrl: data.materialLink,
-        status: 'PENDING',
-        createdById: userId,
-        fasilitatorId,
-      }
-    });
-    
-    await prisma.laporanKegiatan.update({
-      where: { id: laporan.id },
-      data: { expenseRequestId: expense.id }
-    });
-  }
 
   revalidatePath('/portal');
   revalidatePath('/dashboard-rab');
   return laporan;
 }
-
-
-
-
-
-

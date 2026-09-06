@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -54,6 +54,7 @@ export function FasilitatorForm({ initialData }: { initialData?: any }) {
       npwpNik: fd.get('npwpNik'),
       statusKepegawaian: fd.get('statusKepegawaian'),
       pangkatGolongan: fd.get('pangkatGolongan'),
+      lokasiSNT: fd.get('lokasiSNT'),
     }
 
     try {
@@ -123,10 +124,28 @@ export function FasilitatorForm({ initialData }: { initialData?: any }) {
                   <option key={p} value={p}>{p}</option>
                 ))}
               </select>
+              </div>
+            )}
+            
+            <div className="space-y-2">
+              <Label>Lokasi SNT</Label>
+              <select 
+                name="lokasiSNT" 
+                defaultValue={initialData?.lokasiSNT || ''}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <option value="">-- Belum Ditentukan --</option>
+                <option value="Jambi - Kab. Tanjung Jabung Timur">Jambi - Kab. Tanjung Jabung Timur</option>
+                <option value="Jambi - Kab. Tebo">Jambi - Kab. Tebo</option>
+                <option value="Sulawesi Tenggara - Kab. Buton Tengah">Sulawesi Tenggara - Kab. Buton Tengah</option>
+                <option value="Nusa Tenggara Timur - Kab. Kupang">Nusa Tenggara Timur - Kab. Kupang</option>
+                <option value="Sulawesi Utara - Kab. Minahasa Utara">Sulawesi Utara - Kab. Minahasa Utara</option>
+                <option value="Maluku Utara - Kota Tidore Kepulauan">Maluku Utara - Kota Tidore Kepulauan</option>
+              </select>
             </div>
-          )}
-          <div className="space-y-2">
-            <Label>NIDN</Label>
+
+            <div className="space-y-2">
+              <Label>NIDN</Label>
             <Input name="nidn" defaultValue={initialData?.nidn || ''} />
           </div>
           <div className="space-y-2">

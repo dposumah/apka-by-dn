@@ -14,12 +14,7 @@ export default async function PortalPage() {
   const fasilitator = await prisma.fasilitator.findUnique({
     where: { userId: session.user.id },
     include: {
-      laporan: {
-        include: {
-          expenseRequest: true
-        },
-        orderBy: { date: 'desc' }
-      }
+      laporan: { orderBy: { date: 'desc' } }
     }
   })
 

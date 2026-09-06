@@ -543,47 +543,49 @@ enum ExpenseStatus {
 }
 
 model ExpenseRequest {
-  id            String           @id @default(cuid())
+  id            String        @id @default(cuid())
   rabItemId     String
-  rabItem       RabItem          @relation(fields: [rabItemId], references: [id])
+  rabItem       RabItem       @relation(fields: [rabItemId], references: [id])
   amount        Float
   description   String
   receiptUrl    String?
-  date          DateTime         @default(now())
-  status        ExpenseStatus    @default(PENDING)
+  paymentReceiptUrl String?
+  date          DateTime      @default(now())
+  status        ExpenseStatus @default(PENDING)
   createdById   String
-  createdBy     User             @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
+  createdBy     User          @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
   approvedById  String?
-  approvedBy    User?            @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
+  approvedBy    User?         @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
   fasilitatorId String?
-  fasilitator   Fasilitator?     @relation(fields: [fasilitatorId], references: [id])
-  laporan       LaporanKegiatan?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  fasilitator   Fasilitator?  @relation(fields: [fasilitatorId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("expense_requests")
 }
 
 model Fasilitator {
-  id              String  @id @default(cuid())
-  namaLengkap     String
-  jabatan         String?
-  instansi        String?
-  nipNuptk        String?
-  nidn            String?
-  pendidikan      String?
-  klusterKeahlian String?
-  mataPelajaran   String?
-  kompetensi      String?
-  sertifikasi     String?
-  alamat          String?
-  kontak          String?
-  email           String?
-  bankName        String?
-  bankAccount     String?
-  npwpNik         String?
+  id                String  @id @default(cuid())
+  namaLengkap       String
+  jabatan           String?
+  instansi          String?
+  nipNuptk          String?
+  nidn              String?
+  pendidikan        String?
+  klusterKeahlian   String?
+  mataPelajaran     String?
+  kompetensi        String?
+  sertifikasi       String?
+  alamat            String?
+  kontak            String?
+  email             String?
+  bankName          String?
+  bankAccount       String?
+  npwpNik           String?
   statusKepegawaian String?
   pangkatGolongan   String?
+  lokasiSNT         String?
 
   userId String? @unique
   user   User?   @relation(fields: [userId], references: [id])
@@ -591,8 +593,9 @@ model Fasilitator {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  expenses ExpenseRequest[]
-  laporan  LaporanKegiatan[]
+  expenses        ExpenseRequest[]
+  laporan         LaporanKegiatan[]
+  rekapHonorarium RekapHonorarium[]
 
   @@map("fasilitator")
 }
@@ -605,11 +608,39 @@ model LaporanKegiatan {
   topic         String
   attendance    Int
   evaluation    String?
-  materialLink  String?
 
-  expenseRequestId String?         @unique
-  expenseRequest   ExpenseRequest? @relation(fields: [expenseRequestId], references: [id])
+  tingkatSekolah  String @default("SMP")
+  jenisKegiatan   String @default("INTRAKURIKULER")
+  jumlahJP        Int    @default(0)
+  biayaTransport  Float? @default(0)
+  statusTransport String @default("PENDING")
+
+  foto1 String?
+  foto2 String?
+
+  rekapHonorariumId String?
+  rekapHonorarium   RekapHonorarium? @relation(fields: [rekapHonorariumId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@map("laporan_kegiatan")
+}
+
+model RekapHonorarium {
+  id            String      @id @default(cuid())
+  fasilitatorId String
+  fasilitator   Fasilitator @relation(fields: [fasilitatorId], references: [id])
+  bulan         String // format: "YYYY-MM"
+  totalJP       Int         @default(0)
+  totalHonor    Float       @default(0)
+  filePdf       String?
+  status        String      @default("DRAFT")
+
+  laporan LaporanKegiatan[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("rekap_honorarium")
 }

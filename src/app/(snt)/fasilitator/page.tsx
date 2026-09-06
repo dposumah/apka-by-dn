@@ -10,9 +10,14 @@ export default async function FasilitatorPage() {
     <div className="p-8 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Master Data Fasilitator</h1>
-        <Link href="/fasilitator/new" className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:pointer-events-none ring-offset-background bg-blue-600 text-white hover:bg-blue-700 h-10 py-2 px-4">
-          + Tambah Fasilitator
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/fasilitator/transport" className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 h-10 py-2 px-4">
+            Rekap Transport
+          </Link>
+          <Link href="/fasilitator/new" className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors bg-blue-600 text-white hover:bg-blue-700 h-10 py-2 px-4">
+            + Tambah Fasilitator
+          </Link>
+        </div>
       </div>
       
       <Card>
