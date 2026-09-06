@@ -157,6 +157,16 @@ export function FasilitatorForm({ initialData }: { initialData?: any }) {
           <div className="space-y-2">
             <Label>Alamat / Domisili</Label>
             <Textarea name="alamat" defaultValue={initialData?.alamat || ''} />
+            </div>
+            <div className="grid grid-cols-2 gap-2 mt-4">
+              <div className="space-y-2">
+                <Label>Provinsi</Label>
+                <Input name="propinsi" defaultValue={initialData?.propinsi || ''} />
+              </div>
+              <div className="space-y-2">
+                <Label>Kabupaten / Kota</Label>
+                <Input name="kabKota" defaultValue={initialData?.kabKota || ''} />
+              </div>
           </div>
         </div>
 
