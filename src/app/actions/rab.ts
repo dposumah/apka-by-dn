@@ -263,7 +263,7 @@ export async function createFasilitator(data: any) {
       statusKepegawaian: data.statusKepegawaian || null,
       pangkatGolongan: data.pangkatGolongan || null,
         lokasiSNT: data.lokasiSNT || null,
-        besaranTransport: data.besaranTransport !== undefined ? parseFloat(data.besaranTransport) : 120000,
+        besaranTransport: data.besaranTransport !== undefined ? parseFloat(data.besaranTransport) : currentFasil?.besaranTransport ?? 120000,
       userId: userId,
     }
   })
