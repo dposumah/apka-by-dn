@@ -3,6 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency } from '@/lib/format'
 import { Badge } from '@/components/ui/badge'
 import { ApproveButton } from './ApproveButton'
+import { prisma } from '@/lib/prisma'
+import Link from 'next/link'
 
 export const dynamic = 'force-dynamic';
 
@@ -10,12 +12,40 @@ export default async function RabDashboardPage() {
   const data = await getRabDashboardData()
   const expenses = await getRecentExpenses(20)
 
+  const pendingWeekly = await prisma.laporanKegiatan.count({ where: { statusTransport: 'PENDING', biayaTransport: { gt: 0 } } })
+  const pendingHonor = await prisma.rekapHonorarium.count({ where: { status: 'SUBMITTED' } })
+
   if (!data) return <div className="p-8">No RAB data found. Please seed the database.</div>
 
   return (
     <div className="p-8 space-y-8">
       <h1 className="text-3xl font-bold">Dashboard Monitoring RAB</h1>
       
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <Link href="/fasilitator/laporan" className="block">
+          <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg flex items-center justify-between hover:bg-amber-100 transition">
+            <div>
+              <h3 className="font-bold text-amber-900">Tagihan Transport Pending</h3>
+              <p className="text-amber-700 text-sm">Menunggu verifikasi dan transfer</p>
+            </div>
+            <div className="text-2xl font-black text-amber-700 bg-amber-200 w-12 h-12 flex items-center justify-center rounded-full">
+              {pendingWeekly}
+            </div>
+          </div>
+        </Link>
+        <Link href="/fasilitator/rekap-honor" className="block">
+          <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg flex items-center justify-between hover:bg-blue-100 transition">
+            <div>
+              <h3 className="font-bold text-blue-900">Rekap Honorarium Pending</h3>
+              <p className="text-blue-700 text-sm">Menunggu verifikasi dan pembuatan Invoice</p>
+            </div>
+            <div className="text-2xl font-black text-blue-700 bg-blue-200 w-12 h-12 flex items-center justify-center rounded-full">
+              {pendingHonor}
+            </div>
+          </div>
+        </Link>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardHeader><CardTitle>Total Anggaran</CardTitle></CardHeader>

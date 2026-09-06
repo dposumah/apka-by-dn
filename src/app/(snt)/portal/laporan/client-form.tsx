@@ -164,7 +164,15 @@ export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) 
               </div>
             </div>
 
-            <div className="space-y-4 border-t pt-4 mt-2">
+            {parseFloat(formData.biayaTransport) > 0 && (
+                <div className="space-y-2 col-span-2 border border-blue-100 bg-blue-50 p-4 rounded-md mt-2">
+                  <Label>Bukti Tiket Transport (Wajib jika Transport Antar Pulau)</Label>
+                  <Input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => e.target.files && setTiket(e.target.files[0])} />
+                  <p className="text-xs text-blue-600">Unggah foto/scan tiket atau bukti pembayaran transport.</p>
+                </div>
+              )}
+  
+              <div className="space-y-4 border-t pt-4 mt-2">
               <Label>Lampiran Bukti (Foto Kegiatan)</Label>
               <p className="text-xs text-slate-500">Maksimal 2 foto (jpg/png/jpeg), ukuran per file max 5 MB.</p>
               

@@ -96,23 +96,7 @@ export async function submitRekapBulanan(rekapId: string, fileUrl: string) {
 
   if (!rekap) throw new Error('Rekap tidak ditemukan');
 
-  const rabItem = await prisma.rabItem.findFirst({
-    where: { name: { contains: 'Honor', mode: 'insensitive' } }
-  });
 
-  if (rabItem) {
-    await prisma.expenseRequest.create({
-      data: {
-        rabItemId: rabItem.id,
-        amount: rekap.totalHonor,
-        description: `Honor Pengajar - Bulan ${rekap.bulan} (${rekap.totalJP} JP)`,
-        receiptUrl: fileUrl,
-        status: 'PENDING',
-        createdById: userId,
-        fasilitatorId: rekap.fasilitatorId,
-      }
-    });
-  }
 
   const updated = await prisma.rekapHonorarium.update({
     where: { id: rekapId },
@@ -153,4 +137,49 @@ export async function markTransportPaid(laporanId: string, buktiUrl: string) {
     }
   });
   revalidatePath('/fasilitator/transport');
+}
+
+export async function adminGenerateInvoiceHonor(rekapId: string) {
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id || 'unknown';
+
+  const rekap = await prisma.rekapHonorarium.findUnique({
+    where: { id: rekapId },
+    include: { fasilitator: true }
+  });
+
+  if (!rekap) throw new Error('Rekap tidak ditemukan');
+  
+  if (rekap.status === 'APPROVED') {
+    return rekap; // Already approved
+  }
+
+  const rabItem = await prisma.rabItem.findFirst({
+    where: { name: { contains: 'Honor', mode: 'insensitive' } }
+  });
+
+  if (rabItem) {
+    await prisma.expenseRequest.create({
+      data: {
+        rabItemId: rabItem.id,
+        amount: rekap.totalHonor,
+        description: `Honor Pengajar - Bulan ${rekap.bulan} (${rekap.totalJP} JP)`,
+        receiptUrl: rekap.filePdf,
+        status: 'PENDING',
+        createdById: userId,
+        fasilitatorId: rekap.fasilitatorId,
+      }
+    });
+  }
+
+  const updated = await prisma.rekapHonorarium.update({
+    where: { id: rekapId },
+    data: {
+      status: 'APPROVED'
+    }
+  });
+
+  revalidatePath('/fasilitator/rekap-honor');
+  revalidatePath('/dashboard-rab');
+  return updated;
 }

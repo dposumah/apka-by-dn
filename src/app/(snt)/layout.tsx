@@ -1,6 +1,7 @@
 ﻿import * as React from "react"
 import Link from "next/link"
 import { SntSidebar } from "./sidebar"
+import { SntHeader } from "./header"
 
 export default function SntLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -9,11 +10,7 @@ export default function SntLayout({ children }: { children: React.ReactNode }) {
         <SntSidebar />
       </div>
       <div className="flex-1 overflow-auto">
-        <header className="flex h-16 items-center justify-between border-b bg-white px-6 md:hidden">
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold tracking-tight">SNT 2026</h1>
-          </div>
-        </header>
+        <SntHeader />
         <main className="h-[calc(100vh-4rem)] md:h-screen">
           {children}
         </main>

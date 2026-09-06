@@ -283,6 +283,7 @@ export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
       biayaTransport: data.biayaTransport ? parseFloat(data.biayaTransport) : 0,
       foto1: data.foto1 || null,
       foto2: data.foto2 || null,
+      buktiTiketTransport: data.buktiTiketTransport || null,
       statusTransport: 'PENDING',
     }
   });

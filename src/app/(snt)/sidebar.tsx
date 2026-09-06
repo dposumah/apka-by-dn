@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import * as React from "react"
 import Link from "next/link"
@@ -12,12 +12,24 @@ interface MenuItem {
   icon: string
   adminOnly?: boolean
   fasilOnly?: boolean
+  submenu?: { title: string; href: string }[]
 }
 
 const menuItems: MenuItem[] = [
   { title: "Dashboard Proyek", href: "/dashboard-rab", icon: "📊", adminOnly: true },
   { title: "Pengeluaran Lapangan", href: "/pengeluaran", icon: "💸", adminOnly: true },
-  { title: "Master Fasilitator", href: "/fasilitator", icon: "👩‍🏫", adminOnly: true },
+  { 
+    title: "Manajemen Fasilitator", 
+    href: "/fasilitator", 
+    icon: "👥", 
+    adminOnly: true,
+    submenu: [
+      { title: "Data Fasilitator", href: "/fasilitator" },
+      { title: "Laporan Mingguan", href: "/fasilitator/laporan" },
+      { title: "Rekap Honorarium", href: "/fasilitator/rekap-honor" },
+      { title: "Tagihan Transport", href: "/fasilitator/transport" }
+    ]
+  },
   { title: "Pengaturan Akun", href: "/snt-akun", icon: "⚙️", adminOnly: true },
   { title: "Dashboard", href: "/portal", icon: "🏠", fasilOnly: true },
   { title: "Profil Fasilitator", href: "/portal/profil", icon: "👤", fasilOnly: true },
@@ -28,16 +40,19 @@ export function SntSidebar() {
   const pathname = usePathname()
   const { data: session } = useSession()
   const userRole = session?.user?.role
+  const [openMenus, setOpenMenus] = React.useState<Record<string, boolean>>({ "Manajemen Fasilitator": true })
+
+  const toggleMenu = (title: string) => {
+    setOpenMenus(prev => ({ ...prev, [title]: !prev[title] }))
+  }
 
   const isActive = (href: string) => {
     if (href === "/portal") {
       return pathname === "/portal"
     }
-    return pathname?.startsWith(href)
+    return pathname === href || pathname?.startsWith(href + "/")
   }
 
-  // Filter menu: If FASILITATOR, only show non-adminOnly items
-  // If Admin, maybe hide fasilOnly? Or keep them. Let's hide fasilOnly for Admin.
   const filteredMenus = menuItems.filter(item => {
     if (userRole === "FASILITATOR" && item.adminOnly) return false
     if (userRole !== "FASILITATOR" && item.fasilOnly) return false
@@ -53,17 +68,52 @@ export function SntSidebar() {
 
       <nav className="flex-1 space-y-1 p-3">
         {filteredMenus.map((item) => (
-          <Link
-            key={item.title}
-            href={item.href}
-            className={cn(
-              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-emerald-900",
-              isActive(item.href) ? "bg-emerald-900 text-white" : "text-emerald-200"
+          <div key={item.title}>
+            {item.submenu ? (
+              <>
+                <button
+                  onClick={() => toggleMenu(item.title)}
+                  className={cn(
+                    "flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-emerald-900",
+                    (isActive(item.href) || item.submenu.some(s => isActive(s.href))) ? "bg-emerald-900 text-white" : "text-emerald-200"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg">{item.icon}</span>
+                    {item.title}
+                  </div>
+                  <span className="text-xs">{openMenus[item.title] ? "▼" : "▶"}</span>
+                </button>
+                {openMenus[item.title] && (
+                  <div className="mt-1 flex flex-col space-y-1 pl-9 pr-2">
+                    {item.submenu.map((sub) => (
+                      <Link
+                        key={sub.title}
+                        href={sub.href}
+                        className={cn(
+                          "rounded-md px-3 py-2 text-sm transition-colors hover:bg-emerald-900",
+                          isActive(sub.href) ? "bg-emerald-900 font-medium text-white" : "text-emerald-300"
+                        )}
+                      >
+                        {sub.title}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <Link
+                href={item.href}
+                className={cn(
+                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-emerald-900",
+                  isActive(item.href) ? "bg-emerald-900 text-white" : "text-emerald-200"
+                )}
+              >
+                <span className="text-lg">{item.icon}</span>
+                {item.title}
+              </Link>
             )}
-          >
-            <span className="text-lg">{item.icon}</span>
-            {item.title}
-          </Link>
+          </div>
         ))}
       </nav>
 

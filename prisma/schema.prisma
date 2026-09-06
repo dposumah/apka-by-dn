@@ -614,6 +614,8 @@ model LaporanKegiatan {
   jumlahJP        Int    @default(0)
   biayaTransport  Float? @default(0)
   statusTransport String @default("PENDING")
+  buktiTransferTransport String?
+  buktiTiketTransport String?
 
   foto1 String?
   foto2 String?
