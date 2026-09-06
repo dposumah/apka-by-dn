@@ -4,8 +4,24 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { FileText, CheckCircle2 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import Link from 'next/link'
+import { deleteLaporanKegiatan } from '@/app/actions/rab'
+import { useState } from 'react'
 
 export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilitator: any, isIncomplete: boolean, userName: string }) {
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  const handleDeleteLaporan = async (laporanId: string) => {
+    if (!confirm('Apakah Anda yakin ingin membatalkan dan menghapus laporan ini?')) return;
+    setDeletingId(laporanId);
+    try {
+      await deleteLaporanKegiatan(laporanId, fasilitator.id);
+      alert('Laporan berhasil dihapus');
+    } catch (e: any) {
+      alert(e.message || 'Gagal menghapus laporan');
+    } finally {
+      setDeletingId(null);
+    }
+  }
   
   return (
     <div className="p-8 space-y-6 max-w-5xl mx-auto">
@@ -101,6 +117,18 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
                       <div className="text-xs text-emerald-600 mt-1 flex items-center justify-end gap-1"><CheckCircle2 className="w-3 h-3"/> Direkap (Bulanan)</div>
                     ) : (
                       <div className="text-xs text-amber-600 mt-1 flex justify-end">Honor Belum direkap</div>
+                    )}
+                    
+                    {!lap.rekapHonorariumId && lap.statusTransport !== 'PAID' && (
+                      <div className="mt-2 flex justify-end">
+                        <button
+                          onClick={() => handleDeleteLaporan(lap.id)}
+                          disabled={deletingId === lap.id}
+                          className="text-xs text-red-600 hover:text-red-700 font-medium hover:underline disabled:opacity-50"
+                        >
+                          {deletingId === lap.id ? 'Membatalkan...' : 'Batalkan Laporan'}
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>

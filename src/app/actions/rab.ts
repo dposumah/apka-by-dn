@@ -386,3 +386,26 @@ export async function toggleFasilitatorStatus(id: string, isActive: boolean) {
   
   revalidatePath('/fasilitator')
 }
+
+export async function deleteLaporanKegiatan(laporanId: string, fasilitatorId: string) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error('Unauthorized')
+
+  const lap = await prisma.laporanKegiatan.findUnique({
+    where: { id: laporanId }
+  })
+
+  if (!lap) throw new Error('Laporan tidak ditemukan')
+  if (lap.fasilitatorId !== fasilitatorId) throw new Error('Unauthorized')
+  
+  if (lap.rekapHonorariumId || lap.statusTransport === 'PAID') {
+    throw new Error('Laporan sudah diproses oleh Admin dan tidak dapat dihapus.')
+  }
+
+  await prisma.laporanKegiatan.delete({
+    where: { id: laporanId }
+  })
+  
+  revalidatePath('/portal')
+  revalidatePath('/dashboard-rab')
+}
