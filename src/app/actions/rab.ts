@@ -322,3 +322,24 @@ export async function deleteFasilitator(id: string) {
   
   revalidatePath('/fasilitator')
 }
+
+export async function toggleFasilitatorStatus(id: string, isActive: boolean) {
+  const session = await getServerSession(authOptions)
+  if (session?.user?.role !== 'SUPER_ADMIN' && session?.user?.role !== 'ADMIN') {
+    throw new Error('Unauthorized')
+  }
+
+  const fasil = await prisma.fasilitator.update({
+    where: { id },
+    data: { isActive }
+  })
+  
+  if (fasil.userId) {
+    await prisma.user.update({
+      where: { id: fasil.userId },
+      data: { isActive }
+    })
+  }
+  
+  revalidatePath('/fasilitator')
+}

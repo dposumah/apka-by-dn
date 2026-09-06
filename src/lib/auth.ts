@@ -23,6 +23,10 @@ export const authOptions: NextAuthOptions = {
         if (!user || !user.password) {
           throw new Error("Kredensial tidak valid");
         }
+        
+        if (user.isActive === false) {
+          throw new Error("Akun ini telah dinonaktifkan. Silakan hubungi Administrator.");
+        }
 
         const isCorrectPassword = await bcrypt.compare(
           credentials.password,

@@ -580,6 +580,7 @@ model Fasilitator {
   alamat            String?
     propinsi          String?
     kabKota           String?
+    isActive          Boolean @default(true)
   kontak            String?
   email             String?
   bankName          String?

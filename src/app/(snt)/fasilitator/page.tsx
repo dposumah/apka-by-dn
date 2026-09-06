@@ -1,5 +1,6 @@
 import { getFasilitators } from '@/app/actions/rab'
 import { DeleteFasilButton } from './delete-fasil-button'
+import { ToggleStatusButton } from './toggle-status-button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
@@ -35,6 +36,7 @@ export default async function FasilitatorPage() {
                   <th className="px-4 py-3">Bidang Keahlian</th>
                   <th className="px-4 py-3">Alamat / Wilayah</th>
                   <th className="px-4 py-3">Rekening Bank</th>
+                  <th className="px-4 py-3">Akses Login</th>
                   <th className="px-4 py-3">Aksi</th>
                 </tr>
               </thead>
@@ -55,6 +57,9 @@ export default async function FasilitatorPage() {
                       ) : (
                         <span className="text-rose-500 text-xs italic">Belum diset</span>
                       )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <ToggleStatusButton id={f.id} isActive={f.isActive} />
                     </td>
                     <td className="px-4 py-3">
                       <Link href={/fasilitator/ + f.id} className="text-sm font-medium text-blue-600 hover:underline">
