@@ -43,7 +43,7 @@ export function MobileSidebar() {
           />
           
           {/* Sidebar Panel */}
-          <div className="relative flex w-64 max-w-[80vw] flex-1 flex-col bg-emerald-950 shadow-xl animate-in slide-in-from-left-full duration-300">
+          <div className="relative flex w-64 max-w-[80vw] h-[100dvh] flex-col bg-emerald-950 shadow-xl animate-in slide-in-from-left-full duration-300">
             <div className="absolute top-0 right-0 -mr-12 pt-4">
               <button
                 type="button"

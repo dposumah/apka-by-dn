@@ -60,13 +60,13 @@ export function SntSidebar() {
   })
 
   return (
-    <div className="flex h-full w-full flex-col border-r bg-emerald-950 text-emerald-50 overflow-y-auto">
+    <div className="flex h-full w-full flex-col border-r bg-emerald-950 text-emerald-50">
       <div className="flex h-20 shrink-0 flex-col items-start justify-center border-b border-emerald-900 px-6">
         <h1 className="text-xl font-bold tracking-tight text-white leading-tight">PT. JT Robotic</h1>
         <h2 className="text-xs text-emerald-300">KKA Sekolah Nasional Terintegrasi Tahun 2026</h2>
       </div>
 
-      <nav className="flex-1 space-y-1 p-3">
+      <nav className="flex-1 overflow-y-auto space-y-1 p-3">
         {filteredMenus.map((item) => (
           <div key={item.title}>
             {item.submenu ? (
@@ -117,7 +117,7 @@ export function SntSidebar() {
         ))}
       </nav>
 
-      <div className="border-t border-emerald-900 p-4">
+      <div className="shrink-0 border-t border-emerald-900 p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-800 text-white font-bold uppercase">
