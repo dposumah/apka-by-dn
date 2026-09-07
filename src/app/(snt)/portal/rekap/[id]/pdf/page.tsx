@@ -64,10 +64,10 @@ export default async function RekapPdfPage({ params }: { params: { id: string } 
               <tr key={lap.id}>
                 <td className="border border-black px-3 py-2 text-center">{i + 1}</td>
                 <td className="border border-black px-3 py-2">{new Date(lap.date).toLocaleDateString('id-ID')}</td>
-                <td className="border border-black px-3 py-2">{lap.topic} <span className="text-xs text-gray-500 block">({lap.jenisKegiatan})</span></td>
+                <td className="border border-black px-3 py-2">{lap.topic}</td>
                 <td className="border border-black px-3 py-2 text-center">{lap.tingkatSekolah}</td>
                 <td className="border border-black px-3 py-2 text-center">{lap.attendance}</td>
-                <td className="border border-black px-3 py-2 text-center">{lap.jumlahJP}</td>
+                <td className="border border-black px-3 py-2 text-center">{(lap.jumlahJPIntra || 0) + (lap.jumlahJPEkstra || 0)}</td>
               </tr>
             ))}
           </tbody>

@@ -60,9 +60,9 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
             </thead>
             <tbody>
               <tr>
-                <td>${lap.topic} - ${lap.jenisKegiatan}</td>
+                <td>${lap.topic}</td>
                 <td>${lap.tingkatSekolah}</td>
-                <td>${lap.jumlahJP}</td>
+                <td>${(lap.jumlahJPIntra || 0) + (lap.jumlahJPEkstra || 0)}</td>
                 <td>Rp ${lap.biayaTransport.toLocaleString('id-ID')}</td>
               </tr>
               <tr>

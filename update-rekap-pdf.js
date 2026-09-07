@@ -1,23 +1,16 @@
 ﻿const fs = require('fs')
 
-let code = fs.readFileSync('src/app/(snt)/portal/rekap/[id]/pdf/page.tsx', 'utf8')
+let path = 'src/app/(snt)/portal/rekap/[id]/pdf/page.tsx'
+let code = fs.readFileSync(path, 'utf8')
 
-const targetHeader = `{/* Header */}
-        <div className="text-center border-b-2 border-black pb-6 mb-8">
-          <h1 className="text-2xl font-bold uppercase tracking-widest">Laporan Bulanan Fasilitator</h1>
-          <h2 className="text-lg font-semibold mt-1">SNT KKA Robotika 2026</h2>
-        </div>`
+code = code.replace(
+  '<td className="border border-black px-3 py-2">{lap.topic} <span className="text-xs text-gray-500 block">({lap.jenisKegiatan})</span></td>',
+  '<td className="border border-black px-3 py-2">{lap.topic}</td>'
+)
 
-const replacementHeader = `{/* Kop Surat */}
-        <div className="mb-6">
-          <img src="/kop-surat.png" className="w-full max-h-32 object-contain" alt="Kop Surat" />
-        </div>
-        {/* Header */}
-        <div className="text-center border-b-2 border-black pb-6 mb-8 mt-4">
-          <h1 className="text-2xl font-bold uppercase tracking-widest">Laporan Bulanan Fasilitator</h1>
-          <h2 className="text-lg font-semibold mt-1">KKA Sekolah Nasional Terintegrasi Tahun 2026</h2>
-        </div>`
+code = code.replace(
+  '<td className="border border-black px-3 py-2 text-center">{lap.jumlahJP}</td>',
+  '<td className="border border-black px-3 py-2 text-center">{(lap.jumlahJPIntra || 0) + (lap.jumlahJPEkstra || 0)}</td>'
+)
 
-code = code.replace(targetHeader, replacementHeader)
-
-fs.writeFileSync('src/app/(snt)/portal/rekap/[id]/pdf/page.tsx', code)
+fs.writeFileSync(path, code)
