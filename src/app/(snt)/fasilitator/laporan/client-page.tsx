@@ -38,7 +38,7 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
           <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
             <div>
               <p><strong>Nama Fasilitator:</strong> ${lap.fasilitator.namaLengkap}</p>
-              <p><strong>Lokasi SNT:</strong> ${lap.fasilitator.lokasiSNT || '-'}</p>
+              <p><strong>Lokasi SNT:</strong> ${lap.fasilitator.lokasiSNT ? lap.fasilitator.lokasiSNT.split(' - ')[0] : '-'}</p>
               <p><strong>Tanggal Laporan:</strong> ${new Date(lap.date).toLocaleDateString('id-ID')}</p>
             </div>
             <div style="text-align: right; border: 1px solid #ddd; padding: 15px; border-radius: 8px; background-color: #f8fafc;">

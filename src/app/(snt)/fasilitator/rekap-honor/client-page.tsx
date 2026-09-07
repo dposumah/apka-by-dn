@@ -54,7 +54,7 @@ export function RekapHonorClient({ initialData }: { initialData: any[] }) {
           <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
             <div>
               <p><strong>Nama Fasilitator:</strong> ${rekap.fasilitator.namaLengkap}</p>
-              <p><strong>Lokasi SNT:</strong> ${rekap.fasilitator.lokasiSNT || '-'}</p>
+              <p><strong>Lokasi SNT:</strong> ${rekap.fasilitator.lokasiSNT ? rekap.fasilitator.lokasiSNT.split(' - ')[0] : '-'}</p>
               <p><strong>Bulan Laporan:</strong> ${rekap.bulan}</p>
               <p><strong>Tanggal Diajukan:</strong> ${new Date(rekap.createdAt).toLocaleDateString('id-ID')}</p>
             </div>

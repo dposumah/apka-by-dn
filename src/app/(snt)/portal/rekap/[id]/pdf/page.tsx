@@ -38,7 +38,7 @@ export default async function RekapPdfPage({ params }: { params: { id: string } 
         <div className="grid grid-cols-2 gap-4 mb-8 text-sm">
           <div>
             <p><span className="font-semibold w-32 inline-block">Nama Lengkap</span> : {rekap.fasilitator.namaLengkap}</p>
-            <p><span className="font-semibold w-32 inline-block">Lokasi SNT</span> : {rekap.fasilitator.lokasiSNT || '-'}</p>
+            <p><span className="font-semibold w-32 inline-block">Lokasi SNT</span> : {rekap.fasilitator.lokasiSNT ? rekap.fasilitator.lokasiSNT.split(' - ')[0] : '-'}</p>
             <p><span className="font-semibold w-32 inline-block">Status</span> : {rekap.fasilitator.statusKepegawaian || '-'}</p>
           </div>
           <div>
