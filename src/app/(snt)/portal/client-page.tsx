@@ -1,7 +1,7 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { FileText, CheckCircle2 } from 'lucide-react'
+﻿import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { FileText, CheckCircle2, Wallet, Car, BookOpen, Clock } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import Link from 'next/link'
 import { deleteLaporanKegiatan } from '@/app/actions/rab'
@@ -23,41 +23,110 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
     }
   }
   
+  // Analytics Calculations
+  const totalLaporan = fasilitator.laporan?.length || 0;
+  const totalJPIntra = fasilitator.laporan?.reduce((acc: number, curr: any) => acc + (curr.jumlahJPIntra || 0), 0) || 0;
+  const totalJPEkstra = fasilitator.laporan?.reduce((acc: number, curr: any) => acc + (curr.jumlahJPEkstra || 0), 0) || 0;
+  const totalJP = totalJPIntra + totalJPEkstra;
+
+  // Honor Analytics
+  const laporanBelumDirekap = fasilitator.laporan?.filter((lap: any) => !lap.rekapHonorariumId) || [];
+  const jpBelumDirekap = laporanBelumDirekap.reduce((acc: number, curr: any) => acc + (curr.jumlahJPIntra || 0) + (curr.jumlahJPEkstra || 0), 0);
+  const estimasiHonorPending = jpBelumDirekap * 65000;
+  
+  const honorDisetujui = fasilitator.rekapHonorarium?.filter((r: any) => r.status === 'APPROVED').reduce((acc: number, curr: any) => acc + curr.totalHonor, 0) || 0;
+  
+  // Transport Analytics
+  const transportPending = fasilitator.laporan?.filter((l: any) => l.biayaTransport > 0 && l.statusTransport === 'PENDING').reduce((acc: number, curr: any) => acc + curr.biayaTransport, 0) || 0;
+  const transportLunas = fasilitator.laporan?.filter((l: any) => l.biayaTransport > 0 && l.statusTransport === 'PAID').reduce((acc: number, curr: any) => acc + curr.biayaTransport, 0) || 0;
+
   return (
     <div className="p-8 space-y-6 max-w-5xl mx-auto">
       <div>
         <h1 className="text-3xl font-bold tracking-tight text-slate-900">Selamat datang, {userName}</h1>
-        <p className="text-slate-500 mt-1">Dashboard Portal Fasilitator KKA Robotika SNT 2026</p>
+        <p className="text-slate-500 mt-1">Dashboard Portal Fasilitator PT. JT Robotic SNT 2026</p>
         
         {fasilitator.lokasiSNT ? (
           <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-sm font-medium">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
             Lokasi SNT: {fasilitator.lokasiSNT}
           </div>
         ) : (
           <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-sm font-medium">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
-            Lokasi SNT Belum Ditentukan oleh Admin
+            Lokasi SNT: Belum Ditentukan
           </div>
         )}
       </div>
-      
+
       {isIncomplete && (
-        <Alert variant="destructive" className="bg-red-50 text-red-700 border-red-200">
-          <AlertTitle>Data Profil Belum Lengkap!</AlertTitle>
+        <Alert variant="destructive">
+          <AlertTitle>Profil Belum Lengkap</AlertTitle>
           <AlertDescription>
-            Harap lengkapi Nama Bank, No Rekening, dan NIK/NPWP Anda agar pembayaran honorarium dapat diproses.
-            <Link href="/portal/profil" className="text-red-700 font-bold p-0 ml-2 hover:underline">
-              Lengkapi Sekarang &rarr;
-            </Link>
+            Anda harus melengkapi profil dan informasi Rekening Pembayaran Anda sebelum dapat mengirim laporan kegiatan mingguan.
+            <br/><br/>
+            <Link href="/portal/profil" className="underline font-medium">Lengkapi Profil Sekarang &rarr;</Link>
           </AlertDescription>
         </Alert>
       )}
 
+      {/* Analytics Dashboard */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="bg-white border-slate-200 shadow-sm">
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="p-3 bg-blue-100 rounded-lg text-blue-600">
+              <BookOpen className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-slate-500">Total Kinerja</p>
+              <h3 className="text-2xl font-bold text-slate-900">{totalJP} <span className="text-sm font-normal text-slate-500">JP</span></h3>
+              <p className="text-xs text-slate-400 mt-1">Intra: {totalJPIntra} | Ekstra: {totalJPEkstra}</p>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-white border-slate-200 shadow-sm">
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="p-3 bg-amber-100 rounded-lg text-amber-600">
+              <Clock className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-slate-500">Honor Belum Direkap</p>
+              <h3 className="text-2xl font-bold text-slate-900">Rp {(estimasiHonorPending/1000).toLocaleString('id-ID')}k</h3>
+              <p className="text-xs text-slate-400 mt-1">{jpBelumDirekap} JP dalam {laporanBelumDirekap.length} Laporan</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white border-slate-200 shadow-sm">
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="p-3 bg-emerald-100 rounded-lg text-emerald-600">
+              <Wallet className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-slate-500">Honor Disetujui</p>
+              <h3 className="text-2xl font-bold text-slate-900">Rp {(honorDisetujui/1000).toLocaleString('id-ID')}k</h3>
+              <p className="text-xs text-slate-400 mt-1">Total pencairan honor</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white border-slate-200 shadow-sm">
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="p-3 bg-purple-100 rounded-lg text-purple-600">
+              <Car className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-slate-500">Transportasi</p>
+              <h3 className="text-lg font-bold text-slate-900 leading-tight">Rp {(transportLunas/1000).toLocaleString('id-ID')}k <span className="text-sm font-normal text-slate-500">Lunas</span></h3>
+              <p className="text-xs text-amber-600 mt-1">Rp {(transportPending/1000).toLocaleString('id-ID')}k Pending</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between border-b pb-4 mb-4">
+        <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
           <div>
-            <CardTitle>Riwayat Laporan & Honorarium</CardTitle>
+            <CardTitle>Riwayat Laporan Kegiatan</CardTitle>
             <CardDescription>Daftar kegiatan yang telah Anda laporkan</CardDescription>
           </div>
           {isIncomplete ? (
@@ -78,13 +147,13 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
             </div>
           )}
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-4">
           {fasilitator.laporan && fasilitator.laporan.length > 0 ? (
             <div className="space-y-4">
               {fasilitator.laporan.map((lap: any) => (
-                <div key={lap.id} className="flex items-start justify-between p-4 border rounded-lg">
-                  <div>
-                    <h4 className="font-semibold text-slate-900">{lap.topic}</h4>
+                <div key={lap.id} className="flex flex-col md:flex-row items-start justify-between p-4 border rounded-lg hover:bg-slate-50 transition-colors">
+                  <div className="w-full md:w-auto">
+                    <h4 className="font-semibold text-slate-900 text-lg">{lap.topic}</h4>
                     <p className="text-sm text-slate-500">{new Date(lap.date).toLocaleDateString('id-ID')} &bull; {lap.attendance} Peserta</p>
                     {lap.materialLink && (
                       <a href={lap.materialLink} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline mt-1 inline-block">
@@ -92,52 +161,63 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
                       </a>
                     )}
                   </div>
-                  <div className="text-right space-y-1">
-                    <div className="text-sm font-medium text-slate-900">
-                      {(lap.jumlahJPIntra || 0) + (lap.jumlahJPEkstra || 0)} JP 
-                      <span className="text-slate-500 font-normal ml-1">
-                        ({lap.tingkatSekolah} - Intra: {lap.jumlahJPIntra}, Ekstra: {lap.jumlahJPEkstra})
-                      </span>
-                    </div>
-                    {lap.biayaTransport > 0 && (
-                      <div className="text-xs text-blue-600 mt-1">
-                        Transport: Rp {lap.biayaTransport.toLocaleString('id-ID')}
-                        {lap.statusTransport === 'PAID' && lap.buktiTransferTransport ? (
-                          <a href={lap.buktiTransferTransport} target="_blank" rel="noreferrer" className="ml-1 text-emerald-600 font-medium hover:underline flex justify-end items-center mt-1">
-                            Lunas (Lihat Bukti)
-                          </a>
-                        ) : lap.statusTransport === 'PAID' ? (
-                          <span className="ml-1 text-emerald-600 font-medium block mt-1">Lunas</span>
-                        ) : (
-                          <span className="ml-1 text-amber-600 block mt-1">Menunggu Transfer Admin</span>
-                        )}
+                  <div className="mt-4 md:mt-0 text-left md:text-right space-y-2 w-full md:w-auto bg-slate-50 md:bg-transparent p-3 md:p-0 rounded-md">
+                    <div className="flex justify-between md:justify-end items-center gap-4">
+                      <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Total Kinerja</span>
+                      <div className="text-sm font-medium text-slate-900">
+                        {(lap.jumlahJPIntra || 0) + (lap.jumlahJPEkstra || 0)} JP 
+                        <span className="text-slate-500 font-normal ml-1">
+                          ({lap.tingkatSekolah} - Intra: {lap.jumlahJPIntra}, Ekstra: {lap.jumlahJPEkstra})
+                        </span>
                       </div>
-                    )}
-                    {lap.rekapHonorariumId ? (
-                      <div className="text-xs text-emerald-600 mt-1 flex items-center justify-end gap-1"><CheckCircle2 className="w-3 h-3"/> Direkap (Bulanan)</div>
-                    ) : (
-                      <div className="text-xs text-amber-600 mt-1 flex justify-end">Honor Belum direkap</div>
+                    </div>
+                    
+                    {lap.biayaTransport > 0 && (
+                      <div className="flex justify-between md:justify-end items-center gap-4">
+                        <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Transportasi</span>
+                        <div className="text-xs text-slate-700">
+                          Rp {lap.biayaTransport.toLocaleString('id-ID')}
+                          {lap.statusTransport === 'PAID' && lap.buktiTransferTransport ? (
+                            <a href={lap.buktiTransferTransport} target="_blank" rel="noreferrer" className="ml-2 text-emerald-600 font-medium hover:underline inline-flex items-center bg-emerald-100 px-2 py-0.5 rounded">
+                              Lunas (Lihat Bukti)
+                            </a>
+                          ) : lap.statusTransport === 'PAID' ? (
+                            <span className="ml-2 text-emerald-600 font-medium inline-block bg-emerald-100 px-2 py-0.5 rounded">Lunas</span>
+                          ) : (
+                            <span className="ml-2 text-amber-600 inline-block bg-amber-100 px-2 py-0.5 rounded font-medium">Menunggu Admin</span>
+                          )}
+                        </div>
+                      </div>
                     )}
                     
-                    {!lap.rekapHonorariumId && lap.statusTransport !== 'PAID' && (
-                      <div className="mt-2 flex justify-end">
-                        <button
-                          onClick={() => handleDeleteLaporan(lap.id)}
-                          disabled={deletingId === lap.id}
-                          className="text-xs text-red-600 hover:text-red-700 font-medium hover:underline disabled:opacity-50"
-                        >
-                          {deletingId === lap.id ? 'Membatalkan...' : 'Batalkan Laporan'}
-                        </button>
-                      </div>
-                    )}
+                    <div className="flex justify-between md:justify-end items-center gap-4 pt-1 md:pt-0">
+                      <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Status Honor</span>
+                      {lap.rekapHonorariumId ? (
+                        <div className="text-xs text-emerald-700 font-medium flex items-center gap-1 bg-emerald-100 px-2 py-1 rounded"><CheckCircle2 className="w-3 h-3"/> Direkap (Bulanan)</div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-amber-700 font-medium bg-amber-100 px-2 py-1 rounded">Belum direkap</span>
+                          {lap.statusTransport !== 'PAID' && (
+                            <button
+                              onClick={() => handleDeleteLaporan(lap.id)}
+                              disabled={deletingId === lap.id}
+                              className="text-xs text-red-600 hover:text-red-700 font-medium hover:underline disabled:opacity-50 ml-2"
+                            >
+                              {deletingId === lap.id ? 'Membatalkan...' : 'Batalkan Laporan'}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="text-center py-8 text-slate-500 flex flex-col items-center">
-              <FileText className="w-12 h-12 text-slate-300 mb-3" />
+            <div className="text-center py-12 text-slate-500">
+              <FileText className="w-12 h-12 mx-auto text-slate-300 mb-3" />
               <p>Belum ada laporan kegiatan.</p>
+              <p className="text-sm mt-1">Buat laporan pertama Anda dengan menekan tombol di atas.</p>
             </div>
           )}
         </CardContent>
