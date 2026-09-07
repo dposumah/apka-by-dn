@@ -72,7 +72,16 @@ export function TransportClient({ initialData }: { initialData: any[] }) {
                   {lap.fasilitator.namaLengkap}
                   <div className="text-xs text-slate-500">{lap.fasilitator.bankName} - {lap.fasilitator.bankAccount}</div>
                 </td>
-                <td className="px-4 py-3">{lap.fasilitator.lokasiSNT || '-'}</td>
+                <td className="px-4 py-3">
+        {lap.fasilitator.lokasiSNT ? (
+          <>
+            <div className="font-medium text-slate-800">{lap.fasilitator.lokasiSNT.split(' - ')[0]}</div>
+            {lap.fasilitator.lokasiSNT.split(' - ')[1] && <div className="text-xs text-slate-500 mt-0.5 leading-tight">{lap.fasilitator.lokasiSNT.split(' - ')[1]}</div>}
+          </>
+        ) : (
+          '-'
+        )}
+      </td>
                 <td className="px-4 py-3">{lap.topic}</td>
                 <td className="px-4 py-3 text-right font-semibold text-blue-700">Rp {lap.biayaTransport.toLocaleString('id-ID')}</td>
                 <td className="px-4 py-3 text-center">

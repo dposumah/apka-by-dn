@@ -44,7 +44,16 @@ export default async function FasilitatorPage() {
                 {fasilitators.map(f => (
                   <tr key={f.id} className="border-b hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3 font-medium text-blue-700">{f.namaLengkap}</td>
-                    <td className="px-4 py-3 text-slate-600">{f.lokasiSNT || '-'}</td>
+                    <td className="px-4 py-3 text-slate-600">
+        {f.lokasiSNT ? (
+          <>
+            <div className="font-medium text-slate-800">{f.lokasiSNT.split(' - ')[0]}</div>
+            {f.lokasiSNT.split(' - ')[1] && <div className="text-xs text-slate-500 mt-0.5 leading-tight">{f.lokasiSNT.split(' - ')[1]}</div>}
+          </>
+        ) : (
+          '-'
+        )}
+      </td>
                     <td className="px-4 py-3 max-w-[200px] truncate text-slate-600" title={f.alamat || ''}>
                       {f.kabKota || f.propinsi ? `${f.kabKota || ''} ${f.propinsi ? '('+f.propinsi+')' : ''}` : (f.alamat || '-')}
                     </td>
