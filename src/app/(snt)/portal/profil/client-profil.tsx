@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { updateFasilitatorProfile } from '@/app/actions/rab'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 const PANGKAT_GOLONGAN = [
   'I/a (Juru Muda)', 'I/b (Juru Muda Tingkat I)', 'I/c (Juru)', 'I/d (Juru Tingkat I)',
@@ -89,7 +89,7 @@ export function ProfilClient({ fasilitator }: { fasilitator: any }) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>NIP / NUPTK</Label>
-                  <Input value={formData.nipNuptk} onChange={e => setFormData({...formData, nipNuptk: e.target.value})} />
+                  <Input value={formData.nipNuptk} onChange={e => setFormData({...formData, nipNuptk: e.target.value})} placeholder="Biarkan kosong jika tidak ada" />
                 </div>
                 <div className="space-y-2">
                   <Label>Status Kepegawaian</Label>
@@ -123,40 +123,40 @@ export function ProfilClient({ fasilitator }: { fasilitator: any }) {
               )}
               <div className="space-y-2">
                 <Label>NIDN</Label>
-                <Input value={formData.nidn} onChange={e => setFormData({...formData, nidn: e.target.value})} />
+                <Input value={formData.nidn} onChange={e => setFormData({...formData, nidn: e.target.value})} placeholder="Biarkan kosong jika tidak ada" />
               </div>
               <div className="space-y-2">
                 <Label>Instansi</Label>
-                <Input value={formData.instansi} onChange={e => setFormData({...formData, instansi: e.target.value})} />
+                <Input value={formData.instansi} onChange={e => setFormData({...formData, instansi: e.target.value})} placeholder="Biarkan kosong jika tidak ada" />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Jabatan</Label>
-                  <Input value={formData.jabatan} onChange={e => setFormData({...formData, jabatan: e.target.value})} />
+                  <Input value={formData.jabatan} onChange={e => setFormData({...formData, jabatan: e.target.value})} placeholder="Biarkan kosong jika tidak ada" />
                 </div>
                 <div className="space-y-2">
                   <Label>Pendidikan Terakhir</Label>
-                  <Input value={formData.pendidikan} onChange={e => setFormData({...formData, pendidikan: e.target.value})} />
+                  <Input value={formData.pendidikan} onChange={e => setFormData({...formData, pendidikan: e.target.value})} placeholder="Biarkan kosong jika tidak ada" />
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Kluster Keahlian</Label>
-                  <Input value={formData.klusterKeahlian} onChange={e => setFormData({...formData, klusterKeahlian: e.target.value})} />
+                  <Input value={formData.klusterKeahlian} onChange={e => setFormData({...formData, klusterKeahlian: e.target.value})} placeholder="Biarkan kosong jika tidak ada" />
                 </div>
                 <div className="space-y-2">
                   <Label>Mata Pelajaran</Label>
-                  <Input value={formData.mataPelajaran} onChange={e => setFormData({...formData, mataPelajaran: e.target.value})} />
+                  <Input value={formData.mataPelajaran} onChange={e => setFormData({...formData, mataPelajaran: e.target.value})} placeholder="Biarkan kosong jika tidak ada" />
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Kompetensi</Label>
-                  <Input value={formData.kompetensi} onChange={e => setFormData({...formData, kompetensi: e.target.value})} />
+                  <Input value={formData.kompetensi} onChange={e => setFormData({...formData, kompetensi: e.target.value})} placeholder="Biarkan kosong jika tidak ada" />
                 </div>
                 <div className="space-y-2">
                   <Label>Sertifikasi</Label>
-                  <Input value={formData.sertifikasi} onChange={e => setFormData({...formData, sertifikasi: e.target.value})} />
+                  <Input value={formData.sertifikasi} onChange={e => setFormData({...formData, sertifikasi: e.target.value})} placeholder="Biarkan kosong jika tidak ada" />
                 </div>
               </div>
               
@@ -206,7 +206,7 @@ export function ProfilClient({ fasilitator }: { fasilitator: any }) {
               </div>
               
               <div className="flex justify-end gap-2 pt-6">
-                {!isIncomplete && <Button type="button" variant="ghost" onClick={() => setIsEditing(false)}>Batal</Button>}
+                <Button type="button" variant="ghost" onClick={() => setIsEditing(false)}>Batal</Button>
                 <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white" disabled={saving}>
                   {saving ? 'Menyimpan...' : 'Simpan Profil'}
                 </Button>

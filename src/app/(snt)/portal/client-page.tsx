@@ -63,7 +63,7 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
           <AlertDescription>
             Anda harus melengkapi profil dan informasi Rekening Pembayaran Anda sebelum dapat mengirim laporan kegiatan mingguan.
             <br/><br/>
-            <Link href="/portal/profil" className="underline font-medium">Lengkapi Profil Sekarang &rarr;</Link>
+            <Link href="/portal/profil?edit=true" className="underline font-medium">Lengkapi Profil Sekarang &rarr;</Link>
           </AlertDescription>
         </Alert>
       )}
