@@ -3,6 +3,8 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { Bell } from "lucide-react"
 import Link from "next/link"
+import { MobileSidebar } from "./mobile-sidebar"
+
 
 export async function SntHeader() {
   const session = await getServerSession(authOptions)
@@ -18,9 +20,10 @@ export async function SntHeader() {
   const pendingCount = pendingWeekly + pendingHonor
 
   return (
-    <header className="flex h-16 items-center justify-between border-b bg-white px-6">
-      <div className="flex items-center gap-2 md:hidden">
-        <h1 className="text-lg font-bold tracking-tight">KKA SNT 2026</h1>
+    <header className="flex h-16 items-center justify-between border-b bg-white px-4 md:px-6">
+      <div className="flex items-center md:hidden">
+        <MobileSidebar />
+        <h1 className="text-lg font-bold tracking-tight">KKA SNT</h1>
       </div>
       <div className="hidden md:block"></div>
       
