@@ -129,22 +129,37 @@ export function ProfilClient({ fasilitator }: { fasilitator: any }) {
                 <Label>Instansi</Label>
                 <Input value={formData.instansi} onChange={e => setFormData({...formData, instansi: e.target.value})} />
               </div>
-              <div className="space-y-2">
-                <Label>Lokasi SNT</Label>
-                <select 
-                  value={formData.lokasiSNT}
-                  onChange={e => setFormData({...formData, lokasiSNT: e.target.value})}
-                  className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                >
-                  <option value="">-- Belum Ditentukan --</option>
-                  <option value="Kabupaten Tanjung Jabung Timur, Jambi - Desa Suka Majuk, Kecamatan Geragai">1. Kabupaten Tanjung Jabung Timur, Jambi - Desa Suka Majuk, Kecamatan Geragai</option>
-                  <option value="Kabupaten Tebo, Jambi - Komplek Perkantoran Seentak Galah Serengkuh Dayung, Jl. Lintas Tebo-Bungo Km. 12, Muara Tebo (37571)">2. Kabupaten Tebo, Jambi - Komplek Perkantoran</option>
-                  <option value="Kabupaten Buton Tengah, Sulawesi Tenggara - Kampus B USN Kolaka, Jl. Poros Mawasangka-Wakambangura II, Desa Wakambangura, Kecamatan Mawasangka">3. Kabupaten Buton Tengah, Sulawesi Tenggara - Kampus B USN Kolaka</option>
-                  <option value="Kabupaten Minahasa, Sulawesi Utara - BPMP Sulawesi Utara, Jl. Raya Manado-Tomohon, Pineleng II, Kecamatan Pineleng">4. Kabupaten Minahasa, Sulawesi Utara - BPMP Sulawesi Utara</option>
-                  <option value="Kabupaten Kupang, Nusa Tenggara Timur - Jl. Nasional Trans-Timor No. KM 36, Naibonat, Kecamatan Kupang Timur (85362)">5. Kabupaten Kupang, Nusa Tenggara Timur - Naibonat</option>
-                  <option value="Kota Tidore Kepulauan, Maluku Utara - Gedung BPMP Maluku Utara, Kecamatan Tidore Utara">6. Kota Tidore Kepulauan, Maluku Utara - Gedung BPMP</option>
-                </select>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Jabatan</Label>
+                  <Input value={formData.jabatan} onChange={e => setFormData({...formData, jabatan: e.target.value})} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Pendidikan Terakhir</Label>
+                  <Input value={formData.pendidikan} onChange={e => setFormData({...formData, pendidikan: e.target.value})} />
+                </div>
               </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Kluster Keahlian</Label>
+                  <Input value={formData.klusterKeahlian} onChange={e => setFormData({...formData, klusterKeahlian: e.target.value})} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Mata Pelajaran</Label>
+                  <Input value={formData.mataPelajaran} onChange={e => setFormData({...formData, mataPelajaran: e.target.value})} />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Kompetensi</Label>
+                  <Input value={formData.kompetensi} onChange={e => setFormData({...formData, kompetensi: e.target.value})} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Sertifikasi</Label>
+                  <Input value={formData.sertifikasi} onChange={e => setFormData({...formData, sertifikasi: e.target.value})} />
+                </div>
+              </div>
+              
               
               <div className="space-y-2 pt-2 border-t">
                 <Label>Alamat / Domisili Lengkap</Label>
@@ -205,13 +220,31 @@ export function ProfilClient({ fasilitator }: { fasilitator: any }) {
                   <p className="font-medium text-lg">{fasilitator.namaLengkap}</p>
                 </div>
                 <div>
-                  <p className="text-slate-500">Instansi</p>
-                  <p className="font-medium text-lg">{fasilitator.instansi || '-'}</p>
+                  <p className="text-slate-500">Lokasi SNT</p>
+                  {fasilitator.lokasiSNT ? (
+                    <p className="font-medium text-lg text-blue-700">{fasilitator.lokasiSNT.split(' - ')[0]}</p>
+                  ) : (
+                    <p className="font-medium">-</p>
+                  )}
                 </div>
-                <div>
-                  <p className="text-slate-500">NIP/NUPTK/NIDN</p>
-                  <p className="font-medium">{fasilitator.nipNuptk || fasilitator.nidn || '-'}</p>
-                </div>
+                {fasilitator.instansi && (
+                  <div>
+                    <p className="text-slate-500">Instansi</p>
+                    <p className="font-medium">{fasilitator.instansi}</p>
+                  </div>
+                )}
+                {fasilitator.jabatan && (
+                  <div>
+                    <p className="text-slate-500">Jabatan</p>
+                    <p className="font-medium">{fasilitator.jabatan}</p>
+                  </div>
+                )}
+                {(fasilitator.nipNuptk || fasilitator.nidn) && (
+                  <div>
+                    <p className="text-slate-500">NIP/NUPTK/NIDN</p>
+                    <p className="font-medium">{fasilitator.nipNuptk || fasilitator.nidn}</p>
+                  </div>
+                )}
                 <div>
                   <p className="text-slate-500">Status Kepegawaian</p>
                   <p className="font-medium">
@@ -219,20 +252,39 @@ export function ProfilClient({ fasilitator }: { fasilitator: any }) {
                     {fasilitator.statusKepegawaian === 'ASN' && fasilitator.pangkatGolongan && ` (${fasilitator.pangkatGolongan})`}
                   </p>
                 </div>
+                {fasilitator.pendidikan && (
+                  <div>
+                    <p className="text-slate-500">Pendidikan</p>
+                    <p className="font-medium">{fasilitator.pendidikan}</p>
+                  </div>
+                )}
+                {fasilitator.klusterKeahlian && (
+                  <div>
+                    <p className="text-slate-500">Kluster Keahlian</p>
+                    <p className="font-medium">{fasilitator.klusterKeahlian}</p>
+                  </div>
+                )}
+                {fasilitator.mataPelajaran && (
+                  <div>
+                    <p className="text-slate-500">Mata Pelajaran</p>
+                    <p className="font-medium">{fasilitator.mataPelajaran}</p>
+                  </div>
+                )}
+                {fasilitator.kompetensi && (
+                  <div>
+                    <p className="text-slate-500">Kompetensi</p>
+                    <p className="font-medium">{fasilitator.kompetensi}</p>
+                  </div>
+                )}
+                {fasilitator.sertifikasi && (
+                  <div>
+                    <p className="text-slate-500">Sertifikasi</p>
+                    <p className="font-medium">{fasilitator.sertifikasi}</p>
+                  </div>
+                )}
                 <div>
                   <p className="text-slate-500">Email & Kontak</p>
                   <p className="font-medium">{fasilitator.email} <br/> {fasilitator.kontak}</p>
-                </div>
-                <div>
-                  <p className="text-slate-500">Lokasi SNT</p>
-                  {fasilitator.lokasiSNT ? (
-    <>
-      <p className="font-medium">{fasilitator.lokasiSNT.split(' - ')[0]}</p>
-      {fasilitator.lokasiSNT.split(' - ')[1] && <p className="text-slate-600 text-xs mt-0.5 leading-tight">{fasilitator.lokasiSNT.split(' - ')[1]}</p>}
-    </>
-  ) : (
-    <p className="font-medium">-</p>
-  )}
                 </div>
                 <div>
                   <p className="text-slate-500">Alamat / Domisili</p>
