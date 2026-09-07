@@ -294,9 +294,20 @@ export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
   const reqJpIntra = parseInt(data.jumlahJPIntra) || 0;
   const reqJpEkstra = parseInt(data.jumlahJPEkstra) || 0;
 
+  const { start, end } = getWeekRange(data.date)
+
+  // Transport Darat Quota per Fasilitator per Week
+  const myWeeklyReports = await prisma.laporanKegiatan.findMany({
+    where: {
+      fasilitatorId,
+      date: { gte: start, lte: end }
+    }
+  });
+  const totalTransportDaratUsed = myWeeklyReports.reduce((sum, lap) => sum + lap.biayaTransport, 0);
+  const maxTransportPerminggu = fasil?.besaranTransport ?? 120000;
+  const grantedTransportDarat = Math.max(0, Math.min(maxTransportPerminggu, maxTransportPerminggu - totalTransportDaratUsed));
+
   if (fasil?.lokasiSNT) {
-    const { start, end } = getWeekRange(data.date)
-    
     // Get all reports in the same week for this location
     const weeklyReports = await prisma.laporanKegiatan.findMany({
       where: {
@@ -326,7 +337,7 @@ export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
       tingkatSekolah: data.tingkatSekolah,
       jumlahJPIntra: reqJpIntra,
       jumlahJPEkstra: reqJpEkstra,
-      biayaTransport: besaranTransportDarat,
+      biayaTransport: grantedTransportDarat,
       biayaTransportLaut: data.biayaTransportLaut ? parseFloat(data.biayaTransportLaut) : 0,
       foto1: data.foto1 || null,
       foto2: data.foto2 || null,
