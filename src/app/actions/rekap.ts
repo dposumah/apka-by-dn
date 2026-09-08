@@ -116,7 +116,7 @@ export async function submitRekapBulanan(rekapId: string, fileUrl: string) {
 export async function getAdminTransportRecap() {
   const laporanList = await prisma.laporanKegiatan.findMany({
     where: {
-      biayaTransport: { gt: 0 },
+      biayaTransportDisetujui: { gt: 0 },
       statusTransport: 'PENDING'
     },
     include: {
@@ -148,7 +148,7 @@ export async function markTransportPaid(laporanId: string, buktiUrl: string) {
     await prisma.expenseRequest.create({
       data: {
         rabItemId: rabItem.id,
-        amount: (lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0),
+        amount: (lap.biayaTransportDisetujui || 0) + (lap.biayaTransportLaut || 0),
         description: `Transport Mengajar Fasilitator - ${lap.topic}`,
         receiptUrl: buktiUrl,
         status: 'APPROVED',

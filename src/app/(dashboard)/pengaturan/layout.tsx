@@ -10,6 +10,7 @@ export default function PengaturanLayout({ children }: { children: React.ReactNo
           <Link href="/pengaturan/pengguna" className="p-2 hover:bg-slate-100 rounded">Pengguna</Link>
           <Link href="/pengaturan/pajak" className="p-2 hover:bg-slate-100 rounded">Pajak</Link>
           <Link href="/pengaturan/periode" className="p-2 hover:bg-slate-100 rounded">Periode Akuntansi</Link>
+          <Link href="/pengaturan/transport" className="p-2 hover:bg-slate-100 rounded text-emerald-600 font-medium">Konfigurasi Transport</Link>
         </div>
         <div className="flex-1">
           {children}

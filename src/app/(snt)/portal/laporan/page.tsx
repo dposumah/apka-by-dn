@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { redirect } from "next/navigation"
 import { LaporanClientForm } from "./client-form"
+import { getTransportConfig } from "@/app/actions/transport-config"
 
 export default async function LaporanPage() {
   const session = await getServerSession(authOptions)
@@ -24,5 +25,7 @@ export default async function LaporanPage() {
     redirect("/portal")
   }
 
-  return <LaporanClientForm fasilitatorId={fasilitator.id} />
+  const config = await getTransportConfig()
+
+  return <LaporanClientForm fasilitatorId={fasilitator.id} jarakTempuhKm={fasilitator.jarakTempuhKm || 0} config={config} />
 }

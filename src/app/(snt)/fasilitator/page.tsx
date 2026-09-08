@@ -35,6 +35,7 @@ export default async function FasilitatorPage() {
                 <tr>
                   <th className="px-4 py-3">Nama Lengkap</th>
                   <th className="px-4 py-3">Lokasi SNT</th>
+                    <th className="px-4 py-3 text-right">Jarak</th>
                   <th className="px-4 py-3">Alamat / Wilayah</th>
                   <th className="px-4 py-3">Email</th>
                   <th className="px-4 py-3">Rekening Bank</th>

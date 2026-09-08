@@ -37,8 +37,8 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
   const honorDisetujui = fasilitator.rekapHonorarium?.filter((r: any) => r.status === 'APPROVED').reduce((acc: number, curr: any) => acc + curr.totalHonor, 0) || 0;
   
   // Transport Analytics
-  const transportPending = fasilitator.laporan?.filter((l: any) => l.biayaTransport > 0 && l.statusTransport === 'PENDING').reduce((acc: number, curr: any) => acc + curr.biayaTransport, 0) || 0;
-  const transportLunas = fasilitator.laporan?.filter((l: any) => l.biayaTransport > 0 && l.statusTransport === 'PAID').reduce((acc: number, curr: any) => acc + curr.biayaTransport, 0) || 0;
+  const transportPending = fasilitator.laporan?.filter((l: any) => l.biayaTransportDisetujui > 0 && l.statusTransport === 'PENDING').reduce((acc: number, curr: any) => acc + curr.biayaTransportDisetujui, 0) || 0;
+  const transportLunas = fasilitator.laporan?.filter((l: any) => l.biayaTransportDisetujui > 0 && l.statusTransport === 'PAID').reduce((acc: number, curr: any) => acc + curr.biayaTransportDisetujui, 0) || 0;
 
   return (
     <div className="p-8 space-y-6 max-w-5xl mx-auto">
@@ -192,11 +192,11 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
                       </div>
                     </div>
                     
-                    {lap.biayaTransport > 0 && (
+                    {lap.biayaTransportDisetujui > 0 && (
                       <div className="flex justify-between md:justify-end items-center gap-4">
                         <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Transportasi</span>
                         <div className="text-xs text-slate-700">
-                          Rp {lap.biayaTransport.toLocaleString('id-ID')}
+                          Rp {lap.biayaTransportDisetujui.toLocaleString('id-ID')}
                           {lap.statusTransport === 'PAID' && lap.buktiTransferTransport ? (
                             <a href={lap.buktiTransferTransport} target="_blank" rel="noreferrer" className="ml-2 text-emerald-600 font-medium hover:underline inline-flex items-center bg-emerald-100 px-2 py-0.5 rounded">
                               Lunas (Lihat Bukti)

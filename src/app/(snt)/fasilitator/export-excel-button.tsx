@@ -21,6 +21,7 @@ export function ExportExcelButton({ data }: { data: any[] }) {
       'Kompetensi': f.kompetensi || '-',
       'Sertifikasi': f.sertifikasi || '-',
       'Lokasi SNT': f.lokasiSNT || '-',
+      'Jarak Tempuh (KM)': f.jarakTempuhKm || '-',
       'Provinsi': f.propinsi || '-',
       'Kabupaten/Kota': f.kabKota || '-',
       'Alamat/Domisili': f.alamat || '-',

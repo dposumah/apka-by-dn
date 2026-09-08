@@ -1,4 +1,7 @@
-'use server'
+"use server"
+
+import { getTransportConfig } from './transport-config'
+import { hitungTransportDarat } from '@/lib/transport-calc'
 
 import prisma from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
@@ -195,7 +198,7 @@ export async function createFasilitator(data: any) {
         statusKepegawaian: data.statusKepegawaian || null,
         pangkatGolongan: data.pangkatGolongan || null,
         lokasiSNT: data.lokasiSNT || null,
-        besaranTransport: data.besaranTransport !== undefined ? parseFloat(data.besaranTransport) : 120000,
+        jarakTempuhKm: data.jarakTempuhKm !== undefined && data.jarakTempuhKm !== "" ? parseFloat(data.jarakTempuhKm) : null,
       userId: userId,
     }
   })
@@ -263,7 +266,7 @@ export async function createFasilitator(data: any) {
       statusKepegawaian: data.statusKepegawaian || null,
       pangkatGolongan: data.pangkatGolongan || null,
         lokasiSNT: data.lokasiSNT || null,
-        besaranTransport: data.besaranTransport !== undefined ? parseFloat(data.besaranTransport) : currentFasil?.besaranTransport ?? 120000,
+        jarakTempuhKm: data.jarakTempuhKm !== undefined && data.jarakTempuhKm !== "" ? parseFloat(data.jarakTempuhKm) : currentFasil?.jarakTempuhKm ?? null,
       userId: userId,
     }
   })
@@ -289,23 +292,12 @@ export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
   const session = await getServerSession(authOptions);
   
   const fasil = await prisma.fasilitator.findUnique({ where: { id: fasilitatorId } });
-  const besaranTransportDarat = fasil?.besaranTransport ?? 120000;
+  if (!fasil) throw new Error("Fasilitator not found");
   
   const reqJpIntra = parseInt(data.jumlahJPIntra) || 0;
   const reqJpEkstra = parseInt(data.jumlahJPEkstra) || 0;
 
   const { start, end } = getWeekRange(data.date)
-
-  // Transport Darat Quota per Fasilitator per Week
-  const myWeeklyReports = await prisma.laporanKegiatan.findMany({
-    where: {
-      fasilitatorId,
-      date: { gte: start, lte: end }
-    }
-  });
-  const totalTransportDaratUsed = myWeeklyReports.reduce((sum, lap) => sum + lap.biayaTransport, 0);
-  const maxTransportPerminggu = fasil?.besaranTransport ?? 120000;
-  const grantedTransportDarat = Math.max(0, Math.min(maxTransportPerminggu, maxTransportPerminggu - totalTransportDaratUsed));
 
   if (fasil?.lokasiSNT) {
     // Get all reports in the same week for this location
@@ -326,6 +318,34 @@ export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
       throw new Error(`Sisa kuota Ekstrakurikuler minggu ini di lokasi Anda hanya tinggal ${4 - totalEkstraUsed} JP.`)
     }
   }
+
+  // Calculate transport
+  let modeTransport = data.modeTransport || "PRIBADI"
+  let jenisKendaraan = null
+  let jenisBBM = null
+  let jarakTempuhKm = null
+  let nominalStruk = null
+  let nominalInvoice = null
+  let plafonMaksimal = null
+  let biayaTransportDisetujui = 0
+
+  if (modeTransport === "PRIBADI") {
+    jenisKendaraan = data.jenisKendaraan
+    jenisBBM = data.jenisBBM
+    nominalStruk = data.nominalStruk ? parseFloat(data.nominalStruk) : 0
+    jarakTempuhKm = fasil.jarakTempuhKm || 0
+
+    if (jarakTempuhKm > 0 && jenisKendaraan && jenisBBM) {
+      const config = await getTransportConfig()
+      const calc = hitungTransportDarat(jarakTempuhKm, jenisKendaraan, jenisBBM, nominalStruk, config)
+      jarakTempuhKm = calc.jarakEfektif
+      plafonMaksimal = calc.plafonMaksimal
+      biayaTransportDisetujui = calc.biayaDisetujui
+    }
+  } else if (modeTransport === "ONLINE") {
+    nominalInvoice = data.nominalInvoice ? parseFloat(data.nominalInvoice) : 0
+    biayaTransportDisetujui = nominalInvoice
+  }
   
   const laporan = await prisma.laporanKegiatan.create({
     data: {
@@ -337,11 +357,23 @@ export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
       tingkatSekolah: data.tingkatSekolah,
       jumlahJPIntra: reqJpIntra,
       jumlahJPEkstra: reqJpEkstra,
-      biayaTransport: grantedTransportDarat,
+      
+      modeTransport,
+      jenisKendaraan,
+      jenisBBM,
+      jarakTempuhKm,
+      nominalStruk,
+      nominalInvoice,
+      plafonMaksimal,
+      biayaTransportDisetujui,
+      buktiStrukBBM: data.buktiStrukBBM || null,
+      buktiInvoiceOnline: data.buktiInvoiceOnline || null,
+
       biayaTransportLaut: data.biayaTransportLaut ? parseFloat(data.biayaTransportLaut) : 0,
+      buktiTiketTransport: data.buktiTiketTransport || null,
+      
       foto1: data.foto1 || null,
       foto2: data.foto2 || null,
-      buktiTiketTransport: data.buktiTiketTransport || null,
       statusTransport: 'PENDING',
     }
   });

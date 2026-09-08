@@ -565,6 +565,20 @@ model ExpenseRequest {
   @@map("expense_requests")
 }
 
+model TransportConfig {
+  id                String @id @default(cuid())
+  rasioKonsumsiR2   Float  @default(35)
+  rasioKonsumsiR4   Float  @default(10)
+  kompensasiAkses   Float  @default(10)
+  hargaPertalite    Float  @default(10000)
+  hargaPertamax     Float  @default(16300)
+  hargaSolar        Float  @default(6800)
+  hargaDexlite      Float  @default(24200)
+  updatedAt         DateTime @updatedAt
+
+  @@map("transport_config")
+}
+
 model Fasilitator {
   id                String  @id @default(cuid())
   namaLengkap       String
@@ -581,7 +595,7 @@ model Fasilitator {
     propinsi          String?
     kabKota           String?
     isActive          Boolean @default(true)
-    besaranTransport  Float   @default(120000)
+    jarakTempuhKm     Float?
   kontak            String?
   email             String?
   bankName          String?
@@ -614,14 +628,27 @@ model LaporanKegiatan {
   evaluation    String?
 
   tingkatSekolah  String @default("SMP")
-  // jenisKegiatan   String @default("INTRAKURIKULER")
   jumlahJPIntra   Int    @default(0)
     jumlahJPEkstra  Int    @default(0)
-  biayaTransport  Float? @default(0)
-    biayaTransportLaut Float? @default(0)
-  statusTransport String @default("PENDING")
+
+  // Transport fields (new calculator system)
+  modeTransport          String  @default("PRIBADI")
+  jenisKendaraan         String?
+  jenisBBM               String?
+  jarakTempuhKm          Float?
+  nominalStruk           Float?
+  nominalInvoice         Float?
+  plafonMaksimal         Float?
+  biayaTransportDisetujui Float  @default(0)
+  buktiStrukBBM          String?
+  buktiInvoiceOnline     String?
+
+  // Legacy & sea transport
+  biayaTransportLaut     Float?  @default(0)
+  buktiTiketTransport    String?
+
+  statusTransport        String  @default("PENDING")
   buktiTransferTransport String?
-  buktiTiketTransport String?
 
   foto1 String?
   foto2 String?

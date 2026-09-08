@@ -57,7 +57,7 @@ export function FasilitatorForm({ initialData }: { initialData?: any }) {
       statusKepegawaian: fd.get('statusKepegawaian'),
       pangkatGolongan: fd.get('pangkatGolongan'),
       lokasiSNT: fd.get('lokasiSNT'),
-        besaranTransport: fd.get('besaranTransport'),
+        jarakTempuhKm: fd.get('jarakTempuhKm'),
     }
 
     try {
@@ -200,9 +200,9 @@ export function FasilitatorForm({ initialData }: { initialData?: any }) {
           </div>
           
           <div className="space-y-2 mt-4 pt-4 border-t">
-            <Label>Besaran Transport Darat (Rp) *</Label>
-            <Input name="besaranTransport" type="number" defaultValue={initialData?.besaranTransport ?? 120000} required />
-            <p className="text-xs text-slate-500">Angka ini akan otomatis mengisi transport pada laporan mingguan fasilitator.</p>
+            <Label>Jarak Tempuh Domisili - Lokasi SNT (KM) *</Label>
+            <Input name="jarakTempuhKm" type="number" step="0.1" defaultValue={initialData?.jarakTempuhKm ?? ""} required />
+            <p className="text-xs text-slate-500">Jarak sekali jalan dari domisili ke lokasi SNT. Sistem akan menghitung PP otomatis untuk biaya BBM.</p>
           </div>
           
           <div className="bg-slate-50 p-4 rounded-md border space-y-4">
