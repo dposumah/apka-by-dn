@@ -57,7 +57,8 @@ export default async function FasilitatorPage() {
           '-'
         )}
       </td>
-                    <td className="px-4 py-3 max-w-[200px] truncate text-slate-600" title={f.alamat || ''}>
+                    <td className="px-4 py-3 text-right">{f.jarakTempuhKm ? f.jarakTempuhKm + ' KM' : '-'}</td>
+                      <td className="px-4 py-3 max-w-[200px] truncate text-slate-600" title={f.alamat || ''}>
                       {f.kabKota || f.propinsi ? `${f.kabKota || ''} ${f.propinsi ? '('+f.propinsi+')' : ''}` : (f.alamat || '-')}
                     </td>
                     <td className="px-4 py-3 text-slate-600">{f.email || '-'}</td>
