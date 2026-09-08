@@ -228,7 +228,7 @@ export function ProfilClient({ fasilitator }: { fasilitator: any }) {
                 <div>
                   <p className="text-slate-500">Lokasi SNT</p>
                   {fasilitator.lokasiSNT ? (
-                    <p className="font-medium text-lg text-blue-700">{fasilitator.lokasiSNT.split(' - ')[0]}</p>
+                    <p className="font-medium text-lg text-blue-700">{fasilitator.lokasiSNT.split(' - ').length > 1 ? `${fasilitator.lokasiSNT.split(' - ')[1]}, ${fasilitator.lokasiSNT.split(' - ')[0]}` : fasilitator.lokasiSNT.split(' - ')[0]}</p>
                   ) : (
                     <p className="font-medium">-</p>
                   )}
