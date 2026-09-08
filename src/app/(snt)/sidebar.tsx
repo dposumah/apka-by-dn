@@ -31,6 +31,7 @@ const menuItems: MenuItem[] = [
     ]
   },
   { title: "Pengaturan Akun", href: "/snt-akun", icon: "⚙️", adminOnly: true },
+  { title: "Konfig. Transport", href: "/pengaturan/transport", icon: "⛽", adminOnly: true },
   { title: "Dashboard", href: "/portal", icon: "🏠", fasilOnly: true },
   { title: "Profil Fasilitator", href: "/portal/profil", icon: "👤", fasilOnly: true },
   { title: "Pengaturan Sandi", href: "/portal/password", icon: "🔒", fasilOnly: true },
