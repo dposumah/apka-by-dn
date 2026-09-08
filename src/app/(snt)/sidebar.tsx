@@ -118,29 +118,28 @@ export function SntSidebar() {
         ))}
       </nav>
 
-      <div className="shrink-0 border-t border-emerald-900 p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-800 text-white font-bold uppercase">
-              {session?.user?.name?.[0] || 'U'}
-            </div>
-            <div className="ml-3">
-              <p className="text-sm font-medium text-white truncate w-32">{session?.user?.name || 'Pengguna'}</p>
-              <div className="flex items-center gap-2 mt-1">
-                <button 
-                  onClick={() => signOut({ callbackUrl: '/login' })}
-                  className="text-xs text-red-400 hover:underline cursor-pointer bg-transparent border-0 p-0 text-left"
-                >
-                  Keluar
-                </button>
-                {userRole !== "FASILITATOR" && (
-                  <Link href="/" className="text-xs text-emerald-400 hover:underline border-l border-emerald-700 pl-2">
-                    Ganti Aplikasi
-                  </Link>
-                )}
-              </div>
-            </div>
+      <div className="shrink-0 border-t border-emerald-900 p-4 pb-8 md:pb-4">
+        <div className="flex items-center mb-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-800 text-white font-bold uppercase">
+            {session?.user?.name?.[0] || 'U'}
           </div>
+          <div className="ml-3 overflow-hidden">
+            <p className="text-sm font-medium text-white truncate">{session?.user?.name || 'Pengguna'}</p>
+          </div>
+        </div>
+        
+        <div className="flex flex-col gap-1">
+          {userRole !== "FASILITATOR" && (
+            <Link href="/" className="flex w-full items-center px-3 py-2 text-sm text-emerald-100 hover:bg-emerald-900 rounded-md transition-colors">
+              Kembali ke APKA
+            </Link>
+          )}
+          <button 
+            onClick={() => signOut({ callbackUrl: '/login' })}
+            className="flex w-full items-center px-3 py-2 text-sm text-red-400 font-medium hover:bg-emerald-900 rounded-md transition-colors cursor-pointer"
+          >
+            Keluar / Logout
+          </button>
         </div>
       </div>
     </div>
