@@ -543,21 +543,21 @@ enum ExpenseStatus {
 }
 
 model ExpenseRequest {
-  id            String        @id @default(cuid())
-  rabItemId     String
-  rabItem       RabItem       @relation(fields: [rabItemId], references: [id])
-  amount        Float
-  description   String
-  receiptUrl    String?
+  id                String        @id @default(cuid())
+  rabItemId         String
+  rabItem           RabItem       @relation(fields: [rabItemId], references: [id])
+  amount            Float
+  description       String
+  receiptUrl        String?
   paymentReceiptUrl String?
-  date          DateTime      @default(now())
-  status        ExpenseStatus @default(PENDING)
-  createdById   String
-  createdBy     User          @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
-  approvedById  String?
-  approvedBy    User?         @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
-  fasilitatorId String?
-  fasilitator   Fasilitator?  @relation(fields: [fasilitatorId], references: [id])
+  date              DateTime      @default(now())
+  status            ExpenseStatus @default(PENDING)
+  createdById       String
+  createdBy         User          @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
+  approvedById      String?
+  approvedBy        User?         @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
+  fasilitatorId     String?
+  fasilitator       Fasilitator?  @relation(fields: [fasilitatorId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -566,15 +566,15 @@ model ExpenseRequest {
 }
 
 model TransportConfig {
-  id                String @id @default(cuid())
-  rasioKonsumsiR2   Float  @default(35)
-  rasioKonsumsiR4   Float  @default(10)
-  kompensasiAkses   Float  @default(10)
-  hargaPertalite    Float  @default(10000)
-  hargaPertamax     Float  @default(16300)
-  hargaSolar        Float  @default(6800)
-  hargaDexlite      Float  @default(24200)
-  updatedAt         DateTime @updatedAt
+  id              String   @id @default(cuid())
+  rasioKonsumsiR2 Float    @default(35)
+  rasioKonsumsiR4 Float    @default(10)
+  kompensasiAkses Float    @default(10)
+  hargaPertalite  Float    @default(10000)
+  hargaPertamax   Float    @default(16300)
+  hargaSolar      Float    @default(6800)
+  hargaDexlite    Float    @default(24200)
+  updatedAt       DateTime @updatedAt
 
   @@map("transport_config")
 }
@@ -592,16 +592,17 @@ model Fasilitator {
   kompetensi        String?
   sertifikasi       String?
   alamat            String?
-    propinsi          String?
-    kabKota           String?
-    isActive          Boolean @default(true)
-    jarakTempuhKm     Float?
+  propinsi          String?
+  kabKota           String?
+  isActive          Boolean @default(true)
+  jarakTempuhKm     Float?
   kontak            String?
   email             String?
   bankName          String?
   bankAccount       String?
   npwpNik           String?
   statusKepegawaian String?
+  tugas             String  @default("KEDUANYA")
   pangkatGolongan   String?
   lokasiSNT         String?
 
@@ -614,7 +615,6 @@ model Fasilitator {
   expenses        ExpenseRequest[]
   laporan         LaporanKegiatan[]
   rekapHonorarium RekapHonorarium[]
-  laporanEkstra   LaporanEkstra[]
 
   @@map("fasilitator")
 }
@@ -628,25 +628,25 @@ model LaporanKegiatan {
   attendance    Int
   evaluation    String?
 
-  tingkatSekolah  String @default("SMP")
-  jumlahJPIntra   Int    @default(0)
-    jumlahJPEkstra  Int    @default(0)
+  tingkatSekolah String @default("SMP")
+  jumlahJPIntra  Int    @default(0)
+  jumlahJPEkstra Int    @default(0)
 
   // Transport fields (new calculator system)
-  modeTransport          String  @default("PRIBADI")
-  jenisKendaraan         String?
-  jenisBBM               String?
-  jarakTempuhKm          Float?
-  nominalStruk           Float?
-  nominalInvoice         Float?
-  plafonMaksimal         Float?
-  biayaTransportDisetujui Float  @default(0)
-  buktiStrukBBM          String?
-  buktiInvoiceOnline     String?
+  modeTransport           String  @default("PRIBADI")
+  jenisKendaraan          String?
+  jenisBBM                String?
+  jarakTempuhKm           Float?
+  nominalStruk            Float?
+  nominalInvoice          Float?
+  plafonMaksimal          Float?
+  biayaTransportDisetujui Float   @default(0)
+  buktiStrukBBM           String?
+  buktiInvoiceOnline      String?
 
   // Legacy & sea transport
-  biayaTransportLaut     Float?  @default(0)
-  buktiTiketTransport    String?
+  biayaTransportLaut  Float?  @default(0)
+  buktiTiketTransport String?
 
   statusTransport        String  @default("PENDING")
   buktiTransferTransport String?
@@ -656,6 +656,13 @@ model LaporanKegiatan {
 
   rekapHonorariumId String?
   rekapHonorarium   RekapHonorarium? @relation(fields: [rekapHonorariumId], references: [id])
+
+  jenisLaporan    String             @default("INTRA")
+  jadwalEkstraId  String?
+  jadwalEkstra    JadwalEkstra?      @relation(fields: [jadwalEkstraId], references: [id])
+  modulEkstraId   String?
+  modulEkstra     ModulPembelajaran? @relation(fields: [modulEkstraId], references: [id])
+  kehadiranEkstra KehadiranEkstra[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -684,89 +691,68 @@ model RekapHonorarium {
 // ==================== SISWA & EKSTRA ====================
 
 model Siswa {
-  id            String   @id @default(cuid())
-  namaLengkap   String
-  kelas         String
-  lokasiSNT     String
-  isActive      Boolean  @default(true)
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
-  kehadiran     KehadiranEkstra[]
-  
+  id          String  @id @default(cuid())
+  namaLengkap String
+  kelas       String
+  lokasiSNT   String
+  isActive    Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  kehadiran KehadiranEkstra[]
+
   @@map("siswa")
 }
 
 model ModulPembelajaran {
-  id            String   @id @default(cuid())
-  kode          String
-  judul         String
-  deskripsi     String?
+  id             String  @id @default(cuid())
+  kode           String
+  judul          String
+  deskripsi      String?
   tingkatSekolah String
-  urutan        Int      @default(0)
-  isActive      Boolean  @default(true)
+  urutan         Int     @default(0)
+  isActive       Boolean @default(true)
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  jadwal        JadwalEkstra[]
-  laporanEkstra LaporanEkstra[]
-  
+  jadwal          JadwalEkstra[]
+  laporanKegiatan LaporanKegiatan[]
+
   @@map("modul_pembelajaran")
 }
 
 model JadwalEkstra {
-  id            String   @id @default(cuid())
-  mingguKe      Int
-  tanggalMulai  DateTime
+  id             String            @id @default(cuid())
+  mingguKe       Int
+  tanggalMulai   DateTime
   tanggalSelesai DateTime
-  modulId       String
-  modul         ModulPembelajaran @relation(fields: [modulId], references: [id])
-  lokasiSNT     String
+  modulId        String
+  modul          ModulPembelajaran @relation(fields: [modulId], references: [id])
+  lokasiSNT      String
   tingkatSekolah String
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
-  laporanEkstra LaporanEkstra[]
-  
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  laporanKegiatan LaporanKegiatan[]
+
   @@map("jadwal_ekstra")
 }
 
-model LaporanEkstra {
-  id            String   @id @default(cuid())
-  fasilitatorId String
-  fasilitator   Fasilitator @relation(fields: [fasilitatorId], references: [id])
-  jadwalId      String
-  jadwal        JadwalEkstra @relation(fields: [jadwalId], references: [id])
-  modulId       String
-  modul         ModulPembelajaran @relation(fields: [modulId], references: [id])
-  tanggalKegiatan DateTime
-  catatanUmum   String?
-  foto1         String?
-  foto2         String?
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
-  kehadiran     KehadiranEkstra[]
-  
-  @@map("laporan_ekstra")
-}
-
 model KehadiranEkstra {
-  id            String   @id @default(cuid())
-  laporanId     String
-  laporan       LaporanEkstra @relation(fields: [laporanId], references: [id], onDelete: Cascade)
-  siswaId       String
-  siswa         Siswa @relation(fields: [siswaId], references: [id])
-  status        String
+  id              String          @id @default(cuid())
+  laporanId       String
+  laporan         LaporanKegiatan @relation(fields: [laporanId], references: [id], onDelete: Cascade)
+  siswaId         String
+  siswa           Siswa           @relation(fields: [siswaId], references: [id])
+  status          String
   nilaiKualitatif String?
-  catatan       String?
-  
-  createdAt     DateTime @default(now())
-  
+  catatan         String?
+
+  createdAt DateTime @default(now())
+
   @@unique([laporanId, siswaId])
   @@map("kehadiran_ekstra")
 }

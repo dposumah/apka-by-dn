@@ -25,7 +25,7 @@ const menuItems: MenuItem[] = [
     adminOnly: true,
     submenu: [
       { title: "Data Fasilitator", href: "/fasilitator" },
-      { title: "Laporan Mingguan", href: "/fasilitator/laporan" },
+      { title: "Laporan Intra", href: "/fasilitator/intra" },
       { title: "Rekap Honorarium", href: "/fasilitator/rekap-honor" },
       { title: "Tagihan Transport", href: "/fasilitator/transport" }
     ]
@@ -46,6 +46,7 @@ const menuItems: MenuItem[] = [
   { title: "Konfig. Transport", href: "/pengaturan/transport", icon: "⛽", adminOnly: true },
   { title: "Dashboard", href: "/portal", icon: "🏠", fasilOnly: true },
   { title: "Profil Fasilitator", href: "/portal/profil", icon: "👤", fasilOnly: true },
+  { title: "Laporan Intra", href: "/portal/intra", icon: "📄", fasilOnly: true },
   { title: "Laporan Ekstra", href: "/portal/ekstra", icon: "📝", fasilOnly: true },
   { title: "Riwayat Ekstra", href: "/portal/ekstra/riwayat", icon: "📋", fasilOnly: true },
   { title: "Pengaturan Sandi", href: "/portal/password", icon: "🔒", fasilOnly: true },

@@ -375,10 +375,11 @@ export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
       foto1: data.foto1 || null,
       foto2: data.foto2 || null,
       statusTransport: 'PENDING',
+      jenisLaporan: 'INTRA',
     }
   });
 
-  revalidatePath('/portal');
+  revalidatePath('/portal/intra');
   revalidatePath('/dashboard-rab');
   return laporan;
 }

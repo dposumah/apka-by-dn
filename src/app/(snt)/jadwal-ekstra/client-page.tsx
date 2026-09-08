@@ -195,8 +195,8 @@ export function JadwalClientPage({ initialJadwal = [], lokasiList = [], modulLis
                 <TableCell>{new Date(j.tanggalMulai).toLocaleDateString('id-ID')}</TableCell>
                 <TableCell>{new Date(j.tanggalSelesai).toLocaleDateString('id-ID')}</TableCell>
                 <TableCell>
-                  <Badge variant={j.laporanEkstra?.length > 0 ? "default" : "secondary"} className={j.laporanEkstra?.length > 0 ? "bg-green-500 hover:bg-green-600" : "bg-amber-500 hover:bg-amber-600"}>
-                    {j.laporanEkstra?.length > 0 ? "Sudah Dilaporkan" : "Belum"}
+                  <Badge variant={j.laporanKegiatan?.length > 0 ? "default" : "secondary"} className={j.laporanKegiatan?.length > 0 ? "bg-green-500 hover:bg-green-600" : "bg-amber-500 hover:bg-amber-600"}>
+                    {j.laporanKegiatan?.length > 0 ? "Sudah Dilaporkan" : "Belum"}
                   </Badge>
                 </TableCell>
                 <TableCell>

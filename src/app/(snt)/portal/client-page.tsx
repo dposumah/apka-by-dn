@@ -161,7 +161,7 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
               <Link href="/portal/rekap" className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 h-9 px-4">
                 Rekap Bulanan
               </Link>
-              <Link href="/portal/laporan" className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors bg-emerald-600 text-white hover:bg-emerald-700 h-9 px-4">
+              <Link href="/portal/intra" className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors bg-emerald-600 text-white hover:bg-emerald-700 h-9 px-4">
                 + Buat Laporan
               </Link>
             </div>

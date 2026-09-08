@@ -22,7 +22,7 @@ export default async function RabDashboardPage() {
       <h1 className="text-3xl font-bold">Dashboard Monitoring RAB</h1>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-        <Link href="/fasilitator/laporan" className="block">
+        <Link href="/fasilitator/intra" className="block">
           <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg flex items-center justify-between hover:bg-amber-100 transition">
             <div>
               <h3 className="font-bold text-amber-900">Tagihan Transport Pending</h3>

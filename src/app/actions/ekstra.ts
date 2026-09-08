@@ -85,7 +85,7 @@ export async function getJadwalEkstra(lokasiSNT?: string, tingkatSekolah?: strin
     where,
     include: { 
       modul: true,
-      laporanEkstra: { select: { id: true, fasilitator: { select: { namaLengkap: true } } } }
+      laporanKegiatan: { select: { id: true, fasilitator: { select: { namaLengkap: true } } }, where: { jenisLaporan: 'EKSTRA' } }
     },
     orderBy: [{ lokasiSNT: 'asc' }, { mingguKe: 'asc' }]
   })
@@ -135,8 +135,8 @@ export async function getJadwalForFasilitator(fasilitatorId: string) {
     where: { lokasiSNT: fasilitator.lokasiSNT },
     include: {
       modul: true,
-      laporanEkstra: {
-        where: { fasilitatorId },
+      laporanKegiatan: {
+        where: { fasilitatorId, jenisLaporan: 'EKSTRA' },
         select: { id: true }
       }
     },
@@ -144,37 +144,43 @@ export async function getJadwalForFasilitator(fasilitatorId: string) {
   })
 }
 
-export async function submitLaporanEkstra(fasilitatorId: string, data: {
-  jadwalId: string,
-  modulId: string,
-  tanggalKegiatan: string,
-  catatanUmum?: string,
-  foto1?: string,
-  foto2?: string,
-  kehadiran: Array<{
-    siswaId: string,
-    status: string,
-    nilaiKualitatif?: string,
-    catatan?: string
-  }>
-}) {
+export async function submitLaporanEkstra(fasilitatorId: string, data: any) {
   // Check if already submitted
-  const existing = await prisma.laporanEkstra.findFirst({
-    where: { fasilitatorId, jadwalId: data.jadwalId }
+  const existing = await prisma.laporanKegiatan.findFirst({
+    where: { fasilitatorId, jadwalEkstraId: data.jadwalEkstraId, jenisLaporan: 'EKSTRA' }
   })
   if (existing) throw new Error('Laporan untuk jadwal ini sudah pernah disubmit')
 
-  const laporan = await prisma.laporanEkstra.create({
+  const laporan = await prisma.laporanKegiatan.create({
     data: {
       fasilitatorId,
-      jadwalId: data.jadwalId,
-      modulId: data.modulId,
-      tanggalKegiatan: new Date(data.tanggalKegiatan),
-      catatanUmum: data.catatanUmum || null,
+      jadwalEkstraId: data.jadwalEkstraId,
+      modulEkstraId: data.modulEkstraId,
+      jenisLaporan: 'EKSTRA',
+      date: new Date(data.tanggalKegiatan),
+      topic: 'Laporan Ekstrakurikuler',
+      attendance: data.kehadiranEkstra ? data.kehadiranEkstra.length : 0,
+      
+      modeTransport: data.modeTransport || 'PRIBADI',
+      statusTransport: 'PENDING',
+      jenisKendaraan: data.jenisKendaraan || null,
+      jenisBBM: data.jenisBBM || null,
+      jarakTempuhKm: data.jarakTempuhKm || null,
+      nominalStruk: data.nominalStruk || null,
+      nominalInvoice: data.nominalInvoice || null,
+      biayaTransportLaut: data.biayaTransportLaut || null,
+      buktiStrukBBM: data.buktiStrukBBM || null,
+      buktiInvoiceOnline: data.buktiInvoiceOnline || null,
+      buktiTiketTransport: data.buktiTiketTransport || null,
+      plafonMaksimal: data.plafonMaksimal || null,
+      biayaTransportDisetujui: data.biayaTransportDisetujui || 0,
+      
       foto1: data.foto1 || null,
       foto2: data.foto2 || null,
-      kehadiran: {
-        create: data.kehadiran.map(k => ({
+      evaluation: data.catatanUmum || null,
+      
+      kehadiranEkstra: {
+        create: data.kehadiranEkstra.map((k: any) => ({
           siswaId: k.siswaId,
           status: k.status,
           nilaiKualitatif: k.nilaiKualitatif || null,
@@ -190,65 +196,65 @@ export async function submitLaporanEkstra(fasilitatorId: string, data: {
 }
 
 export async function getLaporanEkstraFasilitator(fasilitatorId: string) {
-  return prisma.laporanEkstra.findMany({
-    where: { fasilitatorId },
+  return prisma.laporanKegiatan.findMany({
+    where: { fasilitatorId, jenisLaporan: 'EKSTRA' },
     include: {
-      modul: true,
-      jadwal: true,
-      kehadiran: {
+      modulEkstra: true,
+      jadwalEkstra: true,
+      kehadiranEkstra: {
         include: { siswa: true },
         orderBy: { siswa: { namaLengkap: 'asc' } }
       }
     },
-    orderBy: { tanggalKegiatan: 'desc' }
+    orderBy: { date: 'desc' }
   })
 }
 
 // ==================== REKAP (ADMIN) ====================
 
-export async function getAllLaporanEkstra(filters?: { lokasiSNT?: string, modulId?: string }) {
-  const where: any = {}
-  if (filters?.lokasiSNT) where.jadwal = { lokasiSNT: filters.lokasiSNT }
-  if (filters?.modulId) where.modulId = filters.modulId
+export async function getAllLaporanEkstra(filters?: { lokasiSNT?: string, modulEkstraId?: string }) {
+  const where: any = { jenisLaporan: 'EKSTRA' }
+  if (filters?.lokasiSNT) where.jadwalEkstra = { lokasiSNT: filters.lokasiSNT }
+  if (filters?.modulEkstraId) where.modulEkstraId = filters.modulEkstraId
 
-  return prisma.laporanEkstra.findMany({
+  return prisma.laporanKegiatan.findMany({
     where,
     include: {
       fasilitator: { select: { namaLengkap: true, lokasiSNT: true } },
-      modul: true,
-      jadwal: true,
-      kehadiran: {
+      modulEkstra: true,
+      jadwalEkstra: true,
+      kehadiranEkstra: {
         include: { siswa: true },
         orderBy: { siswa: { namaLengkap: 'asc' } }
       }
     },
-    orderBy: [{ jadwal: { mingguKe: 'asc' } }, { tanggalKegiatan: 'desc' }]
+    orderBy: [{ jadwalEkstra: { mingguKe: 'asc' } }, { date: 'desc' }]
   })
 }
 
 export async function getRekapKehadiran(lokasiSNT?: string) {
-  const where: any = {}
-  if (lokasiSNT) where.jadwal = { lokasiSNT }
+  const where: any = { jenisLaporan: 'EKSTRA' }
+  if (lokasiSNT) where.jadwalEkstra = { lokasiSNT }
   
-  const laporan = await prisma.laporanEkstra.findMany({
+  const laporan = await prisma.laporanKegiatan.findMany({
     where,
     include: {
-      modul: true,
-      jadwal: true,
+      modulEkstra: true,
+      jadwalEkstra: true,
       fasilitator: { select: { namaLengkap: true, lokasiSNT: true } },
-      kehadiran: {
+      kehadiranEkstra: {
         include: { siswa: true }
       }
     },
-    orderBy: { jadwal: { mingguKe: 'asc' } }
+    orderBy: { jadwalEkstra: { mingguKe: 'asc' } }
   })
   
   return laporan.map(lap => {
-    const total = lap.kehadiran.length
-    const hadir = lap.kehadiran.filter(k => k.status === 'HADIR').length
-    const izin = lap.kehadiran.filter(k => k.status === 'IZIN').length
-    const sakit = lap.kehadiran.filter(k => k.status === 'SAKIT').length
-    const alpha = lap.kehadiran.filter(k => k.status === 'ALPHA').length
+    const total = lap.kehadiranEkstra.length
+    const hadir = lap.kehadiranEkstra.filter(k => k.status === 'HADIR').length
+    const izin = lap.kehadiranEkstra.filter(k => k.status === 'IZIN').length
+    const sakit = lap.kehadiranEkstra.filter(k => k.status === 'SAKIT').length
+    const alpha = lap.kehadiranEkstra.filter(k => k.status === 'ALPHA').length
     
     return {
       ...lap,

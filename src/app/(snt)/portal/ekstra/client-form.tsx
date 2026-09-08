@@ -15,6 +15,9 @@ import { useToast } from "@/components/ui/toast"
 import { format } from "date-fns"
 import { id } from "date-fns/locale"
 import { Upload, X, Loader2 } from "lucide-react"
+import { hitungTransportDarat } from '@/lib/transport-calc'
+
+const formatRp = (v: number) => new Intl.NumberFormat('id-ID').format(v)
 
 type Jadwal = {
   id: string
@@ -23,7 +26,7 @@ type Jadwal = {
   tanggalMulai: Date
   tanggalSelesai: Date
   tingkatSekolah: string
-  laporanEkstra: any[]
+  laporanKegiatan: any[]
 }
 
 type Siswa = {
@@ -32,7 +35,7 @@ type Siswa = {
   kelas: string
 }
 
-export function EkstraClientForm({ fasilitatorId, jadwalList, siswaList }: { fasilitatorId: string, jadwalList: any[], siswaList: any[] }) {
+export function EkstraClientForm({ fasilitatorId, jadwalList, siswaList, jarakTempuhKm, config, claimedTransportDates = [] }: { fasilitatorId: string, jadwalList: any[], siswaList: any[], jarakTempuhKm?: number, config?: any, claimedTransportDates?: string[] }) {
   const router = useRouter()
   const { toast } = useToast()
   
@@ -45,6 +48,18 @@ export function EkstraClientForm({ fasilitatorId, jadwalList, siswaList }: { fas
   const [attendance, setAttendance] = useState<Record<string, { status: string, nilai: string, catatan: string }>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+
+  // Transport State
+  const [modeTransport, setModeTransport] = useState("PRIBADI")
+  const [jenisKendaraan, setJenisKendaraan] = useState("")
+  const [jenisBBM, setJenisBBM] = useState("")
+  const [nominalStruk, setNominalStruk] = useState("")
+  const [nominalInvoice, setNominalInvoice] = useState("")
+  const [biayaTransportLaut, setBiayaTransportLaut] = useState("")
+  
+  const [buktiStrukBBM, setBuktiStrukBBM] = useState("")
+  const [buktiInvoiceOnline, setBuktiInvoiceOnline] = useState("")
+  const [buktiTiketTransport, setBuktiTiketTransport] = useState("")
 
   const filteredSiswa = React.useMemo(() => {
     if (!selectedJadwal) return []
@@ -87,33 +102,77 @@ export function EkstraClientForm({ fasilitatorId, jadwalList, siswaList }: { fas
     }
   }
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setIsUploading(true)
+    const formData = new FormData()
+    formData.append("file", file)
+    try {
+      const res = await fetch("/api/upload", { method: "POST", body: formData })
+      if (!res.ok) throw new Error("Gagal upload")
+      const data = await res.json()
+      if (field === 'buktiStrukBBM') setBuktiStrukBBM(data.url)
+      if (field === 'buktiInvoiceOnline') setBuktiInvoiceOnline(data.url)
+      if (field === 'buktiTiketTransport') setBuktiTiketTransport(data.url)
+    } catch (err: any) {
+      toast({ title: "Gagal upload", description: err.message, type: "error" })
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
   const removeFoto = (idx: number) => {
     setFotos(prev => prev.filter((_, i) => i !== idx))
   }
 
   const onSubmit = async () => {
     if (!selectedJadwal) return
+    
+    const isTransportAlreadyClaimedToday = claimedTransportDates.includes(tanggalKegiatan)
+    if (!isTransportAlreadyClaimedToday && modeTransport === 'PRIBADI' && !buktiStrukBBM) {
+      if (jenisBBM === 'Pertamax' || jenisBBM === 'Dexlite') {
+        return toast({ title: "Validasi Gagal", description: "Struk SPBU wajib untuk Pertamax/Dexlite", type: "error" })
+      }
+    }
+    if (!isTransportAlreadyClaimedToday && parseFloat(biayaTransportLaut || '0') > 0 && !buktiTiketTransport) {
+      return toast({ title: "Validasi Gagal", description: "Lampirkan bukti tiket kapal", type: "error" })
+    }
+    if (!isTransportAlreadyClaimedToday && modeTransport === 'ONLINE' && !buktiInvoiceOnline) {
+      return toast({ title: "Validasi Gagal", description: "Lampirkan invoice online", type: "error" })
+    }
+
     setIsSubmitting(true)
     
     try {
       const detailKehadiran = Object.entries(attendance).map(([siswaId, data]) => ({
         siswaId,
         status: data.status,
-        nilai: data.nilai,
+        nilaiKualitatif: data.nilai,
         catatan: data.catatan
       }))
       
       const payload = {
-        jadwalId: selectedJadwal.id,
-        fasilitatorId,
+        jadwalEkstraId: selectedJadwal.id,
+        modulEkstraId: (selectedJadwal as any).modulId,
         tanggalKegiatan: new Date(tanggalKegiatan),
         catatanUmum,
         foto1: fotos[0] || null,
         foto2: fotos[1] || null,
-        detail: detailKehadiran
+        kehadiranEkstra: detailKehadiran,
+        
+        modeTransport: isTransportAlreadyClaimedToday ? 'PRIBADI' : modeTransport,
+        jenisKendaraan: isTransportAlreadyClaimedToday ? null : jenisKendaraan,
+        jenisBBM: isTransportAlreadyClaimedToday ? null : jenisBBM,
+        nominalStruk: isTransportAlreadyClaimedToday ? null : nominalStruk,
+        nominalInvoice: isTransportAlreadyClaimedToday ? null : nominalInvoice,
+        biayaTransportLaut: isTransportAlreadyClaimedToday ? null : biayaTransportLaut,
+        buktiStrukBBM: isTransportAlreadyClaimedToday ? '' : buktiStrukBBM,
+        buktiInvoiceOnline: isTransportAlreadyClaimedToday ? '' : buktiInvoiceOnline,
+        buktiTiketTransport: isTransportAlreadyClaimedToday ? '' : buktiTiketTransport
       }
       
-      const result = await submitLaporanEkstra(payload)
+      const result = await submitLaporanEkstra(fasilitatorId, payload)
       if (result?.error) throw new Error(result.error)
         
       toast({ title: "Berhasil", description: "Laporan berhasil disimpan" })
@@ -270,6 +329,140 @@ export function EkstraClientForm({ fasilitatorId, jadwalList, siswaList }: { fas
                 </div>
               </div>
 
+              {/* Transport Darat Section */}
+            {isTransportAlreadyClaimedToday ? (
+              <div className="space-y-4 border-t border-emerald-100 pt-4 mt-6">
+                <div className="p-4 bg-amber-50 text-amber-800 border border-amber-200 rounded-md text-sm">
+                  <strong>Info:</strong> Anda sudah mengajukan klaim biaya transport pada laporan sebelumnya di tanggal ini ({tanggalKegiatan}). Sesuai aturan, klaim transport (darat/laut) hanya dapat diajukan satu kali per hari. Form transport disembunyikan.
+                </div>
+              </div>
+            ) : (
+            <div className="space-y-4 border-t border-emerald-100 pt-4 mt-6">
+              <div className="mb-2">
+                <Label className="text-lg font-semibold text-emerald-900">Klaim Biaya Transport Darat</Label>
+                <p className="text-xs text-slate-500">Isi data di bawah ini untuk klaim penggantian biaya transport.</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Mode Transportasi</Label>
+                <div className="flex flex-col sm:flex-row gap-4 mt-2">
+                  <label className="flex items-center gap-2 p-3 border rounded-md cursor-pointer hover:bg-slate-50 flex-1">
+                    <input type="radio" name="modeTransport" value="PRIBADI" checked={modeTransport === 'PRIBADI'} onChange={() => { setModeTransport(e.target.value); setNominalInvoice(''); }} className="w-4 h-4 text-emerald-600" />
+                    <div>
+                      <div className="font-medium">Kendaraan Pribadi</div>
+                      <div className="text-xs text-slate-500">BBM berdasarkan jarak tempuh</div>
+                    </div>
+                  </label>
+                  <label className="flex items-center gap-2 p-3 border rounded-md cursor-pointer hover:bg-slate-50 flex-1">
+                    <input type="radio" name="modeTransport" value="ONLINE" checked={modeTransport === 'ONLINE'} onChange={() => { setModeTransport(e.target.value); setJenisKendaraan(''); setJenisBBM(''); setNominalStruk(''); }} className="w-4 h-4 text-emerald-600" />
+                    <div>
+                      <div className="font-medium">Transportasi Online</div>
+                      <div className="text-xs text-slate-500">Sesuai nominal invoice Grab/Gojek</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {modeTransport === 'PRIBADI' && (
+                <div className="space-y-4 p-4 bg-slate-50 rounded-lg border">
+                  {jarakTempuhKm === 0 && (
+                    <div className="p-3 bg-amber-50 text-amber-700 border border-amber-200 rounded text-sm">
+                      Peringatan: Jarak tempuh lokasi Anda belum diatur oleh Admin. Anda tetap bisa mengirim laporan, namun biaya BBM akan dihitung 0. Hubungi Admin.
+                    </div>
+                  )}
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Jenis Kendaraan *</Label>
+                      <select required value={jenisKendaraan} onChange={e => setJenisKendaraan(e.target.value)} className="w-full h-10 px-3 py-2 rounded-md border border-input bg-background text-sm">
+                        <option value="">-- Pilih Kendaraan --</option>
+                        <option value="R2">Roda 2 (Motor)</option>
+                        <option value="R4">Roda 4 (Mobil)</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Jenis BBM *</Label>
+                      <select required value={jenisBBM} onChange={e => setJenisBBM(e.target.value)} className="w-full h-10 px-3 py-2 rounded-md border border-input bg-background text-sm">
+                        <option value="">-- Pilih BBM --</option>
+                        <option value="Pertalite">Pertalite</option>
+                        <option value="Pertamax">Pertamax</option>
+                        <option value="Solar">Solar</option>
+                        <option value="Dexlite">Dexlite</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Nominal Struk SPBU (Rp) *</Label>
+                      <Input type="number" min="0" value={nominalStruk} onChange={e => setNominalStruk(e.target.value)} required placeholder="Contoh: 50000" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Unggah Struk SPBU <span className="text-slate-400 font-normal text-xs">(Wajib u/ Pertamax & Dexlite)</span></Label>
+                      <Input type="file" onChange={(e) => handleFileChange(e, 'buktiStrukBBM')} accept=".jpg,.jpeg,.png" />
+                      {buktiStrukBBM && <p className="text-xs text-emerald-600">Struk terlampir.</p>}
+                    </div>
+                  </div>
+
+                  {/* Simulasi/Ringkasan Read-Only */}
+                  {jenisKendaraan && jenisBBM && jarakTempuhKm > 0 && (
+                    <div className="mt-4 p-4 bg-emerald-50 border border-emerald-100 rounded-md">
+                      <h4 className="text-sm font-semibold text-emerald-900 mb-2">Ringkasan Kalkulasi Sistem</h4>
+                      {(() => {
+                        const sim = hitungTransportDarat(jarakTempuhKm, jenisKendaraan, jenisBBM, parseFloat(nominalStruk || '0'), config)
+                        return (
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                            <div>
+                              <div className="text-xs text-slate-500">Jarak Efektif (PP)</div>
+                              <div className="font-medium">{sim.jarakEfektif.toFixed(1)} KM</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-slate-500">Kebutuhan BBM</div>
+                              <div className="font-medium">{sim.volumeLiter} L</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-slate-500">Plafon Maksimal</div>
+                              <div className="font-medium text-amber-600">Rp {formatRp(sim.plafonMaksimal)}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-emerald-700 font-bold">Biaya Disetujui</div>
+                              <div className="font-bold text-emerald-700 text-lg">Rp {formatRp(sim.biayaDisetujui)}</div>
+                            </div>
+                          </div>
+                        )
+                      })()}
+                      <p className="text-xs text-slate-500 mt-2 italic">* Biaya disetujui adalah nilai terkecil antara nominal struk SPBU dan plafon maksimal.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {modeTransport === 'ONLINE' && (
+                <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-100">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Nominal Tagihan Invoice (Rp) *</Label>
+                      <Input type="number" min="0" value={nominalInvoice} onChange={e => setNominalInvoice(e.target.value)} required placeholder="Contoh: 75000" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Unggah Screenshot Invoice *</Label>
+                      <Input type="file" onChange={(e) => handleFileChange(e, 'buktiInvoiceOnline')} accept=".jpg,.jpeg,.png,.pdf" />
+                      {buktiInvoiceOnline && <p className="text-xs text-emerald-600">Invoice terlampir.</p>}
+                    </div>
+                  </div>
+                  {nominalInvoice && (
+                    <div className="mt-2 text-sm">
+                      <span className="text-slate-600">Biaya Disetujui: </span>
+                      <span className="font-bold text-blue-700 text-lg">Rp {formatRp(parseFloat(nominalInvoice))}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            )}
+            
+            
               <div className="space-y-2">
                 <Label>Catatan Umum Kegiatan</Label>
                 <Textarea 
