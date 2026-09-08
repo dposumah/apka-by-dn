@@ -614,6 +614,7 @@ model Fasilitator {
   expenses        ExpenseRequest[]
   laporan         LaporanKegiatan[]
   rekapHonorarium RekapHonorarium[]
+  laporanEkstra   LaporanEkstra[]
 
   @@map("fasilitator")
 }
@@ -678,4 +679,94 @@ model RekapHonorarium {
   updatedAt DateTime @updatedAt
 
   @@map("rekap_honorarium")
+}
+
+// ==================== SISWA & EKSTRA ====================
+
+model Siswa {
+  id            String   @id @default(cuid())
+  namaLengkap   String
+  kelas         String
+  lokasiSNT     String
+  isActive      Boolean  @default(true)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  kehadiran     KehadiranEkstra[]
+  
+  @@map("siswa")
+}
+
+model ModulPembelajaran {
+  id            String   @id @default(cuid())
+  kode          String
+  judul         String
+  deskripsi     String?
+  tingkatSekolah String
+  urutan        Int      @default(0)
+  isActive      Boolean  @default(true)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  jadwal        JadwalEkstra[]
+  laporanEkstra LaporanEkstra[]
+  
+  @@map("modul_pembelajaran")
+}
+
+model JadwalEkstra {
+  id            String   @id @default(cuid())
+  mingguKe      Int
+  tanggalMulai  DateTime
+  tanggalSelesai DateTime
+  modulId       String
+  modul         ModulPembelajaran @relation(fields: [modulId], references: [id])
+  lokasiSNT     String
+  tingkatSekolah String
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  laporanEkstra LaporanEkstra[]
+  
+  @@map("jadwal_ekstra")
+}
+
+model LaporanEkstra {
+  id            String   @id @default(cuid())
+  fasilitatorId String
+  fasilitator   Fasilitator @relation(fields: [fasilitatorId], references: [id])
+  jadwalId      String
+  jadwal        JadwalEkstra @relation(fields: [jadwalId], references: [id])
+  modulId       String
+  modul         ModulPembelajaran @relation(fields: [modulId], references: [id])
+  tanggalKegiatan DateTime
+  catatanUmum   String?
+  foto1         String?
+  foto2         String?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  kehadiran     KehadiranEkstra[]
+  
+  @@map("laporan_ekstra")
+}
+
+model KehadiranEkstra {
+  id            String   @id @default(cuid())
+  laporanId     String
+  laporan       LaporanEkstra @relation(fields: [laporanId], references: [id], onDelete: Cascade)
+  siswaId       String
+  siswa         Siswa @relation(fields: [siswaId], references: [id])
+  status        String
+  nilaiKualitatif String?
+  catatan       String?
+  
+  createdAt     DateTime @default(now())
+  
+  @@unique([laporanId, siswaId])
+  @@map("kehadiran_ekstra")
 }

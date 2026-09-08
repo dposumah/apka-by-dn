@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import * as React from "react"
 import Link from "next/link"
@@ -30,10 +30,24 @@ const menuItems: MenuItem[] = [
       { title: "Tagihan Transport", href: "/fasilitator/transport" }
     ]
   },
+  { 
+    title: "Manajemen Pembelajaran", 
+    href: "/siswa", 
+    icon: "📚", 
+    adminOnly: true,
+    submenu: [
+      { title: "Data Siswa", href: "/siswa" },
+      { title: "Modul Pembelajaran", href: "/modul" },
+      { title: "Jadwal Ekstra", href: "/jadwal-ekstra" },
+      { title: "Rekap Ekstra", href: "/fasilitator/rekap-ekstra" }
+    ]
+  },
   { title: "Pengaturan Akun", href: "/snt-akun", icon: "⚙️", adminOnly: true },
   { title: "Konfig. Transport", href: "/pengaturan/transport", icon: "⛽", adminOnly: true },
   { title: "Dashboard", href: "/portal", icon: "🏠", fasilOnly: true },
   { title: "Profil Fasilitator", href: "/portal/profil", icon: "👤", fasilOnly: true },
+  { title: "Laporan Ekstra", href: "/portal/ekstra", icon: "📝", fasilOnly: true },
+  { title: "Riwayat Ekstra", href: "/portal/ekstra/riwayat", icon: "📋", fasilOnly: true },
   { title: "Pengaturan Sandi", href: "/portal/password", icon: "🔒", fasilOnly: true },
 ]
 
@@ -41,7 +55,7 @@ export function SntSidebar() {
   const pathname = usePathname()
   const { data: session } = useSession()
   const userRole = session?.user?.role
-  const [openMenus, setOpenMenus] = React.useState<Record<string, boolean>>({ "Manajemen Fasilitator": true })
+  const [openMenus, setOpenMenus] = React.useState<Record<string, boolean>>({ "Manajemen Fasilitator": true, "Manajemen Pembelajaran": true })
 
   const toggleMenu = (title: string) => {
     setOpenMenus(prev => ({ ...prev, [title]: !prev[title] }))
