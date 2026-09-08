@@ -29,8 +29,7 @@ export function LaporanClientForm({ fasilitatorId, jarakTempuhKm, config, claime
     evaluation: '',
     tingkatSekolah: 'SMP',
     jumlahJPIntra: '',
-    jumlahJPEkstra: '',
-    modeTransport: 'PRIBADI',
+        modeTransport: 'PRIBADI',
     jenisKendaraan: '',
     jenisBBM: '',
     nominalStruk: '',
@@ -182,11 +181,7 @@ export function LaporanClientForm({ fasilitatorId, jarakTempuhKm, config, claime
                 <Input type="number" min="0" value={formData.jumlahJPIntra} onChange={e => setFormData({...formData, jumlahJPIntra: e.target.value})} placeholder="0" />
                 <p className="text-xs text-slate-500">Maksimal 8 JP / minggu / Lokasi</p>
               </div>
-              <div className="space-y-2">
-                <Label>JP Ekstrakurikuler</Label>
-                <Input type="number" min="0" value={formData.jumlahJPEkstra} onChange={e => setFormData({...formData, jumlahJPEkstra: e.target.value})} placeholder="0" />
-                <p className="text-xs text-slate-500">Maksimal 4 JP / minggu / Lokasi</p>
-              </div>
+              
             </div>
 
             {/* Transport Darat Section */}

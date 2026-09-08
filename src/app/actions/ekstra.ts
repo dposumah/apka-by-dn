@@ -158,8 +158,12 @@ export async function submitLaporanEkstra(fasilitatorId: string, data: any) {
       modulEkstraId: data.modulEkstraId,
       jenisLaporan: 'EKSTRA',
       date: new Date(data.tanggalKegiatan),
+      
       topic: 'Laporan Ekstrakurikuler',
       attendance: data.kehadiranEkstra ? data.kehadiranEkstra.length : 0,
+      jumlahJPEkstra: 2,
+      jumlahJPIntra: 0,
+
       
       modeTransport: data.modeTransport || 'PRIBADI',
       statusTransport: 'PENDING',

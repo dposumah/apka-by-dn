@@ -22,7 +22,7 @@ export function SiswaClientPage({ initialSiswa, lokasiList }: { initialSiswa: an
   // Form state
   const [formData, setFormData] = useState({
     nama: '',
-    kelas: 'Kelas 7',
+    kelas: 'Kelas 7 (SMP)',
     lokasiId: ''
   })
 
@@ -33,7 +33,7 @@ export function SiswaClientPage({ initialSiswa, lokasiList }: { initialSiswa: an
   })
 
   const resetForm = () => {
-    setFormData({ nama: '', kelas: 'Kelas 7', lokasiId: lokasiList[0]?.id || '' })
+    setFormData({ nama: '', kelas: 'Kelas 7 (SMP)', lokasiId: lokasiList[0]?.id || '' })
     setIsAdding(false)
     setEditingId(null)
   }
@@ -114,7 +114,7 @@ export function SiswaClientPage({ initialSiswa, lokasiList }: { initialSiswa: an
           onChange={e => setFilterKelas(e.target.value)}
         >
           <option value="">Semua Kelas</option>
-          {['Kelas 7', 'Kelas 8', 'Kelas 9', 'Kelas 10', 'Kelas 11', 'Kelas 12'].map(k => (
+          {['Kelas 7 (SMP)', 'Kelas 8 (SMP)', 'Kelas 9 (SMP)', 'Kelas 10 (SMA)', 'Kelas 11 (SMA)', 'Kelas 12 (SMA)'].map(k => (
             <option key={k} value={k}>{k}</option>
           ))}
         </select>
@@ -155,7 +155,7 @@ export function SiswaClientPage({ initialSiswa, lokasiList }: { initialSiswa: an
                         value={formData.kelas} 
                         onChange={e => setFormData({...formData, kelas: e.target.value})}
                       >
-                        {['Kelas 7', 'Kelas 8', 'Kelas 9', 'Kelas 10', 'Kelas 11', 'Kelas 12'].map(k => (
+                        {['Kelas 7 (SMP)', 'Kelas 8 (SMP)', 'Kelas 9 (SMP)', 'Kelas 10 (SMA)', 'Kelas 11 (SMA)', 'Kelas 12 (SMA)'].map(k => (
                           <option key={k} value={k}>{k}</option>
                         ))}
                       </select>
@@ -203,7 +203,7 @@ export function SiswaClientPage({ initialSiswa, lokasiList }: { initialSiswa: an
                             value={formData.kelas} 
                             onChange={e => setFormData({...formData, kelas: e.target.value})}
                           >
-                            {['Kelas 7', 'Kelas 8', 'Kelas 9', 'Kelas 10', 'Kelas 11', 'Kelas 12'].map(k => (
+                            {['Kelas 7 (SMP)', 'Kelas 8 (SMP)', 'Kelas 9 (SMP)', 'Kelas 10 (SMA)', 'Kelas 11 (SMA)', 'Kelas 12 (SMA)'].map(k => (
                               <option key={k} value={k}>{k}</option>
                             ))}
                           </select>

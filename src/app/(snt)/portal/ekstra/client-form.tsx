@@ -66,7 +66,7 @@ export function EkstraClientForm({ fasilitatorId, jadwalList, siswaList, jarakTe
     const isSMATarget = selectedJadwal.tingkatSekolah?.toUpperCase().includes('SMA')
     
     return siswaList.filter(s => {
-      const isSiswaSMA = s.kelas === '10' || s.kelas === '11' || s.kelas === '12' || s.kelas.toUpperCase().startsWith('X')
+      const isSiswaSMA = s.kelas.includes('10') || s.kelas.includes('11') || s.kelas.includes('12') || s.kelas.toUpperCase().includes('SMA')
       return isSMATarget ? isSiswaSMA : !isSiswaSMA
     })
   }, [selectedJadwal, siswaList])
