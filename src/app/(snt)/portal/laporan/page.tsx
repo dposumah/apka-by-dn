@@ -27,5 +27,31 @@ export default async function LaporanPage() {
 
   const config = await getTransportConfig()
 
-  return <LaporanClientForm fasilitatorId={fasilitator.id} jarakTempuhKm={fasilitator.jarakTempuhKm || 0} config={config} />
+  // Ambil tanggal-tanggal di mana fasilitator sudah mengklaim transport (Darat atau Laut)
+  const existingReportsWithTransport = await prisma.laporanKegiatan.findMany({
+    where: { 
+      fasilitatorId: fasilitator.id,
+      OR: [
+        { biayaTransportDisetujui: { gt: 0 } },
+        { biayaTransportLaut: { gt: 0 } }
+      ]
+    },
+    select: { date: true }
+  })
+
+  const claimedTransportDates = existingReportsWithTransport.map((r: any) => {
+    // Convert ke format YYYY-MM-DD sesuai dengan input type="date"
+    const d = new Date(r.date)
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+    return d.toISOString().substring(0, 10)
+  })
+
+  return (
+    <LaporanClientForm 
+      fasilitatorId={fasilitator.id} 
+      jarakTempuhKm={fasilitator.jarakTempuhKm || 0} 
+      config={config} 
+      claimedTransportDates={claimedTransportDates}
+    />
+  )
 }

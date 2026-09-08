@@ -11,7 +11,7 @@ import { submitLaporanKegiatan } from '@/app/actions/rab'
 import { hitungTransportDarat } from '@/lib/transport-calc'
 import { useRouter } from 'next/navigation'
 
-export function LaporanClientForm({ fasilitatorId, jarakTempuhKm, config }: { fasilitatorId: string, jarakTempuhKm: number, config: any }) {
+export function LaporanClientForm({ fasilitatorId, jarakTempuhKm, config, claimedTransportDates = [] }: { fasilitatorId: string, jarakTempuhKm: number, config: any, claimedTransportDates?: string[] }) {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
   const [fileError, setFileError] = useState('')
@@ -83,11 +83,17 @@ export function LaporanClientForm({ fasilitatorId, jarakTempuhKm, config }: { fa
       setFileError('Harap lampirkan minimal 1 foto kegiatan')
       return
     }
-    if (formData.modeTransport === 'PRIBADI' && !buktiStrukBBM) {
-      setFileError('Harap lampirkan foto struk SPBU')
+    if (!isTransportAlreadyClaimedToday && formData.modeTransport === 'PRIBADI' && !buktiStrukBBM) {
+      if (formData.jenisBBM === 'Pertamax' || formData.jenisBBM === 'Dexlite') {
+        setFileError('Harap lampirkan foto struk SPBU (wajib untuk Pertamax/Dexlite)')
+        return
+      }
+    }
+    if (!isTransportAlreadyClaimedToday && parseFloat(formData.biayaTransportLaut || '0') > 0 && !buktiTiketTransport) {
+      setFileError('Harap lampirkan foto/scan tiket transport laut')
       return
     }
-    if (formData.modeTransport === 'ONLINE' && !buktiInvoiceOnline) {
+    if (!isTransportAlreadyClaimedToday && formData.modeTransport === 'ONLINE' && !buktiInvoiceOnline) {
       setFileError('Harap lampirkan foto/screenshot invoice transport online')
       return
     }
@@ -96,11 +102,17 @@ export function LaporanClientForm({ fasilitatorId, jarakTempuhKm, config }: { fa
     try {
       await submitLaporanKegiatan(fasilitatorId, {
         ...formData,
+        modeTransport: isTransportAlreadyClaimedToday ? 'PRIBADI' : formData.modeTransport, // default fallback
+        jenisKendaraan: isTransportAlreadyClaimedToday ? null : formData.jenisKendaraan,
+        jenisBBM: isTransportAlreadyClaimedToday ? null : formData.jenisBBM,
+        nominalStruk: isTransportAlreadyClaimedToday ? null : formData.nominalStruk,
+        nominalInvoice: isTransportAlreadyClaimedToday ? null : formData.nominalInvoice,
+        biayaTransportLaut: isTransportAlreadyClaimedToday ? null : formData.biayaTransportLaut,
         foto1,
         foto2,
-        buktiStrukBBM,
-        buktiInvoiceOnline,
-        buktiTiketTransport
+        buktiStrukBBM: isTransportAlreadyClaimedToday ? '' : buktiStrukBBM,
+        buktiInvoiceOnline: isTransportAlreadyClaimedToday ? '' : buktiInvoiceOnline,
+        buktiTiketTransport: isTransportAlreadyClaimedToday ? '' : buktiTiketTransport
       })
       router.push('/portal')
       router.refresh()
@@ -111,6 +123,7 @@ export function LaporanClientForm({ fasilitatorId, jarakTempuhKm, config }: { fa
   }
 
   const formatRp = (v: number) => new Intl.NumberFormat('id-ID').format(v)
+  const isTransportAlreadyClaimedToday = claimedTransportDates.includes(formData.date)
 
   return (
     <div className="p-8 space-y-6 max-w-3xl mx-auto pb-20">
@@ -177,6 +190,13 @@ export function LaporanClientForm({ fasilitatorId, jarakTempuhKm, config }: { fa
             </div>
 
             {/* Transport Darat Section */}
+            {isTransportAlreadyClaimedToday ? (
+              <div className="space-y-4 border-t border-emerald-100 pt-4 mt-6">
+                <div className="p-4 bg-amber-50 text-amber-800 border border-amber-200 rounded-md text-sm">
+                  <strong>Info:</strong> Anda sudah mengajukan klaim biaya transport pada laporan sebelumnya di tanggal ini ({formData.date}). Sesuai aturan, klaim transport (darat/laut) hanya dapat diajukan satu kali per hari. Form transport disembunyikan.
+                </div>
+              </div>
+            ) : (
             <div className="space-y-4 border-t border-emerald-100 pt-4 mt-6">
               <div className="mb-2">
                 <Label className="text-lg font-semibold text-emerald-900">Klaim Biaya Transport Darat</Label>
@@ -238,7 +258,7 @@ export function LaporanClientForm({ fasilitatorId, jarakTempuhKm, config }: { fa
                       <Input type="number" min="0" value={formData.nominalStruk} onChange={e => setFormData({...formData, nominalStruk: e.target.value})} required placeholder="Contoh: 50000" />
                     </div>
                     <div className="space-y-2">
-                      <Label>Unggah Struk SPBU *</Label>
+                      <Label>Unggah Struk SPBU <span className="text-slate-400 font-normal text-xs">(Wajib u/ Pertamax & Dexlite)</span></Label>
                       <Input type="file" onChange={(e) => handleFileChange(e, 'buktiStrukBBM')} accept=".jpg,.jpeg,.png" />
                       {buktiStrukBBM && <p className="text-xs text-emerald-600">Struk terlampir.</p>}
                     </div>
@@ -253,7 +273,7 @@ export function LaporanClientForm({ fasilitatorId, jarakTempuhKm, config }: { fa
                         return (
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
                             <div>
-                              <div className="text-xs text-slate-500">Jarak Efektif</div>
+                              <div className="text-xs text-slate-500">Jarak Efektif (PP)</div>
                               <div className="font-medium">{sim.jarakEfektif.toFixed(1)} KM</div>
                             </div>
                             <div>
@@ -300,7 +320,10 @@ export function LaporanClientForm({ fasilitatorId, jarakTempuhKm, config }: { fa
               )}
             </div>
 
+            )}
+            
             {/* Transport Antar Pulau */}
+            {!isTransportAlreadyClaimedToday && (
             <div className="space-y-4 border-t pt-4 mt-2">
               <div className="space-y-2">
                 <Label>Biaya Transport Antar Pulau (Rp) - Opsional</Label>
@@ -318,6 +341,7 @@ export function LaporanClientForm({ fasilitatorId, jarakTempuhKm, config }: { fa
               )}
             </div>
 
+            )}
             <div className="space-y-4 border-t pt-4 mt-2">
               <Label>Lampiran Bukti (Foto Kegiatan)</Label>
               <p className="text-xs text-slate-500">Maksimal 2 foto (jpg/png/jpeg), ukuran per file max 5 MB.</p>
