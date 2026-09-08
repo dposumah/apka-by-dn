@@ -22,19 +22,19 @@ export function JadwalClientPage({ initialJadwal = [], lokasiList = [], modulLis
     id: null,
     mingguKe: "",
     modulId: "",
-    lokasiId: "",
-    tingkat: "",
+    lokasiSNT: "",
+    tingkatSekolah: "",
     tanggalMulai: "",
     tanggalSelesai: ""
   })
 
   const filteredJadwal = jadwal.filter((j: any) => {
-    if (filterLokasi !== "all" && j.lokasiId !== filterLokasi) return false
-    if (filterTingkat !== "all" && j.tingkat !== filterTingkat) return false
+    if (filterLokasi !== "all" && j.lokasiSNT !== filterLokasi) return false
+    if (filterTingkat !== "all" && j.tingkatSekolah !== filterTingkat) return false
     return true
   })
 
-  const filteredModul = modulList.filter((m: any) => formData.tingkat ? m.tingkat === formData.tingkat : true)
+  const filteredModul = modulList.filter((m: any) => formData.tingkatSekolah ? m.tingkatSekolah === formData.tingkatSekolah : true)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -59,8 +59,8 @@ export function JadwalClientPage({ initialJadwal = [], lokasiList = [], modulLis
       id: j.id,
       mingguKe: j.mingguKe.toString(),
       modulId: j.modulId,
-      lokasiId: j.lokasiId,
-      tingkat: j.tingkat,
+      lokasiSNT: j.lokasiSNT,
+      tingkatSekolah: j.tingkatSekolah,
       tanggalMulai: j.tanggalMulai.split('T')[0],
       tanggalSelesai: j.tanggalSelesai.split('T')[0]
     })
@@ -72,8 +72,8 @@ export function JadwalClientPage({ initialJadwal = [], lokasiList = [], modulLis
       id: null,
       mingguKe: "",
       modulId: "",
-      lokasiId: "",
-      tingkat: "",
+      lokasiSNT: "",
+      tingkatSekolah: "",
       tanggalMulai: "",
       tanggalSelesai: ""
     })
@@ -100,7 +100,7 @@ export function JadwalClientPage({ initialJadwal = [], lokasiList = [], modulLis
               </div>
               <div>
                 <label className="text-sm font-medium">Tingkat Sekolah</label>
-                <Select value={formData.tingkat} onValueChange={v => setFormData({...formData, tingkat: v, modulId: ""})}>
+                <Select value={formData.tingkatSekolah} onValueChange={v => setFormData({...formData, tingkatSekolah: v, modulId: ""})}>
                   <SelectTrigger><SelectValue placeholder="Pilih Tingkat" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="SMP">SMP</SelectItem>
@@ -110,7 +110,7 @@ export function JadwalClientPage({ initialJadwal = [], lokasiList = [], modulLis
               </div>
               <div>
                 <label className="text-sm font-medium">Modul</label>
-                <Select value={formData.modulId} onValueChange={v => setFormData({...formData, modulId: v})} disabled={!formData.tingkat}>
+                <Select value={formData.modulId} onValueChange={v => setFormData({...formData, modulId: v})} disabled={!formData.tingkatSekolah}>
                   <SelectTrigger><SelectValue placeholder="Pilih Modul" /></SelectTrigger>
                   <SelectContent>
                     {filteredModul.map((m: any) => (
@@ -121,11 +121,11 @@ export function JadwalClientPage({ initialJadwal = [], lokasiList = [], modulLis
               </div>
               <div>
                 <label className="text-sm font-medium">Lokasi SNT</label>
-                <Select value={formData.lokasiId} onValueChange={v => setFormData({...formData, lokasiId: v})}>
+                <Select value={formData.lokasiSNT} onValueChange={v => setFormData({...formData, lokasiSNT: v})}>
                   <SelectTrigger><SelectValue placeholder="Pilih Lokasi" /></SelectTrigger>
                   <SelectContent>
                     {lokasiList.map((l: any) => (
-                      <SelectItem key={l.id} value={l.id}>{l.nama}</SelectItem>
+                      <SelectItem key={l} value={l}>{l}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -153,7 +153,7 @@ export function JadwalClientPage({ initialJadwal = [], lokasiList = [], modulLis
             <SelectTrigger><SelectValue placeholder="Semua Lokasi" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Semua Lokasi</SelectItem>
-              {lokasiList.map((l: any) => <SelectItem key={l.id} value={l.id}>{l.nama}</SelectItem>)}
+              {lokasiList.map((l: any) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -190,7 +190,7 @@ export function JadwalClientPage({ initialJadwal = [], lokasiList = [], modulLis
               <TableRow key={j.id}>
                 <TableCell>{j.mingguKe}</TableCell>
                 <TableCell>{j.modul?.kode} - {j.modul?.judul}</TableCell>
-                <TableCell>{j.tingkat}</TableCell>
+                <TableCell>{j.tingkatSekolah}</TableCell>
                 <TableCell>{j.lokasi?.nama}</TableCell>
                 <TableCell>{new Date(j.tanggalMulai).toLocaleDateString('id-ID')}</TableCell>
                 <TableCell>{new Date(j.tanggalSelesai).toLocaleDateString('id-ID')}</TableCell>

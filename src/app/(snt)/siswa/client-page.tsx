@@ -21,9 +21,9 @@ export function SiswaClientPage({ initialSiswa, lokasiList }: { initialSiswa: an
 
   // Form state
   const [formData, setFormData] = useState({
-    nama: '',
+    namaLengkap: '',
     kelas: 'Kelas 7 (SMP)',
-    lokasiId: ''
+    lokasiSNT: ''
   })
 
   const filteredSiswa = initialSiswa.filter(s => {
@@ -33,7 +33,7 @@ export function SiswaClientPage({ initialSiswa, lokasiList }: { initialSiswa: an
   })
 
   const resetForm = () => {
-    setFormData({ nama: '', kelas: 'Kelas 7 (SMP)', lokasiId: lokasiList[0]?.id || '' })
+    setFormData({ namaLengkap: '', kelas: 'Kelas 7 (SMP)', lokasiSNT: lokasiList[0] || '' })
     setIsAdding(false)
     setEditingId(null)
   }
@@ -44,7 +44,7 @@ export function SiswaClientPage({ initialSiswa, lokasiList }: { initialSiswa: an
   }
 
   const handleEditClick = (siswa: any) => {
-    setFormData({ nama: siswa.nama, kelas: siswa.kelas, lokasiId: siswa.lokasiId })
+    setFormData({ namaLengkap: siswa.namaLengkap, kelas: siswa.kelas, lokasiSNT: siswa.lokasiSNT })
     setEditingId(siswa.id)
     setIsAdding(false)
   }
@@ -104,7 +104,7 @@ export function SiswaClientPage({ initialSiswa, lokasiList }: { initialSiswa: an
         >
           <option value="">Semua Lokasi</option>
           {lokasiList.map(l => (
-            <option key={l.id} value={l.id}>{l.nama}</option>
+            <option key={l} value={l}>{l}</option>
           ))}
         </select>
 
@@ -143,8 +143,8 @@ export function SiswaClientPage({ initialSiswa, lokasiList }: { initialSiswa: an
                     <td className="p-3">-</td>
                     <td className="p-3">
                       <Input 
-                        value={formData.nama} 
-                        onChange={e => setFormData({...formData, nama: e.target.value})} 
+                        value={formData.namaLengkap} 
+                        onChange={e => setFormData({...formData, namaLengkap: e.target.value})} 
                         placeholder="Nama Lengkap" 
                         required 
                       />
@@ -164,18 +164,18 @@ export function SiswaClientPage({ initialSiswa, lokasiList }: { initialSiswa: an
                       <select 
                         className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                         value={formData.lokasiId} 
-                        onChange={e => setFormData({...formData, lokasiId: e.target.value})}
+                        onChange={e => setFormData({...formData, lokasiSNT: e.target.value})}
                       >
                         <option value="" disabled>Pilih Lokasi</option>
                         {lokasiList.map(l => (
-                          <option key={l.id} value={l.id}>{l.nama}</option>
+                          <option key={l} value={l}>{l}</option>
                         ))}
                       </select>
                     </td>
                     <td className="p-3"></td>
                     <td className="p-3">
                       <div className="flex gap-2">
-                        <Button size="sm" onClick={handleSubmit} disabled={isPending || !formData.nama || !formData.lokasiId}>Simpan</Button>
+                        <Button size="sm" onClick={handleSubmit} disabled={isPending || !formData.namaLengkap || !formData.lokasiId}>Simpan</Button>
                         <Button size="sm" variant="ghost" onClick={resetForm} disabled={isPending}>Batal</Button>
                       </div>
                     </td>
@@ -184,7 +184,7 @@ export function SiswaClientPage({ initialSiswa, lokasiList }: { initialSiswa: an
                 
                 {filteredSiswa.map((siswa, index) => {
                   const isEditing = editingId === siswa.id;
-                  const lokasiName = lokasiList.find(l => l.id === siswa.lokasiId)?.nama || '-'
+                  const lokasiName = siswa.lokasiSNT;
                   
                   if (isEditing) {
                     return (
@@ -192,8 +192,8 @@ export function SiswaClientPage({ initialSiswa, lokasiList }: { initialSiswa: an
                         <td className="p-3">{index + 1}</td>
                         <td className="p-3">
                           <Input 
-                            value={formData.nama} 
-                            onChange={e => setFormData({...formData, nama: e.target.value})} 
+                            value={formData.namaLengkap} 
+                            onChange={e => setFormData({...formData, namaLengkap: e.target.value})} 
                             required 
                           />
                         </td>
@@ -212,11 +212,11 @@ export function SiswaClientPage({ initialSiswa, lokasiList }: { initialSiswa: an
                           <select 
                             className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                             value={formData.lokasiId} 
-                            onChange={e => setFormData({...formData, lokasiId: e.target.value})}
+                            onChange={e => setFormData({...formData, lokasiSNT: e.target.value})}
                           >
                             <option value="" disabled>Pilih Lokasi</option>
                             {lokasiList.map(l => (
-                              <option key={l.id} value={l.id}>{l.nama}</option>
+                              <option key={l} value={l}>{l}</option>
                             ))}
                           </select>
                         </td>
@@ -227,7 +227,7 @@ export function SiswaClientPage({ initialSiswa, lokasiList }: { initialSiswa: an
                         </td>
                         <td className="p-3">
                           <div className="flex gap-2">
-                            <Button size="sm" onClick={handleSubmit} disabled={isPending || !formData.nama || !formData.lokasiId}>Simpan</Button>
+                            <Button size="sm" onClick={handleSubmit} disabled={isPending || !formData.namaLengkap || !formData.lokasiId}>Simpan</Button>
                             <Button size="sm" variant="ghost" onClick={resetForm} disabled={isPending}>Batal</Button>
                           </div>
                         </td>
@@ -238,7 +238,7 @@ export function SiswaClientPage({ initialSiswa, lokasiList }: { initialSiswa: an
                   return (
                     <tr key={siswa.id} className="border-b">
                       <td className="p-3">{index + 1}</td>
-                      <td className="p-3">{siswa.nama}</td>
+                      <td className="p-3">{siswa.namaLengkap}</td>
                       <td className="p-3">{siswa.kelas}</td>
                       <td className="p-3">{lokasiName}</td>
                       <td className="p-3">

@@ -14,8 +14,8 @@ export function RekapEkstraClientPage({ initialRekap = [], lokasiList = [], modu
   const [expandedRows, setExpandedRows] = useState<string[]>([])
 
   const filteredRekap = initialRekap.filter((r: any) => {
-    if (filterLokasi !== "all" && r.lokasiId !== filterLokasi) return false
-    if (filterModul !== "all" && r.modulId !== filterModul) return false
+    if (filterLokasi !== "all" && r.jadwalEkstra?.lokasiSNT !== filterLokasi) return false
+    if (filterModul !== "all" && r.modulEkstraId !== filterModul) return false
     return true
   })
 
@@ -75,7 +75,7 @@ export function RekapEkstraClientPage({ initialRekap = [], lokasiList = [], modu
             <SelectTrigger><SelectValue placeholder="Semua Lokasi" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Semua Lokasi</SelectItem>
-              {lokasiList.map((l: any) => <SelectItem key={l.id} value={l.id}>{l.nama}</SelectItem>)}
+              {lokasiList.map((l: any) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -112,14 +112,14 @@ export function RekapEkstraClientPage({ initialRekap = [], lokasiList = [], modu
             ) : filteredRekap.map((r: any) => (
               <>
                 <TableRow key={r.id}>
-                  <TableCell>{r.mingguKe}</TableCell>
-                  <TableCell>{r.modul?.judul}</TableCell>
-                  <TableCell>{r.fasilitator?.nama}</TableCell>
-                  <TableCell>{r.lokasi?.nama}</TableCell>
-                  <TableCell>{r.hadir}</TableCell>
-                  <TableCell>{r.izin}</TableCell>
-                  <TableCell>{r.sakit}</TableCell>
-                  <TableCell>{r.alpha}</TableCell>
+                  <TableCell>{r.jadwalEkstra?.mingguKe}</TableCell>
+                  <TableCell>{r.modulEkstra?.judul}</TableCell>
+                  <TableCell>{r.fasilitator?.namaLengkap}</TableCell>
+                  <TableCell>{r.jadwalEkstra?.lokasiSNT}</TableCell>
+                  <TableCell>{r.stats?.hadir}</TableCell>
+                  <TableCell>{r.stats?.izin}</TableCell>
+                  <TableCell>{r.stats?.sakit}</TableCell>
+                  <TableCell>{r.stats?.alpha}</TableCell>
                   <TableCell className={getHadirColor(r.persentaseHadir)}>{r.persentaseHadir}%</TableCell>
                   <TableCell>
                     <Button variant="ghost" size="sm" onClick={() => toggleRow(r.id)}>
