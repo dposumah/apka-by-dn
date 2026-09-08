@@ -132,9 +132,9 @@ export default async function FasilitatorDetailPage(props: { params: Promise<{ i
                           <td className="py-2 px-3 text-center">{lap.attendance}</td>
                           <td className="py-2 px-3 text-center font-medium">{lap.jumlahJP}</td>
                           <td className="py-2 px-3 text-right">
-                            {lap.biayaTransport > 0 ? (
+                            {(lap.biayaTransportDisetujui || 0) > 0 ? (
                               <>
-                                <div>{formatCurrency(lap.biayaTransport)}</div>
+                                <div>{formatCurrency((lap.biayaTransportDisetujui || 0))}</div>
                                 <div className={`text-[10px] font-bold ${lap.statusTransport === 'PAID' ? 'text-emerald-600' : 'text-amber-600'}`}>
                                   {lap.statusTransport === 'PAID' ? 'LUNAS' : 'PENDING'}
                                 </div>

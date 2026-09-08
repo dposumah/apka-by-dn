@@ -63,11 +63,11 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
                 <td>${lap.topic}</td>
                 <td>${lap.tingkatSekolah}</td>
                 <td>${(lap.jumlahJPIntra || 0) + (lap.jumlahJPEkstra || 0)}</td>
-                <td>Rp ${lap.biayaTransport.toLocaleString('id-ID')}</td>
+                <td>Rp ${(lap.biayaTransportDisetujui || 0).toLocaleString('id-ID')}</td>
               </tr>
               <tr>
                 <td colspan="3" class="total">TOTAL TAGIHAN TRANSPORT:</td>
-                <td class="total text-emerald-600">Rp ${lap.biayaTransport.toLocaleString('id-ID')}</td>
+                <td class="total text-emerald-600">Rp ${(lap.biayaTransportDisetujui || 0).toLocaleString('id-ID')}</td>
               </tr>
             </tbody>
           </table>
@@ -118,9 +118,9 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
                       <div>Ekstra: <strong>{lap.jumlahJPEkstra}</strong></div>
                     </td>
                     <td className="py-3 px-4 text-right">
-                      {(lap.biayaTransport || 0) > 0 || (lap.biayaTransportLaut || 0) > 0 ? (
+                      {((lap.biayaTransportDisetujui || 0) || 0) > 0 || (lap.biayaTransportLaut || 0) > 0 ? (
                         <>
-                          <div className="font-medium">{formatCurrency((lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0))}</div>
+                          <div className="font-medium">{formatCurrency(((lap.biayaTransportDisetujui || 0) || 0) + (lap.biayaTransportLaut || 0))}</div>
                           <Badge variant={lap.statusTransport === 'PAID' ? 'default' : 'secondary'} className="text-[10px] mt-1">
                             {lap.statusTransport}
                           </Badge>
@@ -135,7 +135,7 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
                       </div>
                     </td>
                     <td className="py-3 px-4 text-right space-y-1">
-                      {((lap.biayaTransport || 0) > 0 || (lap.biayaTransportLaut || 0) > 0) && lap.statusTransport === 'PENDING' && (
+                      {(((lap.biayaTransportDisetujui || 0) || 0) > 0 || (lap.biayaTransportLaut || 0) > 0) && lap.statusTransport === 'PENDING' && (
                         <button 
                           onClick={() => cetakInvoiceTransport(lap)}
                           className="w-full text-xs bg-slate-900 text-white hover:bg-slate-800 rounded px-2 py-1.5 transition-colors whitespace-nowrap"
