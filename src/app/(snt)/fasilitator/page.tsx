@@ -1,6 +1,7 @@
 import { getFasilitators } from '@/app/actions/rab'
 import { DeleteFasilButton } from './delete-fasil-button'
 import { ToggleStatusButton } from './toggle-status-button'
+import { ExportExcelButton } from './export-excel-button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
@@ -12,7 +13,8 @@ export default async function FasilitatorPage() {
     <div className="p-8 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Master Data Fasilitator</h1>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <ExportExcelButton data={fasilitators} />
           <Link href="/fasilitator/transport" className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 h-10 py-2 px-4">
             Rekap Transport
           </Link>
