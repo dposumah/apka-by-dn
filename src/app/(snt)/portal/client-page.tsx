@@ -174,7 +174,7 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
                 <div key={lap.id} className="flex flex-col md:flex-row items-start justify-between p-4 border rounded-lg hover:bg-slate-50 transition-colors">
                   <div className="w-full md:w-auto">
                     <h4 className="font-semibold text-slate-900 text-lg">{lap.topic}</h4>
-                    <p className="text-sm text-slate-500">{new Date(lap.date).toLocaleDateString('id-ID')} &bull; {lap.attendance} Peserta</p>
+                    <p className="text-sm text-slate-500">{new Date(lap.date).toLocaleDateString('id-ID')} &bull; {lap.attendance} Peserta &bull; {lap.metodePelaksanaan}</p>
                     {lap.materialLink && (
                       <a href={lap.materialLink} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline mt-1 inline-block">
                         Lihat Lampiran File
@@ -187,7 +187,7 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
                       <div className="text-sm font-medium text-slate-900">
                         {(lap.jumlahJPIntra || 0) + (lap.jumlahJPEkstra || 0)} JP 
                         <span className="text-slate-500 font-normal ml-1">
-                          ({lap.tingkatSekolah} - Intra: {lap.jumlahJPIntra}, Ekstra: {lap.jumlahJPEkstra})
+                          ({lap.tingkatSekolah} {lap.metodePelaksanaan} - Intra: {lap.jumlahJPIntra}, Ekstra: {lap.jumlahJPEkstra})
                         </span>
                       </div>
                     </div>

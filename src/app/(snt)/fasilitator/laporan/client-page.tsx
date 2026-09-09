@@ -61,7 +61,7 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
             <tbody>
               <tr>
                 <td>${lap.topic}</td>
-                <td>${lap.tingkatSekolah}</td>
+                <td>${lap.tingkatSekolah} <br/><small>${lap.metodePelaksanaan}</small></td>
                 <td>${(lap.jumlahJPIntra || 0) + (lap.jumlahJPEkstra || 0)}</td>
                 <td>Rp ${lap.biayaTransport.toLocaleString('id-ID')}</td>
               </tr>
@@ -112,7 +112,7 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
                       {lap.topic}
                       <div className="text-xs text-slate-500">{lap.attendance} Peserta</div>
                     </td>
-                    <td className="py-3 px-4 text-center">{lap.tingkatSekolah}</td>
+                    <td className="py-3 px-4 text-center">{lap.tingkatSekolah} <div className="text-xs text-slate-500">{lap.metodePelaksanaan}</div></td>
                     <td className="py-3 px-4 text-center text-sm">
                       <div>Intra: <strong>{lap.jumlahJPIntra}</strong></div>
                       <div>Ekstra: <strong>{lap.jumlahJPEkstra}</strong></div>

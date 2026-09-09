@@ -614,6 +614,7 @@ model LaporanKegiatan {
   evaluation    String?
 
   tingkatSekolah  String @default("SMP")
+  metodePelaksanaan String @default("LURING")
   // jenisKegiatan   String @default("INTRAKURIKULER")
   jumlahJPIntra   Int    @default(0)
     jumlahJPEkstra  Int    @default(0)

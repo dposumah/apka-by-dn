@@ -305,7 +305,11 @@ export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
   });
   const totalTransportDaratUsed = myWeeklyReports.reduce((sum, lap) => sum + lap.biayaTransport, 0);
   const maxTransportPerminggu = fasil?.besaranTransport ?? 120000;
-  const grantedTransportDarat = Math.max(0, Math.min(maxTransportPerminggu, maxTransportPerminggu - totalTransportDaratUsed));
+  let grantedTransportDarat = Math.max(0, Math.min(maxTransportPerminggu, maxTransportPerminggu - totalTransportDaratUsed));
+  
+  if (data.metodePelaksanaan === 'DARING') {
+    grantedTransportDarat = 0;
+  }
 
   if (fasil?.lokasiSNT) {
     // Get all reports in the same week for this location
@@ -335,6 +339,7 @@ export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
       attendance: parseInt(data.attendance),
       evaluation: data.evaluation,
       tingkatSekolah: data.tingkatSekolah,
+        metodePelaksanaan: data.metodePelaksanaan || 'LURING',
       jumlahJPIntra: reqJpIntra,
       jumlahJPEkstra: reqJpEkstra,
       biayaTransport: grantedTransportDarat,
