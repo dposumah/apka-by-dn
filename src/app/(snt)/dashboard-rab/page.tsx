@@ -2,7 +2,7 @@ import { getRabDashboardData, getRecentExpenses, approveExpense } from '@/app/ac
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency } from '@/lib/format'
 import { Badge } from '@/components/ui/badge'
-import { ApproveButton } from './ApproveButton'
+import { ExpenseActions } from './ExpenseActions'
 import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
 
@@ -139,15 +139,7 @@ export default async function RabDashboardPage() {
                         {exp.status}
                       </Badge>
                     </td>
-                    <td className="px-6 py-4">
-                      {exp.status === 'PENDING' ? (
-                        <ApproveButton expenseId={exp.id} />
-                      ) : exp.paymentReceiptUrl ? (
-                        <a href={exp.paymentReceiptUrl} target="_blank" rel="noreferrer" className="text-emerald-600 font-medium hover:underline text-xs bg-emerald-50 px-2 py-1 rounded">
-                          Lihat Bukti Transfer
-                        </a>
-                      ) : null}
-                    </td>
+                    <td className="px-6 py-4"><ExpenseActions expense={exp} /></td>
                   </tr>
                 ))}
               </tbody>

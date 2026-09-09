@@ -111,6 +111,7 @@ export async function submitExpense(data: { rabItemId: string, amount: number, d
       description: data.description,
       receiptUrl: data.receiptUrl,
       createdById: user.id,
+      status: 'APPROVED',
       fasilitatorId: data.fasilitatorId || null
     }
   })
@@ -451,5 +452,18 @@ export async function deleteLaporanKegiatan(laporanId: string, fasilitatorId: st
   })
   
   revalidatePath('/portal')
+  revalidatePath('/dashboard-rab')
+}
+
+export async function deleteExpense(id: string) {
+  await prisma.expenseRequest.delete({ where: { id } })
+  revalidatePath('/dashboard-rab')
+}
+
+export async function updateExpense(id: string, data: { amount: number, description: string }) {
+  await prisma.expenseRequest.update({
+    where: { id },
+    data: { amount: data.amount, description: data.description }
+  })
   revalidatePath('/dashboard-rab')
 }
