@@ -44,17 +44,23 @@ export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) 
     return data.url
   }
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, field: 'foto1' | 'foto2' | 'fileLaporanFisik' | 'fileLaporanFisik') => {
-    const file = e.target.files?.[0]
-    setFileError('')
-    
-    if (!file) return
-    
-    if (file.size > 5 * 1024 * 1024) {
-      setFileError('Ukuran file maksimal 5MB')
-      e.target.value = ''
-      return
-    }
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, field: 'foto1' | 'foto2' | 'fileLaporanFisik') => {
+      const file = e.target.files?.[0]
+      setFileError('')
+      
+      if (!file) return
+      
+      if (field === 'fileLaporanFisik' && file.size > 2 * 1024 * 1024) {
+        setFileError('Ukuran file laporan fisik maksimal 2MB')
+        e.target.value = ''
+        return
+      }
+      
+      if (field !== 'fileLaporanFisik' && file.size > 5 * 1024 * 1024) {
+        setFileError('Ukuran foto maksimal 5MB')
+        e.target.value = ''
+        return
+      }
 
     setUploading(true)
     try {
@@ -210,9 +216,9 @@ export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) 
                     Download Template
                   </a>
                 </div>
-                <Input type="file" onChange={(e) => handleFileChange(e, 'fileLaporanFisik')} accept=".pdf,.doc,.docx" />
+                <Input type="file" onChange={(e) => handleFileChange(e, 'fileLaporanFisik')} accept=".pdf" />
                 {fileLaporanFisik && <p className="text-xs text-emerald-600">Laporan fisik terlampir.</p>}
-                <p className="text-xs text-slate-500">Silakan unduh template, isi, tanda tangani, lalu unggah kembali di sini (Bisa PDF/Word).</p>
+                <p className="text-xs text-slate-500">Silakan unduh template, isi, tanda tangani, simpan sebagai PDF, lalu unggah kembali di sini (Maksimal 2 MB).</p>
               </div>
 
               <div className="space-y-4 border-t pt-4 mt-2">
