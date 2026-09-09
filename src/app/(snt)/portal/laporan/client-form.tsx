@@ -26,6 +26,7 @@ export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) 
     evaluation: '',
     tingkatSekolah: 'SMP',
     metodePelaksanaan: 'LURING',
+      jenisPembelajaran: 'INTRAKURIKULER',
     jumlahJPIntra: '',
     jumlahJPEkstra: '',
     biayaTransportLaut: '',
@@ -118,7 +119,7 @@ export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) 
                   Daring (Online)
                 </label>
               </div>
-              <p className="text-xs text-slate-500">Jika Daring, tidak ada penggantian biaya transport.</p>
+              
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -161,16 +162,31 @@ export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) 
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t pt-4 mt-2">
-              <div className="space-y-2">
-                <Label>JP Intrakurikuler</Label>
-                <Input type="number" min="0" value={formData.jumlahJPIntra} onChange={e => setFormData({...formData, jumlahJPIntra: e.target.value})} placeholder="0" />
-                <p className="text-xs text-slate-500">Maksimal 8 JP / minggu / Lokasi</p>
-              </div>
-              <div className="space-y-2">
-                <Label>JP Ekstrakurikuler</Label>
-                <Input type="number" min="0" value={formData.jumlahJPEkstra} onChange={e => setFormData({...formData, jumlahJPEkstra: e.target.value})} placeholder="0" />
-                <p className="text-xs text-slate-500">Maksimal 4 JP / minggu / Lokasi</p>
-              </div>
+                <div className="space-y-2">
+                  <Label>Jenis Pembelajaran</Label>
+                  <select 
+                    className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    value={formData.jenisPembelajaran}
+                    onChange={e => setFormData({...formData, jenisPembelajaran: e.target.value, jumlahJPIntra: '', jumlahJPEkstra: ''})}
+                  >
+                    <option value="INTRAKURIKULER">Intrakurikuler</option>
+                    <option value="EKSTRAKURIKULER">Ekstrakurikuler</option>
+                  </select>
+                </div>
+                
+                {formData.jenisPembelajaran === 'INTRAKURIKULER' ? (
+                  <div className="space-y-2">
+                    <Label>Jumlah JP (Intrakurikuler)</Label>
+                    <Input type="number" min="0" value={formData.jumlahJPIntra} onChange={e => setFormData({...formData, jumlahJPIntra: e.target.value})} placeholder="0" />
+                    <p className="text-xs text-slate-500">Maksimal 8 JP / minggu / Lokasi</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label>Jumlah JP (Ekstrakurikuler)</Label>
+                    <Input type="number" min="0" value={formData.jumlahJPEkstra} onChange={e => setFormData({...formData, jumlahJPEkstra: e.target.value})} placeholder="0" />
+                    <p className="text-xs text-slate-500">Maksimal 4 JP / minggu / Lokasi</p>
+                  </div>
+                )}
               <div className="space-y-2">
                 <Label>Biaya Transport Antar Pulau (Rp)</Label>
                 <Input type="number" min="0" value={formData.biayaTransportLaut} onChange={e => setFormData({...formData, biayaTransportLaut: e.target.value})} placeholder="Kosongkan jika tidak ada" />
@@ -189,7 +205,7 @@ export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) 
               
               <div className="space-y-2 border border-slate-200 bg-slate-50 p-4 rounded-md mt-4">
                 <div className="flex justify-between items-center mb-2">
-                  <Label className="text-sm font-semibold">Laporan Fisik (Berita Acara / Laporan)</Label>
+                  <Label className="text-sm font-semibold">Laporan Fisik</Label>
                   <a href="/templates/Template_Laporan_Fisik_Fasilitator.docx" download className="text-xs text-blue-600 hover:underline flex items-center gap-1">
                     Download Template
                   </a>
