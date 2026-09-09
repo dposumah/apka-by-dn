@@ -83,8 +83,8 @@ export function SntSidebar({ isCollapsed = false, onToggleCollapse }: { isCollap
             <span className="text-white font-bold text-sm">JT</span>
           </div>
           {!isCollapsed && (
-            <div className="min-w-0">
-              <h1 className="text-base font-bold text-white tracking-wide leading-tight truncate">PT. JT Robotic Explorer</h1>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-[15px] font-bold text-white leading-tight tracking-wide">PT. JT Robotic<span className="block text-emerald-400 text-sm">Explorer</span></h1>
               <p className="text-[11px] text-slate-400 truncate">KKA SNT 2026</p>
             </div>
           )}
