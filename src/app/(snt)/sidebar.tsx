@@ -126,9 +126,10 @@ export function SntSidebar() {
             <div className="ml-3">
               <p className="text-sm font-medium text-white truncate w-32">{session?.user?.name || 'Pengguna'}</p>
               <div className="flex items-center gap-2 mt-1">
-                <button 
-                  onClick={() => signOut({ callbackUrl: '/login' })}
-                  className="text-xs text-red-400 hover:underline cursor-pointer bg-transparent border-0 p-0 text-left"
+                <button
+                  onClick={(e) => { e.preventDefault(); signOut({ callbackUrl: '/login' }) }}
+                  onTouchEnd={(e) => { e.preventDefault(); signOut({ callbackUrl: '/login' }) }}
+                  className="text-xs text-red-400 hover:text-red-300 font-medium cursor-pointer bg-transparent border-0 p-2 -ml-2 text-left block w-full"
                 >
                   Keluar
                 </button>

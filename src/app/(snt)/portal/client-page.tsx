@@ -48,7 +48,7 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
         
         {fasilitator.lokasiSNT ? (
             <div className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-blue-50 border border-blue-200 text-blue-700 font-medium">
-              Lokasi SNT: <span className="font-bold">{fasilitator.lokasiSNT.split(' - ')[0]}</span>
+              Lokasi SNT: <span className="font-bold">{fasilitator.lokasiSNT.replace(" - ", ", ")}</span>
             </div>
           ) : (
           <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-sm font-medium">
