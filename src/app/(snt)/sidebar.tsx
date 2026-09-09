@@ -57,6 +57,8 @@ export function SntSidebar({ isCollapsed = false, onToggleCollapse }: { isCollap
   const pathname = usePathname()
   const { data: session } = useSession()
   const userRole = session?.user?.role
+  const [isLoggingOut, setIsLoggingOut] = React.useState(false);
+  const handleLogout = (e: any) => { e.preventDefault(); if (isLoggingOut) return; setIsLoggingOut(true); signOut({ callbackUrl: '/login' }); };
   const [openMenus, setOpenMenus] = React.useState<Record<string, boolean>>({ "Manajemen Fasilitator": true })
 
   const toggleMenu = (title: string) => {
@@ -207,8 +209,7 @@ export function SntSidebar({ isCollapsed = false, onToggleCollapse }: { isCollap
               </p>
               <div className="flex items-center gap-2 mt-0.5">
                 <button
-                  onClick={(e) => { e.preventDefault(); signOut({ callbackUrl: "/login" }) }}
-                  onTouchEnd={(e) => { e.preventDefault(); signOut({ callbackUrl: "/login" }) }}
+                  onClick={handleLogout} onTouchEnd={handleLogout}
                   className="text-xs text-red-400 hover:text-red-300 font-medium transition-colors p-0 bg-transparent border-0 cursor-pointer"
                 >
                   Keluar
@@ -229,8 +230,7 @@ export function SntSidebar({ isCollapsed = false, onToggleCollapse }: { isCollap
               </span>
             </div>
             <button
-              onClick={(e) => { e.preventDefault(); signOut({ callbackUrl: "/login" }) }}
-              onTouchEnd={(e) => { e.preventDefault(); signOut({ callbackUrl: "/login" }) }}
+              onClick={handleLogout} onTouchEnd={handleLogout}
               className="p-1.5 rounded-lg text-red-400 hover:text-red-300 hover:bg-slate-700 transition-colors cursor-pointer bg-transparent border-0"
             >
               <LogOut size={18} />

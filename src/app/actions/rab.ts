@@ -146,7 +146,7 @@ export async function updateFasilitatorBank(id: string, bankName: string, bankAc
     where: { id },
     data: { bankName, bankAccount, npwpNik }
   })
-  revalidatePath('/fasilitator')
+  revalidatePath('/', 'layout')
   revalidatePath('/fasilitator/' + id)
   revalidatePath('/portal')
 }

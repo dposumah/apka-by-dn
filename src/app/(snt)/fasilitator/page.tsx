@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { getFasilitators } from '@/app/actions/rab'
 import { DeleteFasilButton } from './delete-fasil-button'
 import { ToggleStatusButton } from './toggle-status-button'

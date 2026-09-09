@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { getFasilitatorDetail } from '@/app/actions/rab'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'

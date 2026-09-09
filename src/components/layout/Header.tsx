@@ -67,7 +67,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
             <DropdownMenuSeparator />
             <DropdownMenuItem 
               className="text-red-600 cursor-pointer" 
-              onClick={() => signOut({ callbackUrl: '/login' })}
+              onClick={(e) => { e.preventDefault(); if(isLoggingOut) return; setIsLoggingOut(true); signOut({ callbackUrl: '/login' }); }}
             >
               Keluar
             </DropdownMenuItem>
