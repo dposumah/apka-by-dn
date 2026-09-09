@@ -94,10 +94,10 @@ export default function LoginPage() {
         <div className="w-full max-w-md p-8">
           <div className="mb-8 text-center">
             <div className="flex justify-center mb-4">
-              <img src="/login-logo.png" alt="PT. JTR Explorer Logo" className="h-16 w-auto" />
+              <img src="/login-logo.png" alt="PT. JT Robotic Explorer Logo" className="h-16 w-auto" />
             </div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              PT. JTR Explorer
+              PT. JT Robotic Explorer
             </h1>
             <p className="text-gray-600">
               Silakan masuk ke akun Anda

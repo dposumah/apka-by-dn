@@ -44,7 +44,7 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
     <div className="p-8 space-y-6 max-w-5xl mx-auto">
       <div>
         <h1 className="text-3xl font-bold tracking-tight text-slate-900">Selamat datang, {userName}</h1>
-        <p className="text-slate-500 mt-1">Dashboard Portal Fasilitator PT. JT Robotic SNT 2026</p>
+        <p className="text-slate-500 mt-1">Dashboard Portal Fasilitator PT. JT Robotic Explorer SNT 2026</p>
         
         {fasilitator.lokasiSNT ? (
             <div className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-blue-50 border border-blue-200 text-blue-700 font-medium">
