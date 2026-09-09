@@ -2,7 +2,7 @@ import { getRabDashboardData, getRecentExpenses, approveExpense } from '@/app/ac
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency } from '@/lib/format'
 import { Badge } from '@/components/ui/badge'
-import { ApproveButton } from './ApproveButton'
+import { DeleteExpenseButton } from './DeleteExpenseButton'
 import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
 
