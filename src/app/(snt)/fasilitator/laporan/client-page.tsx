@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/format'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { deleteLaporanKegiatan } from '@/app/actions/rab'
+import { Trash2 } from 'lucide-react'
 
 export function LaporanClient({ initialData }: { initialData: any[] }) {
   const router = useRouter()
@@ -149,7 +151,17 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
                           Cetak Invoice Transport
                         </button>
                       )}
-                      {/* For uploading receipt, Admin uses the Rekap Transport page, or we can add it here too. */}
+                      
+                        {/* For uploading receipt, Admin uses the Rekap Transport page, or we can add it here too. */}
+                        <button 
+                          onClick={() => handleDelete(lap.id, lap.fasilitatorId)}
+                          disabled={deletingId === lap.id}
+                          className="w-full mt-2 flex items-center justify-center gap-1 text-xs bg-red-100 text-red-700 hover:bg-red-200 rounded px-2 py-1.5 transition-colors whitespace-nowrap disabled:opacity-50"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          {deletingId === lap.id ? 'Menghapus...' : 'Hapus Laporan'}
+                        </button>
+
                     </td>
                   </tr>
                 ))}

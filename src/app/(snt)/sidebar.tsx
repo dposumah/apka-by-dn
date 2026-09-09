@@ -58,7 +58,7 @@ export function SntSidebar({ isCollapsed = false, onToggleCollapse }: { isCollap
   const { data: session } = useSession()
   const userRole = session?.user?.role
   const [isLoggingOut, setIsLoggingOut] = React.useState(false);
-  const handleLogout = (e: any) => { e.preventDefault(); if (isLoggingOut) return; setIsLoggingOut(true); signOut({ callbackUrl: '/login' }); };
+  const handleLogout = (e: any) => { e.preventDefault(); if (isLoggingOut) return; if (confirm('Apakah Anda yakin ingin keluar dari akun?')) { setIsLoggingOut(true); signOut({ callbackUrl: '/login' }); } };
   const [openMenus, setOpenMenus] = React.useState<Record<string, boolean>>({ "Manajemen Fasilitator": true })
 
   const toggleMenu = (title: string) => {
@@ -211,9 +211,7 @@ export function SntSidebar({ isCollapsed = false, onToggleCollapse }: { isCollap
                 <button
                   onClick={handleLogout} onTouchEnd={handleLogout}
                   className="text-xs text-red-400 hover:text-red-300 font-medium transition-colors p-0 bg-transparent border-0 cursor-pointer"
-                >
-                  Keluar
-                </button>
+                >{isLoggingOut ? 'Keluar...' : 'Keluar'}</button>
                 {userRole !== "FASILITATOR" && (
                   <Link href="/" className="text-xs text-emerald-400 hover:text-emerald-300 border-l border-slate-600 pl-2 transition-colors">
                     Ganti Aplikasi
