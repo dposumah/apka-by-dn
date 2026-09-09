@@ -625,6 +625,7 @@ model LaporanKegiatan {
   buktiTiketTransport String?
 
   foto1 String?
+  fileLaporanFisik String?
   foto2 String?
 
   rekapHonorariumId String?

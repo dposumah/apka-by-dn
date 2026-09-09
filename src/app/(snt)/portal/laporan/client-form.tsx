@@ -16,6 +16,7 @@ export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) 
   const [fileError, setFileError] = useState('')
   const [foto1, setFoto1] = useState('')
   const [foto2, setFoto2] = useState('')
+    const [fileLaporanFisik, setFileLaporanFisik] = useState('')
   const [uploading, setUploading] = useState(false)
   
   const [formData, setFormData] = useState({
@@ -42,7 +43,7 @@ export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) 
     return data.url
   }
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, field: 'foto1' | 'foto2') => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, field: 'foto1' | 'foto2' | 'fileLaporanFisik' | 'fileLaporanFisik') => {
     const file = e.target.files?.[0]
     setFileError('')
     
@@ -59,6 +60,8 @@ export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) 
       const url = await uploadFile(file)
       if (field === 'foto1') setFoto1(url)
       if (field === 'foto2') setFoto2(url)
+        if (field === 'fileLaporanFisik') setFileLaporanFisik(url)
+        if (field === 'fileLaporanFisik') setFileLaporanFisik(url)
     } catch (error: any) {
       setFileError(error.message || 'Gagal terhubung ke server unggahan')
     } finally {
@@ -78,7 +81,8 @@ export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) 
       await submitLaporanKegiatan(fasilitatorId, {
         ...formData,
         foto1,
-        foto2
+        foto2,
+        fileLaporanFisik
       })
       router.push('/portal')
       router.refresh()
@@ -182,6 +186,19 @@ export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) 
                 </div>
               )}
   
+              
+              <div className="space-y-2 border border-slate-200 bg-slate-50 p-4 rounded-md mt-4">
+                <div className="flex justify-between items-center mb-2">
+                  <Label className="text-sm font-semibold">Laporan Fisik (Berita Acara / Laporan)</Label>
+                  <a href="/templates/Template_Laporan_Fisik_Fasilitator.docx" download className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                    Download Template
+                  </a>
+                </div>
+                <Input type="file" onChange={(e) => handleFileChange(e, 'fileLaporanFisik')} accept=".pdf,.doc,.docx" />
+                {fileLaporanFisik && <p className="text-xs text-emerald-600">Laporan fisik terlampir.</p>}
+                <p className="text-xs text-slate-500">Silakan unduh template, isi, tanda tangani, lalu unggah kembali di sini (Bisa PDF/Word).</p>
+              </div>
+
               <div className="space-y-4 border-t pt-4 mt-2">
               <Label>Lampiran Bukti (Foto Kegiatan)</Label>
               <p className="text-xs text-slate-500">Maksimal 2 foto (jpg/png/jpeg), ukuran per file max 5 MB.</p>

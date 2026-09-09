@@ -176,10 +176,25 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
                     <h4 className="font-semibold text-slate-900 text-lg">{lap.topic}</h4>
                     <p className="text-sm text-slate-500">{new Date(lap.date).toLocaleDateString('id-ID')} &bull; {lap.attendance} Peserta &bull; {lap.metodePelaksanaan}</p>
                     {lap.materialLink && (
-                      <a href={lap.materialLink} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline mt-1 inline-block">
-                        Lihat Lampiran File
-                      </a>
-                    )}
+                        <a href={lap.materialLink} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline mt-1 inline-block mr-3">
+                          Materi Pembelajaran
+                        </a>
+                      )}
+                      {lap.fileLaporanFisik && (
+                        <a href={lap.fileLaporanFisik} target="_blank" rel="noreferrer" className="text-xs text-emerald-600 hover:underline mt-1 inline-block mr-3">
+                          Laporan Fisik
+                        </a>
+                      )}
+                      {lap.foto1 && (
+                        <a href={lap.foto1} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 hover:underline mt-1 inline-block mr-3">
+                          Foto 1
+                        </a>
+                      )}
+                      {lap.foto2 && (
+                        <a href={lap.foto2} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 hover:underline mt-1 inline-block">
+                          Foto 2
+                        </a>
+                      )}
                   </div>
                   <div className="mt-4 md:mt-0 text-left md:text-right space-y-2 w-full md:w-auto bg-slate-50 md:bg-transparent p-3 md:p-0 rounded-md">
                     <div className="flex justify-between md:justify-end items-center gap-4">

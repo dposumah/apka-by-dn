@@ -353,6 +353,7 @@ export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
       biayaTransport: grantedTransportDarat,
       biayaTransportLaut: data.biayaTransportLaut ? parseFloat(data.biayaTransportLaut) : 0,
       foto1: data.foto1 || null,
+      fileLaporanFisik: data.fileLaporanFisik || null,
       foto2: data.foto2 || null,
       buktiTiketTransport: data.buktiTiketTransport || null,
       statusTransport: 'PENDING',
