@@ -162,6 +162,7 @@ export async function syncFromGoogleSheets() {
       // Process Siswa
       if (siswaStart !== -1) {
           let count = 0
+          const siswaPromises = []
           for (let i = siswaStart + 3; i < data.length; i++) { // Skip headers
               if (data[i] && data[i][0] && !isNaN(Number(data[i][0])) && data[i][1]) { // Valid row
                   const nama = String(data[i][1]).trim()
@@ -172,15 +173,6 @@ export async function syncFromGoogleSheets() {
                   const ortu = String(data[i][6] || '').trim()
                   const hp = String(data[i][7] || '').trim()
 
-                  // Check existing by NISN or Name
-                  let existingSiswa = null;
-                  if (nisn) {
-                      existingSiswa = await prisma.siswa.findFirst({ where: { nisn } })
-                  }
-                  if (!existingSiswa) {
-                      existingSiswa = await prisma.siswa.findFirst({ where: { namaLengkap: nama, lokasiSNT } })
-                  }
-                  
                   const dataSiswa = {
                       namaLengkap: nama,
                       kelas,
@@ -192,13 +184,29 @@ export async function syncFromGoogleSheets() {
                       noHp: hp || null
                   }
 
-                  if (existingSiswa) {
-                      await prisma.siswa.update({ where: { id: existingSiswa.id }, data: dataSiswa })
-                  } else {
-                      await prisma.siswa.create({ data: dataSiswa })
-                  }
+                  siswaPromises.push(async () => {
+                      let existingSiswa = null;
+                      if (nisn) {
+                          existingSiswa = await prisma.siswa.findFirst({ where: { nisn } })
+                      }
+                      if (!existingSiswa) {
+                          existingSiswa = await prisma.siswa.findFirst({ where: { namaLengkap: nama, lokasiSNT } })
+                      }
+                      if (existingSiswa) {
+                          await prisma.siswa.update({ where: { id: existingSiswa.id }, data: dataSiswa })
+                      } else {
+                          await prisma.siswa.create({ data: dataSiswa })
+                      }
+                  })
                   count++
               }
+          }
+          
+          // Execute in chunks to avoid connection pool exhaustion
+          const chunkSize = 10;
+          for (let i = 0; i < siswaPromises.length; i += chunkSize) {
+              const chunk = siswaPromises.slice(i, i + chunkSize);
+              await Promise.all(chunk.map(fn => fn()));
           }
           logs.push(`Siswa: ${count} data disinkronkan untuk ${lokasiSNT}`)
       }
