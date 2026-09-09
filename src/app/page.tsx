@@ -1,4 +1,4 @@
-﻿import { redirect } from 'next/navigation';
+import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import Link from 'next/link';
@@ -14,6 +14,10 @@ export default async function Home() {
 
   if (session?.user?.role === 'FASILITATOR') {
     redirect('/portal');
+  }
+
+  if (session?.user?.role === 'KORWIL') {
+    redirect('/dashboard-rab');
   }
 
   // Jika bukan fasilitator (Admin), tampilkan Gateway Pilihan
