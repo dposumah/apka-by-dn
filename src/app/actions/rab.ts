@@ -296,16 +296,24 @@ export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
 
   const { start, end } = getWeekRange(data.date)
 
-  // Transport Darat Quota per Fasilitator per Week
-  const myWeeklyReports = await prisma.laporanKegiatan.findMany({
+  // Cek apakah sudah ada laporan di hari yang sama
+  const targetDate = new Date(data.date);
+  const startOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 0, 0, 0);
+  const endOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 23, 59, 59, 999);
+  
+  const sameDayReports = await prisma.laporanKegiatan.findMany({
     where: {
       fasilitatorId,
-      date: { gte: start, lte: end }
+      date: { gte: startOfDay, lte: endOfDay }
     }
   });
-  const totalTransportDaratUsed = myWeeklyReports.reduce((sum, lap) => sum + lap.biayaTransport, 0);
-  const maxTransportPerminggu = fasil?.besaranTransport ?? 120000;
-  let grantedTransportDarat = Math.max(0, Math.min(maxTransportPerminggu, maxTransportPerminggu - totalTransportDaratUsed));
+  
+  const hasTransportToday = sameDayReports.some(lap => lap.biayaTransport > 0);
+  
+  let grantedTransportDarat = 0;
+  if (!hasTransportToday) {
+    grantedTransportDarat = fasil?.besaranTransport ?? 120000;
+  }
   
   if (data.metodePelaksanaan === 'DARING') {
     grantedTransportDarat = 0;

@@ -58,12 +58,7 @@ export function RekapHonorClient({ initialData }: { initialData: any[] }) {
               <p><strong>Bulan Laporan:</strong> ${rekap.bulan}</p>
               <p><strong>Tanggal Diajukan:</strong> ${new Date(rekap.createdAt).toLocaleDateString('id-ID')}</p>
             </div>
-            <div style="text-align: right; border: 1px solid #ddd; padding: 15px; border-radius: 8px; background-color: #f8fafc;">
-              <h4 style="margin:0 0 10px 0;">Informasi Transfer</h4>
-              <p style="margin:5px 0;"><strong>Bank:</strong> ${rekap.fasilitator.bankName || '-'}</p>
-              <p style="margin:5px 0;"><strong>No. Rekening:</strong> ${rekap.fasilitator.bankAccount || '-'}</p>
-              <p style="margin:5px 0;"><strong>A/N:</strong> ${rekap.fasilitator.namaLengkap}</p>
-            </div>
+            
           </div>
           
           <table>
@@ -86,7 +81,17 @@ export function RekapHonorClient({ initialData }: { initialData: any[] }) {
               </tr>
             </tbody>
           </table>
-          <p style="margin-top:40px; text-align:right;">Dicetak oleh: Admin SNT</p>
+          <div style="display: flex; justify-content: space-between; margin-top: 30px;">
+            <div style="border: 1px solid #ddd; padding: 15px; border-radius: 8px; background-color: #f8fafc; min-width: 250px;">
+              <h4 style="margin:0 0 10px 0;">Informasi Transfer</h4>
+              <p style="margin:5px 0;"><strong>Bank:</strong> ${rekap.fasilitator.bankName || '-'}</p>
+              <p style="margin:5px 0;"><strong>No. Rekening:</strong> ${rekap.fasilitator.bankAccount || '-'}</p>
+              <p style="margin:5px 0;"><strong>A/N:</strong> ${rekap.fasilitator.namaLengkap}</p>
+            </div>
+            <div style="text-align:right;">
+              <p style="margin-top:40px;">Dicetak oleh: Admin SNT</p>
+            </div>
+          </div>
           <script>window.print()</script>
         </body>
       </html>

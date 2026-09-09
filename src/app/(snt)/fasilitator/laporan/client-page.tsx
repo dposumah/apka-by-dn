@@ -41,12 +41,7 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
               <p><strong>Lokasi SNT:</strong> ${lap.fasilitator.lokasiSNT ? lap.fasilitator.lokasiSNT.split(' - ')[0] : '-'}</p>
               <p><strong>Tanggal Laporan:</strong> ${new Date(lap.date).toLocaleDateString('id-ID')}</p>
             </div>
-            <div style="text-align: right; border: 1px solid #ddd; padding: 15px; border-radius: 8px; background-color: #f8fafc;">
-              <h4 style="margin:0 0 10px 0;">Informasi Transfer</h4>
-              <p style="margin:5px 0;"><strong>Bank:</strong> ${lap.fasilitator.bankName || '-'}</p>
-              <p style="margin:5px 0;"><strong>No. Rekening:</strong> ${lap.fasilitator.bankAccount || '-'}</p>
-              <p style="margin:5px 0;"><strong>A/N:</strong> ${lap.fasilitator.namaLengkap}</p>
-            </div>
+            
           </div>
           
           <table>
@@ -71,7 +66,17 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
               </tr>
             </tbody>
           </table>
-          <p style="margin-top:40px; text-align:right;">Dicetak oleh: Admin SNT</p>
+          <div style="display: flex; justify-content: space-between; margin-top: 30px;">
+            <div style="border: 1px solid #ddd; padding: 15px; border-radius: 8px; background-color: #f8fafc; min-width: 250px;">
+              <h4 style="margin:0 0 10px 0;">Informasi Transfer</h4>
+              <p style="margin:5px 0;"><strong>Bank:</strong> ${lap.fasilitator.bankName || '-'}</p>
+              <p style="margin:5px 0;"><strong>No. Rekening:</strong> ${lap.fasilitator.bankAccount || '-'}</p>
+              <p style="margin:5px 0;"><strong>A/N:</strong> ${lap.fasilitator.namaLengkap}</p>
+            </div>
+            <div style="text-align:right;">
+              <p style="margin-top:40px;">Dicetak oleh: Admin SNT</p>
+            </div>
+          </div>
           <script>window.print()</script>
         </body>
       </html>
