@@ -197,39 +197,61 @@ export function SntSidebar({ isCollapsed = false, onToggleCollapse }: { isCollap
       {/* Footer */}
       <div className="shrink-0 border-t border-slate-700 p-4">
         {!isCollapsed ? (
-          <div className="flex items-center space-x-3 px-2 py-2">
-            <div className="w-9 h-9 bg-gradient-to-r from-emerald-400 to-teal-500 rounded-full flex items-center justify-center shrink-0">
-              <span className="text-white font-semibold text-sm uppercase">
-                {session?.user?.name?.[0] || "U"}
-              </span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">
-                {session?.user?.name || "Pengguna"}
-              </p>
-              <div className="flex items-center gap-2 mt-0.5">
-                <button
-                  onClick={handleLogout} onTouchEnd={handleLogout}
-                  className="text-xs text-red-400 hover:text-red-300 font-medium transition-colors p-0 bg-transparent border-0 cursor-pointer"
-                >{isLoggingOut ? 'Keluar...' : 'Keluar'}</button>
-                {userRole !== "FASILITATOR" && (
-                  <Link href="/" className="text-xs text-emerald-400 hover:text-emerald-300 border-l border-slate-600 pl-2 transition-colors">
-                    Ganti Aplikasi
-                  </Link>
-                )}
+          <div className="flex flex-col space-y-3">
+            <div className="flex items-center space-x-3 px-2">
+              <div className="w-9 h-9 bg-gradient-to-r from-emerald-400 to-teal-500 rounded-full flex items-center justify-center shrink-0">
+                <span className="text-white font-semibold text-sm uppercase">
+                  {session?.user?.name?.[0] || "U"}
+                </span>
               </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white truncate">
+                  {session?.user?.name || "Pengguna"}
+                </p>
+                <p className="text-xs text-slate-400 truncate">
+                  {session?.user?.role || "Role"}
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex flex-col gap-2">
+              {userRole !== "FASILITATOR" && (
+                <Link href="/" className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-emerald-400 bg-emerald-400/10 hover:bg-emerald-400/20 rounded-lg transition-colors">
+                  <ArrowLeftRight size={16} />
+                  Ganti Aplikasi
+                </Link>
+              )}
+              <button
+                onClick={handleLogout} onTouchEnd={handleLogout}
+                disabled={isLoggingOut}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-red-400 bg-red-400/10 hover:bg-red-400/20 rounded-lg transition-colors disabled:opacity-50"
+              >
+                <LogOut size={16} />
+                {isLoggingOut ? 'Sedang Keluar...' : 'Keluar Akun'}
+              </button>
             </div>
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-2">
+          <div className="flex flex-col items-center gap-3">
             <div className="w-9 h-9 bg-gradient-to-r from-emerald-400 to-teal-500 rounded-full flex items-center justify-center">
               <span className="text-white font-semibold text-sm uppercase">
                 {session?.user?.name?.[0] || "U"}
               </span>
             </div>
+            {userRole !== "FASILITATOR" && (
+              <Link
+                href="/"
+                className="p-2 rounded-lg text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10 transition-colors"
+                title="Ganti Aplikasi"
+              >
+                <ArrowLeftRight size={18} />
+              </Link>
+            )}
             <button
               onClick={handleLogout} onTouchEnd={handleLogout}
-              className="p-1.5 rounded-lg text-red-400 hover:text-red-300 hover:bg-slate-700 transition-colors cursor-pointer bg-transparent border-0"
+              disabled={isLoggingOut}
+              className="p-2 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-400/10 transition-colors disabled:opacity-50"
+              title="Keluar"
             >
               <LogOut size={18} />
             </button>
