@@ -8,10 +8,12 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import Link from 'next/link'
 import { submitLaporanKegiatan } from '@/app/actions/rab'
+import { useToast } from '@/components/ui/toast'
 import { useRouter } from 'next/navigation'
 
 export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) {
   const router = useRouter()
+  const { toast } = useToast()
   const [saving, setSaving] = useState(false)
   const [fileError, setFileError] = useState('')
   const [foto1, setFoto1] = useState('')
@@ -94,7 +96,7 @@ export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) 
       router.push('/portal')
       router.refresh()
     } catch (error) {
-      alert("Gagal mengirim laporan")
+      toast({ title: 'Gagal', description: 'Gagal mengirim laporan', type: 'error' })
       setSaving(false)
     }
   }

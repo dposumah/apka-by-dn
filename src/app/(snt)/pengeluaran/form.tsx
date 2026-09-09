@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { submitExpense } from '@/app/actions/rab'
+import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -9,6 +10,7 @@ import { formatCurrency } from '@/lib/format'
 import { Textarea } from '@/components/ui/textarea'
 
 export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilitators: any[] }) {
+  const { toast } = useToast();
   const [loading, setLoading] = useState(false)
   const [selectedItemId, setSelectedItemId] = useState('')
   const [selectedFasilitatorId, setSelectedFasilitatorId] = useState('')
@@ -54,13 +56,13 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
         userId: 'demo-user-id',
         fasilitatorId: isHonorarium ? selectedFasilitatorId : undefined
       })
-      alert('Pengeluaran berhasil diajukan!')
+      toast({ title: 'Berhasil', description: 'Pengeluaran berhasil ditambahkan.', type: 'success' })
       e.currentTarget.reset()
       setSelectedItemId('')
       setSelectedFasilitatorId('')
       setFile(null)
     } catch (err: any) {
-      alert(err.message || 'Gagal mengirim data')
+      toast({ title: 'Gagal', description: err.message || 'Gagal mengirim data', type: 'error' })
     } finally {
       setLoading(false)
     }

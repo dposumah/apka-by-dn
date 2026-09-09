@@ -1,4 +1,8 @@
-"use client"
+﻿const fs = require('fs');
+const filePath = 'src/app/(snt)/dashboard-rab/DeleteExpenseButton.tsx';
+let code = fs.readFileSync(filePath, 'utf8');
+
+code = `"use client"
 
 import { useState } from 'react'
 import { deleteExpense } from '@/app/actions/rab'
@@ -43,3 +47,7 @@ export function DeleteExpenseButton({ expenseId }: { expenseId: string }) {
     </button>
   )
 }
+`
+
+fs.writeFileSync(filePath, code);
+console.log("Patched DeleteExpenseButton");
