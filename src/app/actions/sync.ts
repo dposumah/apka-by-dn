@@ -30,6 +30,16 @@ export async function syncFromGoogleSheets() {
     // Get modules
     const modules = await prisma.modulPembelajaran.findMany({ orderBy: { urutan: 'asc' } })
     
+    // Map sheet names to concise system locations
+    const systemLokasiMap: Record<string, string> = {
+        'Tanjung Jabung Timur': 'Jambi - Kab. Tanjung Jabung Timur',
+        'Tebo': 'Jambi - Kab. Tebo',
+        'Buton Tengah': 'Sulawesi Tenggara - Kab. Buton Tengah',
+        'Kupang': 'Nusa Tenggara Timur - Kab. Kupang',
+        'Minahasa Utara': 'Sulawesi Utara - Kab. Minahasa Utara',
+        'Tidore Kepulauan': 'Maluku Utara - Kota Tidore Kepulauan'
+    };
+    
     for (const sheetName of sheetsToProcess) {
       logs.push(`Memproses sheet: ${sheetName}`)
       const sheet = workbook.Sheets[sheetName]
@@ -37,7 +47,8 @@ export async function syncFromGoogleSheets() {
       
       if (!data || data.length === 0) continue
       
-      let lokasiSNT = sheetName // Default
+      // Use mapped concise location or default to sheetName if not found
+      let lokasiSNT = systemLokasiMap[sheetName] || sheetName 
       let fasilIntra = ''
       let fasilEkskul = ''
       
@@ -47,7 +58,6 @@ export async function syncFromGoogleSheets() {
         const col0 = String(data[i][0] || '')
         const col1 = String(data[i][1] || '')
         
-        if (col0.includes('Lokasi:')) lokasiSNT = col1.trim()
         if (col0.includes('Fasilitator Intrakurikuler:')) fasilIntra = col1.trim()
         if (col0.includes('Fasilitator Ekskul:')) fasilEkskul = col1.trim()
       }
