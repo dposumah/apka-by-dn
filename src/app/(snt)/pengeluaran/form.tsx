@@ -21,7 +21,8 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
     e.preventDefault()
     setLoading(true)
     
-    const formData = new FormData(e.currentTarget)
+    const form = e.currentTarget;
+    const formData = new FormData(form)
     const amount = Number(formData.get('amount'))
     const description = String(formData.get('description'))
     
@@ -55,7 +56,7 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
         fasilitatorId: isHonorarium ? selectedFasilitatorId : undefined
       })
       alert('Pengeluaran berhasil diajukan!')
-      e.currentTarget.reset()
+      form.reset()
       setSelectedItemId('')
       setSelectedFasilitatorId('')
       setFile(null)
