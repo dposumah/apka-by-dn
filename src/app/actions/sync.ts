@@ -162,7 +162,10 @@ export async function syncFromGoogleSheets() {
       // Process Siswa
       if (siswaStart !== -1) {
           let count = 0
-          const siswaPromises = []
+          
+          // Deduplicate rows from spreadsheet first to prevent race condition duplicates
+          const uniqueStudentsMap = new Map();
+          
           for (let i = siswaStart + 3; i < data.length; i++) { // Skip headers
               if (data[i] && data[i][0] && !isNaN(Number(data[i][0])) && data[i][1]) { // Valid row
                   const nama = String(data[i][1]).trim()
@@ -172,34 +175,41 @@ export async function syncFromGoogleSheets() {
                   const tglLahir = String(data[i][5] || '').trim()
                   const ortu = String(data[i][6] || '').trim()
                   const hp = String(data[i][7] || '').trim()
-
-                  const dataSiswa = {
-                      namaLengkap: nama,
-                      kelas,
-                      lokasiSNT,
-                      nisn: nisn || null,
-                      jenisKelamin: jk || null,
-                      tanggalLahir: tglLahir || null,
-                      namaOrangTua: ortu || null,
-                      noHp: hp || null
-                  }
-
-                  siswaPromises.push(async () => {
-                      let existingSiswa = null;
-                      if (nisn) {
-                          existingSiswa = await prisma.siswa.findFirst({ where: { nisn } })
-                      }
-                      if (!existingSiswa) {
-                          existingSiswa = await prisma.siswa.findFirst({ where: { namaLengkap: nama, lokasiSNT } })
-                      }
-                      if (existingSiswa) {
-                          await prisma.siswa.update({ where: { id: existingSiswa.id }, data: dataSiswa })
-                      } else {
-                          await prisma.siswa.create({ data: dataSiswa })
-                      }
-                  })
-                  count++
+                  
+                  const key = nisn ? nisn : `${nama.toLowerCase()}-${lokasiSNT.toLowerCase()}`;
+                  uniqueStudentsMap.set(key, { nama, kelas, nisn, jk, tglLahir, ortu, hp });
               }
+          }
+
+          const siswaPromises = []
+          for (const [key, student] of uniqueStudentsMap.entries()) {
+              const { nama, kelas, nisn, jk, tglLahir, ortu, hp } = student;
+              const dataSiswa = {
+                  namaLengkap: nama,
+                  kelas,
+                  lokasiSNT,
+                  nisn: nisn || null,
+                  jenisKelamin: jk || null,
+                  tanggalLahir: tglLahir || null,
+                  namaOrangTua: ortu || null,
+                  noHp: hp || null
+              }
+
+              siswaPromises.push(async () => {
+                  let existingSiswa = null;
+                  if (nisn) {
+                      existingSiswa = await prisma.siswa.findFirst({ where: { nisn } })
+                  }
+                  if (!existingSiswa) {
+                      existingSiswa = await prisma.siswa.findFirst({ where: { namaLengkap: nama, lokasiSNT } })
+                  }
+                  if (existingSiswa) {
+                      await prisma.siswa.update({ where: { id: existingSiswa.id }, data: dataSiswa })
+                  } else {
+                      await prisma.siswa.create({ data: dataSiswa })
+                  }
+              })
+              count++
           }
           
           // Execute in chunks to avoid connection pool exhaustion
@@ -208,7 +218,7 @@ export async function syncFromGoogleSheets() {
               const chunk = siswaPromises.slice(i, i + chunkSize);
               await Promise.all(chunk.map(fn => fn()));
           }
-          logs.push(`Siswa: ${count} data disinkronkan untuk ${lokasiSNT}`)
+          logs.push(`Siswa: ${count} data unik disinkronkan untuk ${lokasiSNT}`)
       }
     }
     
