@@ -691,11 +691,16 @@ model RekapHonorarium {
 // ==================== SISWA & EKSTRA ====================
 
 model Siswa {
-  id          String  @id @default(cuid())
-  namaLengkap String
-  kelas       String
-  lokasiSNT   String
-  isActive    Boolean @default(true)
+  id            String  @id @default(cuid())
+  namaLengkap   String
+  kelas         String
+  lokasiSNT     String
+  nisn          String?
+  jenisKelamin  String?
+  tanggalLahir  String?
+  namaOrangTua  String?
+  noHp          String?
+  isActive      Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

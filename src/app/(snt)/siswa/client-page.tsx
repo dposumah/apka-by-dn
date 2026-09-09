@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { createSiswa, updateSiswa, deleteSiswa, toggleSiswaStatus } from '@/app/actions/ekstra'
+import { SyncButton } from '../portal/rekap/sync-button'
 
 export function SiswaClientPage({ initialSiswa, lokasiList }: { initialSiswa: any[], lokasiList: any[] }) {
   const router = useRouter()
@@ -27,7 +28,7 @@ export function SiswaClientPage({ initialSiswa, lokasiList }: { initialSiswa: an
   })
 
   const filteredSiswa = initialSiswa.filter(s => {
-    if (filterLokasi && s.lokasiId !== filterLokasi) return false
+    if (filterLokasi && s.lokasiSNT !== filterLokasi) return false
     if (filterKelas && s.kelas !== filterKelas) return false
     return true
   })
@@ -93,7 +94,10 @@ export function SiswaClientPage({ initialSiswa, lokasiList }: { initialSiswa: an
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold tracking-tight">Master Data Siswa</h1>
-        <Button onClick={handleAddClick} disabled={isAdding || editingId !== null}>+ Tambah Siswa</Button>
+        <div className="flex gap-2">
+          <SyncButton />
+          <Button onClick={handleAddClick} disabled={isAdding || editingId !== null}>+ Tambah Siswa</Button>
+        </div>
       </div>
 
       <div className="flex gap-4 mb-4">
@@ -163,7 +167,7 @@ export function SiswaClientPage({ initialSiswa, lokasiList }: { initialSiswa: an
                     <td className="p-3">
                       <select 
                         className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        value={formData.lokasiId} 
+                        value={formData.lokasiSNT} 
                         onChange={e => setFormData({...formData, lokasiSNT: e.target.value})}
                       >
                         <option value="" disabled>Pilih Lokasi</option>
@@ -175,7 +179,7 @@ export function SiswaClientPage({ initialSiswa, lokasiList }: { initialSiswa: an
                     <td className="p-3"></td>
                     <td className="p-3">
                       <div className="flex gap-2">
-                        <Button size="sm" onClick={handleSubmit} disabled={isPending || !formData.namaLengkap || !formData.lokasiId}>Simpan</Button>
+                        <Button size="sm" onClick={handleSubmit} disabled={isPending || !formData.namaLengkap || !formData.lokasiSNT}>Simpan</Button>
                         <Button size="sm" variant="ghost" onClick={resetForm} disabled={isPending}>Batal</Button>
                       </div>
                     </td>
@@ -211,7 +215,7 @@ export function SiswaClientPage({ initialSiswa, lokasiList }: { initialSiswa: an
                         <td className="p-3">
                           <select 
                             className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                            value={formData.lokasiId} 
+                            value={formData.lokasiSNT} 
                             onChange={e => setFormData({...formData, lokasiSNT: e.target.value})}
                           >
                             <option value="" disabled>Pilih Lokasi</option>
@@ -227,7 +231,7 @@ export function SiswaClientPage({ initialSiswa, lokasiList }: { initialSiswa: an
                         </td>
                         <td className="p-3">
                           <div className="flex gap-2">
-                            <Button size="sm" onClick={handleSubmit} disabled={isPending || !formData.namaLengkap || !formData.lokasiId}>Simpan</Button>
+                            <Button size="sm" onClick={handleSubmit} disabled={isPending || !formData.namaLengkap || !formData.lokasiSNT}>Simpan</Button>
                             <Button size="sm" variant="ghost" onClick={resetForm} disabled={isPending}>Batal</Button>
                           </div>
                         </td>
