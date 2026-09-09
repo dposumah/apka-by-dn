@@ -140,13 +140,9 @@ export default async function RabDashboardPage() {
                       </Badge>
                     </td>
                     <td className="px-6 py-4">
-                      {exp.status === 'PENDING' ? (
-                        <ApproveButton expenseId={exp.id} />
-                      ) : exp.paymentReceiptUrl ? (
-                        <a href={exp.paymentReceiptUrl} target="_blank" rel="noreferrer" className="text-emerald-600 font-medium hover:underline text-xs bg-emerald-50 px-2 py-1 rounded">
-                          Lihat Bukti Transfer
-                        </a>
-                      ) : null}
+                      <div className="flex items-center gap-3">
+                        <DeleteExpenseButton expenseId={exp.id} />
+                      </div>
                     </td>
                   </tr>
                 ))}
