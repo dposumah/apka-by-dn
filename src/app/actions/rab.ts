@@ -310,14 +310,21 @@ export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
   });
   
   const hasTransportToday = sameDayReports.some(lap => lap.biayaTransport > 0);
+  const hasTransportLautToday = sameDayReports.some(lap => (lap.biayaTransportLaut || 0) > 0);
   
   let grantedTransportDarat = 0;
   if (!hasTransportToday) {
     grantedTransportDarat = fasil?.besaranTransport ?? 120000;
   }
+
+  let grantedTransportLaut = data.biayaTransportLaut ? parseFloat(data.biayaTransportLaut) : 0;
+  if (hasTransportLautToday) {
+    grantedTransportLaut = 0;
+  }
   
   if (data.metodePelaksanaan === 'DARING') {
     grantedTransportDarat = 0;
+    grantedTransportLaut = 0;
   }
 
   if (fasil?.lokasiSNT) {
@@ -352,7 +359,7 @@ export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
       jumlahJPIntra: reqJpIntra,
       jumlahJPEkstra: reqJpEkstra,
       biayaTransport: grantedTransportDarat,
-      biayaTransportLaut: data.biayaTransportLaut ? parseFloat(data.biayaTransportLaut) : 0,
+      biayaTransportLaut: grantedTransportLaut,
       foto1: data.foto1 || null,
       fileLaporanFisik: data.fileLaporanFisik || null,
       foto2: data.foto2 || null,
