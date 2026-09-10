@@ -7,10 +7,12 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { deleteLaporanKegiatan } from '@/app/actions/rab'
 import { Trash2 } from 'lucide-react'
+import { cancelTransportPaid } from '@/app/actions/rekap'
 
 export function LaporanClient({ initialData }: { initialData: any[] }) {
   const router = useRouter()
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [cancelingId, setCancelingId] = useState<string | null>(null)
 
   const handleDelete = async (lapId: string, fasilitatorId: string) => {
     if (!confirm('Apakah Anda yakin ingin menghapus laporan ini? Tindakan ini tidak dapat dibatalkan.')) return;
@@ -29,6 +31,24 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
     }
   }
   
+  
+  const handleCancelPaid = async (lapId: string) => {
+    if (!confirm('Apakah Anda yakin ingin membatalkan status Lunas untuk laporan ini? Data Pengeluaran yang terkait juga akan dihapus.')) return;
+    setCancelingId(lapId);
+    try {
+      const res = await cancelTransportPaid(lapId);
+      if (res?.error) {
+        alert(res.error);
+      } else {
+        router.refresh();
+      }
+    } catch (e: any) {
+      alert('Gagal membatalkan lunas: ' + e.message);
+    } finally {
+      setCancelingId(null);
+    }
+  }
+
   const cetakInvoiceTransport = (lap: any) => {
     // Generate Invoice PDF
     const win = window.open('', '_blank')
@@ -167,6 +187,15 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
                           className="w-full text-xs bg-slate-900 text-white hover:bg-slate-800 rounded px-2 py-1.5 transition-colors whitespace-nowrap"
                         >
                           Cetak Invoice Transport
+                        </button>
+                      )}
+                      {lap.statusTransport === 'PAID' && (
+                        <button 
+                          onClick={() => handleCancelPaid(lap.id)}
+                          disabled={cancelingId === lap.id}
+                          className="w-full flex items-center justify-center text-xs bg-orange-100 text-orange-700 hover:bg-orange-200 rounded px-2 py-1.5 transition-colors whitespace-nowrap disabled:opacity-50"
+                        >
+                          {cancelingId === lap.id ? 'Membatalkan...' : 'Batalkan Lunas'}
                         </button>
                       )}
                       <button 
