@@ -4,7 +4,9 @@ import prisma from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { checkAuth } from '@/lib/auth-check';
+import { checkAuth } from '@/lib/auth-check'
+import { sendEmail } from '@/lib/email'
+import { getAdminNotificationEmailHtml } from '@/lib/email-templates';
 
 
 export async function getRabDashboardData() {

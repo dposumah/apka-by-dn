@@ -1,0 +1,39 @@
+﻿const fs = require('fs');
+const path = 'src/lib/email-templates.ts';
+let code = fs.readFileSync(path, 'utf8');
+
+const adminTemplate = `
+export const getAdminNotificationEmailHtml = (fasilName: string, date: string, topic: string, hasTransport: boolean, transportNominal: number) => \`
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+  <div style="background-color: #f8fafc; padding: 20px; text-align: center; border-bottom: 1px solid #e2e8f0;">
+    <h2 style="color: #f59e0b; margin: 0;">Laporan Baru Masuk!</h2>
+  </div>
+  <div style="padding: 24px; color: #334155; line-height: 1.6;">
+    <p>Halo <strong>Admin</strong>,</p>
+    <p>Fasilitator <strong>\${fasilName}</strong> baru saja mengirimkan Laporan Kegiatan baru.</p>
+    
+    <div style="background-color: #f1f5f9; padding: 16px; border-radius: 6px; margin: 20px 0;">
+      <p style="margin: 4px 0;"><strong>Kegiatan:</strong> \${topic}</p>
+      <p style="margin: 4px 0;"><strong>Tanggal:</strong> \${date}</p>
+      \${hasTransport ? \`<p style="margin: 4px 0; color: #ef4444;"><strong>Tagihan Transport:</strong> Rp \${transportNominal.toLocaleString('id-ID')}</p>\` : ''}
+    </div>
+    
+    <div style="text-align: center; margin-top: 24px;">
+      <a href="https://roboticexplorer.site/dashboard-rab" style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Buka Dashboard Review</a>
+    </div>
+    
+    <p style="margin-top: 30px; font-size: 14px; color: #64748b;">
+      Mohon segera di-review untuk kelancaran proses pembayaran.
+    </p>
+  </div>
+  <div style="background-color: #1e293b; color: #94a3b8; text-align: center; padding: 16px; font-size: 12px;">
+    &copy; 2026 PT. JT Robotic Explorer SNT
+  </div>
+</div>
+\`;
+`;
+
+if (!code.includes('getAdminNotificationEmailHtml')) {
+  fs.writeFileSync(path, code + '\n' + adminTemplate);
+  console.log('Added admin template');
+}
