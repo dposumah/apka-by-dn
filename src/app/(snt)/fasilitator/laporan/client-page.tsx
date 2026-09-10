@@ -16,8 +16,12 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
     if (!confirm('Apakah Anda yakin ingin menghapus laporan ini? Tindakan ini tidak dapat dibatalkan.')) return;
     setDeletingId(lapId);
     try {
-      await deleteLaporanKegiatan(lapId, fasilitatorId);
-      router.refresh();
+      const res = await deleteLaporanKegiatan(lapId, fasilitatorId);
+      if (res?.error) {
+        alert(res.error);
+      } else {
+        router.refresh();
+      }
     } catch (e: any) {
       alert('Gagal menghapus: ' + e.message);
     } finally {

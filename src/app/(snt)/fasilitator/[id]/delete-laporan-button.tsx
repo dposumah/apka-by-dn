@@ -12,9 +12,13 @@ export function DeleteLaporanButton({ laporanId, fasilitatorId }: { laporanId: s
     if (!confirm('Apakah Anda yakin ingin menghapus laporan ini? Tindakan ini tidak dapat dibatalkan.')) return;
     setIsDeleting(true);
     try {
-      await deleteLaporanKegiatan(laporanId, fasilitatorId);
-      alert('Laporan berhasil dihapus');
-      router.refresh();
+      const res = await deleteLaporanKegiatan(laporanId, fasilitatorId);
+      if (res?.error) {
+        alert(res.error);
+      } else {
+        alert('Laporan berhasil dihapus');
+        router.refresh();
+      }
     } catch (e: any) {
       alert('Gagal menghapus laporan: ' + e.message);
     } finally {
