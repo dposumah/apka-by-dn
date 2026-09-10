@@ -11,7 +11,8 @@ export default withAuth(
       "/dashboard",
       "/dashboard-rab",
       "/pengeluaran",
-      "/fasilitator"
+      "/fasilitator",
+      "/snt-akun"
     ]
 
     const isAdminRoute = adminOnlyRoutes.some(route => 
@@ -31,10 +32,15 @@ export default withAuth(
 
 export const config = {
   matcher: [
-    "/dashboard", "/dashboard/:path*",
-    "/dashboard-rab", "/dashboard-rab/:path*", 
-    "/pengeluaran", "/pengeluaran/:path*", 
-    "/fasilitator", "/fasilitator/:path*", 
-    "/portal", "/portal/:path*"
+    /*
+     * Match all request paths except for the ones starting with:
+     * - api/auth (NextAuth)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - login (login page)
+     * - icon.png
+     */
+    '/((?!api/auth|_next/static|_next/image|favicon.ico|login|icon.png|$).*)',
   ]
 }

@@ -6,6 +6,8 @@ import { revalidatePath } from 'next/cache';
 
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { checkAuth } from '@/lib/auth-check';
+
 
 export async function getAvailableMonths(fasilitatorId: string) {
   const laporan = await prisma.laporanKegiatan.findMany({
@@ -207,8 +209,8 @@ export async function adminGenerateInvoiceHonor(rekapId: string) {
 }
 
 export async function cancelTransportPaid(laporanId: string) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) throw new Error('Unauthorized');
+  const { error: authError, session } = await checkAuth(['ADMIN', 'SUPER_ADMIN']);
+  if (authError || !session?.user?.id) throw new Error('Unauthorized');
 
   const lap = await prisma.laporanKegiatan.findUnique({
     where: { id: laporanId }
