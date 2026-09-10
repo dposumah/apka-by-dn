@@ -41,6 +41,6 @@ export const config = {
      * - login (login page)
      * - icon.png
      */
-    '/((?!api/auth|_next/static|_next/image|favicon.ico|login|icon.png|$).*)',
+    '/((?!api/auth|api/test-email|_next/static|_next/image|favicon.ico|login|icon.png|$).*)',
   ]
 }
