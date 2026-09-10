@@ -442,3 +442,23 @@ export async function deleteExpense(id: string) {
   revalidatePath('/dashboard-rab')
   revalidatePath('/pengeluaran')
 }
+
+export async function uploadLaporanFisik(laporanId: string, fileUrl: string) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error('Unauthorized')
+
+  const lap = await prisma.laporanKegiatan.findUnique({
+    where: { id: laporanId }
+  })
+  if (!lap) throw new Error('Not found')
+
+  await prisma.laporanKegiatan.update({
+    where: { id: laporanId },
+    data: { fileLaporanFisik: fileUrl }
+  })
+
+  revalidatePath('/portal', 'layout')
+  revalidatePath('/dashboard-rab', 'layout')
+  revalidatePath('/fasilitator', 'layout')
+  return { success: true }
+}

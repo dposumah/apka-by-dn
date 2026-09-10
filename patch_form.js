@@ -2,27 +2,15 @@
 const filePath = 'src/app/(snt)/portal/laporan/client-form.tsx';
 let code = fs.readFileSync(filePath, 'utf8');
 
-// Add to formData
-code = code.replace(/tingkatSekolah:\s*'SMP',/, "tingkatSekolah: 'SMP',\n    metodePelaksanaan: 'LURING',");
+const target1 = '<Label className="text-sm font-semibold">Laporan Fisik</Label>';
+const replacement1 = '<Label className="text-sm font-semibold">Laporan Fisik <span className="text-slate-500 font-normal">(Opsional - Bisa dilengkapi menyusul)</span></Label>';
 
-// Add UI component
-const uiCode = `
-            <div className="space-y-3 p-4 bg-slate-50 rounded-md border border-slate-200">
-              <Label>Metode Pelaksanaan</Label>
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2">
-                  <input type="radio" name="metodePelaksanaan" value="LURING" checked={formData.metodePelaksanaan === 'LURING'} onChange={e => setFormData({...formData, metodePelaksanaan: e.target.value})} className="w-4 h-4 text-emerald-600" />
-                  Luring (Tatap Muka)
-                </label>
-                <label className="flex items-center gap-2">
-                  <input type="radio" name="metodePelaksanaan" value="DARING" checked={formData.metodePelaksanaan === 'DARING'} onChange={e => setFormData({...formData, metodePelaksanaan: e.target.value})} className="w-4 h-4 text-emerald-600" />
-                  Daring (Online)
-                </label>
-              </div>
-              <p className="text-xs text-slate-500">Jika Daring, tidak ada penggantian biaya transport.</p>
-            </div>
-`;
+code = code.replace(target1, replacement1);
 
-code = code.replace(/<div className="grid grid-cols-1 md:grid-cols-2 gap-4">/, uiCode + '\n            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">');
+const target2 = 'Silakan unduh template, isi, tanda tangani, simpan sebagai PDF, lalu unggah kembali di sini (Maksimal 2 MB).';
+const replacement2 = 'Silakan unduh template, isi, tanda tangani, simpan sebagai PDF, lalu unggah kembali di sini (Maksimal 2 MB). Jika belum selesai, Anda dapat melewati ini dan mengunggahnya nanti.';
+
+code = code.replace(target2, replacement2);
 
 fs.writeFileSync(filePath, code);
+console.log('Updated Laporan Fisik label in client-form.tsx');

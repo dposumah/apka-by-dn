@@ -6,6 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import Link from 'next/link'
 import { deleteLaporanKegiatan } from '@/app/actions/rab'
 import { useState } from 'react'
+import { UploadLaporanFisikButton } from './upload-fisik-btn'
 
 export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilitator: any, isIncomplete: boolean, userName: string }) {
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -180,10 +181,12 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
                           Materi Pembelajaran
                         </a>
                       )}
-                      {lap.fileLaporanFisik && (
+                      {lap.fileLaporanFisik ? (
                         <a href={lap.fileLaporanFisik} target="_blank" rel="noreferrer" className="text-xs text-emerald-600 hover:underline mt-1 inline-block mr-3">
                           Laporan Fisik
                         </a>
+                      ) : (
+                        <UploadLaporanFisikButton laporanId={lap.id} />
                       )}
                       {lap.foto1 && (
                         <a href={lap.foto1} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 hover:underline mt-1 inline-block mr-3">

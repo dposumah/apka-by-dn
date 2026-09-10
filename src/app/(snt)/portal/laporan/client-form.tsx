@@ -213,14 +213,14 @@ export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) 
               
               <div className="space-y-2 border border-slate-200 bg-slate-50 p-4 rounded-md mt-4">
                 <div className="flex justify-between items-center mb-2">
-                  <Label className="text-sm font-semibold">Laporan Fisik</Label>
+                  <Label className="text-sm font-semibold">Laporan Fisik <span className="text-slate-500 font-normal">(Opsional - Bisa dilengkapi menyusul)</span></Label>
                   <a href="/templates/Template_Laporan_Fisik_Fasilitator.docx" download className="text-xs text-blue-600 hover:underline flex items-center gap-1">
                     Download Template
                   </a>
                 </div>
                 <Input type="file" onChange={(e) => handleFileChange(e, 'fileLaporanFisik')} accept=".pdf" />
                 {fileLaporanFisik && <p className="text-xs text-emerald-600">Laporan fisik terlampir.</p>}
-                <p className="text-xs text-slate-500">Silakan unduh template, isi, tanda tangani, simpan sebagai PDF, lalu unggah kembali di sini (Maksimal 2 MB).</p>
+                <p className="text-xs text-slate-500">Silakan unduh template, isi, tanda tangani, simpan sebagai PDF, lalu unggah kembali di sini (Maksimal 2 MB). Jika belum selesai, Anda dapat melewati ini dan mengunggahnya nanti.</p>
               </div>
 
               <div className="space-y-4 border-t pt-4 mt-2">
