@@ -141,7 +141,7 @@ export async function markTransportPaid(laporanId: string, buktiUrl: string) {
   });
 
   const rabItem = await prisma.rabItem.findFirst({
-    where: { name: { contains: 'Transport', mode: 'insensitive' } }
+    where: { name: { contains: 'Bantuan Sewa Rumah Fasilitator', mode: 'insensitive' } }
   });
 
   if (rabItem) {
