@@ -19,12 +19,17 @@ export async function sendEmail({
   const resend = new Resend(process.env.RESEND_API_KEY);
 
   try {
-    const data = await resend.emails.send({
-      from: 'PT. JT Robotic Explorer <admin@roboticexplorer.site>', // This must be a verified domain in Resend
+    const { data, error } = await resend.emails.send({
+      from: process.env.RESEND_FROM_EMAIL || 'PT. JT Robotic Explorer <admin@roboticexplorer.site>',
       to,
       subject,
       html,
     });
+    
+    if (error) {
+      console.error('Resend API Error:', error);
+      return { success: false, error };
+    }
     
     console.log('Email sent successfully:', data);
     return { success: true, data };
