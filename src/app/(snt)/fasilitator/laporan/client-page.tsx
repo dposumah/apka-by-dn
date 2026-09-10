@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -10,6 +10,20 @@ import { Trash2 } from 'lucide-react'
 
 export function LaporanClient({ initialData }: { initialData: any[] }) {
   const router = useRouter()
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  const handleDelete = async (lapId: string, fasilitatorId: string) => {
+    if (!confirm('Apakah Anda yakin ingin menghapus laporan ini? Tindakan ini tidak dapat dibatalkan.')) return;
+    setDeletingId(lapId);
+    try {
+      await deleteLaporanKegiatan(lapId, fasilitatorId);
+      router.refresh();
+    } catch (e: any) {
+      alert('Gagal menghapus: ' + e.message);
+    } finally {
+      setDeletingId(null);
+    }
+  }
   
   const cetakInvoiceTransport = (lap: any) => {
     // Generate Invoice PDF
@@ -137,7 +151,7 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
                     <td className="py-3 px-4 text-center">
                       <div className="flex flex-col gap-1 items-center text-xs">
                         {lap.fileLaporanFisik && <a href={lap.fileLaporanFisik} target="_blank" className="text-purple-600 font-medium hover:underline">Lap. Fisik</a>}
-                          {lap.foto1 && <a href={lap.foto1} target="_blank" className="text-blue-600 hover:underline">Foto 1</a>}
+                        {lap.foto1 && <a href={lap.foto1} target="_blank" className="text-blue-600 hover:underline">Foto 1</a>}
                         {lap.foto2 && <a href={lap.foto2} target="_blank" className="text-blue-600 hover:underline">Foto 2</a>}
                         {lap.buktiTiketTransport && <a href={lap.buktiTiketTransport} target="_blank" className="text-emerald-600 font-bold hover:underline">Tiket</a>}
                       </div>
@@ -151,17 +165,14 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
                           Cetak Invoice Transport
                         </button>
                       )}
-                      
-                        {/* For uploading receipt, Admin uses the Rekap Transport page, or we can add it here too. */}
-                        <button 
-                          onClick={() => handleDelete(lap.id, lap.fasilitatorId)}
-                          disabled={deletingId === lap.id}
-                          className="w-full mt-2 flex items-center justify-center gap-1 text-xs bg-red-100 text-red-700 hover:bg-red-200 rounded px-2 py-1.5 transition-colors whitespace-nowrap disabled:opacity-50"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                          {deletingId === lap.id ? 'Menghapus...' : 'Hapus Laporan'}
-                        </button>
-
+                      <button 
+                        onClick={() => handleDelete(lap.id, lap.fasilitatorId)}
+                        disabled={deletingId === lap.id}
+                        className="w-full flex items-center justify-center gap-1 text-xs bg-red-100 text-red-700 hover:bg-red-200 rounded px-2 py-1.5 transition-colors whitespace-nowrap disabled:opacity-50"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        {deletingId === lap.id ? 'Menghapus...' : 'Hapus Laporan'}
+                      </button>
                     </td>
                   </tr>
                 ))}
