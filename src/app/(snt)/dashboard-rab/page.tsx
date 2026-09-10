@@ -12,7 +12,7 @@ export default async function RabDashboardPage() {
   const data = await getRabDashboardData()
   const expenses = await getRecentExpenses(20)
 
-  const pendingWeekly = await prisma.laporanKegiatan.count({ where: { statusTransport: 'PENDING', biayaTransport: { gt: 0 } } })
+  const pendingWeekly = await prisma.laporanKegiatan.count({ where: { statusTransport: 'PENDING', OR: [{ biayaTransport: { gt: 0 } }, { biayaTransportLaut: { gt: 0 } }] } })
   const pendingHonor = await prisma.rekapHonorarium.count({ where: { status: 'SUBMITTED' } })
 
   if (!data) return <div className="p-8">No RAB data found. Please seed the database.</div>

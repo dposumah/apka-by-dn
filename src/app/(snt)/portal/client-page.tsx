@@ -38,8 +38,8 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
   const honorDisetujui = fasilitator.rekapHonorarium?.filter((r: any) => r.status === 'APPROVED').reduce((acc: number, curr: any) => acc + curr.totalHonor, 0) || 0;
   
   // Transport Analytics
-  const transportPending = fasilitator.laporan?.filter((l: any) => l.biayaTransport > 0 && l.statusTransport === 'PENDING').reduce((acc: number, curr: any) => acc + curr.biayaTransport, 0) || 0;
-  const transportLunas = fasilitator.laporan?.filter((l: any) => l.biayaTransport > 0 && l.statusTransport === 'PAID').reduce((acc: number, curr: any) => acc + curr.biayaTransport, 0) || 0;
+  const transportPending = fasilitator.laporan?.filter((l: any) => ((l.biayaTransport || 0) > 0 || (l.biayaTransportLaut || 0) > 0) && l.statusTransport === 'PENDING').reduce((acc: number, curr: any) => acc + (curr.biayaTransport || 0) + (curr.biayaTransportLaut || 0), 0) || 0;
+  const transportLunas = fasilitator.laporan?.filter((l: any) => ((l.biayaTransport || 0) > 0 || (l.biayaTransportLaut || 0) > 0) && l.statusTransport === 'PAID').reduce((acc: number, curr: any) => acc + (curr.biayaTransport || 0) + (curr.biayaTransportLaut || 0), 0) || 0;
 
   return (
     <div className="p-8 space-y-6 max-w-5xl mx-auto">

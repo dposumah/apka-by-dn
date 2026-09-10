@@ -43,7 +43,7 @@ export function TransportClient({ initialData }: { initialData: any[] }) {
   }
 
   // Hitung total keseluruhan
-  const totalAmount = initialData.reduce((sum, item) => sum + (item.biayaTransport || 0), 0)
+  const totalAmount = initialData.reduce((sum, item) => sum + (item.biayaTransport || 0) + (item.biayaTransportLaut || 0), 0)
 
   return (
     <div>
@@ -83,7 +83,7 @@ export function TransportClient({ initialData }: { initialData: any[] }) {
         )}
       </td>
                 <td className="px-4 py-3">{lap.topic}</td>
-                <td className="px-4 py-3 text-right font-semibold text-blue-700">Rp {lap.biayaTransport.toLocaleString('id-ID')}</td>
+                <td className="px-4 py-3 text-right font-semibold text-blue-700">Rp {((lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0)).toLocaleString('id-ID')}</td>
                 <td className="px-4 py-3 text-center">
                   <label className={`inline-flex items-center gap-1 px-3 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-xs font-medium rounded transition-colors ${processingId === lap.id ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
                     <Upload className="w-3 h-3" /> {processingId === lap.id ? 'Memproses...' : 'Upload & Lunas'}

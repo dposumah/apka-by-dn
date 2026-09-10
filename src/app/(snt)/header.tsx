@@ -13,7 +13,7 @@ export async function SntHeader() {
   let pendingWeekly = 0
   let pendingHonor = 0
   if (isAdmin) {
-    pendingWeekly = await prisma.laporanKegiatan.count({ where: { statusTransport: 'PENDING', biayaTransport: { gt: 0 } } })
+    pendingWeekly = await prisma.laporanKegiatan.count({ where: { statusTransport: 'PENDING', OR: [{ biayaTransport: { gt: 0 } }, { biayaTransportLaut: { gt: 0 } }] } })
     pendingHonor = await prisma.rekapHonorarium.count({ where: { status: 'SUBMITTED' } })
   }
 
