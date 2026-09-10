@@ -5,8 +5,11 @@ import { updateFasilitatorBank } from '@/app/actions/rab'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useModal } from '@/components/modal-provider';
 
 export function BankForm({ fasilitator }: { fasilitator: any }) {
+  const { confirm, alert } = useModal();
+
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -20,9 +23,9 @@ export function BankForm({ fasilitator }: { fasilitator: any }) {
         String(fd.get('bankAccount')), 
         String(fd.get('npwpNik'))
       )
-      alert('Data keuangan berhasil diperbarui!')
+      await alert('Data keuangan berhasil diperbarui!')
     } catch(err) {
-      alert('Gagal mengupdate')
+      await alert('Gagal mengupdate')
     } finally {
       setLoading(false)
     }

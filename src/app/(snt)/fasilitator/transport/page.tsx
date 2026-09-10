@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 ﻿import { getAdminTransportRecap } from '@/app/actions/rekap'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'

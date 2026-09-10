@@ -24,6 +24,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Eye, Edit, Trash, Plus, Search } from "lucide-react";
+import { useModal } from '@/components/modal-provider';
 
 type JournalEntry = {
   id: string;
@@ -46,6 +47,8 @@ const formatRupiah = (amount: number) => {
 };
 
 export default function JurnalPage() {
+  const { confirm, alert } = useModal();
+
   const [journals, setJournals] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -74,26 +77,26 @@ export default function JurnalPage() {
   };
 
   const handlePost = async (id: string) => {
-    if (!confirm("Apakah Anda yakin ingin memposting jurnal ini?")) return;
+    if (!(await confirm("Apakah Anda yakin ingin memposting jurnal ini?"))) return;
     try {
       const response = await fetch(`/api/journals/${id}/post`, {
         method: "POST",
       });
       if (response.ok) fetchJournals();
-      else alert("Gagal memposting jurnal");
+      else await alert("Gagal memposting jurnal");
     } catch (error) {
       console.error(error);
     }
   };
 
   const handleVoid = async (id: string) => {
-    if (!confirm("Apakah Anda yakin ingin membatalkan (void) jurnal ini?")) return;
+    if (!(await confirm("Apakah Anda yakin ingin membatalkan (void) jurnal ini?"))) return;
     try {
       const response = await fetch(`/api/journals/${id}/void`, {
         method: "POST",
       });
       if (response.ok) fetchJournals();
-      else alert("Gagal membatalkan jurnal");
+      else await alert("Gagal membatalkan jurnal");
     } catch (error) {
       console.error(error);
     }

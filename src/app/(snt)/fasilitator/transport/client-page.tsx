@@ -4,8 +4,11 @@ import { useState } from 'react'
 import { markTransportPaid } from '@/app/actions/rekap'
 import { CheckCircle2, Upload } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { useModal } from '@/components/modal-provider';
 
 export function TransportClient({ initialData }: { initialData: any[] }) {
+  const { confirm, alert } = useModal();
+
   const router = useRouter()
   const [processingId, setProcessingId] = useState<string | null>(null)
 
@@ -13,7 +16,7 @@ export function TransportClient({ initialData }: { initialData: any[] }) {
     const file = e.target.files?.[0]
     if (!file) return
 
-    if (!confirm('Tandai biaya transport ini lunas dan unggah bukti transfer?')) {
+    if (!(await confirm('Tandai biaya transport ini lunas dan unggah bukti transfer?')))  {
       e.target.value = ''
       return
     }
@@ -32,7 +35,7 @@ export function TransportClient({ initialData }: { initialData: any[] }) {
       await markTransportPaid(id, data.url)
       router.refresh()
     } catch (e: any) {
-      alert('Gagal mengupdate data atau mengunggah bukti transfer')
+      await alert('Gagal mengupdate data atau mengunggah bukti transfer')
     } finally {
       setProcessingId(null)
     }

@@ -4,13 +4,16 @@ import { useState } from 'react'
 import { resetUserPassword } from '@/app/actions/user'
 import { Button } from '@/components/ui/button'
 import { AlertCircle, CheckCircle2 } from 'lucide-react'
+import { useModal } from '@/components/modal-provider';
 
 export function ResetPasswordButton({ userId }: { userId: string }) {
+  const { confirm, alert } = useModal();
+
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
 
   const handleReset = async () => {
-    if (!confirm('Apakah Anda yakin ingin mereset kata sandi fasilitator ini ke standar (SNT2026)?')) return;
+    if (!(await confirm('Apakah Anda yakin ingin mereset kata sandi fasilitator ini ke standar (SNT2026)?'))) return;
     
     setLoading(true)
     setStatus('idle')

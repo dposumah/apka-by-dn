@@ -3,8 +3,11 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { uploadLaporanFisik } from '@/app/actions/rab'
+import { useModal } from '@/components/modal-provider';
 
 export function UploadLaporanFisikButton({ laporanId }: { laporanId: string }) {
+  const { confirm, alert } = useModal();
+
   const [uploading, setUploading] = useState(false)
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -26,7 +29,7 @@ export function UploadLaporanFisikButton({ laporanId }: { laporanId: string }) {
     if (!file) return
 
     if (file.size > 2 * 1024 * 1024) {
-      alert('Ukuran file maksimal 2 MB')
+      await alert('Ukuran file maksimal 2 MB')
       return
     }
 
@@ -34,10 +37,10 @@ export function UploadLaporanFisikButton({ laporanId }: { laporanId: string }) {
     try {
       const url = await uploadFile(file)
       await uploadLaporanFisik(laporanId, url)
-      alert('Laporan Fisik berhasil diunggah')
+      await alert('Laporan Fisik berhasil diunggah')
       router.refresh()
     } catch (error: any) {
-      alert(error.message || 'Gagal mengunggah file')
+      await alert(error.message || 'Gagal mengunggah file')
     } finally {
       setUploading(false)
     }

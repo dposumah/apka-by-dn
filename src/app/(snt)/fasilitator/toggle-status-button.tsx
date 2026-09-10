@@ -4,8 +4,11 @@ import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { toggleFasilitatorStatus } from '@/app/actions/rab'
 import { Switch } from '@/components/ui/switch'
+import { useModal } from '@/components/modal-provider';
 
 export function ToggleStatusButton({ id, isActive }: { id: string, isActive: boolean }) {
+  const { confirm, alert } = useModal();
+
   const [isPending, startTransition] = useTransition()
   const [optimisticState, setOptimisticState] = useState(isActive)
   const router = useRouter()
@@ -18,7 +21,7 @@ export function ToggleStatusButton({ id, isActive }: { id: string, isActive: boo
         router.refresh()
       } catch (e: any) {
         setOptimisticState(isActive) // revert on error
-        alert(e.message || 'Gagal mengubah status')
+        await alert(e.message || 'Gagal mengubah status')
       }
     })
   }

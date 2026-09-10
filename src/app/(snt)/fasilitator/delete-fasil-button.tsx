@@ -3,19 +3,22 @@
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { deleteFasilitator } from '@/app/actions/rab'
+import { useModal } from '@/components/modal-provider';
 
 export function DeleteFasilButton({ id }: { id: string }) {
+  const { confirm, alert } = useModal();
+
   const router = useRouter()
   const [loading, setLoading] = useState(false)
 
   const handleDelete = async () => {
-    if (confirm('Yakin ingin menghapus fasilitator ini? Seluruh data riwayat laporan mereka juga akan terhapus.')) {
+    if (await confirm('Yakin ingin menghapus fasilitator ini? Seluruh data riwayat laporan mereka juga akan terhapus.')) {
       try {
         setLoading(true)
         await deleteFasilitator(id)
         router.refresh()
       } catch (e: any) {
-        alert(e.message || 'Gagal menghapus fasilitator')
+        await alert(e.message || 'Gagal menghapus fasilitator')
       } finally {
         setLoading(false)
       }

@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { updateFasilitatorProfile } from '@/app/actions/rab'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useModal } from '@/components/modal-provider';
 
 const PANGKAT_GOLONGAN = [
   'I/a (Juru Muda)', 'I/b (Juru Muda Tingkat I)', 'I/c (Juru)', 'I/d (Juru Tingkat I)',
@@ -16,6 +17,8 @@ const PANGKAT_GOLONGAN = [
 ]
 
 export function ProfilClient({ fasilitator }: { fasilitator: any }) {
+  const { confirm, alert } = useModal();
+
   const router = useRouter()
   
   const isIncomplete = !fasilitator.bankName || !fasilitator.bankAccount || !fasilitator.npwpNik
@@ -62,7 +65,7 @@ export function ProfilClient({ fasilitator }: { fasilitator: any }) {
       setIsEditing(false)
       router.refresh()
     } catch (error) {
-      alert("Gagal menyimpan profil")
+      await alert("Gagal menyimpan profil")
     } finally {
       setSaving(false)
     }

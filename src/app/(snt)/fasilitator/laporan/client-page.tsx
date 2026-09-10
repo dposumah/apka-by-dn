@@ -8,24 +8,27 @@ import { useState } from 'react'
 import { deleteLaporanKegiatan } from '@/app/actions/rab'
 import { Trash2 } from 'lucide-react'
 import { cancelTransportPaid } from '@/app/actions/rekap'
+import { useModal } from '@/components/modal-provider';
 
 export function LaporanClient({ initialData }: { initialData: any[] }) {
+  const { confirm, alert } = useModal();
+
   const router = useRouter()
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [cancelingId, setCancelingId] = useState<string | null>(null)
 
   const handleDelete = async (lapId: string, fasilitatorId: string) => {
-    if (!confirm('Apakah Anda yakin ingin menghapus laporan ini? Tindakan ini tidak dapat dibatalkan.')) return;
+    if (!(await confirm('Apakah Anda yakin ingin menghapus laporan ini? Tindakan ini tidak dapat dibatalkan.'))) return;
     setDeletingId(lapId);
     try {
       const res = await deleteLaporanKegiatan(lapId, fasilitatorId);
       if (res?.error) {
-        alert(res.error);
+        await alert(res.error);
       } else {
         router.refresh();
       }
     } catch (e: any) {
-      alert('Gagal menghapus: ' + e.message);
+      await alert('Gagal menghapus: ' + e.message);
     } finally {
       setDeletingId(null);
     }
@@ -33,17 +36,17 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
   
   
   const handleCancelPaid = async (lapId: string) => {
-    if (!confirm('Apakah Anda yakin ingin membatalkan status Lunas untuk laporan ini? Data Pengeluaran yang terkait juga akan dihapus.')) return;
+    if (!(await confirm('Apakah Anda yakin ingin membatalkan status Lunas untuk laporan ini? Data Pengeluaran yang terkait juga akan dihapus.'))) return;
     setCancelingId(lapId);
     try {
       const res = await cancelTransportPaid(lapId);
       if (res?.error) {
-        alert(res.error);
+        await alert(res.error);
       } else {
         router.refresh();
       }
     } catch (e: any) {
-      alert('Gagal membatalkan lunas: ' + e.message);
+      await alert('Gagal membatalkan lunas: ' + e.message);
     } finally {
       setCancelingId(null);
     }

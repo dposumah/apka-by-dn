@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { useModal } from '@/components/modal-provider';
 
 const PANGKAT_GOLONGAN = [
   'I/a (Juru Muda)', 'I/b (Juru Muda Tingkat I)', 'I/c (Juru)', 'I/d (Juru Tingkat I)',
@@ -16,6 +17,8 @@ const PANGKAT_GOLONGAN = [
 ]
 
 export function FasilitatorForm({ initialData }: { initialData?: any }) {
+  const { confirm, alert } = useModal();
+
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   
@@ -63,17 +66,17 @@ export function FasilitatorForm({ initialData }: { initialData?: any }) {
     try {
       if (initialData?.id) {
         await updateFasilitatorProfile(initialData.id, payload)
-        alert('Data berhasil diperbarui!')
+        await alert('Data berhasil diperbarui!')
         router.push('/fasilitator/' + initialData.id)
         router.refresh()
       } else {
         await createFasilitator(payload)
-        alert('Fasilitator baru berhasil ditambahkan!')
+        await alert('Fasilitator baru berhasil ditambahkan!')
         router.push('/fasilitator')
         router.refresh()
       }
     } catch(err) {
-      alert('Gagal menyimpan data')
+      await alert('Gagal menyimpan data')
     } finally {
       setLoading(false)
     }

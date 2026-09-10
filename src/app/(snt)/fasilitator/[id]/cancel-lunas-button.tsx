@@ -2,23 +2,26 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { cancelTransportPaid } from '@/app/actions/rekap'
+import { useModal } from '@/components/modal-provider';
 
 export function CancelLunasButton({ laporanId }: { laporanId: string }) {
+  const { confirm, alert } = useModal();
+
   const router = useRouter()
   const [isCanceling, setIsCanceling] = useState(false)
 
   const handleCancel = async () => {
-    if (!confirm('Apakah Anda yakin ingin membatalkan status Lunas untuk laporan ini? Data Pengeluaran yang terkait juga akan dihapus.')) return;
+    if (!(await confirm('Apakah Anda yakin ingin membatalkan status Lunas untuk laporan ini? Data Pengeluaran yang terkait juga akan dihapus.'))) return;
     setIsCanceling(true);
     try {
       const res = await cancelTransportPaid(laporanId);
       if (res?.error) {
-        alert(res.error);
+        await alert(res.error);
       } else {
         router.refresh();
       }
     } catch (e: any) {
-      alert('Gagal membatalkan: ' + e.message);
+      await alert('Gagal membatalkan: ' + e.message);
     } finally {
       setIsCanceling(false);
     }

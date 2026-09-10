@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Trash2, CheckCircle, XCircle } from "lucide-react";
+import { useModal } from '@/components/modal-provider';
 
 type Account = {
   id: string;
@@ -49,6 +50,8 @@ const formatRupiah = (amount: number) => {
 };
 
 export default function JurnalBaruPage() {
+  const { confirm, alert } = useModal();
+
   const router = useRouter();
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [description, setDescription] = useState("");
@@ -83,9 +86,9 @@ export default function JurnalBaruPage() {
     ]);
   };
 
-  const removeLine = (id: string) => {
+  const removeLine = async (id: string) => {
     if (lines.length <= 2) {
-      alert("Jurnal harus memiliki minimal 2 baris");
+      await alert("Jurnal harus memiliki minimal 2 baris");
       return;
     }
     setLines(lines.filter((line) => line.id !== id));
@@ -115,18 +118,18 @@ export default function JurnalBaruPage() {
 
   const handleSubmit = async (status: "DRAFT" | "POSTED") => {
     if (lines.length < 2) {
-      alert("Jurnal harus memiliki minimal 2 baris");
+      await alert("Jurnal harus memiliki minimal 2 baris");
       return;
     }
 
     const hasEmptyAccounts = lines.some((line) => !line.accountId);
     if (hasEmptyAccounts) {
-      alert("Silakan pilih akun untuk semua baris");
+      await alert("Silakan pilih akun untuk semua baris");
       return;
     }
 
     if (status === "POSTED" && !isBalanced) {
-      alert("Debit dan Kredit harus seimbang (Selisih = 0) untuk memposting jurnal");
+      await alert("Debit dan Kredit harus seimbang (Selisih = 0) untuk memposting jurnal");
       return;
     }
 
@@ -153,11 +156,11 @@ export default function JurnalBaruPage() {
         router.push("/jurnal");
       } else {
         const error = await res.json();
-        alert(`Gagal menyimpan jurnal: ${error.message || 'Unknown error'}`);
+        await alert(`Gagal menyimpan jurnal: ${error.message || 'Unknown error'}`);
       }
     } catch (error) {
       console.error(error);
-      alert("Terjadi kesalahan saat menyimpan jurnal");
+      await alert("Terjadi kesalahan saat menyimpan jurnal");
     } finally {
       setIsSubmitting(false);
     }

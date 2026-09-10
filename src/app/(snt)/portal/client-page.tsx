@@ -7,18 +7,21 @@ import Link from 'next/link'
 import { deleteLaporanKegiatan } from '@/app/actions/rab'
 import { useState } from 'react'
 import { UploadLaporanFisikButton } from './upload-fisik-btn'
+import { useModal } from '@/components/modal-provider';
 
 export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilitator: any, isIncomplete: boolean, userName: string }) {
+  const { confirm, alert } = useModal();
+
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const handleDeleteLaporan = async (laporanId: string) => {
-    if (!confirm('Apakah Anda yakin ingin membatalkan dan menghapus laporan ini?')) return;
+    if (!(await confirm('Apakah Anda yakin ingin membatalkan dan menghapus laporan ini?'))) return;
     setDeletingId(laporanId);
     try {
       await deleteLaporanKegiatan(laporanId, fasilitator.id);
-      alert('Laporan berhasil dihapus');
+      await alert('Laporan berhasil dihapus');
     } catch (e: any) {
-      alert(e.message || 'Gagal menghapus laporan');
+      await alert(e.message || 'Gagal menghapus laporan');
     } finally {
       setDeletingId(null);
     }
@@ -152,7 +155,7 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
           </div>
           {isIncomplete ? (
             <button 
-              onClick={() => alert('Harap lengkapi Profil dan Data Pembayaran Anda di menu Profil terlebih dahulu sebelum membuat laporan.')}
+              onClick={async () => await alert('Harap lengkapi Profil dan Data Pembayaran Anda di menu Profil terlebih dahulu sebelum membuat laporan.')}
               className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors bg-gray-400 text-white cursor-not-allowed h-9 px-4"
             >
               + Buat Laporan

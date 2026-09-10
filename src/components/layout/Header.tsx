@@ -7,6 +7,7 @@ import { signOut } from "next-auth/react"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import { Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useModal } from '@/components/modal-provider';
 
 export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const pathname = usePathname()
@@ -67,7 +68,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
             <DropdownMenuSeparator />
             <DropdownMenuItem 
               className="text-red-600 cursor-pointer" 
-              onClick={(e) => { e.preventDefault(); if(isLoggingOut) return; if(confirm('Apakah Anda yakin ingin keluar?')) { setIsLoggingOut(true); signOut({ callbackUrl: '/login' }); } }}
+              onClick={async (e) => { e.preventDefault(); if(isLoggingOut) return; if (await confirm('Apakah Anda yakin ingin keluar?')) { setIsLoggingOut(true); signOut({ callbackUrl: '/login' }); } }}
             >
               Keluar
             </DropdownMenuItem>

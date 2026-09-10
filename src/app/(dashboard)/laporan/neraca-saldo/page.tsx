@@ -22,6 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Search, Download, Printer, CheckCircle, XCircle } from "lucide-react";
+import { useModal } from '@/components/modal-provider';
 
 type TrialBalanceLine = {
   id: string;
@@ -57,6 +58,8 @@ const ACCOUNT_TYPE_LABELS: Record<string, string> = {
 };
 
 export default function NeracaSaldoPage() {
+  const { confirm, alert } = useModal();
+
   const [dateTo, setDateTo] = useState(
     format(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0), "yyyy-MM-dd")
   );
@@ -75,7 +78,7 @@ export default function NeracaSaldoPage() {
         const json = await res.json();
         setData(json);
       } else {
-        alert("Gagal mengambil data neraca saldo");
+        await alert("Gagal mengambil data neraca saldo");
       }
     } catch (error) {
       console.error(error);
@@ -88,8 +91,8 @@ export default function NeracaSaldoPage() {
     fetchTrialBalance();
   }, []); // Initial load
 
-  const handleExport = (type: "pdf" | "excel") => {
-    alert(`Fitur export ke ${type.toUpperCase()} akan segera tersedia.`);
+  const handleExport = async (type: "pdf" | "excel") => {
+    await alert(`Fitur export ke ${type.toUpperCase()} akan segera tersedia.`);
   };
 
   return (

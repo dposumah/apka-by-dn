@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, Download, Printer } from "lucide-react";
+import { useModal } from '@/components/modal-provider';
 
 type Account = {
   id: string;
@@ -60,6 +61,8 @@ const formatRupiah = (amount: number) => {
 };
 
 export default function BukuBesarPage() {
+  const { confirm, alert } = useModal();
+
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState("");
   const [dateFrom, setDateFrom] = useState(
@@ -90,7 +93,7 @@ export default function BukuBesarPage() {
 
   const handleSearch = async () => {
     if (!selectedAccountId) {
-      alert("Silakan pilih akun terlebih dahulu");
+      await alert("Silakan pilih akun terlebih dahulu");
       return;
     }
 
@@ -107,7 +110,7 @@ export default function BukuBesarPage() {
         const data = await res.json();
         setLedgerData(data);
       } else {
-        alert("Gagal mengambil data buku besar");
+        await alert("Gagal mengambil data buku besar");
       }
     } catch (error) {
       console.error(error);
@@ -116,9 +119,9 @@ export default function BukuBesarPage() {
     }
   };
 
-  const handleExport = (type: "pdf" | "excel") => {
+  const handleExport = async (type: "pdf" | "excel") => {
     // In a real app, you would generate and download the file here
-    alert(`Fitur export ke ${type.toUpperCase()} akan segera tersedia.`);
+    await alert(`Fitur export ke ${type.toUpperCase()} akan segera tersedia.`);
   };
 
   return (

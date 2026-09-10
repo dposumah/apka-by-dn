@@ -3,15 +3,18 @@
 import { useState } from 'react'
 import { approveExpense } from '@/app/actions/rab'
 import { Upload } from 'lucide-react'
+import { useModal } from '@/components/modal-provider';
 
 export function ApproveButton({ expenseId }: { expenseId: string }) {
+  const { confirm, alert } = useModal();
+
   const [processing, setProcessing] = useState(false)
 
   const handleApprove = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    if (!confirm('Setujui pengeluaran ini dan unggah bukti transfer?')) {
+    if (!(await confirm('Setujui pengeluaran ini dan unggah bukti transfer?')) {
       e.target.value = ''
       return
     }
@@ -29,19 +32,19 @@ export function ApproveButton({ expenseId }: { expenseId: string }) {
 
       await approveExpense(expenseId, 'APPROVED', data.url)
     } catch (e: any) {
-      alert('Gagal mengunggah bukti transfer: ' + e.message)
+      await alert('Gagal mengunggah bukti transfer: ' + e.message)
     } finally {
       setProcessing(false)
     }
   }
 
   const handleReject = async () => {
-    if (!confirm('Tolak pengeluaran ini?')) return
+    if (!(await confirm('Tolak pengeluaran ini?')) return
     setProcessing(true)
     try {
       await approveExpense(expenseId, 'REJECTED')
     } catch (e) {
-      alert('Gagal menolak')
+      await alert('Gagal menolak')
     } finally {
       setProcessing(false)
     }

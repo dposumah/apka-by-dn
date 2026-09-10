@@ -1,4 +1,5 @@
 "use client"
+import { useModal } from '@/components/modal-provider';
 
 import * as React from "react"
 import Link from "next/link"
@@ -58,7 +59,7 @@ export function SntSidebar({ isCollapsed = false, onToggleCollapse }: { isCollap
   const { data: session } = useSession()
   const userRole = session?.user?.role
   const [isLoggingOut, setIsLoggingOut] = React.useState(false);
-  const handleLogout = (e: any) => { e.preventDefault(); if (isLoggingOut) return; if (confirm('Apakah Anda yakin ingin keluar dari akun?')) { setIsLoggingOut(true); signOut({ callbackUrl: '/login' }); } };
+  const handleLogout = async (e: any) => { e.preventDefault(); if (isLoggingOut) return; if (await confirm('Apakah Anda yakin ingin keluar dari akun?')) { setIsLoggingOut(true); signOut({ callbackUrl: '/login' }); } };
   const [openMenus, setOpenMenus] = React.useState<Record<string, boolean>>({ "Manajemen Fasilitator": true })
 
   const toggleMenu = (title: string) => {

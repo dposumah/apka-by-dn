@@ -3,24 +3,27 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { deleteLaporanKegiatan } from '@/app/actions/rab'
 import { Trash2 } from 'lucide-react'
+import { useModal } from '@/components/modal-provider';
 
 export function DeleteLaporanButton({ laporanId, fasilitatorId }: { laporanId: string, fasilitatorId: string }) {
+  const { confirm, alert } = useModal();
+
   const router = useRouter()
   const [isDeleting, setIsDeleting] = useState(false)
 
   const handleDelete = async () => {
-    if (!confirm('Apakah Anda yakin ingin menghapus laporan ini? Tindakan ini tidak dapat dibatalkan.')) return;
+    if (!(await confirm('Apakah Anda yakin ingin menghapus laporan ini? Tindakan ini tidak dapat dibatalkan.'))) return;
     setIsDeleting(true);
     try {
       const res = await deleteLaporanKegiatan(laporanId, fasilitatorId);
       if (res?.error) {
-        alert(res.error);
+        await alert(res.error);
       } else {
-        alert('Laporan berhasil dihapus');
+        await alert('Laporan berhasil dihapus');
         router.refresh();
       }
     } catch (e: any) {
-      alert('Gagal menghapus laporan: ' + e.message);
+      await alert('Gagal menghapus laporan: ' + e.message);
     } finally {
       setIsDeleting(false);
     }

@@ -4,8 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
+import { useModal } from '@/components/modal-provider';
 
 export default function RekonsiliasiPage() {
+  const { confirm, alert } = useModal();
+
   const [accounts, setAccounts] = useState([]);
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [transactions, setTransactions] = useState([]);
@@ -39,7 +42,7 @@ export default function RekonsiliasiPage() {
   };
 
   const handleReconcile = async () => {
-    if (selectedTx.length === 0) return alert('Pilih transaksi terlebih dahulu');
+    if (selectedTx.length === 0) return await await alert('Pilih transaksi terlebih dahulu');
     try {
       const res = await fetch('/api/reconciliation', {
         method: 'POST',
@@ -47,7 +50,7 @@ export default function RekonsiliasiPage() {
         body: JSON.stringify({ transactionIds: selectedTx })
       });
       if (res.ok) {
-        alert('Rekonsiliasi berhasil');
+        await alert('Rekonsiliasi berhasil');
         fetchUnreconciled();
       }
     } catch (e) {

@@ -9,8 +9,11 @@ import Link from 'next/link'
 import { createRekapBulanan, submitRekapBulanan } from '@/app/actions/rekap'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, FileText, Printer, Upload } from 'lucide-react'
+import { useModal } from '@/components/modal-provider';
 
 export function RekapClientPage({ fasilitator, availableMonths, rekaps }: { fasilitator: any, availableMonths: any[], rekaps: any[] }) {
+  const { confirm, alert } = useModal();
+
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState('')
@@ -23,7 +26,7 @@ export function RekapClientPage({ fasilitator, availableMonths, rekaps }: { fasi
       await createRekapBulanan(fasilitator.id, selectedMonth)
       setSelectedMonth('')
     } catch (e: any) {
-      alert(e.message || 'Gagal membuat rekap')
+      await alert(e.message || 'Gagal membuat rekap')
     } finally {
       setLoading(false)
     }
@@ -45,10 +48,10 @@ export function RekapClientPage({ fasilitator, availableMonths, rekaps }: { fasi
       if (!res.ok) throw new Error(data.error)
 
       await submitRekapBulanan(rekapId, data.url)
-      alert('Berhasil mengirim tagihan honorarium!')
+      await alert('Berhasil mengirim tagihan honorarium!')
       router.refresh()
     } catch (e: any) {
-      alert(e.message || 'Gagal unggah file')
+      await alert(e.message || 'Gagal unggah file')
     } finally {
       setUploadingId(null)
     }

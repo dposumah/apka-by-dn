@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Trash2, CheckCircle, XCircle, ArrowLeft } from "lucide-react";
+import { useModal } from '@/components/modal-provider';
 
 type Account = {
   id: string;
@@ -50,6 +51,8 @@ const formatRupiah = (amount: number) => {
 };
 
 export default function JurnalDetailPage({ params }: { params: { id: string } }) {
+  const { confirm, alert } = useModal();
+
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("DRAFT");
@@ -97,7 +100,7 @@ export default function JurnalDetailPage({ params }: { params: { id: string } })
           }))
         );
       } else {
-        alert("Jurnal tidak ditemukan");
+        await alert("Jurnal tidak ditemukan");
         router.push("/jurnal");
       }
     } catch (error) {
@@ -117,10 +120,10 @@ export default function JurnalDetailPage({ params }: { params: { id: string } })
     ]);
   };
 
-  const removeLine = (id: string) => {
+  const removeLine = async (id: string) => {
     if (!isEditable) return;
     if (lines.length <= 2) {
-      alert("Jurnal harus memiliki minimal 2 baris");
+      await alert("Jurnal harus memiliki minimal 2 baris");
       return;
     }
     setLines(lines.filter((line) => line.id !== id));
@@ -151,13 +154,13 @@ export default function JurnalDetailPage({ params }: { params: { id: string } })
 
   const handleUpdate = async () => {
     if (lines.length < 2) {
-      alert("Jurnal harus memiliki minimal 2 baris");
+      await alert("Jurnal harus memiliki minimal 2 baris");
       return;
     }
 
     const hasEmptyAccounts = lines.some((line) => !line.accountId);
     if (hasEmptyAccounts) {
-      alert("Silakan pilih akun untuk semua baris");
+      await alert("Silakan pilih akun untuk semua baris");
       return;
     }
 
@@ -180,15 +183,15 @@ export default function JurnalDetailPage({ params }: { params: { id: string } })
       });
 
       if (res.ok) {
-        alert("Jurnal berhasil diperbarui");
+        await alert("Jurnal berhasil diperbarui");
         fetchData();
       } else {
         const error = await res.json();
-        alert(`Gagal memperbarui jurnal: ${error.message || 'Unknown error'}`);
+        await alert(`Gagal memperbarui jurnal: ${error.message || 'Unknown error'}`);
       }
     } catch (error) {
       console.error(error);
-      alert("Terjadi kesalahan saat memperbarui jurnal");
+      await alert("Terjadi kesalahan saat memperbarui jurnal");
     } finally {
       setIsSubmitting(false);
     }
@@ -196,11 +199,11 @@ export default function JurnalDetailPage({ params }: { params: { id: string } })
 
   const handlePost = async () => {
     if (!isBalanced) {
-      alert("Debit dan Kredit harus seimbang (Selisih = 0) untuk memposting jurnal");
+      await alert("Debit dan Kredit harus seimbang (Selisih = 0) untuk memposting jurnal");
       return;
     }
     
-    if (!confirm("Apakah Anda yakin ingin memposting jurnal ini?")) return;
+    if (!(await confirm("Apakah Anda yakin ingin memposting jurnal ini?"))) return;
     
     try {
       setIsSubmitting(true);
@@ -208,10 +211,10 @@ export default function JurnalDetailPage({ params }: { params: { id: string } })
         method: "POST",
       });
       if (response.ok) {
-        alert("Jurnal berhasil diposting");
+        await alert("Jurnal berhasil diposting");
         fetchData();
       } else {
-        alert("Gagal memposting jurnal");
+        await alert("Gagal memposting jurnal");
       }
     } catch (error) {
       console.error(error);
@@ -221,7 +224,7 @@ export default function JurnalDetailPage({ params }: { params: { id: string } })
   };
 
   const handleVoid = async () => {
-    if (!confirm("Apakah Anda yakin ingin membatalkan (void) jurnal ini? Ini akan membuat jurnal pembalik.")) return;
+    if (!(await confirm("Apakah Anda yakin ingin membatalkan (void) jurnal ini? Ini akan membuat jurnal pembalik."))) return;
     
     try {
       setIsSubmitting(true);
@@ -229,10 +232,10 @@ export default function JurnalDetailPage({ params }: { params: { id: string } })
         method: "POST",
       });
       if (response.ok) {
-        alert("Jurnal berhasil dibatalkan");
+        await alert("Jurnal berhasil dibatalkan");
         fetchData();
       } else {
-        alert("Gagal membatalkan jurnal");
+        await alert("Gagal membatalkan jurnal");
       }
     } catch (error) {
       console.error(error);

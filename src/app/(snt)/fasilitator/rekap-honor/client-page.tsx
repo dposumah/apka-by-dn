@@ -6,8 +6,11 @@ import { formatCurrency } from '@/lib/format'
 import { useState } from 'react'
 import { adminGenerateInvoiceHonor } from '@/app/actions/rekap'
 import { useRouter } from 'next/navigation'
+import { useModal } from '@/components/modal-provider';
 
 export function RekapHonorClient({ initialData }: { initialData: any[] }) {
+  const { confirm, alert } = useModal();
+
   const router = useRouter()
   const [loadingId, setLoadingId] = useState<string | null>(null)
     const handleCetakInvoice = async (rekap: any) => {
@@ -19,7 +22,7 @@ export function RekapHonorClient({ initialData }: { initialData: any[] }) {
       cetakInvoiceHonor(rekap)
       router.refresh()
     } catch (e) {
-      alert('Gagal memproses invoice')
+      await alert('Gagal memproses invoice')
     } finally {
       setLoadingId(null)
     }

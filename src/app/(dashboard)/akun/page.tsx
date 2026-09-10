@@ -24,6 +24,7 @@ import {
 import { Search, Plus, Edit, Trash2 } from 'lucide-react';
 import AccountForm from './components/AccountForm';
 import { useToast } from '@/components/ui/toast';
+import { useModal } from '@/components/modal-provider';
 
 interface Account {
   id: string;
@@ -47,6 +48,8 @@ const ACCOUNT_TYPES = [
 ];
 
 export default function BaganAkunPage() {
+  const { confirm, alert } = useModal();
+
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -92,7 +95,7 @@ export default function BaganAkunPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Apakah Anda yakin ingin menghapus akun ini?')) return;
+    if (!(await confirm('Apakah Anda yakin ingin menghapus akun ini?'))) return;
     
     try {
       const response = await fetch(`/api/accounts/${id}`, {
