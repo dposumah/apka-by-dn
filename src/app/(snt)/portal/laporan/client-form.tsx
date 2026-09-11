@@ -31,6 +31,7 @@ export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) 
       jenisPembelajaran: 'INTRAKURIKULER',
     jumlahJPIntra: '',
     jumlahJPEkstra: '',
+    biayaTransport: '',
     biayaTransportLaut: '',
   })
 
@@ -195,14 +196,31 @@ export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) 
                     <p className="text-xs text-slate-500">Maksimal 4 JP / minggu / Lokasi</p>
                   </div>
                 )}
+              
+              <div className="space-y-2">
+                <Label>Biaya Transport Darat (Rp)</Label>
+                <Input type="number" min="0" value={formData.biayaTransport} onChange={e => setFormData({...formData, biayaTransport: e.target.value})} placeholder="Kosongkan jika tidak ada" />
+                <p className="text-xs text-slate-500">Maksimal klaim sesuai sisa budget mingguan Anda</p>
+              </div>
               <div className="space-y-2">
                 <Label>Biaya Transport Antar Pulau (Rp)</Label>
+
                 <Input type="number" min="0" value={formData.biayaTransportLaut} onChange={e => setFormData({...formData, biayaTransportLaut: e.target.value})} placeholder="Kosongkan jika tidak ada" />
                 <p className="text-xs text-slate-500">Opsional</p>
               </div>
             </div>
 
+            
+            {parseFloat(formData.biayaTransport) > 0 && (
+                <div className="space-y-2 col-span-2 border border-emerald-100 bg-emerald-50 p-4 rounded-md mt-2">
+                  <Label>Bukti Transport Darat (Wajib)</Label>
+                  <Input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => e.target.files && setBuktiDarat(e.target.files[0])} />
+                  <p className="text-xs text-emerald-600">Unggah foto/scan nota BBM, tiket bus, gojek, dll.</p>
+                </div>
+            )}
+            
             {parseFloat(formData.biayaTransportLaut) > 0 && (
+
                 <div className="space-y-2 col-span-2 border border-blue-100 bg-blue-50 p-4 rounded-md mt-2">
                   <Label>Bukti Tiket Transport (Wajib jika Transport Antar Pulau)</Label>
                   <Input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => e.target.files && setTiket(e.target.files[0])} />

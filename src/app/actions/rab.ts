@@ -393,7 +393,8 @@ export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
       foto1: data.foto1 || null,
       fileLaporanFisik: data.fileLaporanFisik || null,
       foto2: data.foto2 || null,
-      buktiTiketTransport: data.buktiTiketTransport || null,
+      buktiTransportDarat: data.buktiTransportDarat || null,
+        buktiTiketTransport: data.buktiTiketTransport || null,
       statusTransport: 'PENDING',
     }
   });

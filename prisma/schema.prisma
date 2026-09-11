@@ -623,6 +623,7 @@ model LaporanKegiatan {
   statusTransport String @default("PENDING")
   buktiTransferTransport String?
   buktiTiketTransport String?
+  buktiTransportDarat String?
 
   foto1 String?
   fileLaporanFisik String?

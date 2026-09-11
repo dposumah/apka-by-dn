@@ -120,7 +120,10 @@ export async function submitRekapBulanan(rekapId: string, fileUrl: string) {
 export async function getAdminTransportRecap() {
   const laporanList = await prisma.laporanKegiatan.findMany({
     where: {
-      biayaTransport: { gt: 0 },
+      OR: [
+        { biayaTransport: { gt: 0 } },
+        { biayaTransportLaut: { gt: 0 } }
+      ],
       statusTransport: 'PENDING'
     },
     include: {

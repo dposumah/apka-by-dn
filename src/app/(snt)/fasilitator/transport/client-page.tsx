@@ -86,7 +86,13 @@ export function TransportClient({ initialData }: { initialData: any[] }) {
         )}
       </td>
                 <td className="px-4 py-3">{lap.topic}</td>
-                <td className="px-4 py-3 text-right font-semibold text-blue-700">Rp {((lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0)).toLocaleString('id-ID')}</td>
+                <td className="px-4 py-3 text-right">
+                  <div className="font-semibold text-blue-700">Rp {((lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0)).toLocaleString('id-ID')}</div>
+                  <div className="flex flex-col items-end gap-1 mt-1 text-xs">
+                    {lap.buktiTransportDarat && <a href={lap.buktiTransportDarat} target="_blank" className="text-blue-600 hover:underline">Bukti Darat</a>}
+                    {lap.buktiTiketTransport && <a href={lap.buktiTiketTransport} target="_blank" className="text-emerald-600 hover:underline">Bukti Laut</a>}
+                  </div>
+                </td>
                 <td className="px-4 py-3 text-center">
                   <label className={`inline-flex items-center gap-1 px-3 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-xs font-medium rounded transition-colors ${processingId === lap.id ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
                     <Upload className="w-3 h-3" /> {processingId === lap.id ? 'Memproses...' : 'Upload & Lunas'}

@@ -180,7 +180,8 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
                         {lap.fileLaporanFisik && <a href={lap.fileLaporanFisik} target="_blank" className="text-purple-600 font-medium hover:underline">Lap. Fisik</a>}
                         {lap.foto1 && <a href={lap.foto1} target="_blank" className="text-blue-600 hover:underline">Foto 1</a>}
                         {lap.foto2 && <a href={lap.foto2} target="_blank" className="text-blue-600 hover:underline">Foto 2</a>}
-                        {lap.buktiTiketTransport && <a href={lap.buktiTiketTransport} target="_blank" className="text-emerald-600 font-bold hover:underline">Tiket</a>}
+                        {lap.buktiTransportDarat && <a href={lap.buktiTransportDarat} target="_blank" className="text-blue-600 font-bold hover:underline mr-2">Bukti Darat</a>}
+                        {lap.buktiTiketTransport && <a href={lap.buktiTiketTransport} target="_blank" className="text-emerald-600 font-bold hover:underline">Bukti Laut</a>}
                       </div>
                     </td>
                     <td className="py-3 px-4 text-right space-y-1">
