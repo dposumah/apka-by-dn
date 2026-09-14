@@ -101,11 +101,11 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
                 <td>${lap.topic}</td>
                 <td>${lap.tingkatSekolah} <br/><small>${lap.metodePelaksanaan}</small></td>
                 <td>${(lap.jumlahJPIntra || 0) + (lap.jumlahJPEkstra || 0)}</td>
-                <td>Rp ${lap.biayaTransport.toLocaleString('id-ID')}</td>
+                <td>Rp ${((lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0)).toLocaleString('id-ID')} <br/><small>(Darat: ${(lap.biayaTransport || 0).toLocaleString('id-ID')} | Laut: ${(lap.biayaTransportLaut || 0).toLocaleString('id-ID')})</small></td>
               </tr>
               <tr>
                 <td colspan="3" class="total">TOTAL TAGIHAN TRANSPORT:</td>
-                <td class="total text-emerald-600">Rp ${lap.biayaTransport.toLocaleString('id-ID')}</td>
+                <td class="total text-emerald-600">Rp ${((lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0)).toLocaleString('id-ID')}</td>
               </tr>
             </tbody>
           </table>
@@ -169,6 +169,10 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
                       {(lap.biayaTransport || 0) > 0 || (lap.biayaTransportLaut || 0) > 0 ? (
                         <>
                           <div className="font-medium">{formatCurrency((lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0))}</div>
+                            <div className="text-[10px] text-slate-500 mt-1 flex flex-col items-end">
+                              {(lap.biayaTransport || 0) > 0 && <span>Darat: {formatCurrency(lap.biayaTransport)}</span>}
+                              {(lap.biayaTransportLaut || 0) > 0 && <span>Laut: {formatCurrency(lap.biayaTransportLaut)}</span>}
+                            </div>
                           <Badge variant={lap.statusTransport === 'PAID' ? 'default' : 'secondary'} className="text-[10px] mt-1">
                             {lap.statusTransport}
                           </Badge>

@@ -88,6 +88,10 @@ export function TransportClient({ initialData }: { initialData: any[] }) {
                 <td className="px-4 py-3">{lap.topic}</td>
                 <td className="px-4 py-3 text-right">
                   <div className="font-semibold text-blue-700">Rp {((lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0)).toLocaleString('id-ID')}</div>
+                    <div className="text-[10px] text-slate-500 mt-1 flex flex-col items-end font-medium">
+                      {(lap.biayaTransport || 0) > 0 && <span>Darat: Rp {(lap.biayaTransport || 0).toLocaleString('id-ID')}</span>}
+                      {(lap.biayaTransportLaut || 0) > 0 && <span>Laut: Rp {(lap.biayaTransportLaut || 0).toLocaleString('id-ID')}</span>}
+                    </div>
                   <div className="flex flex-col items-end gap-1 mt-1 text-xs">
                     {lap.buktiTransportDarat && <a href={lap.buktiTransportDarat} target="_blank" className="text-blue-600 hover:underline">Bukti Darat</a>}
                     {lap.buktiTiketTransport && <a href={lap.buktiTiketTransport} target="_blank" className="text-emerald-600 hover:underline">Bukti Laut</a>}
