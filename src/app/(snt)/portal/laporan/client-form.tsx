@@ -19,6 +19,8 @@ export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) 
   const [foto1, setFoto1] = useState('')
   const [foto2, setFoto2] = useState('')
     const [fileLaporanFisik, setFileLaporanFisik] = useState('')
+  const [buktiDarat, setBuktiDarat] = useState<File | null>(null)
+  const [tiket, setTiket] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   
   const [formData, setFormData] = useState({
@@ -85,14 +87,34 @@ export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) 
       setFileError('Harap lampirkan minimal 1 foto kegiatan')
       return
     }
+
+    if (parseFloat(formData.biayaTransport) > 0 && !buktiDarat) {
+      setFileError('Bukti Transport Darat wajib diunggah.');
+      return;
+    }
+    if (parseFloat(formData.biayaTransportLaut) > 0 && !tiket) {
+      setFileError('Bukti Tiket Transport Antar Pulau wajib diunggah.');
+      return;
+    }
     
     setSaving(true)
     try {
+      let daratUrl = null;
+      if (buktiDarat) {
+        daratUrl = await uploadFile(buktiDarat);
+      }
+      let tiketUrl = null;
+      if (tiket) {
+        tiketUrl = await uploadFile(tiket);
+      }
+
       await submitLaporanKegiatan(fasilitatorId, {
         ...formData,
         foto1,
         foto2,
-        fileLaporanFisik
+        fileLaporanFisik,
+        buktiTransportDarat: daratUrl,
+        buktiTiketTransport: tiketUrl
       })
       router.push('/portal')
       router.refresh()
