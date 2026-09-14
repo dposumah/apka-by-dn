@@ -228,6 +228,78 @@ export async function createFasilitator(data: any) {
       userId: userId,
     }
   })
+  
+  // Recalculate pending transport darat if besaranTransport changed
+  if (currentFasil && updated.besaranTransport !== currentFasil.besaranTransport) {
+    // Get distinct weeks that have PENDING reports
+    const pendingReports = await prisma.laporanKegiatan.findMany({
+      where: {
+        fasilitatorId: id,
+        statusTransport: 'PENDING',
+        reqBiayaTransport: { not: null }
+      }
+    });
+
+    if (pendingReports.length > 0) {
+      const weeksToRecalc = new Set<number>();
+      for (const rep of pendingReports) {
+        const d = new Date(rep.date);
+        const dayOfWeek = d.getDay() || 7;
+        const startOfWeek = new Date(d);
+        startOfWeek.setDate(d.getDate() - dayOfWeek + 1);
+        startOfWeek.setHours(0, 0, 0, 0);
+        weeksToRecalc.add(startOfWeek.getTime());
+      }
+
+      // For each week, calculate remaining budget and update PENDING reports
+      for (const weekTime of weeksToRecalc) {
+        const startOfWeek = new Date(weekTime);
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        endOfWeek.setHours(23, 59, 59, 999);
+
+        // Fetch ALL reports in this week
+        const allReps = await prisma.laporanKegiatan.findMany({
+          where: {
+            fasilitatorId: id,
+            date: { gte: startOfWeek, lte: endOfWeek }
+          },
+          orderBy: { date: 'asc' }
+        });
+
+        let remaining = updated.besaranTransport || 0;
+
+        for (const rep of allReps) {
+          if (rep.statusTransport !== 'PENDING') {
+             // Deduct already paid amounts
+             remaining -= (rep.biayaTransport || 0);
+             remaining = Math.max(0, remaining);
+          } else if (rep.reqBiayaTransport != null) {
+             // It's a pending report, recalculate it
+             const req = rep.reqBiayaTransport;
+             let granted = Math.min(req, remaining);
+             
+             // Check if there's an earlier report on the same day that got granted
+             const sameDayReps = allReps.filter(r => new Date(r.date).toDateString() === new Date(rep.date).toDateString());
+             const earlierGranted = sameDayReps.find(r => r.id !== rep.id && new Date(r.createdAt) < new Date(rep.createdAt) && (r.biayaTransport || 0) > 0);
+             if (earlierGranted) {
+               granted = 0; // max 1 per day
+             }
+             
+             remaining = Math.max(0, remaining - granted);
+
+             if (rep.biayaTransport !== granted) {
+                await prisma.laporanKegiatan.update({
+                  where: { id: rep.id },
+                  data: { biayaTransport: granted }
+                });
+             }
+          }
+        }
+      }
+    }
+  }
+
   revalidatePath('/fasilitator')
   return newFasilitator
 }
@@ -403,6 +475,7 @@ export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
       jumlahJPIntra: reqJpIntra,
       jumlahJPEkstra: reqJpEkstra,
       biayaTransport: grantedTransportDarat,
+      reqBiayaTransport: reqTransportDarat,
       biayaTransportLaut: grantedTransportLaut,
       foto1: data.foto1 || null,
       fileLaporanFisik: data.fileLaporanFisik || null,

@@ -624,6 +624,7 @@ model LaporanKegiatan {
   buktiTransferTransport String?
   buktiTiketTransport String?
   buktiTransportDarat String?
+  reqBiayaTransport Int?
 
   foto1 String?
   fileLaporanFisik String?
