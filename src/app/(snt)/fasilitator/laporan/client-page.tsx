@@ -53,6 +53,12 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
   }
 
   const cetakInvoiceTransport = (lap: any) => {
+    // Cari semua laporan pada tanggal yang sama untuk fasilitator ini
+    const sameDayReports = initialData.filter(r => 
+      r.fasilitatorId === lap.fasilitatorId && 
+      new Date(r.date).toDateString() === new Date(lap.date).toDateString()
+    );
+
     // Generate Invoice PDF
     const win = window.open('', '_blank')
     if (!win) return
@@ -81,8 +87,8 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
           <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
             <div>
               <p><strong>Nama Fasilitator:</strong> ${lap.fasilitator.namaLengkap}</p>
-              <p><strong>Lokasi SNT:</strong> ${lap.fasilitator.lokasiSNT ? lap.fasilitator.lokasiSNT.split(' - ')[0] : '-'}</p>
-              <p><strong>Tanggal Laporan:</strong> ${new Date(lap.date).toLocaleDateString('id-ID')}</p>
+              <p><strong>Lokasi SNT:</strong> ${lap.fasilitator.lokasiSNT || '-'}</p>
+              <p><strong>Tanggal Laporan:</strong> ${new Date(lap.date).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
             </div>
             
           </div>
@@ -97,12 +103,17 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td>${lap.topic}</td>
-                <td>${lap.tingkatSekolah} <br/><small>${lap.metodePelaksanaan}</small></td>
-                <td>${(lap.jumlahJPIntra || 0) + (lap.jumlahJPEkstra || 0)}</td>
-                <td>Rp ${((lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0)).toLocaleString('id-ID')} <br/><small>(Darat: ${(lap.biayaTransport || 0).toLocaleString('id-ID')} | Laut: ${(lap.biayaTransportLaut || 0).toLocaleString('id-ID')})</small></td>
-              </tr>
+              ${sameDayReports.map((r: any, i: number) => `
+                <tr>
+                  <td>
+                    ${r.topic} <br/>
+                    <small style="color: #64748b;">${r.jumlahJPIntra > 0 ? 'Intrakurikuler' : 'Ekstrakurikuler'}</small>
+                  </td>
+                  <td>${r.tingkatSekolah} <br/><small>${r.metodePelaksanaan}</small></td>
+                  <td>${(r.jumlahJPIntra || 0) + (r.jumlahJPEkstra || 0)}</td>
+                  ${i === 0 ? `<td rowspan="${sameDayReports.length}">Rp ${((lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0)).toLocaleString('id-ID')} <br/><small>(Darat: Rp ${(lap.biayaTransport || 0).toLocaleString('id-ID')} | Laut: Rp ${(lap.biayaTransportLaut || 0).toLocaleString('id-ID')})</small></td>` : ''}
+                </tr>
+              `).join('')}
               <tr>
                 <td colspan="3" class="total">TOTAL TAGIHAN TRANSPORT:</td>
                 <td class="total text-emerald-600">Rp ${((lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0)).toLocaleString('id-ID')}</td>
