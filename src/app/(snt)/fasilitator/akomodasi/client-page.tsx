@@ -134,9 +134,9 @@ export function AkomodasiClient({ initialData, fasilitators }: { initialData: an
         <head>
           <title>Kwitansi Sewa Rumah - ${item.namaPemilik}</title>
           <style>
-            @page { margin: 1cm; }
+            @page { margin: 0.5cm 1cm; }
             @media print { body { padding: 0; } }
-            body { font-family: 'Times New Roman', Times, serif; padding: 20px 40px; line-height: 1.5; font-size: 14px; }
+            body { font-family: 'Times New Roman', Times, serif; padding: 10px 40px; line-height: 1.5; font-size: 14px; }
             .header-img { width: 100%; max-height: 120px; object-fit: contain; margin-bottom: 10px; }
             .title-box { text-align: center; margin-bottom: 15px; }
             .title-box h2 { margin: 0; font-size: 20px; font-weight: bold; text-decoration: underline; letter-spacing: 1px; }
@@ -265,9 +265,9 @@ export function AkomodasiClient({ initialData, fasilitators }: { initialData: an
         <head>
           <title>Kwitansi Akomodasi ToT - ${item.namaPengelola}</title>
           <style>
-            @page { margin: 1cm; }
+            @page { margin: 0.5cm 1cm; }
             @media print { body { padding: 0; } }
-            body { font-family: 'Times New Roman', Times, serif; padding: 20px 40px; line-height: 1.5; font-size: 14px; }
+            body { font-family: 'Times New Roman', Times, serif; padding: 10px 40px; line-height: 1.5; font-size: 14px; }
             .header-img { width: 100%; max-height: 120px; object-fit: contain; margin-bottom: 10px; }
             .title-box { text-align: center; margin-bottom: 15px; }
             .title-box h2 { margin: 0; font-size: 20px; font-weight: bold; text-decoration: underline; letter-spacing: 1px; }
