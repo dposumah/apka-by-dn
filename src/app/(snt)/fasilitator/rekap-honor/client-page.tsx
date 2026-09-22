@@ -260,13 +260,10 @@ const cetakKwitansiMaleo = (rekap: any) => {
             </div>
             
             <div class="form-group">
-              <div class="form-label">Jumlah sesi / JP</div>
-              <div class="form-colon">:</div>
-              <div class="form-value-underline">${rekap.jumlahSesi || 4} (pertemuan dalam 1 bulan) / ${rekap.totalJP} JP</div>
+                <div class="form-label">Jumlah sesi / JP</div>
+                <div class="form-colon">:</div>
+                <div class="form-value-underline">${rekap.jumlahSesi || 4} (pertemuan dalam 1 bulan) / ${rekap.totalJP} JP</div>
               </div>
-              
-                <div class="form-value-underline">Rp ${(rateHonor).toLocaleString('id-ID')}</div>
-            </div>
             
             <div class="form-group">
               <div class="form-label">Honor per sesi / JP</div>
