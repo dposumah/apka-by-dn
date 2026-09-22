@@ -1,34 +1,25 @@
-﻿"use client"
+﻿const fs = require('fs');
+let code = fs.readFileSync('src/app/(snt)/fasilitator/rekap-honor/client-page.tsx', 'utf8');
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { formatCurrency, terbilangRupiah } from '@/lib/format'
-import { useState } from 'react'
-import { adminGenerateInvoiceHonor } from '@/app/actions/rekap'
-import { useRouter } from 'next/navigation'
-import { useModal } from '@/components/modal-provider';
+if (!code.includes('terbilangRupiah')) {
+  code = code.replace("import { formatCurrency } from '@/lib/format'", "import { formatCurrency, terbilangRupiah } from '@/lib/format'");
+}
 
-export function RekapHonorClient({ initialData }: { initialData: any[] }) {
-  const { confirm, alert } = useModal();
+const startStr = "const cetakInvoiceHonor = (rekap: any) => {";
+const endStr = "win.document.close()\n  }";
+const altEndStr = "win.document.close()\r\n  }";
 
-  const router = useRouter()
-  const [loadingId, setLoadingId] = useState<string | null>(null)
-    const handleCetakInvoice = async (rekap: any) => {
-    try {
-      setLoadingId(rekap.id)
-      if (rekap.status === 'SUBMITTED') {
-        await adminGenerateInvoiceHonor(rekap.id)
-      }
-      cetakInvoiceHonor(rekap)
-      router.refresh()
-    } catch (e) {
-      await alert('Gagal memproses invoice')
-    } finally {
-      setLoadingId(null)
-    }
-  }
+const startIndex = code.indexOf(startStr);
+let endIndex = code.indexOf(endStr, startIndex);
+if (endIndex === -1) {
+  endIndex = code.indexOf(altEndStr, startIndex);
+  if (endIndex !== -1) endIndex += altEndStr.length;
+} else {
+  endIndex += endStr.length;
+}
 
-  const cetakInvoiceHonor = (rekap: any) => {
+if (startIndex !== -1 && endIndex !== -1) {
+  const newCetakStr = `const cetakInvoiceHonor = (rekap: any) => {
     const win = window.open('', '_blank')
     if (!win) return
     
@@ -37,13 +28,13 @@ export function RekapHonorClient({ initialData }: { initialData: any[] }) {
     const d = new Date(rekap.createdAt);
     const monthRoman = romanMonths[d.getMonth()] || 'I';
     const year = d.getFullYear();
-    const noKwitansi = `KWT/MTC/${monthRoman}/${year}`;
+    const noKwitansi = \`KWT/MTC/\${monthRoman}/\${year}\`;
     const rateHonor = rekap.totalJP > 0 ? (rekap.totalHonor / rekap.totalJP) : 0;
     
-    win.document.write(`
+    win.document.write(\`
       <html>
         <head>
-          <title>Kwitansi Honor - ${rekap.fasilitator.namaLengkap}</title>
+          <title>Kwitansi Honor - \${rekap.fasilitator.namaLengkap}</title>
           <style>
             body { font-family: 'Times New Roman', Times, serif; padding: 40px; line-height: 1.5; font-size: 14px; }
             .header-img { width: 100%; max-height: 120px; object-fit: contain; margin-bottom: 20px; }
@@ -76,8 +67,8 @@ export function RekapHonorClient({ initialData }: { initialData: any[] }) {
           </div>
           
           <div class="info-row">
-            <div>No. Kuitansi : <strong>${noKwitansi}</strong></div>
-            <div>Tanggal : <strong>${new Date(rekap.createdAt).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</strong></div>
+            <div>No. Kuitansi : <strong>\${noKwitansi}</strong></div>
+            <div>Tanggal : <strong>\${new Date(rekap.createdAt).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</strong></div>
           </div>
           
           <div class="form-group">
@@ -89,13 +80,13 @@ export function RekapHonorClient({ initialData }: { initialData: any[] }) {
           <div class="form-group" style="margin-top: 20px;">
             <div class="form-label">Jumlah Uang</div>
             <div class="form-colon">:</div>
-            <div class="form-value" style="font-size: 16px;">Rp ${rekap.totalHonor.toLocaleString('id-ID')}</div>
+            <div class="form-value" style="font-size: 16px;">Rp \${rekap.totalHonor.toLocaleString('id-ID')}</div>
           </div>
           
           <div class="form-group">
             <div class="form-label">Terbilang</div>
             <div class="form-colon">:</div>
-            <div class="form-value terbilang-box">${terbilangRupiah(rekap.totalHonor)}</div>
+            <div class="form-value terbilang-box">\${terbilangRupiah(rekap.totalHonor)}</div>
           </div>
           
           <div class="form-group" style="margin-top: 20px;">
@@ -108,13 +99,13 @@ export function RekapHonorClient({ initialData }: { initialData: any[] }) {
             <div class="form-group">
               <div class="form-label">Nama fasilitator</div>
               <div class="form-colon">:</div>
-              <div class="form-value-underline">${rekap.fasilitator.namaLengkap}</div>
+              <div class="form-value-underline">\${rekap.fasilitator.namaLengkap}</div>
             </div>
             
             <div class="form-group">
               <div class="form-label">No. Identitas (KTP/NPWP)</div>
               <div class="form-colon">:</div>
-              <div class="form-value-underline">${rekap.fasilitator.npwpNik || '-'}</div>
+              <div class="form-value-underline">\${rekap.fasilitator.npwpNik || '-'}</div>
             </div>
             
             <div class="form-group">
@@ -126,25 +117,25 @@ export function RekapHonorClient({ initialData }: { initialData: any[] }) {
             <div class="form-group">
               <div class="form-label">Periode / sesi honor</div>
               <div class="form-colon">:</div>
-              <div class="form-value-underline">Bulan ${rekap.bulan}</div>
+              <div class="form-value-underline">Bulan \${rekap.bulan}</div>
             </div>
             
             <div class="form-group">
               <div class="form-label">Jumlah sesi / JP</div>
               <div class="form-colon">:</div>
-              <div class="form-value-underline">${rekap.totalJP} JP</div>
+              <div class="form-value-underline">\${rekap.totalJP} JP</div>
             </div>
             
             <div class="form-group">
               <div class="form-label">Honor per sesi / JP</div>
               <div class="form-colon">:</div>
-              <div class="form-value-underline">Rp ${rateHonor.toLocaleString('id-ID')}</div>
+              <div class="form-value-underline">Rp \${rateHonor.toLocaleString('id-ID')}</div>
             </div>
             
             <div class="form-group">
               <div class="form-label">Lokasi pelaksanaan</div>
               <div class="form-colon">:</div>
-              <div class="form-value-underline">${rekap.fasilitator.lokasiSNT || '-'}</div>
+              <div class="form-value-underline">\${rekap.fasilitator.lokasiSNT || '-'}</div>
             </div>
           </div>
           
@@ -155,7 +146,7 @@ export function RekapHonorClient({ initialData }: { initialData: any[] }) {
           </div>
           <div class="form-group">
             <div class="form-label" style="width: 200px; font-weight: bold;">Honor diterima bersih</div>
-            <div class="form-value" style="font-size: 16px;">Rp ${rekap.totalHonor.toLocaleString('id-ID')}</div>
+            <div class="form-value" style="font-size: 16px;">Rp \${rekap.totalHonor.toLocaleString('id-ID')}</div>
           </div>
           
           <div class="ttd-container">
@@ -168,79 +159,26 @@ export function RekapHonorClient({ initialData }: { initialData: any[] }) {
             <div class="ttd-box">
               <div>Yang Menerima Honor,</div>
               <div style="font-weight: bold;">Fasilitator</div>
-              <div class="ttd-name">( ${rekap.fasilitator.namaLengkap} )</div>
+              <div class="ttd-name">( \${rekap.fasilitator.namaLengkap} )</div>
             </div>
           </div>
           
           <div class="notes">
             <strong>Catatan:</strong><br/>
             • Materai Rp10.000 ditempel bila nominal honor di atas Rp5.000.000.<br/>
-            • Bank: ${rekap.fasilitator.bankName || '-'} | No. Rek: ${rekap.fasilitator.bankAccount || '-'}
+            • Bank: \${rekap.fasilitator.bankName || '-'} | No. Rek: \${rekap.fasilitator.bankAccount || '-'}
           </div>
           
           <script>window.print()</script>
         </body>
       </html>
-    `)
+    \`)
     win.document.close()
-  }
+  }`;
 
-  return (
-    <div className="p-8 space-y-6 max-w-7xl mx-auto">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Rekap Honorarium Bulanan</h1>
-        <p className="text-slate-500 mt-1">Daftar rekapitulasi honorarium yang diajukan oleh Fasilitator.</p>
-      </div>
-
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50 border-b">
-                <tr>
-                  <th className="py-3 px-4">Fasilitator</th>
-                  <th className="py-3 px-4">Bulan</th>
-                  <th className="py-3 px-4 text-center">Total JP</th>
-                  <th className="py-3 px-4 text-right">Total Honor</th>
-                  <th className="py-3 px-4 text-center">Status</th>
-                  <th className="py-3 px-4 text-center">Dokumen PDF</th>
-                  <th className="py-3 px-4 text-right">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {initialData.map((rekap) => (
-                  <tr key={rekap.id} className="hover:bg-slate-50">
-                    <td className="py-3 px-4 font-medium text-slate-900">{rekap.fasilitator.namaLengkap}</td>
-                    <td className="py-3 px-4">{rekap.bulan}</td>
-                    <td className="py-3 px-4 text-center">{rekap.totalJP}</td>
-                    <td className="py-3 px-4 text-right font-medium">{formatCurrency(rekap.totalHonor)}</td>
-                    <td className="py-3 px-4 text-center">
-                      <Badge variant={rekap.status === 'SUBMITTED' ? 'default' : 'secondary'}>{rekap.status}</Badge>
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      {rekap.filePdf ? (
-                        <a href={rekap.filePdf} target="_blank" className="text-blue-600 hover:underline">Lihat PDF TTD</a>
-                      ) : '-'}
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      {rekap.status === 'SUBMITTED' && (
-                        <button 
-                          onClick={() => handleCetakInvoice(rekap)}
-                          disabled={loadingId === rekap.id}
-                          className="text-xs bg-slate-900 text-white hover:bg-slate-800 rounded px-2 py-1.5 transition-colors whitespace-nowrap"
-                        >
-                          {loadingId === rekap.id ? 'Memproses...' : 'Buat Invoice & Cetak'}
-                        </button>
-                      )}
-                      {/* Note: Generating ExpenseRequest happens on Fasil submit currently. We can change this logic later if needed. */}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  )
+  code = code.substring(0, startIndex) + newCetakStr + code.substring(endIndex);
+  fs.writeFileSync('src/app/(snt)/fasilitator/rekap-honor/client-page.tsx', code);
+  console.log('Successfully updated cetakInvoiceHonor');
+} else {
+  console.log('Failed to find bounds:', startIndex, endIndex);
 }
