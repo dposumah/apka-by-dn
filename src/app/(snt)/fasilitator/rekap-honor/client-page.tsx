@@ -196,7 +196,7 @@ const cetakKwitansiMaleo = (rekap: any) => {
           </style>
         </head>
         <body>
-          <img src="${kopType === 'maleo' ? '/kop-maleo.png' : '/kop-surat.png'}" class="header-img" alt="Kop Surat" />
+          <img src="/kop-maleo.png" class="header-img" alt="Kop Surat" />
           
           <div class="title-box">
             <h2>KWITANSI</h2>
