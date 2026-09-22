@@ -248,3 +248,24 @@ export async function cancelTransportPaid(laporanId: string) {
   }
   return { error: 'Status bukan PAID' };
 }
+
+
+export async function createRekapManual(fasilitatorId: string, bulan: string, totalJP: number, totalHonor: number) {
+  const session = await getServerSession(authOptions);
+  
+  // Create RekapHonorarium directly with SUBMITTED status
+  // so admin can generate invoice immediately.
+  const rekap = await prisma.rekapHonorarium.create({
+    data: {
+      fasilitatorId,
+      bulan,
+      totalJP,
+      totalHonor,
+      status: 'SUBMITTED',
+    }
+  });
+
+  revalidatePath('/fasilitator/rekap-honor');
+  revalidatePath('/portal/rekap');
+  return rekap;
+}

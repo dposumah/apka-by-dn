@@ -4,6 +4,7 @@ import { RekapHonorClient } from './client-page'
 export const dynamic = 'force-dynamic'
 
 export default async function AdminRekapHonorPage() {
+  const fasilitators = await prisma.fasilitator.findMany({ orderBy: { namaLengkap: 'asc' } });
   const rekapList = await prisma.rekapHonorarium.findMany({
     include: {
       fasilitator: true
@@ -11,5 +12,5 @@ export default async function AdminRekapHonorPage() {
     orderBy: { createdAt: 'desc' }
   })
 
-  return <RekapHonorClient initialData={rekapList} />
+  return <RekapHonorClient initialData={rekapList} fasilitators={fasilitators} />
 }
