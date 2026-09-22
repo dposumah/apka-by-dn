@@ -134,27 +134,29 @@ export function AkomodasiClient({ initialData, fasilitators }: { initialData: an
         <head>
           <title>Kwitansi Sewa Rumah - ${item.namaPemilik}</title>
           <style>
-            body { font-family: 'Times New Roman', Times, serif; padding: 40px; line-height: 1.5; font-size: 14px; }
-            .header-img { width: 100%; max-height: 120px; object-fit: contain; margin-bottom: 20px; }
-            .title-box { text-align: center; margin-bottom: 30px; }
+            @page { margin: 1cm; }
+            @media print { body { padding: 0; } }
+            body { font-family: 'Times New Roman', Times, serif; padding: 20px 40px; line-height: 1.5; font-size: 14px; }
+            .header-img { width: 100%; max-height: 120px; object-fit: contain; margin-bottom: 10px; }
+            .title-box { text-align: center; margin-bottom: 15px; }
             .title-box h2 { margin: 0; font-size: 20px; font-weight: bold; text-decoration: underline; letter-spacing: 1px; }
             .title-box p { margin: 5px 0 0 0; font-size: 16px; font-weight: bold; }
-            .info-row { display: flex; justify-content: space-between; margin-bottom: 20px; }
-            .form-group { margin-bottom: 12px; display: flex; }
+            .info-row { display: flex; justify-content: space-between; margin-bottom: 10px; }
+            .form-group { margin-bottom: 8px; display: flex; }
             .form-label { width: 220px; font-weight: normal; }
             .form-colon { width: 20px; }
             .form-value { flex: 1; font-weight: bold; }
             .form-value-underline { flex: 1; border-bottom: 1px solid #000; padding-bottom: 2px; font-weight: bold; }
-            .terbilang-box { background-color: #f1f5f9; padding: 10px; font-style: italic; font-weight: bold; border: 1px dashed #ccc; margin-top: 5px;}
+            .terbilang-box { background-color: #f1f5f9; padding: 6px 10px; font-style: italic; font-weight: bold; border: 1px dashed #ccc; margin-top: 5px;}
             
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
             th, td { border: 1px solid #000; padding: 8px; text-align: center; }
             th { background-color: #f8fafc; }
             
-            .ttd-container { display: flex; justify-content: space-between; margin-top: 50px; text-align: center; }
+            .ttd-container { display: flex; justify-content: space-between; margin-top: 30px; text-align: center; }
             .ttd-box { width: 250px; }
-            .ttd-name { margin-top: 70px; font-weight: bold; text-decoration: underline; }
-            .notes { margin-top: 40px; font-size: 12px; }
+            .ttd-name { margin-top: 50px; font-weight: bold; text-decoration: underline; }
+            .notes { margin-top: 20px; font-size: 12px; }
           </style>
         </head>
         <body>
@@ -169,7 +171,7 @@ export function AkomodasiClient({ initialData, fasilitators }: { initialData: an
             <div>Tanggal : <strong>${new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</strong></div>
           </div>
           
-          <div class="form-group" style="margin-top: 20px;">
+          <div class="form-group" style="margin-top: 10px;">
             <div class="form-label">Jumlah Uang</div>
             <div class="form-colon">:</div>
             <div class="form-value" style="font-size: 16px;">Rp ${(item.totalNominal || 0).toLocaleString('id-ID')}</div>
@@ -180,7 +182,7 @@ export function AkomodasiClient({ initialData, fasilitators }: { initialData: an
             <div class="form-value terbilang-box">${terbilangRupiah(item.totalNominal || 0)}</div>
           </div>
           
-          <div class="form-group" style="margin-top: 20px;">
+          <div class="form-group" style="margin-top: 10px;">
             <div class="form-label">Untuk pembayaran</div>
             <div class="form-colon">:</div>
             <div class="form-value" style="font-weight: normal;">Sewa rumah / tempat tinggal atas nama <strong>${item.fasilitator?.namaLengkap}</strong> untuk keperluan Yayasan Maleo Talenta Cendekia,</div>
@@ -204,7 +206,7 @@ export function AkomodasiClient({ initialData, fasilitators }: { initialData: an
             </div>
           </div>
           
-          <div style="margin-top: 20px;">Rincian per bulan:</div>
+          <div style="margin-top: 10px;">Rincian per bulan:</div>
           <table>
             <thead>
               <tr>
@@ -263,27 +265,29 @@ export function AkomodasiClient({ initialData, fasilitators }: { initialData: an
         <head>
           <title>Kwitansi Akomodasi ToT - ${item.namaPengelola}</title>
           <style>
-            body { font-family: 'Times New Roman', Times, serif; padding: 40px; line-height: 1.5; font-size: 14px; }
-            .header-img { width: 100%; max-height: 120px; object-fit: contain; margin-bottom: 20px; }
-            .title-box { text-align: center; margin-bottom: 30px; }
+            @page { margin: 1cm; }
+            @media print { body { padding: 0; } }
+            body { font-family: 'Times New Roman', Times, serif; padding: 20px 40px; line-height: 1.5; font-size: 14px; }
+            .header-img { width: 100%; max-height: 120px; object-fit: contain; margin-bottom: 10px; }
+            .title-box { text-align: center; margin-bottom: 15px; }
             .title-box h2 { margin: 0; font-size: 20px; font-weight: bold; text-decoration: underline; letter-spacing: 1px; }
             .title-box p { margin: 5px 0 0 0; font-size: 16px; font-weight: bold; }
-            .info-row { display: flex; justify-content: space-between; margin-bottom: 20px; }
-            .form-group { margin-bottom: 12px; display: flex; }
+            .info-row { display: flex; justify-content: space-between; margin-bottom: 10px; }
+            .form-group { margin-bottom: 8px; display: flex; }
             .form-label { width: 220px; font-weight: normal; }
             .form-colon { width: 20px; }
             .form-value { flex: 1; font-weight: bold; }
             .form-value-underline { flex: 1; border-bottom: 1px solid #000; padding-bottom: 2px; font-weight: bold; }
-            .terbilang-box { background-color: #f1f5f9; padding: 10px; font-style: italic; font-weight: bold; border: 1px dashed #ccc; margin-top: 5px;}
+            .terbilang-box { background-color: #f1f5f9; padding: 6px 10px; font-style: italic; font-weight: bold; border: 1px dashed #ccc; margin-top: 5px;}
             
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
             th, td { border: 1px solid #000; padding: 8px; text-align: center; }
             th { background-color: #f8fafc; }
             
-            .ttd-container { display: flex; justify-content: space-between; margin-top: 50px; text-align: center; }
+            .ttd-container { display: flex; justify-content: space-between; margin-top: 30px; text-align: center; }
             .ttd-box { width: 250px; }
-            .ttd-name { margin-top: 70px; font-weight: bold; text-decoration: underline; }
-            .notes { margin-top: 40px; font-size: 12px; }
+            .ttd-name { margin-top: 50px; font-weight: bold; text-decoration: underline; }
+            .notes { margin-top: 20px; font-size: 12px; }
           </style>
         </head>
         <body>
@@ -304,7 +308,7 @@ export function AkomodasiClient({ initialData, fasilitators }: { initialData: an
             <div class="form-value-underline">Yayasan Maleo Talenta Cendekia</div>
           </div>
           
-          <div class="form-group" style="margin-top: 20px;">
+          <div class="form-group" style="margin-top: 10px;">
             <div class="form-label">Jumlah Uang</div>
             <div class="form-colon">:</div>
             <div class="form-value" style="font-size: 16px;">Rp ${(item.totalNominal || 0).toLocaleString('id-ID')}</div>
@@ -315,7 +319,7 @@ export function AkomodasiClient({ initialData, fasilitators }: { initialData: an
             <div class="form-value terbilang-box">${terbilangRupiah(item.totalNominal || 0)}</div>
           </div>
           
-          <div class="form-group" style="margin-top: 20px;">
+          <div class="form-group" style="margin-top: 10px;">
             <div class="form-label">Untuk pembayaran</div>
             <div class="form-colon">:</div>
             <div class="form-value" style="font-weight: normal;">Sewa akomodasi/tempat tinggal peserta & fasilitator selama pelaksanaan Training of Trainers (ToT) berikut:</div>
@@ -369,7 +373,7 @@ export function AkomodasiClient({ initialData, fasilitators }: { initialData: an
             </div>
           </div>
           
-          <div style="margin-top: 20px;">Perhitungan total:</div>
+          <div style="margin-top: 10px;">Perhitungan total:</div>
           <table>
             <thead>
               <tr>

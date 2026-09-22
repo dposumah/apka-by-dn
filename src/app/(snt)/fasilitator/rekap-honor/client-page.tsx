@@ -62,26 +62,28 @@ export function RekapHonorClient({ initialData }: { initialData: any[] }) {
         <head>
           <title>Kwitansi Honor - ${rekap.fasilitator.namaLengkap}</title>
           <style>
-            body { font-family: 'Times New Roman', Times, serif; padding: 40px; line-height: 1.5; font-size: 14px; }
-            .header-img { width: 100%; max-height: 120px; object-fit: contain; margin-bottom: 20px; }
-            .title-box { text-align: center; margin-bottom: 30px; }
+            @page { margin: 1cm; }
+            @media print { body { padding: 0; } }
+            body { font-family: 'Times New Roman', Times, serif; padding: 20px 40px; line-height: 1.5; font-size: 14px; }
+            .header-img { width: 100%; max-height: 120px; object-fit: contain; margin-bottom: 10px; }
+            .title-box { text-align: center; margin-bottom: 15px; }
             .title-box h2 { margin: 0; font-size: 20px; font-weight: bold; text-decoration: underline; letter-spacing: 1px; }
             .title-box p { margin: 5px 0 0 0; font-size: 16px; font-weight: bold; }
-            .info-row { display: flex; justify-content: space-between; margin-bottom: 20px; }
+            .info-row { display: flex; justify-content: space-between; margin-bottom: 10px; }
             .info-col { width: 48%; }
-            .form-group { margin-bottom: 12px; display: flex; }
+            .form-group { margin-bottom: 8px; display: flex; }
             .form-label { width: 220px; font-weight: normal; }
             .form-colon { width: 20px; }
             .form-value { flex: 1; font-weight: bold; }
             .form-value-underline { flex: 1; border-bottom: 1px solid #000; padding-bottom: 2px; }
-            .terbilang-box { background-color: #f1f5f9; padding: 10px; font-style: italic; font-weight: bold; border: 1px dashed #ccc; margin-top: 5px;}
+            .terbilang-box { background-color: #f1f5f9; padding: 6px 10px; font-style: italic; font-weight: bold; border: 1px dashed #ccc; margin-top: 5px;}
             .section-title { font-weight: bold; margin: 20px 0 10px 0; text-decoration: underline; }
             
-            .ttd-container { display: flex; justify-content: space-between; margin-top: 50px; text-align: center; }
+            .ttd-container { display: flex; justify-content: space-between; margin-top: 30px; text-align: center; }
             .ttd-box { width: 250px; }
-            .ttd-name { margin-top: 70px; font-weight: bold; text-decoration: underline; }
+            .ttd-name { margin-top: 50px; font-weight: bold; text-decoration: underline; }
             
-            .notes { margin-top: 40px; font-size: 12px; }
+            .notes { margin-top: 20px; font-size: 12px; }
           </style>
         </head>
         <body>
@@ -103,7 +105,7 @@ export function RekapHonorClient({ initialData }: { initialData: any[] }) {
             <div class="form-value-underline">Yayasan Maleo Talenta Cendekia</div>
           </div>
           
-          <div class="form-group" style="margin-top: 20px;">
+          <div class="form-group" style="margin-top: 10px;">
             <div class="form-label">Jumlah Uang</div>
             <div class="form-colon">:</div>
             <div class="form-value" style="font-size: 16px;">Rp ${rekap.totalHonor.toLocaleString('id-ID')}</div>
@@ -115,7 +117,7 @@ export function RekapHonorClient({ initialData }: { initialData: any[] }) {
             <div class="form-value terbilang-box">${terbilangRupiah(rekap.totalHonor)}</div>
           </div>
           
-          <div class="form-group" style="margin-top: 20px;">
+          <div class="form-group" style="margin-top: 10px;">
             <div class="form-label">Untuk pembayaran</div>
             <div class="form-colon">:</div>
             <div class="form-value" style="font-weight: normal;">Pembayaran honor fasilitator atas nama tersebut di bawah, untuk kegiatan/program:</div>
