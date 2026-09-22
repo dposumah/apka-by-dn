@@ -562,6 +562,8 @@ model ExpenseRequest {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  kwitansiRecord KwitansiRecord?
+
   @@map("expense_requests")
 }
 
@@ -656,6 +658,8 @@ model RekapHonorarium {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  kwitansiRecord KwitansiRecord?
+
   @@map("rekap_honorarium")
 }
 
@@ -691,4 +695,25 @@ model FasilitatorAkomodasi {
   updatedAt       DateTime    @updatedAt
   
   @@map("fasilitator_akomodasi")
+}
+
+
+model KwitansiRecord {
+  id          String   @id @default(cuid())
+  noUrut      Int      @unique @default(autoincrement())
+  noKwitansi  String   @unique
+  tanggal     DateTime @default(now())
+  perihal     String
+  owner       String   @default("Robotic Explorer")
+  nominal     Float
+  
+  rekapId     String?  @unique
+  rekap       RekapHonorarium? @relation(fields: [rekapId], references: [id])
+  
+  expenseId   String?  @unique
+  expense     ExpenseRequest? @relation(fields: [expenseId], references: [id])
+
+  createdAt   DateTime @default(now())
+  
+  @@map("kwitansi_record")
 }

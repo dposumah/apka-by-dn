@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency, terbilangRupiah } from '@/lib/format'
 import { useState, useEffect } from 'react'
-import { createRekapManual, deleteRekap } from '@/app/actions/rekap'
+import { createRekapManual, deleteRekap, generateKwitansiHonor } from '@/app/actions/rekap'
 import { adminGenerateInvoiceHonor } from '@/app/actions/rekap'
 import { useRouter } from 'next/navigation'
 import { useModal } from '@/components/modal-provider';
@@ -207,7 +207,7 @@ const cetakKwitansiMaleo = (rekap: any) => {
           
           <div class="info-row">
             <div>No. Kuitansi : <strong>${noKwitansi}</strong></div>
-            <div>Tanggal : <strong>${new Date(rekap.createdAt).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</strong></div>
+            <div>Tanggal : <strong>${kwitansiDate.toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</strong></div>
           </div>
           
           <div class="form-group">
