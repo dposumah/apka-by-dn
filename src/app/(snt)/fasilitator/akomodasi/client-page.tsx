@@ -13,8 +13,29 @@ import { useModal } from '@/components/modal-provider'
 export function AkomodasiClient({ initialData, fasilitators }: { initialData: any[], fasilitators: any[] }) {
   const { confirm, alert } = useModal()
   const router = useRouter()
+  
+  // Custom Modal State for Kop Surat
+  const [showKopModal, setShowKopModal] = useState(false)
+  const [selectedItem, setSelectedItem] = useState<any>(null)
+
+  const openKopModal = (item: any) => {
+    setSelectedItem(item)
+    setShowKopModal(true)
+  }
+
+  const handlePrintWithKop = (kopType: 'robotik' | 'maleo') => {
+    setShowKopModal(false)
+    if (selectedItem) {
+      if (selectedItem.tipe === 'SEWA_RUMAH') {
+        cetakInvoiceSewa(selectedItem, kopType)
+      } else {
+        cetakInvoiceToT(selectedItem, kopType)
+      }
+    }
+  }
+
   const [activeTab, setActiveTab] = useState<'SEWA' | 'TOT'>('SEWA')
-  const [showForm, setShowForm] = useState(false)
+ const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(false)
 
   // Sewa Form State
@@ -102,7 +123,7 @@ export function AkomodasiClient({ initialData, fasilitators }: { initialData: an
     }
   }
 
-  const cetakInvoiceSewa = (item: any) => {
+  const cetakInvoiceSewa = (item: any, kopType: 'robotik' | 'maleo') => {
     const win = window.open('', '_blank')
     if (!win) return
     const d = new Date(item.createdAt)
@@ -137,7 +158,7 @@ export function AkomodasiClient({ initialData, fasilitators }: { initialData: an
           </style>
         </head>
         <body>
-          <img src="/kop-surat.png" class="header-img" />
+          <img src="${kopType === 'maleo' ? '/kop-maleo.png' : '/kop-surat.png'}" class="header-img" />
           <div class="title-box">
             <h2>KUITANSI</h2>
             <p>Sewa Rumah / Tempat Tinggal — Periode 4 (Empat) Bulan</p>
@@ -227,7 +248,7 @@ export function AkomodasiClient({ initialData, fasilitators }: { initialData: an
     win.document.close()
   }
 
-  const cetakInvoiceToT = (item: any) => {
+  const cetakInvoiceToT = (item: any, kopType: 'robotik' | 'maleo') => {
     const win = window.open('', '_blank')
     if (!win) return
     const d = new Date(item.createdAt)
@@ -266,7 +287,7 @@ export function AkomodasiClient({ initialData, fasilitators }: { initialData: an
           </style>
         </head>
         <body>
-          <img src="/kop-surat.png" class="header-img" />
+          <img src="${kopType === 'maleo' ? '/kop-maleo.png' : '/kop-surat.png'}" class="header-img" />
           <div class="title-box">
             <h2>KUITANSI</h2>
             <p>Sewa Tempat Tinggal / Akomodasi — Pelatihan ToT (${days} Hari)</p>
@@ -548,7 +569,7 @@ export function AkomodasiClient({ initialData, fasilitators }: { initialData: an
                     </td>
                     <td className="py-3 px-4 text-right flex justify-end space-x-2">
                       <button 
-                        onClick={() => item.tipe === 'SEWA_RUMAH' ? cetakInvoiceSewa(item) : cetakInvoiceToT(item)}
+                        onClick={() => openKopModal(item)}
                         className="text-xs bg-slate-900 text-white hover:bg-slate-800 rounded px-2 py-1.5 transition-colors"
                       >
                         Cetak Kwitansi
@@ -567,6 +588,35 @@ export function AkomodasiClient({ initialData, fasilitators }: { initialData: an
           </div>
         </CardContent>
       </Card>
+    
+      {/* Modal Pilih Kop Surat */}
+      {showKopModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white p-6 rounded-lg shadow-xl w-96">
+            <h3 className="text-lg font-bold mb-4">Pilih Kop Surat Kwitansi</h3>
+            <p className="text-sm text-slate-600 mb-6">Pilih jenis kop surat yang akan digunakan untuk mencetak kwitansi ini.</p>
+            <div className="flex flex-col space-y-3">
+              <button 
+                onClick={() => handlePrintWithKop('robotik')}
+                className="w-full py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-md transition-colors text-left flex justify-between items-center"
+              >
+                <span>Gunakan Kop Robotik (Standar)</span>
+              </button>
+              <button 
+                onClick={() => handlePrintWithKop('maleo')}
+                className="w-full py-2 px-4 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 font-medium rounded-md transition-colors text-left flex justify-between items-center"
+              >
+                <span>Gunakan Kop Yayasan Maleo</span>
+              </button>
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button onClick={() => setShowKopModal(false)} className="text-sm text-slate-500 hover:text-slate-800">
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

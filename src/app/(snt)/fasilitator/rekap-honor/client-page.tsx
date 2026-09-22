@@ -12,14 +12,31 @@ export function RekapHonorClient({ initialData }: { initialData: any[] }) {
   const { confirm, alert } = useModal();
 
   const router = useRouter()
+  
   const [loadingId, setLoadingId] = useState<string | null>(null)
-    const handleCetakInvoice = async (rekap: any) => {
+  
+  // Custom Modal State for Kop Surat
+  const [showKopModal, setShowKopModal] = useState(false)
+  const [selectedRekap, setSelectedRekap] = useState<any>(null)
+
+  const openKopModal = (rekap: any) => {
+    setSelectedRekap(rekap)
+    setShowKopModal(true)
+  }
+
+  const handlePrintWithKop = (kopType: 'robotik' | 'maleo') => {
+    setShowKopModal(false)
+    if (selectedRekap) {
+      handleCetakInvoice(selectedRekap, kopType)
+    }
+  }
+    const handleCetakInvoice = async (rekap: any, kopType: 'robotik' | 'maleo' = 'robotik') => {
     try {
       setLoadingId(rekap.id)
       if (rekap.status === 'SUBMITTED') {
         await adminGenerateInvoiceHonor(rekap.id)
       }
-      cetakInvoiceHonor(rekap)
+      cetakInvoiceHonor(rekap, kopType)
       router.refresh()
     } catch (e) {
       await alert('Gagal memproses invoice')
@@ -28,7 +45,7 @@ export function RekapHonorClient({ initialData }: { initialData: any[] }) {
     }
   }
 
-  const cetakInvoiceHonor = (rekap: any) => {
+  const cetakInvoiceHonor = (rekap: any, kopType: 'robotik' | 'maleo') => {
     const win = window.open('', '_blank')
     if (!win) return
     
@@ -68,7 +85,7 @@ export function RekapHonorClient({ initialData }: { initialData: any[] }) {
           </style>
         </head>
         <body>
-          <img src="/kop-surat.png" class="header-img" alt="Kop Surat" />
+          <img src="${kopType === 'maleo' ? '/kop-maleo.png' : '/kop-surat.png'}" class="header-img" alt="Kop Surat" />
           
           <div class="title-box">
             <h2>KWITANSI</h2>
@@ -225,7 +242,7 @@ export function RekapHonorClient({ initialData }: { initialData: any[] }) {
                     <td className="py-3 px-4 text-right">
                       {rekap.status === 'SUBMITTED' && (
                         <button 
-                          onClick={() => handleCetakInvoice(rekap)}
+                          onClick={() => openKopModal(rekap)}
                           disabled={loadingId === rekap.id}
                           className="text-xs bg-slate-900 text-white hover:bg-slate-800 rounded px-2 py-1.5 transition-colors whitespace-nowrap"
                         >
