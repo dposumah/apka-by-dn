@@ -20,6 +20,7 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
   const [manualBulan, setManualBulan] = useState('')
   const [manualJP, setManualJP] = useState('')
   const [manualRate, setManualRate] = useState('65000')
+  const [manualSesi, setManualSesi] = useState('4')
   const [manualHonor, setManualHonor] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -46,13 +47,14 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
     e.preventDefault()
     setIsSubmitting(true)
     try {
-      await createRekapManual(manualFasilId, manualBulan, parseInt(manualJP) || 0, parseInt(manualHonor) || 0)
+      await createRekapManual(manualFasilId, manualBulan, parseInt(manualJP) || 0, parseInt(manualHonor) || 0, parseInt(manualSesi) || 4)
       setShowManualForm(false)
       setManualFasilId('')
       setManualBulan('')
       setManualJP('')
       setManualHonor('')
       setManualRate('65000')
+      setManualSesi('4')
       router.refresh()
     } catch(err: any) {
       alert(err.message)
@@ -260,11 +262,9 @@ const cetakKwitansiMaleo = (rekap: any) => {
             <div class="form-group">
               <div class="form-label">Jumlah sesi / JP</div>
               <div class="form-colon">:</div>
-              <div class="form-value-underline">${rekap.totalJP} JP</div>
+              <div class="form-value-underline">${rekap.jumlahSesi || 4} (pertemuan dalam 1 bulan) / ${rekap.totalJP} JP</div>
               </div>
-              <div class="form-group">
-                <div class="form-label">Honor per JP</div>
-                <div class="form-colon">:</div>
+              
                 <div class="form-value-underline">Rp ${(rateHonor).toLocaleString('id-ID')}</div>
             </div>
             
@@ -356,7 +356,11 @@ const cetakKwitansiMaleo = (rekap: any) => {
                   <input type="month" required className="w-full border rounded p-2" value={manualBulan} onChange={e => setManualBulan(e.target.value)} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Jumlah Sesi (Pertemuan)</label>
+                  <input type="number" min="0" required className="w-full border rounded p-2" value={manualSesi} onChange={e => setManualSesi(e.target.value)} />
+                </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Jumlah JP</label>
                   <input type="number" min="0" required className="w-full border rounded p-2" value={manualJP} onChange={e => setManualJP(e.target.value)} />

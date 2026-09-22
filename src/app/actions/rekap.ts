@@ -250,7 +250,7 @@ export async function cancelTransportPaid(laporanId: string) {
 }
 
 
-export async function createRekapManual(fasilitatorId: string, bulan: string, totalJP: number, totalHonor: number) {
+export async function createRekapManual(fasilitatorId: string, bulan: string, totalJP: number, totalHonor: number, jumlahSesi: number) {
   const session = await getServerSession(authOptions);
   
   // Create RekapHonorarium directly with SUBMITTED status
@@ -260,6 +260,7 @@ export async function createRekapManual(fasilitatorId: string, bulan: string, to
       fasilitatorId,
       bulan,
       totalJP,
+      jumlahSesi,
       totalHonor,
       status: 'SUBMITTED',
     }
