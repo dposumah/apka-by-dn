@@ -602,6 +602,7 @@ model Fasilitator {
   rekapHonorarium RekapHonorarium[]
 
   @@map("fasilitator")
+  akomodasi       FasilitatorAkomodasi[]
 }
 
 model LaporanKegiatan {
@@ -655,4 +656,38 @@ model RekapHonorarium {
   updatedAt DateTime @updatedAt
 
   @@map("rekap_honorarium")
+}
+
+
+model FasilitatorAkomodasi {
+  id              String      @id @default(cuid())
+  fasilitatorId   String
+  fasilitator     Fasilitator @relation(fields: [fasilitatorId], references: [id])
+  tipe            String      // 'SEWA_RUMAH' atau 'AKOMODASI_TOT'
+  
+  // Fields for SEWA_RUMAH
+  namaPemilik     String?
+  alamatSewa      String?
+  periodeSewa     String?
+  hargaSewaBulan  Float?
+  
+  // Fields for AKOMODASI_TOT
+  namaPenginapan  String?
+  alamatPenginapan String?
+  namaPengelola   String?
+  namaKegiatan    String?
+  tanggalMulai    DateTime?
+  tanggalSelesai  DateTime?
+  jumlahOrang     Int?
+  jumlahKamar     Int?
+  tarifPerMalam   Float?
+  
+  totalNominal    Float
+  
+  expenseId       String?
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  
+  @@map("fasilitator_akomodasi")
 }
