@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency, terbilangRupiah } from '@/lib/format'
 import { useState, useEffect } from 'react'
-import { createRekapManual } from '@/app/actions/rekap'
+import { createRekapManual, deleteRekap } from '@/app/actions/rekap'
 import { adminGenerateInvoiceHonor } from '@/app/actions/rekap'
 import { useRouter } from 'next/navigation'
 import { useModal } from '@/components/modal-provider';
@@ -19,14 +19,28 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
   const [manualFasilId, setManualFasilId] = useState('')
   const [manualBulan, setManualBulan] = useState('')
   const [manualJP, setManualJP] = useState('')
+  const [manualRate, setManualRate] = useState('65000')
   const [manualHonor, setManualHonor] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     // Auto calculate if JP changes
     const jp = parseInt(manualJP) || 0
-    setManualHonor((jp * 65000).toString())
-  }, [manualJP])
+    const rate = parseInt(manualRate) || 0
+    setManualHonor((jp * rate).toString())
+  }, [manualJP, manualRate])
+
+  
+  const handleDelete = async (id: string) => {
+    if (confirm('Yakin ingin menghapus rekap ini?')) {
+      try {
+        await deleteRekap(id)
+        router.refresh()
+      } catch (e: any) {
+        alert(e.message)
+      }
+    }
+  }
 
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -38,6 +52,7 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
       setManualBulan('')
       setManualJP('')
       setManualHonor('')
+      setManualRate('65000')
       router.refresh()
     } catch(err: any) {
       alert(err.message)
@@ -346,6 +361,12 @@ const cetakKwitansiMaleo = (rekap: any) => {
                   <label className="block text-sm font-medium mb-1">Jumlah JP</label>
                   <input type="number" min="0" required className="w-full border rounded p-2" value={manualJP} onChange={e => setManualJP(e.target.value)} />
                 </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-1">Honor per JP (Rp)</label>
+                  <input type="number" min="0" required className="w-full border rounded p-2" value={manualRate} onChange={e => setManualRate(e.target.value)} />
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium mb-1">Total Honor (Rp)</label>
                   <input type="number" min="0" required className="w-full border rounded p-2" value={manualHonor} onChange={e => setManualHonor(e.target.value)} />
@@ -397,15 +418,25 @@ const cetakKwitansiMaleo = (rekap: any) => {
                       ) : '-'}
                     </td>
                     <td className="py-3 px-4 text-right">
+                      
                       {rekap.status === 'SUBMITTED' && (
-                        <button 
-                          onClick={() => openKopModal(rekap)}
-                          disabled={loadingId === rekap.id}
-                          className="text-xs bg-slate-900 text-white hover:bg-slate-800 rounded px-2 py-1.5 transition-colors whitespace-nowrap"
-                        >
-                          {loadingId === rekap.id ? 'Memproses...' : 'Buat Invoice & Cetak'}
-                        </button>
+                        <div className="flex gap-2 justify-end">
+                          <button 
+                            onClick={() => openKopModal(rekap)}
+                            disabled={loadingId === rekap.id}
+                            className="text-xs bg-slate-900 text-white hover:bg-slate-800 rounded px-2 py-1.5 transition-colors whitespace-nowrap"
+                          >
+                            {loadingId === rekap.id ? 'Memproses...' : 'Buat Invoice & Cetak'}
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(rekap.id)}
+                            className="text-xs bg-red-600 text-white hover:bg-red-700 rounded px-2 py-1.5 transition-colors whitespace-nowrap"
+                          >
+                            Hapus
+                          </button>
+                        </div>
                       )}
+
                       {/* Note: Generating ExpenseRequest happens on Fasil submit currently. We can change this logic later if needed. */}
                     </td>
                   </tr>
@@ -415,6 +446,36 @@ const cetakKwitansiMaleo = (rekap: any) => {
           </div>
         </CardContent>
       </Card>
+    
+      {/* Modal Pilih Dokumen */}
+      {showKopModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white p-6 rounded-lg shadow-xl w-96">
+            <h3 className="text-lg font-bold mb-4">Pilih Jenis Dokumen untuk Dicetak</h3>
+            <p className="text-sm text-slate-600 mb-6">Pilih apakah Anda ingin mencetak dokumen berupa Invoice (Standar) atau Kwitansi (Format Yayasan Maleo).</p>
+            <div className="flex flex-col space-y-3">
+              <button 
+                onClick={() => handlePrintWithKop('invoice')}
+                className="w-full py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-md transition-colors text-left flex justify-between items-center"
+              >
+                <span>Cetak Invoice Honorarium (Format Lama)</span>
+              </button>
+              <button 
+                onClick={() => handlePrintWithKop('kwitansi')}
+                className="w-full py-2 px-4 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 font-medium rounded-md transition-colors text-left flex justify-between items-center"
+              >
+                <span>Cetak Kwitansi (Format Yayasan Maleo)</span>
+              </button>
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button onClick={() => setShowKopModal(false)} className="text-sm text-slate-500 hover:text-slate-800">
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
