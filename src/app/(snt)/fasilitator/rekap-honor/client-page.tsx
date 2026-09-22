@@ -56,28 +56,90 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
     setShowKopModal(true)
   }
 
-  const handlePrintWithKop = (kopType: 'robotik' | 'maleo') => {
+  const handlePrintWithKop = (docType: 'invoice' | 'kwitansi') => {
     setShowKopModal(false)
     if (selectedRekap) {
-      handleCetakInvoice(selectedRekap, kopType)
+      if (docType === 'invoice') {
+        cetakInvoiceLama(selectedRekap);
+      } else {
+        cetakKwitansiMaleo(selectedRekap);
+      }
     }
   }
-    const handleCetakInvoice = async (rekap: any, kopType: 'robotik' | 'maleo' = 'robotik') => {
-    try {
-      setLoadingId(rekap.id)
-      if (rekap.status === 'SUBMITTED') {
-        await adminGenerateInvoiceHonor(rekap.id)
-      }
-      cetakInvoiceHonor(rekap, kopType)
-      router.refresh()
-    } catch (e) {
-      await alert('Gagal memproses invoice')
-    } finally {
-      setLoadingId(null)
-    }
+      
+  const cetakInvoiceLama = (rekap: any) => {
+    const win = window.open('', '_blank')
+    if (!win) return
+    win.document.write(`
+      <html>
+        <head>
+          <title>Invoice Honorarium - ${rekap.fasilitator?.namaLengkap}</title>
+          <style>
+            body { font-family: sans-serif; padding: 40px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+            th { background-color: #f8fafc; }
+            .header { text-align: center; margin-bottom: 40px; }
+            .total { font-weight: bold; font-size: 1.2em; text-align: right; }
+          </style>
+        </head>
+        <body>
+          <div style="margin-bottom: 30px;">
+            <img src="/kop-surat.png" style="width: 100%; max-height: 120px; object-fit: contain;" alt="Kop Surat" />
+          </div>
+          <div class="header">
+            <h2>INVOICE HONORARIUM FASILITATOR</h2>
+            <p>KKA Sekolah Nasional Terintegrasi Tahun 2026</p>
+          </div>
+          
+          <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+            <div>
+              <p><strong>Nama Fasilitator:</strong> ${rekap.fasilitator?.namaLengkap}</p>
+              <p><strong>Lokasi SNT:</strong> ${rekap.fasilitator?.lokasiSNT ? rekap.fasilitator.lokasiSNT.split(' - ')[0] : '-'}</p>
+              <p><strong>Bulan Laporan:</strong> ${rekap.bulan}</p>
+              <p><strong>Tanggal Diajukan:</strong> ${new Date(rekap.createdAt).toLocaleDateString('id-ID')}</p>
+            </div>
+          </div>
+          
+          <table>
+            <thead>
+              <tr>
+                <th>Keterangan</th>
+                <th>Jumlah JP</th>
+                <th>Total Honor</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Honorarium Fasilitator Bulan ${rekap.bulan}</td>
+                <td>${rekap.totalJP} JP</td>
+                <td>Rp ${(rekap.totalHonor || 0).toLocaleString('id-ID')}</td>
+              </tr>
+              <tr>
+                <td colspan="2" class="total">TOTAL TAGIHAN HONORARIUM:</td>
+                <td class="total text-emerald-600">Rp ${(rekap.totalHonor || 0).toLocaleString('id-ID')}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div style="display: flex; justify-content: space-between; margin-top: 30px;">
+            <div style="border: 1px solid #ddd; padding: 15px; border-radius: 8px; background-color: #f8fafc; min-width: 250px;">
+              <h4 style="margin:0 0 10px 0;">Informasi Transfer</h4>
+              <p style="margin:5px 0;"><strong>Bank:</strong> ${rekap.fasilitator?.bankName || '-'}</p>
+              <p style="margin:5px 0;"><strong>No. Rekening:</strong> ${rekap.fasilitator?.bankAccount || '-'}</p>
+              <p style="margin:5px 0;"><strong>A/N:</strong> ${rekap.fasilitator?.namaLengkap}</p>
+            </div>
+            <div style="text-align:right;">
+              <p style="margin-top:40px;">Dicetak oleh: Admin SNT</p>
+            </div>
+          </div>
+          <script>window.print()</script>
+        </body>
+      </html>
+    `)
+    win.document.close()
   }
 
-  const cetakInvoiceHonor = (rekap: any, kopType: 'robotik' | 'maleo') => {
+const cetakKwitansiMaleo = (rekap: any) => {
     const win = window.open('', '_blank')
     if (!win) return
     
@@ -184,6 +246,11 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
               <div class="form-label">Jumlah sesi / JP</div>
               <div class="form-colon">:</div>
               <div class="form-value-underline">${rekap.totalJP} JP</div>
+              </div>
+              <div class="form-group">
+                <div class="form-label">Honor per JP</div>
+                <div class="form-colon">:</div>
+                <div class="form-value-underline">Rp ${(rateHonor).toLocaleString('id-ID')}</div>
             </div>
             
             <div class="form-group">
