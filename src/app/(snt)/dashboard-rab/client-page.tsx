@@ -14,6 +14,7 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
   
   const [printInvoice, setPrintInvoice] = useState(false)
   const [printKwitansi, setPrintKwitansi] = useState(false)
+  const [selectedKop, setSelectedKop] = useState<'maleo' | 'robotic'>('maleo')
   
   const [inputNoUrut, setInputNoUrut] = useState("")
   const [inputTanggal, setInputTanggal] = useState("")
@@ -31,9 +32,10 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
     setShowPrintModal(true)
   }
 
-  const cetakInvoiceExpense = (expense: any) => {
+  const cetakInvoiceExpense = (expense: any, kopType: 'maleo' | 'robotic') => {
     const win = window.open('', '_blank')
     if (!win) return
+    const kopImage = kopType === 'maleo' ? '/kop-maleo.png' : '/kop-surat.png';
     win.document.write(`
       <html>
         <head>
@@ -49,7 +51,7 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
         </head>
         <body>
           <div style="margin-bottom: 30px;">
-            <img src="/kop-surat.png" style="width: 100%; max-height: 120px; object-fit: contain;" alt="Kop Surat" />
+            <img src="${kopImage}" style="width: 100%; max-height: 120px; object-fit: contain;" alt="Kop Surat" />
           </div>
           <div class="header">
             <h2>INVOICE PENGELUARAN LAPANGAN</h2>
@@ -204,7 +206,7 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
   const handlePrint = async () => {
     setShowPrintModal(false)
     if (printInvoice) {
-      cetakInvoiceExpense(selectedExpense)
+      cetakInvoiceExpense(selectedExpense, selectedKop)
     }
     if (printKwitansi) {
       await cetakKwitansiExpense(selectedExpense, inputNoUrut, inputTanggal)
@@ -367,6 +369,34 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
                 />
                 <span>Invoice Pengeluaran (Standar)</span>
               </label>
+              
+              {printInvoice && (
+                <div className="pl-6 space-y-2 border-l-2 border-green-200 ml-1">
+                  <p className="text-sm font-medium text-gray-700">Pilih Kop Surat:</p>
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input 
+                      type="radio" 
+                      name="kopType"
+                      value="maleo"
+                      checked={selectedKop === 'maleo'}
+                      onChange={() => setSelectedKop('maleo')}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="text-sm">Kop Yayasan Maleo</span>
+                  </label>
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input 
+                      type="radio" 
+                      name="kopType"
+                      value="robotic"
+                      checked={selectedKop === 'robotic'}
+                      onChange={() => setSelectedKop('robotic')}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="text-sm">Kop Robotic Explorer</span>
+                  </label>
+                </div>
+              )}
               <label className="flex items-center space-x-2">
                 <input 
                   type="checkbox" 

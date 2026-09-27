@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -86,11 +86,11 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
     setShowKopModal(true)
   }
 
-  const handlePrintWithKop = async (docType: 'invoice' | 'kwitansi') => {
-    if (docType === 'invoice') {
+  const handlePrintWithKop = async (docType: 'invoice_maleo' | 'invoice_robotic' | 'kwitansi') => {
+    if (docType === 'invoice_maleo' || docType === 'invoice_robotic') {
       setShowKopModal(false)
       if (selectedRekap) {
-        cetakInvoiceLama(selectedRekap);
+        cetakInvoiceLama(selectedRekap, docType === 'invoice_maleo' ? 'maleo' : 'robotic');
       }
     } else {
       if (!kwitansiInputStep) {
@@ -106,9 +106,10 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
     }
   }
       
-  const cetakInvoiceLama = (rekap: any) => {
+  const cetakInvoiceLama = (rekap: any, kopType: 'maleo' | 'robotic') => {
     const win = window.open('', '_blank')
     if (!win) return
+    const kopImage = kopType === 'maleo' ? '/kop-maleo.png' : '/kop-surat.png';
     win.document.write(`
       <html>
         <head>
@@ -124,7 +125,7 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
         </head>
         <body>
           <div style="margin-bottom: 30px;">
-            <img src="/kop-surat.png" style="width: 100%; max-height: 120px; object-fit: contain;" alt="Kop Surat" />
+            <img src="${kopImage}" style="width: 100%; max-height: 120px; object-fit: contain;" alt="Kop Surat" />
           </div>
           <div class="header">
             <h2>INVOICE HONORARIUM FASILITATOR</h2>
@@ -472,10 +473,16 @@ const cetakKwitansiMaleo = async (rekap: any, noUrut: string, tanggal: string) =
                 <p className="text-sm text-slate-600 mb-6">Pilih apakah Anda ingin mencetak dokumen berupa Invoice (Standar) atau Kwitansi (Format Yayasan Maleo).</p>
                 <div className="flex flex-col space-y-3">
                   <button 
-                    onClick={() => handlePrintWithKop('invoice')}
+                    onClick={() => handlePrintWithKop('invoice_maleo')}
                     className="w-full py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-md transition-colors text-left flex justify-between items-center"
                   >
-                    <span>Cetak Invoice Honorarium (Format Lama)</span>
+                    <span>Cetak Invoice Honorarium (Kop Yayasan Maleo)</span>
+                  </button>
+                  <button 
+                    onClick={() => handlePrintWithKop('invoice_robotic')}
+                    className="w-full py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-md transition-colors text-left flex justify-between items-center"
+                  >
+                    <span>Cetak Invoice Honorarium (Kop Robotic Explorer)</span>
                   </button>
                   <button 
                     onClick={() => handlePrintWithKop('kwitansi')}
