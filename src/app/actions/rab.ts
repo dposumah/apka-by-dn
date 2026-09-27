@@ -117,7 +117,7 @@ export async function submitExpense(data: { rabItemId: string, amount: number, d
     })
   }
 
-  await prisma.expenseRequest.create({
+  const expense = await prisma.expenseRequest.create({
     data: {
       rabItemId: data.rabItemId,
       amount: data.amount,
@@ -126,10 +126,15 @@ export async function submitExpense(data: { rabItemId: string, amount: number, d
       createdById: user.id,
       fasilitatorId: data.fasilitatorId || null,
       status: 'APPROVED'
+    },
+    include: {
+      rabItem: true,
+      fasilitator: true
     }
   })
   revalidatePath('/dashboard-rab')
   revalidatePath('/pengeluaran')
+  return expense
 }
 export async function getFasilitators() {
   const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN', 'KORWIL']);

@@ -382,3 +382,64 @@ export async function generateKwitansiHonor(rekapId: string, inputNoUrut?: strin
     throw new Error("Gagal mengambil nomor kwitansi dari Google Sheets: " + error.message);
   }
 }
+
+export async function generateKwitansiExpense(expenseId: string, inputNoUrut?: string, inputTanggal?: string) {
+  const existing = await prisma.kwitansiRecord.findUnique({
+    where: { expenseId }
+  });
+  
+  const expense = await prisma.expenseRequest.findUnique({
+    where: { id: expenseId },
+    include: { rabItem: true, fasilitator: true }
+  });
+  
+  if (!expense) throw new Error("Expense not found");
+  
+  const perihal = `${expense.description} - ${expense.rabItem.name}`;
+  
+  if (existing && !inputNoUrut) {
+    return existing;
+  }
+  
+  const webhookUrl = "https://script.google.com/macros/s/AKfycbx4HtXH816rxAkcPV44wM5VEp9cgJ7DQ0aLv9TMAIkDtGUVVRrVS8pRPAxL9mCuAVJe/exec";
+  
+  const noUrut = inputNoUrut || "";
+  const d = inputTanggal ? new Date(inputTanggal) : new Date();
+  const tanggalFormatted = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+  
+  try {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ perihal, noUrut, tanggal: tanggalFormatted }),
+    });
+    
+    if (!response.ok) throw new Error("HTTP error " + response.status);
+    const result = await response.json();
+    if (result.error) throw new Error(result.error);
+    
+    const noKwitansiSheet = result.noKwitansi;
+    
+    let kwitansi;
+    if (existing) {
+      kwitansi = await prisma.kwitansiRecord.update({
+        where: { id: existing.id },
+        data: { noKwitansi: noKwitansiSheet, tanggal: d }
+      });
+    } else {
+      kwitansi = await prisma.kwitansiRecord.create({
+        data: {
+          noKwitansi: noKwitansiSheet,
+          perihal,
+          nominal: expense.amount,
+          expenseId: expense.id,
+          tanggal: d
+        }
+      });
+    }
+    return kwitansi;
+  } catch (error: any) {
+    console.error("Webhook Error:", error);
+    throw new Error("Gagal mengambil nomor kwitansi dari Google Sheets: " + error.message);
+  }
+}
