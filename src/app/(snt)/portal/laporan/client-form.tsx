@@ -30,7 +30,7 @@ export function LaporanClientForm({ fasilitatorId, besaranTransport, defaultJPIn
     evaluation: '',
     tingkatSekolah: 'SMP',
     metodePelaksanaan: 'LURING',
-    jenisPembelajaran: 'INTRAKURIKULER',
+    jenisPembelajaran: jenisTugas === 'EKSTRAKURIKULER' ? 'EKSTRAKURIKULER' : 'INTRAKURIKULER',
     biayaTransport: '',
     biayaTransportLaut: '',
   })
@@ -202,13 +202,13 @@ export function LaporanClientForm({ fasilitatorId, besaranTransport, defaultJPIn
                 <div className="space-y-2">
                   <Label>Jenis Pembelajaran</Label>
                   <select 
-                    className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    value={formData.jenisPembelajaran}
-                    onChange={e => setFormData({...formData, jenisPembelajaran: e.target.value})}
-                  >
-                    <option value="INTRAKURIKULER">Intrakurikuler</option>
-                    <option value="EKSTRAKURIKULER">Ekstrakurikuler</option>
-                  </select>
+                      className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      value={formData.jenisPembelajaran}
+                      onChange={e => setFormData({...formData, jenisPembelajaran: e.target.value})}
+                    >
+                      {jenisTugas !== 'EKSTRAKURIKULER' && <option value="INTRAKURIKULER">Intrakurikuler</option>}
+                      {jenisTugas !== 'INTRAKURIKULER' && <option value="EKSTRAKURIKULER">Ekstrakurikuler</option>}
+                    </select>
                 </div>
                 
                 {formData.jenisPembelajaran === 'INTRAKURIKULER' ? (

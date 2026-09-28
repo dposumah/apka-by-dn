@@ -63,6 +63,7 @@ export function FasilitatorForm({ initialData }: { initialData?: any }) {
       besaranTransport: fd.get('besaranTransport') ? parseFloat(fd.get('besaranTransport') as string) : 120000,
       defaultJPIntra: fd.get('defaultJPIntra') ? parseInt(fd.get('defaultJPIntra') as string) : 8,
       defaultJPEkstra: fd.get('defaultJPEkstra') ? parseInt(fd.get('defaultJPEkstra') as string) : 4,
+      jenisTugas: fd.get('jenisTugas') as string || 'INTRAKURIKULER',
     }
 
     try {
@@ -219,6 +220,14 @@ export function FasilitatorForm({ initialData }: { initialData?: any }) {
               <Label>Default JP (Ekstra)</Label>
               <Input name="defaultJPEkstra" type="number" defaultValue={initialData?.defaultJPEkstra ?? 4} required />
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Jenis Tugas / Mengajar</Label>
+            <select name="jenisTugas" defaultValue={initialData?.jenisTugas || 'INTRAKURIKULER'} className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-950 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+              <option value="INTRAKURIKULER">Hanya Intrakurikuler</option>
+              <option value="EKSTRAKURIKULER">Hanya Ekstrakurikuler</option>
+              <option value="KEDUANYA">Keduanya (Intra & Ekstra)</option>
+            </select>
           </div>
           
           <div className="bg-slate-50 p-4 rounded-md border space-y-4">

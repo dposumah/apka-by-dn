@@ -30,6 +30,7 @@ export default async function LaporanPage() {
       besaranTransport={fasilitator.besaranTransport}
       defaultJPIntra={fasilitator.defaultJPIntra}
       defaultJPEkstra={fasilitator.defaultJPEkstra}
+      jenisTugas={fasilitator.jenisTugas}
     />
   )
 }

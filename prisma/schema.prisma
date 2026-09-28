@@ -587,6 +587,7 @@ model Fasilitator {
     besaranTransport  Float   @default(120000)
     defaultJPIntra    Int     @default(8)
     defaultJPEkstra   Int     @default(4)
+  jenisTugas        String  @default("INTRAKURIKULER") // INTRAKURIKULER, EKSTRAKURIKULER, KEDUANYA
   kontak            String?
   email             String?
   bankName          String?
