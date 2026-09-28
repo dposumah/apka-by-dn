@@ -173,6 +173,7 @@ model Customer {
   creditLimit Float    @default(0)
   balance     Float    @default(0)
   isActive    Boolean  @default(true)
+  tipeKwitansi String @default("HONOR")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -562,7 +563,7 @@ model ExpenseRequest {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  kwitansiRecord KwitansiRecord?
+  kwitansiRecord KwitansiRecord[]
 
   @@map("expense_requests")
 }
@@ -660,7 +661,7 @@ model RekapHonorarium {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  kwitansiRecord KwitansiRecord?
+  kwitansiRecord KwitansiRecord[]
 
   @@map("rekap_honorarium")
 }
@@ -709,12 +710,13 @@ model KwitansiRecord {
   owner       String   @default("Robotic Explorer")
   nominal     Float
   
-  rekapId     String?  @unique
+  rekapId     String?
   rekap       RekapHonorarium? @relation(fields: [rekapId], references: [id])
   
-  expenseId   String?  @unique
+  expenseId   String?
   expense     ExpenseRequest? @relation(fields: [expenseId], references: [id])
 
+  tipeKwitansi String @default("HONOR")
   createdAt   DateTime @default(now())
   
   @@map("kwitansi_record")
