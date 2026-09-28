@@ -301,10 +301,9 @@ export async function deleteRekap(id: string) {
 
 
 export async function generateKwitansiHonor(rekapId: string, inputNoUrut?: string, inputTanggal?: string) {
+  try {
   // Check if it already exists locally
-  const existing = await prisma.kwitansiRecord.findUnique({
-    where: { rekapId }
-  });
+  const existing = await prisma.kwitansiRecord.findFirst({ where: { rekapId, tipeKwitansi: 'HONOR' } });
   
   // Get the rekap
   const rekap = await prisma.rekapHonorarium.findUnique({
@@ -381,12 +380,16 @@ export async function generateKwitansiHonor(rekapId: string, inputNoUrut?: strin
     console.error("Webhook Error:", error);
     return { error: "Gagal mengambil nomor kwitansi dari Google Sheets: " + error.message };
   }
+
+  } catch (error: any) {
+    console.error('Error in generateKwitansiHonor:', error);
+    return { error: error.message || 'Unknown error in generateKwitansiHonor' };
+  }
 }
 
 export async function generateKwitansiExpense(expenseId: string, inputNoUrut?: string, inputTanggal?: string) {
-  const existing = await prisma.kwitansiRecord.findUnique({
-    where: { expenseId }
-  });
+  try {
+  const existing = await prisma.kwitansiRecord.findFirst({ where: { expenseId } });
   
   const expense = await prisma.expenseRequest.findUnique({
     where: { id: expenseId },
@@ -442,9 +445,15 @@ export async function generateKwitansiExpense(expenseId: string, inputNoUrut?: s
     console.error("Webhook Error:", error);
     return { error: "Gagal mengambil nomor kwitansi dari Google Sheets: " + error.message };
   }
+
+  } catch (error: any) {
+    console.error('Error in generateKwitansiExpense:', error);
+    return { error: error.message || 'Unknown error in generateKwitansiExpense' };
+  }
 }
 
 export async function generateKwitansiTransportBulanan(rekapId: string, inputNoUrut?: string, inputTanggal?: string) {
+  try {
   const existing = await prisma.kwitansiRecord.findFirst({
     where: { rekapId, tipeKwitansi: 'TRANSPORT' }
   });
@@ -512,5 +521,10 @@ export async function generateKwitansiTransportBulanan(rekapId: string, inputNoU
   } catch (error: any) {
     console.error("Webhook Error:", error);
     return { error: "Gagal mengambil nomor kwitansi dari Google Sheets: " + error.message };
+  }
+
+  } catch (error: any) {
+    console.error('Error in generateKwitansiTransportBulanan:', error);
+    return { error: error.message || 'Unknown error in generateKwitansiTransportBulanan' };
   }
 }
