@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { submitExpense } from '@/app/actions/rab'
-import { generateKwitansiExpense } from '@/app/actions/rekap'
+import { generateKwitansiExpense, generateInvoiceExpense } from '@/app/actions/rekap'
 import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -24,6 +24,8 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
   const [selectedKop, setSelectedKop] = useState<'maleo' | 'robotic'>('maleo')
   
   const [inputNoUrut, setInputNoUrut] = useState("")
+  const [inputInvoiceNoUrut, setInputInvoiceNoUrut] = useState("")
+  const [inputInvoiceTanggal, setInputInvoiceTanggal] = useState("")
   const [inputTanggal, setInputTanggal] = useState(() => {
     const tzoffset = (new Date()).getTimezoneOffset() * 60000;
     return (new Date(Date.now() - tzoffset)).toISOString().slice(0, 10);
@@ -34,6 +36,7 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    const formElement = e.currentTarget;
     setLoading(true)
     setSubmittedExpense(null)
     
@@ -94,7 +97,7 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
     import('html2pdf.js').then(m => { (window as any).html2pdf = m.default || m; }).catch(e => console.error(e));
   }, []);
 
-  const getInvoiceHtml = (expense: any, kopType: string) => {
+  const getInvoiceHtml = (expense: any, record: any, kopType: string) => {
     const kopImage = window.location.origin + (kopType === 'maleo' ? '/kop-maleo.png' : '/kop-surat.png');
     return `
       <div style="padding: 40px; font-family: sans-serif; page-break-after: always; width: 100%; box-sizing: border-box;">
@@ -110,7 +113,8 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
           <div>
             <p><strong>Item RAB:</strong> ${expense.rabItem.name}</p>
             ${expense.fasilitator ? `<p><strong>Nama Fasilitator:</strong> ${expense.fasilitator.namaLengkap}</p>` : ''}
-            <p><strong>Tanggal Diajukan:</strong> ${new Date(expense.createdAt).toLocaleDateString('id-ID')}</p>
+            <p><strong>No Invoice:</strong> ${record?.noInvoice || '-'}</p>
+            <p><strong>Tanggal Invoice:</strong> ${record?.tanggal ? new Date(record.tanggal).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }) : new Date(expense.createdAt).toLocaleDateString('id-ID')}</p>
             <p><strong>Status:</strong> ${expense.status}</p>
           </div>
         </div>
@@ -188,7 +192,8 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
     try {
       let htmlString = "";
       if (printInvoice) {
-        htmlString += getInvoiceHtml(submittedExpense, selectedKop);
+        const invRecord = await generateInvoiceExpense(submittedExpense.id, inputInvoiceNoUrut, inputInvoiceTanggal);
+        htmlString += getInvoiceHtml(submittedExpense, invRecord, selectedKop);
       }
       if (printKwitansi) {
         const record = await generateKwitansiExpense(submittedExpense.id, inputNoUrut, inputTanggal);
@@ -314,8 +319,10 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
               </label>
               
               {printInvoice && (
-                <div className="pl-6 space-y-2 border-l-2 border-green-200 ml-1">
-                  <p className="text-sm font-medium text-gray-700">Pilih Kop Surat:</p>
+                <div className="pl-6 space-y-4 border-l-2 border-green-200 ml-1">
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-gray-700">Pilih Kop Surat:</p>
+
                   <label className="flex items-center space-x-2 cursor-pointer">
                     <input 
                       type="radio" 
@@ -338,6 +345,28 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
                     />
                     <span className="text-sm">Kop Robotic Explorer</span>
                   </label>
+                                  </div>
+                  <div className="space-y-2 pt-2 border-t border-gray-100">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Nomor Urut Invoice</label>
+                      <input 
+                        type="text" 
+                        value={inputInvoiceNoUrut}
+                        onChange={(e) => setInputInvoiceNoUrut(e.target.value)}
+                        placeholder="Kosongkan untuk otomatis"
+                        className="w-full border rounded p-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Tanggal Invoice</label>
+                      <input 
+                        type="date" 
+                        value={inputInvoiceTanggal}
+                        onChange={(e) => setInputInvoiceTanggal(e.target.value)}
+                        className="w-full border rounded p-2 text-sm"
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
               <label className="flex items-center space-x-2">

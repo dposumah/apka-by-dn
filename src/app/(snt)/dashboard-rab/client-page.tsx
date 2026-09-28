@@ -28,6 +28,7 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
     const tzoffset = (new Date()).getTimezoneOffset() * 60000;
     const localISOTime = (new Date(Date.now() - tzoffset)).toISOString().slice(0, 10);
     setInputTanggal(localISOTime)
+    setInputInvoiceTanggal(localISOTime)
     
     setShowPrintModal(true)
   }
@@ -37,7 +38,7 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
     import('html2pdf.js').then(m => { (window as any).html2pdf = m.default || m; }).catch(e => console.error(e));
   }, []);
 
-  const getInvoiceHtml = (expense: any, kopType: string) => {
+  const getInvoiceHtml = (expense: any, record: any, kopType: string) => {
     const kopImage = window.location.origin + (kopType === 'maleo' ? '/kop-maleo.png' : '/kop-surat.png');
     return `
       <div style="padding: 40px; font-family: sans-serif; page-break-after: always; width: 100%; box-sizing: border-box;">
@@ -53,7 +54,8 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
           <div>
             <p><strong>Item RAB:</strong> ${expense.rabItem.name}</p>
             ${expense.fasilitator ? `<p><strong>Nama Fasilitator:</strong> ${expense.fasilitator.namaLengkap}</p>` : ''}
-            <p><strong>Tanggal Diajukan:</strong> ${new Date(expense.createdAt).toLocaleDateString('id-ID')}</p>
+            <p><strong>No Invoice:</strong> ${record?.noInvoice || '-'}</p>
+            <p><strong>Tanggal Invoice:</strong> ${record?.tanggal ? new Date(record.tanggal).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }) : new Date(expense.createdAt).toLocaleDateString('id-ID')}</p>
             <p><strong>Status:</strong> ${expense.status}</p>
           </div>
         </div>
@@ -131,7 +133,8 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
     try {
       let htmlString = "";
       if (printInvoice) {
-        htmlString += getInvoiceHtml(selectedExpense, selectedKop);
+        const invRecord = await generateInvoiceExpense(selectedExpense.id, inputInvoiceNoUrut, inputInvoiceTanggal);
+        htmlString += getInvoiceHtml(selectedExpense, invRecord, selectedKop);
       }
       if (printKwitansi) {
         const record = await generateKwitansiExpense(selectedExpense.id, inputNoUrut, inputTanggal);
@@ -166,7 +169,8 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
     try {
       let htmlString = "";
       if (printInvoice) {
-        htmlString += getInvoiceHtml(selectedExpense, selectedKop);
+        const invRecord = await generateInvoiceExpense(selectedExpense.id, inputInvoiceNoUrut, inputInvoiceTanggal);
+        htmlString += getInvoiceHtml(selectedExpense, invRecord, selectedKop);
       }
       if (printKwitansi) {
         const record = await generateKwitansiExpense(selectedExpense.id, inputNoUrut, inputTanggal);
@@ -362,8 +366,10 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
               </label>
               
               {printInvoice && (
-                <div className="pl-6 space-y-2 border-l-2 border-green-200 ml-1">
-                  <p className="text-sm font-medium text-gray-700">Pilih Kop Surat:</p>
+                <div className="pl-6 space-y-4 border-l-2 border-green-200 ml-1">
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-gray-700">Pilih Kop Surat:</p>
+
                   <label className="flex items-center space-x-2 cursor-pointer">
                     <input 
                       type="radio" 
@@ -386,6 +392,28 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
                     />
                     <span className="text-sm">Kop Robotic Explorer</span>
                   </label>
+                                  </div>
+                  <div className="space-y-2 pt-2 border-t border-gray-100">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Nomor Urut Invoice</label>
+                      <input 
+                        type="text" 
+                        value={inputInvoiceNoUrut}
+                        onChange={(e) => setInputInvoiceNoUrut(e.target.value)}
+                        placeholder="Kosongkan untuk nomor otomatis"
+                        className="w-full border rounded p-2"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Tanggal Invoice</label>
+                      <input 
+                        type="date" 
+                        value={inputInvoiceTanggal}
+                        onChange={(e) => setInputInvoiceTanggal(e.target.value)}
+                        className="w-full border rounded p-2"
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
               <label className="flex items-center space-x-2">

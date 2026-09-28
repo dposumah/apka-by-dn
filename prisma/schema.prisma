@@ -164,18 +164,18 @@ model JournalEntryLine {
 // ==================== CUSTOMERS & ACCOUNTS RECEIVABLE ====================
 
 model Customer {
-  id          String   @id @default(cuid())
-  name        String
-  address     String?
-  phone       String?
-  email       String?
-  npwp        String?
-  creditLimit Float    @default(0)
-  balance     Float    @default(0)
-  isActive    Boolean  @default(true)
-  tipeKwitansi String @default("HONOR")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(cuid())
+  name         String
+  address      String?
+  phone        String?
+  email        String?
+  npwp         String?
+  creditLimit  Float    @default(0)
+  balance      Float    @default(0)
+  isActive     Boolean  @default(true)
+  tipeKwitansi String   @default("HONOR")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   invoices Invoice[]
 
@@ -544,26 +544,27 @@ enum ExpenseStatus {
 }
 
 model ExpenseRequest {
-  id            String        @id @default(cuid())
-  rabItemId     String
-  rabItem       RabItem       @relation(fields: [rabItemId], references: [id])
-  amount        Float
-  description   String
-  receiptUrl    String?
+  id                String        @id @default(cuid())
+  rabItemId         String
+  rabItem           RabItem       @relation(fields: [rabItemId], references: [id])
+  amount            Float
+  description       String
+  receiptUrl        String?
   paymentReceiptUrl String?
-  date          DateTime      @default(now())
-  status        ExpenseStatus @default(PENDING)
-  createdById   String
-  createdBy     User          @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
-  approvedById  String?
-  approvedBy    User?         @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
-  fasilitatorId String?
-  fasilitator   Fasilitator?  @relation(fields: [fasilitatorId], references: [id])
+  date              DateTime      @default(now())
+  status            ExpenseStatus @default(PENDING)
+  createdById       String
+  createdBy         User          @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
+  approvedById      String?
+  approvedBy        User?         @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
+  fasilitatorId     String?
+  fasilitator       Fasilitator?  @relation(fields: [fasilitatorId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   kwitansiRecord KwitansiRecord[]
+  invoiceRecord  InvoiceRecord?
 
   @@map("expense_requests")
 }
@@ -581,12 +582,12 @@ model Fasilitator {
   kompetensi        String?
   sertifikasi       String?
   alamat            String?
-    propinsi          String?
-    kabKota           String?
-    isActive          Boolean @default(true)
-    besaranTransport  Float   @default(120000)
-    defaultJPIntra    Int     @default(8)
-    defaultJPEkstra   Int     @default(4)
+  propinsi          String?
+  kabKota           String?
+  isActive          Boolean @default(true)
+  besaranTransport  Float   @default(120000)
+  defaultJPIntra    Int     @default(8)
+  defaultJPEkstra   Int     @default(4)
   jenisTugas        String  @default("INTRAKURIKULER") // INTRAKURIKULER, EKSTRAKURIKULER, KEDUANYA
   kontak            String?
   email             String?
@@ -606,9 +607,9 @@ model Fasilitator {
   expenses        ExpenseRequest[]
   laporan         LaporanKegiatan[]
   rekapHonorarium RekapHonorarium[]
+  akomodasi       FasilitatorAkomodasi[]
 
   @@map("fasilitator")
-  akomodasi       FasilitatorAkomodasi[]
 }
 
 model LaporanKegiatan {
@@ -620,22 +621,22 @@ model LaporanKegiatan {
   attendance    Int
   evaluation    String?
 
-  tingkatSekolah  String @default("SMP")
-  metodePelaksanaan String @default("LURING")
+  tingkatSekolah         String  @default("SMP")
+  metodePelaksanaan      String  @default("LURING")
   // jenisKegiatan   String @default("INTRAKURIKULER")
-  jumlahJPIntra   Int    @default(0)
-    jumlahJPEkstra  Int    @default(0)
-  biayaTransport  Float? @default(0)
-    biayaTransportLaut Float? @default(0)
-  statusTransport String @default("PENDING")
+  jumlahJPIntra          Int     @default(0)
+  jumlahJPEkstra         Int     @default(0)
+  biayaTransport         Float?  @default(0)
+  biayaTransportLaut     Float?  @default(0)
+  statusTransport        String  @default("PENDING")
   buktiTransferTransport String?
-  buktiTiketTransport String?
-  buktiTransportDarat String?
-  reqBiayaTransport Int?
+  buktiTiketTransport    String?
+  buktiTransportDarat    String?
+  reqBiayaTransport      Int?
 
-  foto1 String?
+  foto1            String?
   fileLaporanFisik String?
-  foto2 String?
+  foto2            String?
 
   rekapHonorariumId String?
   rekapHonorarium   RekapHonorarium? @relation(fields: [rekapHonorariumId], references: [id])
@@ -669,58 +670,73 @@ model RekapHonorarium {
   @@map("rekap_honorarium")
 }
 
-
 model FasilitatorAkomodasi {
-  id              String      @id @default(cuid())
-  fasilitatorId   String
-  fasilitator     Fasilitator @relation(fields: [fasilitatorId], references: [id])
-  tipe            String      // 'SEWA_RUMAH' atau 'AKOMODASI_TOT'
-  
+  id            String      @id @default(cuid())
+  fasilitatorId String
+  fasilitator   Fasilitator @relation(fields: [fasilitatorId], references: [id])
+  tipe          String // 'SEWA_RUMAH' atau 'AKOMODASI_TOT'
+
   // Fields for SEWA_RUMAH
-  namaPemilik     String?
-  alamatSewa      String?
-  periodeSewa     String?
-  hargaSewaBulan  Float?
-  
+  namaPemilik    String?
+  alamatSewa     String?
+  periodeSewa    String?
+  hargaSewaBulan Float?
+
   // Fields for AKOMODASI_TOT
-  namaPenginapan  String?
+  namaPenginapan   String?
   alamatPenginapan String?
-  namaPengelola   String?
-  namaKegiatan    String?
-  tanggalMulai    DateTime?
-  tanggalSelesai  DateTime?
-  jumlahOrang     Int?
-  jumlahKamar     Int?
-  tarifPerMalam   Float?
-  
-  totalNominal    Float
-  
-  expenseId       String?
-  
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-  
+  namaPengelola    String?
+  namaKegiatan     String?
+  tanggalMulai     DateTime?
+  tanggalSelesai   DateTime?
+  jumlahOrang      Int?
+  jumlahKamar      Int?
+  tarifPerMalam    Float?
+
+  totalNominal Float
+
+  expenseId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@map("fasilitator_akomodasi")
 }
 
-
 model KwitansiRecord {
-  id          String   @id @default(cuid())
-  noUrut      Int      @unique @default(autoincrement())
-  noKwitansi  String   @unique
-  tanggal     DateTime @default(now())
-  perihal     String
-  owner       String   @default("Robotic Explorer")
-  nominal     Float
-  
-  rekapId     String?
-  rekap       RekapHonorarium? @relation(fields: [rekapId], references: [id])
-  
-  expenseId   String?
-  expense     ExpenseRequest? @relation(fields: [expenseId], references: [id])
+  id         String   @id @default(cuid())
+  noUrut     Int      @unique @default(autoincrement())
+  noKwitansi String   @unique
+  tanggal    DateTime @default(now())
+  perihal    String
+  owner      String   @default("Robotic Explorer")
+  nominal    Float
 
-  tipeKwitansi String @default("HONOR")
-  createdAt   DateTime @default(now())
-  
+  rekapId String?
+  rekap   RekapHonorarium? @relation(fields: [rekapId], references: [id])
+
+  expenseId String?
+  expense   ExpenseRequest? @relation(fields: [expenseId], references: [id])
+
+  tipeKwitansi String   @default("HONOR")
+  createdAt    DateTime @default(now())
+
   @@map("kwitansi_record")
+}
+
+model InvoiceRecord {
+  id        String   @id @default(cuid())
+  noUrut    Int      @unique @default(autoincrement())
+  noInvoice String   @unique
+  tanggal   DateTime @default(now())
+  perihal   String
+  owner     String   @default("Robotic Explorer")
+  nominal   Float
+
+  expenseId String?         @unique
+  expense   ExpenseRequest? @relation(fields: [expenseId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@map("invoice_record")
 }
