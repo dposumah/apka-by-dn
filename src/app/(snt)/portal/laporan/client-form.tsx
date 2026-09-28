@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -11,14 +11,14 @@ import { submitLaporanKegiatan } from '@/app/actions/rab'
 import { useToast } from '@/components/ui/toast'
 import { useRouter } from 'next/navigation'
 
-export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) {
+export function LaporanClientForm({ fasilitatorId, besaranTransport }: { fasilitatorId: string, besaranTransport: number }) {
   const router = useRouter()
   const { toast } = useToast()
   const [saving, setSaving] = useState(false)
   const [fileError, setFileError] = useState('')
   const [foto1, setFoto1] = useState('')
   const [foto2, setFoto2] = useState('')
-    const [fileLaporanFisik, setFileLaporanFisik] = useState('')
+  const [fileLaporanFisik, setFileLaporanFisik] = useState('')
   const [buktiDarat, setBuktiDarat] = useState<File | null>(null)
   const [tiket, setTiket] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -30,7 +30,7 @@ export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) 
     evaluation: '',
     tingkatSekolah: 'SMP',
     metodePelaksanaan: 'LURING',
-      jenisPembelajaran: 'INTRAKURIKULER',
+    jenisPembelajaran: 'INTRAKURIKULER',
     jumlahJPIntra: '',
     jumlahJPEkstra: '',
     biayaTransport: '',
@@ -50,30 +50,29 @@ export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) 
   }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, field: 'foto1' | 'foto2' | 'fileLaporanFisik') => {
-      const file = e.target.files?.[0]
-      setFileError('')
-      
-      if (!file) return
-      
-      if (field === 'fileLaporanFisik' && file.size > 2 * 1024 * 1024) {
-        setFileError('Ukuran file laporan fisik maksimal 2MB')
-        e.target.value = ''
-        return
-      }
-      
-      if (field !== 'fileLaporanFisik' && file.size > 5 * 1024 * 1024) {
-        setFileError('Ukuran foto maksimal 5MB')
-        e.target.value = ''
-        return
-      }
+    const file = e.target.files?.[0]
+    setFileError('')
+    
+    if (!file) return
+    
+    if (field === 'fileLaporanFisik' && file.size > 2 * 1024 * 1024) {
+      setFileError('Ukuran file laporan fisik maksimal 2MB')
+      e.target.value = ''
+      return
+    }
+    
+    if (field !== 'fileLaporanFisik' && file.size > 5 * 1024 * 1024) {
+      setFileError('Ukuran foto maksimal 5MB')
+      e.target.value = ''
+      return
+    }
 
     setUploading(true)
     try {
       const url = await uploadFile(file)
       if (field === 'foto1') setFoto1(url)
       if (field === 'foto2') setFoto2(url)
-        if (field === 'fileLaporanFisik') setFileLaporanFisik(url)
-        if (field === 'fileLaporanFisik') setFileLaporanFisik(url)
+      if (field === 'fileLaporanFisik') setFileLaporanFisik(url)
     } catch (error: any) {
       setFileError(error.message || 'Gagal terhubung ke server unggahan')
     } finally {
@@ -88,13 +87,16 @@ export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) 
       return
     }
 
-    if (parseFloat(formData.biayaTransport) > 0 && !buktiDarat) {
-      setFileError('Bukti Transport Darat wajib diunggah.');
-      return;
+    // Transport darat: upload wajib hanya jika melebihi besaranTransport
+    const nominalDarat = parseFloat(formData.biayaTransport) || 0
+    if (nominalDarat > besaranTransport && !buktiDarat) {
+      setFileError(`Bukti Transport Darat wajib diunggah jika melebihi Rp ${besaranTransport.toLocaleString('id-ID')}.`)
+      return
     }
+    // Transport antar pulau: upload selalu wajib
     if (parseFloat(formData.biayaTransportLaut) > 0 && !tiket) {
-      setFileError('Bukti Tiket Transport Antar Pulau wajib diunggah.');
-      return;
+      setFileError('Bukti Tiket Transport Antar Pulau wajib diunggah.')
+      return
     }
     
     setSaving(true)
@@ -118,11 +120,15 @@ export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) 
       })
       router.push('/portal')
       router.refresh()
-    } catch (error) {
-      toast({ title: 'Gagal', description: 'Gagal mengirim laporan', type: 'error' })
+    } catch (error: any) {
+      toast({ title: 'Gagal', description: error.message || 'Gagal mengirim laporan', type: 'error' })
       setSaving(false)
     }
   }
+
+  // Derive whether transport darat upload is mandatory
+  const nominalDaratCurrent = parseFloat(formData.biayaTransport) || 0
+  const isDaratWajib = nominalDaratCurrent > besaranTransport
 
   return (
     <div className="p-8 space-y-6 max-w-3xl mx-auto">
@@ -222,31 +228,42 @@ export function LaporanClientForm({ fasilitatorId }: { fasilitatorId: string }) 
               <div className="space-y-2">
                 <Label>Biaya Transport Darat (Rp)</Label>
                 <Input type="number" min="0" value={formData.biayaTransport} onChange={e => setFormData({...formData, biayaTransport: e.target.value})} placeholder="Kosongkan jika tidak ada" />
-                <p className="text-xs text-slate-500">Maksimal klaim sesuai sisa budget mingguan Anda</p>
+                <p className="text-xs text-slate-500">Batas tanpa bukti: Rp {besaranTransport.toLocaleString('id-ID')}</p>
               </div>
               <div className="space-y-2">
                 <Label>Biaya Transport Antar Pulau (Rp)</Label>
 
                 <Input type="number" min="0" value={formData.biayaTransportLaut} onChange={e => setFormData({...formData, biayaTransportLaut: e.target.value})} placeholder="Kosongkan jika tidak ada" />
-                <p className="text-xs text-slate-500">Opsional</p>
+                <p className="text-xs text-slate-500">Wajib lampirkan bukti tiket</p>
               </div>
             </div>
 
             
-            {parseFloat(formData.biayaTransport) > 0 && (
-                <div className="space-y-2 col-span-2 border border-emerald-100 bg-emerald-50 p-4 rounded-md mt-2">
-                  <Label>Bukti Transport Darat (Wajib)</Label>
+            {nominalDaratCurrent > 0 && (
+                <div className={`space-y-2 col-span-2 p-4 rounded-md mt-2 border ${isDaratWajib ? 'border-red-200 bg-red-50' : 'border-emerald-100 bg-emerald-50'}`}>
+                  <Label>
+                    Bukti Transport Darat {isDaratWajib ? (
+                      <span className="text-red-600 font-bold">(Wajib — melebihi batas Rp {besaranTransport.toLocaleString('id-ID')})</span>
+                    ) : (
+                      <span className="text-emerald-600">(Opsional)</span>
+                    )}
+                  </Label>
                   <Input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => e.target.files && setBuktiDarat(e.target.files[0])} />
-                  <p className="text-xs text-emerald-600">Unggah foto/scan nota BBM, tiket bus, gojek, dll.</p>
+                  <p className={`text-xs ${isDaratWajib ? 'text-red-600' : 'text-emerald-600'}`}>
+                    {isDaratWajib 
+                      ? `Nominal Rp ${nominalDaratCurrent.toLocaleString('id-ID')} melebihi batas Rp ${besaranTransport.toLocaleString('id-ID')}. Wajib lampirkan bukti (nota BBM, tiket, dll).`
+                      : `Nominal di bawah batas Rp ${besaranTransport.toLocaleString('id-ID')}. Upload opsional, tapi disarankan.`
+                    }
+                  </p>
                 </div>
             )}
             
             {parseFloat(formData.biayaTransportLaut) > 0 && (
 
                 <div className="space-y-2 col-span-2 border border-blue-100 bg-blue-50 p-4 rounded-md mt-2">
-                  <Label>Bukti Tiket Transport (Wajib jika Transport Antar Pulau)</Label>
+                  <Label>Bukti Tiket Transport Antar Pulau <span className="text-red-600 font-bold">(Wajib)</span></Label>
                   <Input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => e.target.files && setTiket(e.target.files[0])} />
-                  <p className="text-xs text-blue-600">Unggah foto/scan tiket atau bukti pembayaran transport.</p>
+                  <p className="text-xs text-blue-600">Unggah foto/scan tiket atau bukti pembayaran transport antar pulau. Wajib untuk semua nominal.</p>
                 </div>
               )}
   

@@ -1,4 +1,4 @@
-﻿import { getServerSession } from "next-auth"
+import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { redirect } from "next/navigation"
@@ -24,5 +24,5 @@ export default async function LaporanPage() {
     redirect("/portal")
   }
 
-  return <LaporanClientForm fasilitatorId={fasilitator.id} />
+  return <LaporanClientForm fasilitatorId={fasilitator.id} besaranTransport={fasilitator.besaranTransport} />
 }
