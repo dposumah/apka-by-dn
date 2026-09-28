@@ -129,7 +129,13 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
       
       // 3. Kwitansi Transport
       if (printCheckTransport) {
-        const record = await generateKwitansiTransportBulanan(selectedRekap.id, inputNoUrut, inputTanggal);
+        let transportNoUrut = inputNoUrut;
+          if (printCheckHonor && printCheckTransport && inputNoUrut) {
+            const num = parseInt(inputNoUrut, 10);
+            if (!isNaN(num)) transportNoUrut = (num + 1).toString();
+            else transportNoUrut = inputNoUrut + "-T";
+          }
+          const record = await generateKwitansiTransportBulanan(selectedRekap.id, transportNoUrut, inputTanggal);
           if (record.error) throw new Error(record.error);
           htmlString += getKwitansiHtml(selectedRekap, record, 'TRANSPORT', terbilangRupiah);
       }
