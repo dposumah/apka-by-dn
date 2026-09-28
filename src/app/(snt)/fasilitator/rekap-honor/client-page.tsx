@@ -175,251 +175,7 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
     }
   }
 
-  const handlePrintWithKop = async (docType: 'invoice_maleo' | 'invoice_robotic' | 'kwitansi') => {
-    if (docType === 'invoice_maleo' || docType === 'invoice_robotic') {
-      setShowKopModal(false)
-      if (selectedRekap) {
-        cetakInvoiceLama(selectedRekap, docType === 'invoice_maleo' ? 'maleo' : 'robotic');
-      }
-    } else {
-      if (!kwitansiInputStep) {
-        // Switch to input step instead of closing modal
-        setKwitansiInputStep(true);
-      } else {
-        // Proceed to print
-        setShowKopModal(false);
-        if (selectedRekap) {
-          await cetakKwitansiMaleo(selectedRekap, inputNoUrut, inputTanggal);
-        }
-      }
-    }
-  }
-      
-  const cetakInvoiceLama = (rekap: any, kopType: 'maleo' | 'robotic') => {
-    const win = window.open('', '_blank')
-    if (!win) return
-    const kopImage = kopType === 'maleo' ? '/kop-maleo.png' : '/kop-surat.png';
-    win.document.write(`
-      <html>
-        <head>
-          <title>Invoice Honorarium - ${rekap.fasilitator?.namaLengkap}</title>
-          <style>
-            body { font-family: sans-serif; padding: 40px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-            th { background-color: #f8fafc; }
-            .header { text-align: center; margin-bottom: 40px; }
-            .total { font-weight: bold; font-size: 1.2em; text-align: right; }
-          </style>
-        </head>
-        <body>
-          <div style="margin-bottom: 30px;">
-            <img src="${kopImage}" style="width: 100%; max-height: 120px; object-fit: contain;" alt="Kop Surat" />
-          </div>
-          <div class="header">
-            <h2>INVOICE HONORARIUM FASILITATOR</h2>
-            <p>KKA Sekolah Nasional Terintegrasi Tahun 2026</p>
-          </div>
-          
-          <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
-            <div>
-              <p><strong>Nama Fasilitator:</strong> ${rekap.fasilitator?.namaLengkap}</p>
-              <p><strong>Lokasi SNT:</strong> ${rekap.fasilitator?.lokasiSNT ? rekap.fasilitator.lokasiSNT.split(' - ')[0] : '-'}</p>
-              <p><strong>Bulan Laporan:</strong> ${rekap.bulan}</p>
-              <p><strong>Tanggal Diajukan:</strong> ${new Date(rekap.createdAt).toLocaleDateString('id-ID')}</p>
-            </div>
-          </div>
-          
-          <table>
-            <thead>
-              <tr>
-                <th>Keterangan</th>
-                <th>Jumlah JP</th>
-                <th>Total Honor</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Honorarium Fasilitator Bulan ${rekap.bulan}</td>
-                <td>${rekap.totalJP} JP</td>
-                <td>Rp ${(rekap.totalHonor || 0).toLocaleString('id-ID')}</td>
-              </tr>
-              <tr>
-                <td colspan="2" class="total">TOTAL TAGIHAN HONORARIUM:</td>
-                <td class="total text-emerald-600">Rp ${(rekap.totalHonor || 0).toLocaleString('id-ID')}</td>
-              </tr>
-            </tbody>
-          </table>
-          <div style="display: flex; justify-content: space-between; margin-top: 30px;">
-            <div style="border: 1px solid #ddd; padding: 15px; border-radius: 8px; background-color: #f8fafc; min-width: 250px;">
-              <h4 style="margin:0 0 10px 0;">Informasi Transfer</h4>
-              <p style="margin:5px 0;"><strong>Bank:</strong> ${rekap.fasilitator?.bankName || '-'}</p>
-              <p style="margin:5px 0;"><strong>No. Rekening:</strong> ${rekap.fasilitator?.bankAccount || '-'}</p>
-              <p style="margin:5px 0;"><strong>A/N:</strong> ${rekap.fasilitator?.namaLengkap}</p>
-            </div>
-            <div style="text-align:right;">
-              <p style="margin-top:40px;">Dicetak oleh: Admin SNT</p>
-            </div>
-          </div>
-          <script>window.print()</script>
-        </body>
-      </html>
-    `)
-    win.document.close()
-  }
-
-const cetakKwitansiMaleo = async (rekap: any, noUrut: string, tanggal: string) => {
-      // 1. Buka popup langsung (sinkron) agar tidak diblokir browser!
-      const win = window.open('', '_blank');
-      if (!win) return;
-      win.document.write("<html><body><h2 style='font-family:sans-serif; text-align:center; margin-top:50px;'>Menghubungkan ke Google Sheets...</h2></body></html>");
-      
-      let noKwitansi = "KWT/MTC/TEMP";
-      let kwitansiDate = new Date(rekap.createdAt);
-      
-      try {
-        const record = await generateKwitansiHonor(rekap.id, noUrut, tanggal);
-        noKwitansi = record.noKwitansi;
-        kwitansiDate = new Date(record.tanggal);
-      } catch (err: any) {
-        console.error("Gagal generate no kwitansi:", err);
-        win.close();
-        alert(err.message || "Gagal menghubungi Google Sheets");
-        return;
-      }
-      
-      // 2. Clear tulisan loading
-      win.document.open();
-      
-      const rateHonor = rekap.totalJP > 0 ? (rekap.totalHonor / rekap.totalJP) : 0;
-      
-      win.document.write(`
-        <html>
-          <head>
-            <title>Kwitansi Honor - ${rekap.fasilitator.namaLengkap}</title>
-            <style>
-              @page { margin: 0.5cm 1cm; }
-              @media print { body { padding: 0; } }
-              body { font-family: 'Times New Roman', Times, serif; padding: 10px 40px; line-height: 1.5; font-size: 14px; }
-              .header-img { width: 100%; max-height: 120px; object-fit: contain; margin-bottom: 10px; }
-              .title-box { text-align: center; margin-bottom: 15px; }
-              .title-box h2 { margin: 0; font-size: 20px; font-weight: bold; text-decoration: underline; letter-spacing: 1px; }
-              .title-box p { margin: 5px 0 0 0; font-size: 16px; font-weight: bold; }
-              .info-row { display: flex; justify-content: space-between; margin-bottom: 10px; }
-              .info-col { width: 48%; }
-              .form-group { margin-bottom: 8px; display: flex; }
-              .form-label { width: 220px; font-weight: normal; }
-              .form-colon { width: 20px; }
-              .form-value { flex: 1; font-weight: bold; }
-              .form-value-underline { flex: 1; border-bottom: 1px solid #000; padding-bottom: 2px; }
-              .terbilang-box { background-color: #f1f5f9; padding: 6px 10px; font-style: italic; font-weight: bold; border: 1px dashed #ccc; margin-top: 5px;}
-              .section-title { font-weight: bold; margin: 20px 0 10px 0; text-decoration: underline; }
-              
-              .ttd-container { display: flex; justify-content: space-between; margin-top: 30px; text-align: center; }
-              .ttd-box { width: 250px; }
-              .ttd-name { margin-top: 50px; font-weight: bold; text-decoration: underline; }
-              
-              .notes { margin-top: 20px; font-size: 12px; }
-            </style>
-          </head>
-          <body>
-            <img src="/kop-maleo.png" class="header-img" alt="Kop Surat" />
-            
-            <div class="title-box">
-              <h2>KWITANSI</h2>
-              <p>Tanda Terima Honor Fasilitator</p>
-            </div>
-            
-            <div class="info-row">
-              <div>No. Kuitansi : <strong>${noKwitansi}</strong></div>
-              <div>Tanggal : <strong>${kwitansiDate.toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</strong></div>
-            </div>
-            
-            <div class="form-group">
-              <div class="form-label">Telah terima dari</div>
-              <div class="form-colon">:</div>
-              <div class="form-value-underline">Yayasan Maleo Talenta Cendekia</div>
-            </div>
-            
-            <div class="form-group" style="margin-top: 10px;">
-              <div class="form-label">Jumlah Uang</div>
-              <div class="form-colon">:</div>
-              <div class="form-value" style="font-size: 16px;">Rp ${rekap.totalHonor.toLocaleString('id-ID')}</div>
-            </div>
-            
-            <div class="form-group">
-              <div class="form-label">Terbilang</div>
-              <div class="form-colon">:</div>
-              <div class="form-value terbilang-box">${terbilangRupiah(rekap.totalHonor)}</div>
-            </div>
-
-            <div class="section-title">Untuk Pembayaran:</div>
-            <div style="padding-left: 20px;">
-              <div class="form-group">
-                <div class="form-label" style="width: 180px;">Nama program/kegiatan</div>
-                <div class="form-colon">:</div>
-                <div class="form-value-underline">Sekolah Nasional Terintegrasi (SNT)</div>
-              </div>
-              
-              <div class="form-group">
-                <div class="form-label">Periode / sesi honor</div>
-                <div class="form-colon">:</div>
-                <div class="form-value-underline">Bulan ${rekap.bulan}</div>
-              </div>
-              
-              <div class="form-group">
-                <div class="form-label">Jumlah sesi / JP</div>
-                <div class="form-colon">:</div>
-                <div class="form-value-underline">${rekap.jumlahSesi || 4} (pertemuan dalam 1 bulan) / ${rekap.totalJP} JP</div>
-              </div>
-              
-              <div class="form-group">
-                <div class="form-label">Honor per sesi / JP</div>
-                <div class="form-colon">:</div>
-                <div class="form-value-underline">Rp ${rateHonor.toLocaleString('id-ID')}</div>
-              </div>
-              
-              <div class="form-group">
-                <div class="form-label">Lokasi pelaksanaan</div>
-                <div class="form-colon">:</div>
-                <div class="form-value-underline">${rekap.fasilitator.lokasiSNT || '-'}</div>
-              </div>
-            </div>
-            
-            <div class="section-title">Rincian potongan (bila ada):</div>
-            <div class="form-group">
-              <div class="form-label" style="width: 200px;">PPh Pasal 21 (jika ada)</div>
-              <div class="form-value" style="font-weight: normal;">Rp 0</div>
-            </div>
-            <div class="form-group">
-              <div class="form-label" style="width: 200px; font-weight: bold;">Honor diterima bersih</div>
-              <div class="form-value" style="font-size: 16px;">Rp ${rekap.totalHonor.toLocaleString('id-ID')}</div>
-            </div>
-            
-            <div class="ttd-container">
-              <div class="ttd-box">
-                <p>Mengetahui / Menyetujui,</p>
-                <p><strong>Yayasan Maleo Talenta Cendekia</strong></p>
-                <p class="ttd-name">....................................................</p>
-              </div>
-              <div class="ttd-box">
-                <p>Yang Menerima Honor,</p>
-                <p><strong>Fasilitator</strong></p>
-                <p class="ttd-name">${rekap.fasilitator.namaLengkap}</p>
-              </div>
-            </div>
-            
-            <div class="notes">
-              <p><em>* Dokumen ini dibuat dan dicetak secara otomatis oleh sistem SNT.</em></p>
-            </div>
-            <script>window.print()</script>
-          </body>
-        </html>
-      `);
-      win.document.close();
-    }
-  
-    return (
+  return (
     <div className="p-8 space-y-6 max-w-7xl mx-auto">
       
       <div className="flex justify-between items-center">
@@ -563,45 +319,51 @@ const cetakKwitansiMaleo = async (rekap: any, noUrut: string, tanggal: string) =
       {/* Modal Pilih Dokumen */}
       {showKopModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white p-6 rounded-lg shadow-xl w-96">
-            {!kwitansiInputStep ? (
-              <>
-                <h3 className="text-lg font-bold mb-4">Pilih Jenis Dokumen untuk Dicetak</h3>
-                <p className="text-sm text-slate-600 mb-6">Pilih apakah Anda ingin mencetak dokumen berupa Invoice (Standar) atau Kwitansi (Format Yayasan Maleo).</p>
-                <div className="flex flex-col space-y-3">
-                  <button 
-                    onClick={() => handlePrintWithKop('invoice_maleo')}
-                    className="w-full py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-md transition-colors text-left flex justify-between items-center"
-                  >
-                    <span>Cetak Invoice Honorarium (Kop Yayasan Maleo)</span>
-                  </button>
-                  <button 
-                    onClick={() => handlePrintWithKop('invoice_robotic')}
-                    className="w-full py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-md transition-colors text-left flex justify-between items-center"
-                  >
-                    <span>Cetak Invoice Honorarium (Kop Robotic Explorer)</span>
-                  </button>
-                  <button 
-                    onClick={() => handlePrintWithKop('kwitansi')}
-                    className="w-full py-2 px-4 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 font-medium rounded-md transition-colors text-left flex justify-between items-center"
-                  >
-                    <span>Cetak Kwitansi (Format Yayasan Maleo)</span>
-                  </button>
+          <div className="bg-white p-6 rounded-lg shadow-xl w-[450px]">
+            <h3 className="text-lg font-bold mb-4">Export Dokumen (PDF)</h3>
+            
+            <div className="space-y-4">
+              <div className="p-3 bg-slate-50 border rounded-md space-y-2">
+                <label className="font-semibold block">Dokumen yang akan digenerate:</label>
+                <label className="flex items-center space-x-2">
+                  <input type="checkbox" checked={printCheckInvoice} onChange={e => setPrintCheckInvoice(e.target.checked)} className="w-4 h-4 text-blue-600" />
+                  <span>Invoice Honorarium</span>
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input type="checkbox" checked={printCheckHonor} onChange={e => setPrintCheckHonor(e.target.checked)} className="w-4 h-4 text-blue-600" />
+                  <span>Kwitansi Honorarium</span>
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input type="checkbox" checked={printCheckTransport} onChange={e => setPrintCheckTransport(e.target.checked)} className="w-4 h-4 text-blue-600" />
+                  <span>Kwitansi Transport (Bulanan)</span>
+                </label>
+              </div>
+
+              <div className="space-y-2">
+                <label className="font-semibold block">Pilih Kop Surat (Khusus Invoice):</label>
+                <div className="flex space-x-4">
+                  <label className="flex items-center space-x-2">
+                    <input type="radio" name="kopType" checked={printKopType === 'maleo'} onChange={() => setPrintKopType('maleo')} className="w-4 h-4 text-blue-600" />
+                    <span>Yayasan Maleo</span>
+                  </label>
+                  <label className="flex items-center space-x-2">
+                    <input type="radio" name="kopType" checked={printKopType === 'robotic'} onChange={() => setPrintKopType('robotic')} className="w-4 h-4 text-blue-600" />
+                    <span>Robotic Explorer</span>
+                  </label>
                 </div>
-              </>
-            ) : (
-              <>
-                <h3 className="text-lg font-bold mb-4">Input Data Kwitansi</h3>
-                <div className="space-y-4">
+              </div>
+
+              {(printCheckHonor || printCheckTransport) && (
+                <div className="space-y-3 pt-3 border-t">
+                  <label className="font-semibold block text-blue-800">Detail Kwitansi</label>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Nomor Urut Kwitansi</label>
+                    <label className="block text-sm font-medium mb-1">Nomor Urut Kwitansi <span className="text-slate-500 font-normal">(Kosongkan untuk nomor otomatis)</span></label>
                     <input 
                       type="text" 
                       value={inputNoUrut}
                       onChange={(e) => setInputNoUrut(e.target.value)}
                       placeholder="Contoh: 001, 002..."
                       className="w-full border rounded p-2"
-                      required
                     />
                   </div>
                   <div>
@@ -614,29 +376,29 @@ const cetakKwitansiMaleo = async (rekap: any, noUrut: string, tanggal: string) =
                       required
                     />
                   </div>
-                  <button 
-                    onClick={() => handlePrintWithKop('kwitansi')}
-                    className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors mt-2"
-                  >
-                    Cetak Sekarang
-                  </button>
                 </div>
-              </>
-            )}
+              )}
+            </div>
             
-            <div className="mt-6 flex justify-end">
+            <div className="mt-6 flex justify-end space-x-3">
               <button 
-                onClick={() => {
-                  if (kwitansiInputStep) setKwitansiInputStep(false);
-                  else setShowKopModal(false);
-                }} 
-                className="text-sm text-slate-500 hover:text-slate-800"
+                onClick={() => setShowKopModal(false)} 
+                className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-md hover:bg-slate-50"
+                disabled={isGeneratingPdf}
               >
-                {kwitansiInputStep ? 'Kembali' : 'Batal'}
+                Batal
+              </button>
+              <button 
+                onClick={generatePdfDirect}
+                disabled={isGeneratingPdf || (!printCheckInvoice && !printCheckHonor && !printCheckTransport)}
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+              >
+                {isGeneratingPdf ? 'Memproses...' : 'Export to PDF'}
               </button>
             </div>
           </div>
         </div>
-      )}    </div>
+      )}
+    </div>
   )
 }
