@@ -443,3 +443,74 @@ export async function generateKwitansiExpense(expenseId: string, inputNoUrut?: s
     throw new Error("Gagal mengambil nomor kwitansi dari Google Sheets: " + error.message);
   }
 }
+
+export async function generateKwitansiTransportBulanan(rekapId: string, inputNoUrut?: string, inputTanggal?: string) {
+  const existing = await prisma.kwitansiRecord.findFirst({
+    where: { rekapId, tipeKwitansi: 'TRANSPORT' }
+  });
+  
+  const rekap = await prisma.rekapHonorarium.findUnique({
+    where: { id: rekapId },
+    include: { fasilitator: true, laporan: true }
+  });
+  
+  if (!rekap) throw new Error("Rekap tidak ditemukan");
+  
+  // Calculate total transport
+  let totalTransport = 0;
+  if (rekap.laporan.length > 0) {
+    totalTransport = rekap.laporan.reduce((acc, lap) => acc + (lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0), 0);
+  } else {
+    totalTransport = (rekap.fasilitator.besaranTransport || 120000) * (rekap.jumlahSesi || 4);
+  }
+
+  if (totalTransport <= 0) throw new Error("Total transport adalah 0, tidak bisa generate kwitansi.");
+  
+  const perihal = "Transport Mengajar Fasilitator - Bulan ";
+  
+  if (existing && !inputNoUrut) {
+    return existing;
+  }
+  
+  const webhookUrl = "https://script.google.com/macros/s/AKfycbx4HtXH816rxAkcPV44wM5VEp9cgJ7DQ0aLv9TMAIkDtGUVVRrVS8pRPAxL9mCuAVJe/exec";
+  const noUrut = inputNoUrut || "";
+  const d = inputTanggal ? new Date(inputTanggal) : new Date();
+  const tanggalFormatted = ``//``;
+  
+  try {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ perihal, noUrut, tanggal: tanggalFormatted }),
+    });
+    
+    if (!response.ok) throw new Error("HTTP error " + response.status);
+    const result = await response.json();
+    if (result.error) throw new Error(result.error);
+    
+    const noKwitansiSheet = result.noKwitansi;
+    
+    let kwitansi;
+    if (existing) {
+      kwitansi = await prisma.kwitansiRecord.update({
+        where: { id: existing.id },
+        data: { noKwitansi: noKwitansiSheet, tanggal: d, nominal: totalTransport }
+      });
+    } else {
+      kwitansi = await prisma.kwitansiRecord.create({
+        data: {
+          noKwitansi: noKwitansiSheet,
+          perihal,
+          nominal: totalTransport,
+          rekapId: rekap.id,
+          tanggal: d,
+          tipeKwitansi: 'TRANSPORT'
+        }
+      });
+    }
+    return kwitansi;
+  } catch (error: any) {
+    console.error("Webhook Error:", error);
+    throw new Error("Gagal mengambil nomor kwitansi dari Google Sheets: " + error.message);
+  }
+}
