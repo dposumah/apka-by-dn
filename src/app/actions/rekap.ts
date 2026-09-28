@@ -351,7 +351,7 @@ export async function generateKwitansiHonor(rekapId: string, inputNoUrut?: strin
       throw new Error(result.error);
     }
     
-    const noKwitansiSheet = result.noKwitansi;
+    const noKwitansiSheet = result.noKwitansi || ('KWT/TEMP/' + Date.now())
     
     // Save to local database
     let kwitansi;
@@ -418,7 +418,7 @@ export async function generateKwitansiExpense(expenseId: string, inputNoUrut?: s
     const result = await response.json();
     if (result.error) throw new Error(result.error);
     
-    const noKwitansiSheet = result.noKwitansi;
+    const noKwitansiSheet = result.noKwitansi || ('KWT/TEMP/' + Date.now())
     
     let kwitansi;
     if (existing) {
@@ -488,7 +488,7 @@ export async function generateKwitansiTransportBulanan(rekapId: string, inputNoU
     const result = await response.json();
     if (result.error) throw new Error(result.error);
     
-    const noKwitansiSheet = result.noKwitansi;
+    const noKwitansiSheet = result.noKwitansi || ('KWT/TEMP/' + Date.now())
     
     let kwitansi;
     if (existing) {
