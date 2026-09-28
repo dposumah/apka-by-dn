@@ -88,6 +88,10 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
   const [printCheckTransport, setPrintCheckTransport] = useState(false)
   const [printKopType, setPrintKopType] = useState<'maleo' | 'robotic'>('maleo')
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
+  useEffect(() => {
+    import('html2pdf.js').then(m => { (window as any).html2pdf = m.default || m; }).catch(e => console.error(e));
+  }, []);
+
   const [inputNoUrut, setInputNoUrut] = useState("")
   const [inputTanggal, setInputTanggal] = useState("")
 
@@ -155,7 +159,7 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
       await Promise.all(imagePromises);
       
       // Create PDF
-      const html2pdf = (await import('html2pdf.js')).default;
+      let html2pdf: any; try { html2pdf = require('html2pdf.js'); } catch (e) { html2pdf = (window as any).html2pdf; }
       const opt = {
         margin: 0,
         filename: `Rekap_Honor_${selectedRekap.fasilitator?.namaLengkap}_${selectedRekap.bulan}.pdf`,
@@ -168,8 +172,8 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
       document.body.removeChild(container);
       setShowKopModal(false);
     } catch (err: any) {
-      console.error(err);
-      alert("Gagal generate PDF: " + err.message);
+      console.error('GENERATE PDF ERROR', err, err.stack);
+      alert("Gagal generate PDF: " + err.message + "\n\nStack: " + (err.stack ? err.stack.substring(0, 200) : ''));
     } finally {
       setIsGeneratingPdf(false);
     }

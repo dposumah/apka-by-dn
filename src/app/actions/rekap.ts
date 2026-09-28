@@ -321,7 +321,7 @@ export async function generateKwitansiHonor(rekapId: string, inputNoUrut?: strin
   // So if inputNoUrut is provided, we should probably ignore 'existing' check and fetch a new one?
   // Let's just always call webhook if they provide inputs, or return existing if not.
   if (existing && !inputNoUrut) {
-    return existing;
+    return JSON.parse(JSON.stringify(existing));
   }
   
   // Call Google Apps Script Webhook
@@ -375,7 +375,7 @@ export async function generateKwitansiHonor(rekapId: string, inputNoUrut?: strin
       });
     }
     
-    return kwitansi;
+    return JSON.parse(JSON.stringify(kwitansi));
     
   } catch (error: any) {
     console.error("Webhook Error:", error);
@@ -398,7 +398,7 @@ export async function generateKwitansiExpense(expenseId: string, inputNoUrut?: s
   const perihal = `${expense.description} - ${expense.rabItem.name}`;
   
   if (existing && !inputNoUrut) {
-    return existing;
+    return JSON.parse(JSON.stringify(existing));
   }
   
   const webhookUrl = "https://script.google.com/macros/s/AKfycbx4HtXH816rxAkcPV44wM5VEp9cgJ7DQ0aLv9TMAIkDtGUVVRrVS8pRPAxL9mCuAVJe/exec";
@@ -437,7 +437,7 @@ export async function generateKwitansiExpense(expenseId: string, inputNoUrut?: s
         }
       });
     }
-    return kwitansi;
+    return JSON.parse(JSON.stringify(kwitansi));
   } catch (error: any) {
     console.error("Webhook Error:", error);
     throw new Error("Gagal mengambil nomor kwitansi dari Google Sheets: " + error.message);
@@ -469,7 +469,7 @@ export async function generateKwitansiTransportBulanan(rekapId: string, inputNoU
   const perihal = "Transport Mengajar Fasilitator - Bulan ";
   
   if (existing && !inputNoUrut) {
-    return existing;
+    return JSON.parse(JSON.stringify(existing));
   }
   
   const webhookUrl = "https://script.google.com/macros/s/AKfycbx4HtXH816rxAkcPV44wM5VEp9cgJ7DQ0aLv9TMAIkDtGUVVRrVS8pRPAxL9mCuAVJe/exec";
@@ -508,7 +508,7 @@ export async function generateKwitansiTransportBulanan(rekapId: string, inputNoU
         }
       });
     }
-    return kwitansi;
+    return JSON.parse(JSON.stringify(kwitansi));
   } catch (error: any) {
     console.error("Webhook Error:", error);
     throw new Error("Gagal mengambil nomor kwitansi dari Google Sheets: " + error.message);
