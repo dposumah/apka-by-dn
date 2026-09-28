@@ -418,10 +418,10 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
               <Button 
                 type="button"
                 onClick={handlePrint}
-                disabled={!printInvoice && !printKwitansi}
-                className="w-full mt-4 bg-green-600 hover:bg-green-700"
+                disabled={(!printInvoice && !printKwitansi) || isGeneratingPdf}
+                className="w-full mt-4 bg-green-600 hover:bg-green-700 disabled:opacity-50"
               >
-                Cetak Dokumen
+                {isGeneratingPdf ? 'Memproses Dokumen...' : 'Cetak Dokumen'}
               </Button>
             </div>
           </CardContent>
