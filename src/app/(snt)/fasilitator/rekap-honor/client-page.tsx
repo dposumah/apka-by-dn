@@ -123,13 +123,15 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
       // 2. Kwitansi Honor
       if (printCheckHonor) {
         const record = await generateKwitansiHonor(selectedRekap.id, inputNoUrut, inputTanggal);
-        htmlString += getKwitansiHtml(selectedRekap, record, 'HONOR', terbilangRupiah);
+          if (record.error) throw new Error(record.error);
+          htmlString += getKwitansiHtml(selectedRekap, record, 'HONOR', terbilangRupiah);
       }
       
       // 3. Kwitansi Transport
       if (printCheckTransport) {
         const record = await generateKwitansiTransportBulanan(selectedRekap.id, inputNoUrut, inputTanggal);
-        htmlString += getKwitansiHtml(selectedRekap, record, 'TRANSPORT', terbilangRupiah);
+          if (record.error) throw new Error(record.error);
+          htmlString += getKwitansiHtml(selectedRekap, record, 'TRANSPORT', terbilangRupiah);
       }
       
       if (!htmlString) {

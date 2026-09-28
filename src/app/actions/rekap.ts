@@ -312,7 +312,7 @@ export async function generateKwitansiHonor(rekapId: string, inputNoUrut?: strin
     include: { fasilitator: true }
   });
   
-  if (!rekap) throw new Error("Rekap not found");
+  if (!rekap) return { error: "Rekap not found" };
   
   const perihal = `Honorarium Fasilitator ${rekap.fasilitator.namaLengkap} - Bulan ${rekap.bulan}`;
   
@@ -342,13 +342,13 @@ export async function generateKwitansiHonor(rekapId: string, inputNoUrut?: strin
     });
     
     if (!response.ok) {
-      throw new Error("HTTP error " + response.status);
+      return { error: "HTTP error " + response.status };
     }
     
     const result = await response.json();
     
     if (result.error) {
-      throw new Error(result.error);
+      return { error: result.error };
     }
     
     const noKwitansiSheet = result.noKwitansi || ('KWT/TEMP/' + Date.now())
@@ -379,7 +379,7 @@ export async function generateKwitansiHonor(rekapId: string, inputNoUrut?: strin
     
   } catch (error: any) {
     console.error("Webhook Error:", error);
-    throw new Error("Gagal mengambil nomor kwitansi dari Google Sheets: " + error.message);
+    return { error: "Gagal mengambil nomor kwitansi dari Google Sheets: " + error.message };
   }
 }
 
@@ -393,7 +393,7 @@ export async function generateKwitansiExpense(expenseId: string, inputNoUrut?: s
     include: { rabItem: true, fasilitator: true }
   });
   
-  if (!expense) throw new Error("Expense not found");
+  if (!expense) return { error: "Expense not found" };
   
   const perihal = `${expense.description} - ${expense.rabItem.name}`;
   
@@ -414,9 +414,9 @@ export async function generateKwitansiExpense(expenseId: string, inputNoUrut?: s
       body: JSON.stringify({ perihal, noUrut, tanggal: tanggalFormatted }),
     });
     
-    if (!response.ok) throw new Error("HTTP error " + response.status);
+    if (!response.ok) return { error: "HTTP error " + response.status };
     const result = await response.json();
-    if (result.error) throw new Error(result.error);
+    if (result.error) return { error: result.error };
     
     const noKwitansiSheet = result.noKwitansi || ('KWT/TEMP/' + Date.now())
     
@@ -440,7 +440,7 @@ export async function generateKwitansiExpense(expenseId: string, inputNoUrut?: s
     return JSON.parse(JSON.stringify(kwitansi));
   } catch (error: any) {
     console.error("Webhook Error:", error);
-    throw new Error("Gagal mengambil nomor kwitansi dari Google Sheets: " + error.message);
+    return { error: "Gagal mengambil nomor kwitansi dari Google Sheets: " + error.message };
   }
 }
 
@@ -454,7 +454,7 @@ export async function generateKwitansiTransportBulanan(rekapId: string, inputNoU
     include: { fasilitator: true, laporan: true }
   });
   
-  if (!rekap) throw new Error("Rekap tidak ditemukan");
+  if (!rekap) return { error: "Rekap tidak ditemukan" };
   
   // Calculate total transport
   let totalTransport = 0;
@@ -464,7 +464,7 @@ export async function generateKwitansiTransportBulanan(rekapId: string, inputNoU
     totalTransport = (rekap.fasilitator.besaranTransport || 120000) * (rekap.jumlahSesi || 4);
   }
 
-  if (totalTransport <= 0) throw new Error("Total transport adalah 0, tidak bisa generate kwitansi.");
+  if (totalTransport <= 0) return { error: "Total transport adalah 0, tidak bisa generate kwitansi." };
   
   const perihal = "Transport Mengajar Fasilitator - Bulan ";
   
@@ -484,9 +484,9 @@ export async function generateKwitansiTransportBulanan(rekapId: string, inputNoU
       body: JSON.stringify({ perihal, noUrut, tanggal: tanggalFormatted }),
     });
     
-    if (!response.ok) throw new Error("HTTP error " + response.status);
+    if (!response.ok) return { error: "HTTP error " + response.status };
     const result = await response.json();
-    if (result.error) throw new Error(result.error);
+    if (result.error) return { error: result.error };
     
     const noKwitansiSheet = result.noKwitansi || ('KWT/TEMP/' + Date.now())
     
@@ -511,6 +511,6 @@ export async function generateKwitansiTransportBulanan(rekapId: string, inputNoU
     return JSON.parse(JSON.stringify(kwitansi));
   } catch (error: any) {
     console.error("Webhook Error:", error);
-    throw new Error("Gagal mengambil nomor kwitansi dari Google Sheets: " + error.message);
+    return { error: "Gagal mengambil nomor kwitansi dari Google Sheets: " + error.message };
   }
 }

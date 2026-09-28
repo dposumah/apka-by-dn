@@ -1,0 +1,1 @@
+import { prisma } from '@/lib/prisma'; import { NextResponse } from 'next/server'; export async function GET() { try { const res = await prisma.kwitansiRecord.findFirst({ where: { tipeKwitansi: 'HONOR' } }); return NextResponse.json({ success: true, res }); } catch (e: any) { return NextResponse.json({ success: false, error: e.message }); } }
