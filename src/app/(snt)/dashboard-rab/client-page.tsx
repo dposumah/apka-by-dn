@@ -125,6 +125,41 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
     `;
   }
   
+    const handlePrintDokumen = async () => {
+    if (!selectedExpense) return;
+    setIsGeneratingPdf(true);
+    try {
+      let htmlString = "";
+      if (printInvoice) {
+        htmlString += getInvoiceHtml(selectedExpense, selectedKop);
+      }
+      if (printKwitansi) {
+        const record = await generateKwitansiExpense(selectedExpense.id, inputNoUrut, inputTanggal);
+        htmlString += getKwitansiHtml(selectedExpense, record);
+      }
+      
+      if (!htmlString) {
+        setIsGeneratingPdf(false);
+        setShowPrintModal(false);
+        return;
+      }
+      
+      const win = window.open('', '_blank');
+      if (win) {
+        win.document.write(htmlString);
+        win.document.close();
+        win.onload = () => {
+          win.print();
+        };
+      }
+    } catch (err: any) {
+      console.error('GENERATE PDF ERROR', err);
+      alert("Gagal print: " + err.message);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
   const handlePrint = async () => {
     if (!selectedExpense) return;
     setIsGeneratingPdf(true);

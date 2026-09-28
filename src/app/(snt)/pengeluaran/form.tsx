@@ -71,7 +71,7 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
         fasilitatorId: isHonorarium ? selectedFasilitatorId : undefined
       })
       toast({ title: 'Berhasil', description: 'Pengeluaran berhasil ditambahkan.', type: 'success' })
-      e.currentTarget.reset()
+      formElement.reset()
       setSelectedItemId('')
       setSelectedFasilitatorId('')
       setFile(null)
@@ -374,6 +374,7 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
               )}
               
               <Button 
+                type="button"
                 onClick={handlePrint}
                 disabled={!printInvoice && !printKwitansi}
                 className="w-full mt-4 bg-green-600 hover:bg-green-700"
