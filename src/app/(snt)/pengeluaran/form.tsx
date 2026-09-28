@@ -96,10 +96,10 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
 
   const getInvoiceHtml = (expense: any, kopType: string) => {
     const kopImage = window.location.origin + (kopType === 'maleo' ? '/kop-maleo.png' : '/kop-surat.png');
-    return 
+    return `
       <div style="padding: 40px; font-family: sans-serif; page-break-after: always; width: 100%; box-sizing: border-box;">
         <div style="margin-bottom: 30px;">
-          <img src=" + kopImage + " style="width: 100%; max-height: 120px; object-fit: contain;" alt="Kop Surat" />
+          <img src="${kopImage}" style="width: 100%; max-height: 120px; object-fit: contain;" alt="Kop Surat" />
         </div>
         <div style="text-align: center; margin-bottom: 40px;">
           <h2>INVOICE PENGELUARAN LAPANGAN</h2>
@@ -108,10 +108,10 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
         
         <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
           <div>
-            <p><strong>Item RAB:</strong>  + expense.rabItem.name + </p>
-             + (expense.fasilitator ? <p><strong>Nama Fasilitator:</strong>  + expense.fasilitator.namaLengkap + </p> : '') + 
-            <p><strong>Tanggal Diajukan:</strong>  + new Date(expense.createdAt).toLocaleDateString('id-ID') + </p>
-            <p><strong>Status:</strong>  + expense.status + </p>
+            <p><strong>Item RAB:</strong> ${expense.rabItem.name}</p>
+            ${expense.fasilitator ? `<p><strong>Nama Fasilitator:</strong> ${expense.fasilitator.namaLengkap}</p>` : ''}
+            <p><strong>Tanggal Diajukan:</strong> ${new Date(expense.createdAt).toLocaleDateString('id-ID')}</p>
+            <p><strong>Status:</strong> ${expense.status}</p>
           </div>
         </div>
         
@@ -124,21 +124,21 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
           </thead>
           <tbody>
             <tr>
-              <td style="border: 1px solid #ddd; padding: 12px; text-align: left;"> + expense.description + </td>
-              <td style="border: 1px solid #ddd; padding: 12px; text-align: left;">Rp  + expense.amount.toLocaleString('id-ID') + </td>
+              <td style="border: 1px solid #ddd; padding: 12px; text-align: left;">${expense.description}</td>
+              <td style="border: 1px solid #ddd; padding: 12px; text-align: left;">${formatCurrency(expense.amount)}</td>
             </tr>
             <tr>
-              <td style="border: 1px solid #ddd; padding: 12px; text-align: right; font-weight: bold;">TOTAL:</td>
-              <td style="border: 1px solid #ddd; padding: 12px; text-align: left; font-weight: bold;">Rp  + expense.amount.toLocaleString('id-ID') + </td>
+              <td style="border: 1px solid #ddd; padding: 12px; text-align: right; font-weight: bold; font-size: 1.2em;">TOTAL:</td>
+              <td style="border: 1px solid #ddd; padding: 12px; text-align: left; font-weight: bold; font-size: 1.2em;">${formatCurrency(expense.amount)}</td>
             </tr>
           </tbody>
         </table>
       </div>
-    ;
-  };
-
+    `;
+  }
+  
   const getKwitansiHtml = (expense: any, record: any) => {
-    return 
+    return `
       <div style="padding: 40px; font-family: sans-serif; page-break-after: always; width: 100%; box-sizing: border-box;">
         <div style="margin-bottom: 30px;">
           <img src="/kop-maleo.png" style="width: 100%; max-height: 120px; object-fit: contain;" alt="Kop Surat" />

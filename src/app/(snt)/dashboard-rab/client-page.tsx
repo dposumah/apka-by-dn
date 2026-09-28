@@ -39,10 +39,10 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
 
   const getInvoiceHtml = (expense: any, kopType: string) => {
     const kopImage = window.location.origin + (kopType === 'maleo' ? '/kop-maleo.png' : '/kop-surat.png');
-    return 
+    return `
       <div style="padding: 40px; font-family: sans-serif; page-break-after: always; width: 100%; box-sizing: border-box;">
         <div style="margin-bottom: 30px;">
-          <img src=" + kopImage + " style="width: 100%; max-height: 120px; object-fit: contain;" alt="Kop Surat" />
+          <img src="${kopImage}" style="width: 100%; max-height: 120px; object-fit: contain;" alt="Kop Surat" />
         </div>
         <div style="text-align: center; margin-bottom: 40px;">
           <h2>INVOICE PENGELUARAN LAPANGAN</h2>
@@ -51,10 +51,10 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
         
         <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
           <div>
-            <p><strong>Item RAB:</strong>  + expense.rabItem.name + </p>
-             + (expense.fasilitator ? <p><strong>Nama Fasilitator:</strong>  + expense.fasilitator.namaLengkap + </p> : '') + 
-            <p><strong>Tanggal Diajukan:</strong>  + new Date(expense.createdAt).toLocaleDateString('id-ID') + </p>
-            <p><strong>Status:</strong>  + expense.status + </p>
+            <p><strong>Item RAB:</strong> ${expense.rabItem.name}</p>
+            ${expense.fasilitator ? `<p><strong>Nama Fasilitator:</strong> ${expense.fasilitator.namaLengkap}</p>` : ''}
+            <p><strong>Tanggal Diajukan:</strong> ${new Date(expense.createdAt).toLocaleDateString('id-ID')}</p>
+            <p><strong>Status:</strong> ${expense.status}</p>
           </div>
         </div>
         
@@ -67,21 +67,21 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
           </thead>
           <tbody>
             <tr>
-              <td style="border: 1px solid #ddd; padding: 12px; text-align: left;"> + expense.description + </td>
-              <td style="border: 1px solid #ddd; padding: 12px; text-align: left;">Rp  + expense.amount.toLocaleString('id-ID') + </td>
+              <td style="border: 1px solid #ddd; padding: 12px; text-align: left;">${expense.description}</td>
+              <td style="border: 1px solid #ddd; padding: 12px; text-align: left;">${formatCurrency(expense.amount)}</td>
             </tr>
             <tr>
-              <td style="border: 1px solid #ddd; padding: 12px; text-align: right; font-weight: bold;">TOTAL:</td>
-              <td style="border: 1px solid #ddd; padding: 12px; text-align: left; font-weight: bold;">Rp  + expense.amount.toLocaleString('id-ID') + </td>
+              <td style="border: 1px solid #ddd; padding: 12px; text-align: right; font-weight: bold; font-size: 1.2em;">TOTAL:</td>
+              <td style="border: 1px solid #ddd; padding: 12px; text-align: left; font-weight: bold; font-size: 1.2em;">${formatCurrency(expense.amount)}</td>
             </tr>
           </tbody>
         </table>
       </div>
-    ;
-  };
-
+    `;
+  }
+  
   const getKwitansiHtml = (expense: any, record: any) => {
-    return 
+    return `
       <div style="padding: 40px; font-family: sans-serif; page-break-after: always; width: 100%; box-sizing: border-box;">
         <div style="margin-bottom: 30px;">
           <img src="/kop-maleo.png" style="width: 100%; max-height: 120px; object-fit: contain;" alt="Kop Surat" />
@@ -165,7 +165,8 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
   }
   
 
-  if (!data) return <div className="p-8">No RAB data found. Please seed the database.</div>
+  if (!data) return `
+      <div className="p-8">No RAB data found. Please seed the database.</div>
 
   return (
     <div className="p-8 space-y-8">
@@ -382,13 +383,22 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
                 </div>
               )}
               
-              <button 
-                onClick={handlePrint}
-                disabled={!printInvoice && !printKwitansi}
-                className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium rounded-md transition-colors mt-4"
-              >
-                Cetak Sekarang
-              </button>
+              <div className="flex gap-2 mt-4">
+                  <button 
+                    onClick={handlePrint}
+                    disabled={!printInvoice && !printKwitansi || isGeneratingPdf}
+                    className="flex-1 py-2 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium rounded-md transition-colors"
+                  >
+                    {isGeneratingPdf ? 'Memproses...' : 'Export PDF'}
+                  </button>
+                  <button 
+                    onClick={handlePrintDokumen}
+                    disabled={!printInvoice && !printKwitansi || isGeneratingPdf}
+                    className="flex-1 py-2 px-4 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-medium rounded-md transition-colors"
+                  >
+                    {isGeneratingPdf ? 'Memproses...' : 'Print Dokumen'}
+                  </button>
+                </div>
             </div>
             
             <div className="mt-4 flex justify-end">
