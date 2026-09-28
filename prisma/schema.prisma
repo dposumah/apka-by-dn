@@ -659,6 +659,8 @@ model RekapHonorarium {
   totalHonor    Float       @default(0)
   filePdf       String?
   status        String      @default("DRAFT")
+    buktiPembayaranHonor      String?
+    buktiPembayaranTransport  String?
 
   laporan LaporanKegiatan[]
 

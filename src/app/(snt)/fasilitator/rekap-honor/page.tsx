@@ -6,9 +6,7 @@ export const dynamic = 'force-dynamic'
 export default async function AdminRekapHonorPage() {
   const fasilitators = await prisma.fasilitator.findMany({ orderBy: { namaLengkap: 'asc' } });
   const rekapList = await prisma.rekapHonorarium.findMany({
-    include: {
-      fasilitator: true
-    },
+    include: { fasilitator: true, laporan: true },
     orderBy: { createdAt: 'desc' }
   })
 
