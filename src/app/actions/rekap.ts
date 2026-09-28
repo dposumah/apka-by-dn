@@ -325,15 +325,23 @@ export async function generateKwitansiHonor(rekapId: string, inputNoUrut?: strin
   // But wait, the user wants to input it. If they input it, they expect a new number!
   // So if inputNoUrut is provided, we should probably ignore 'existing' check and fetch a new one?
   // Let's just always call webhook if they provide inputs, or return existing if not.
-  if (existing && !inputNoUrut) {
-    return JSON.parse(JSON.stringify(existing));
+  let finalNoUrut = inputNoUrut || "";
+  if (!inputNoUrut) {
+    if (existing) {
+      if (existing.noKwitansi.includes('TEMP') || existing.noKwitansi === "") {
+        finalNoUrut = existing.noUrut.toString().padStart(3, '0');
+      } else {
+        return JSON.parse(JSON.stringify(existing));
+      }
+    } else {
+      const lastRecord = await prisma.kwitansiRecord.findFirst({ orderBy: { noUrut: 'desc' } });
+      finalNoUrut = ((lastRecord?.noUrut || 0) + 1).toString().padStart(3, '0');
+    }
   }
-  
+
   // Call Google Apps Script Webhook
   const webhookUrl = "https://script.google.com/macros/s/AKfycbx4HtXH816rxAkcPV44wM5VEp9cgJ7DQ0aLv9TMAIkDtGUVVRrVS8pRPAxL9mCuAVJe/exec";
-  
-  // Default values if not provided (should be provided by the new UI though)
-  const noUrut = inputNoUrut || "";
+  const noUrut = finalNoUrut;
   const d = inputTanggal ? new Date(inputTanggal) : new Date();
   const tanggalFormatted = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
   
@@ -410,13 +418,22 @@ export async function generateKwitansiExpense(expenseId: string, inputNoUrut?: s
   
   const perihal = `${expense.description} - ${expense.rabItem.name}`;
   
-  if (existing && !inputNoUrut) {
-    return JSON.parse(JSON.stringify(existing));
+  let finalNoUrut = inputNoUrut || "";
+  if (!inputNoUrut) {
+    if (existing) {
+      if (existing.noKwitansi.includes('TEMP') || existing.noKwitansi === "") {
+        finalNoUrut = existing.noUrut.toString().padStart(3, '0');
+      } else {
+        return JSON.parse(JSON.stringify(existing));
+      }
+    } else {
+      const lastRecord = await prisma.kwitansiRecord.findFirst({ orderBy: { noUrut: 'desc' } });
+      finalNoUrut = ((lastRecord?.noUrut || 0) + 1).toString().padStart(3, '0');
+    }
   }
   
   const webhookUrl = "https://script.google.com/macros/s/AKfycbx4HtXH816rxAkcPV44wM5VEp9cgJ7DQ0aLv9TMAIkDtGUVVRrVS8pRPAxL9mCuAVJe/exec";
-  
-  const noUrut = inputNoUrut || "";
+  const noUrut = finalNoUrut;
   const d = inputTanggal ? new Date(inputTanggal) : new Date();
   const tanggalFormatted = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
   
@@ -491,12 +508,22 @@ export async function generateKwitansiTransportBulanan(rekapId: string, inputNoU
   
   const perihal = "Transport Mengajar Fasilitator - Bulan ";
   
-  if (existing && !inputNoUrut) {
-    return JSON.parse(JSON.stringify(existing));
+  let finalNoUrut = inputNoUrut || "";
+  if (!inputNoUrut) {
+    if (existing) {
+      if (existing.noKwitansi.includes('TEMP') || existing.noKwitansi === "") {
+        finalNoUrut = existing.noUrut.toString().padStart(3, '0');
+      } else {
+        return JSON.parse(JSON.stringify(existing));
+      }
+    } else {
+      const lastRecord = await prisma.kwitansiRecord.findFirst({ orderBy: { noUrut: 'desc' } });
+      finalNoUrut = ((lastRecord?.noUrut || 0) + 1).toString().padStart(3, '0');
+    }
   }
   
   const webhookUrl = "https://script.google.com/macros/s/AKfycbx4HtXH816rxAkcPV44wM5VEp9cgJ7DQ0aLv9TMAIkDtGUVVRrVS8pRPAxL9mCuAVJe/exec";
-  const noUrut = inputNoUrut || "";
+  const noUrut = finalNoUrut;
   const d = inputTanggal ? new Date(inputTanggal) : new Date();
   const tanggalFormatted = ``//``;
   
