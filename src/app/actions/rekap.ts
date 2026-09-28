@@ -62,7 +62,9 @@ export async function createRekapBulanan(fasilitatorId: string, bulan: string) {
     throw new Error('Tidak ada laporan yang bisa direkap untuk bulan ini');
   }
 
-  const totalJP = laporan.reduce((sum, lap) => sum + (lap.jumlahJPIntra || 0) + (lap.jumlahJPEkstra || 0), 0);
+  const totalJPIntra = laporan.reduce((sum, lap) => sum + (lap.jumlahJPIntra || 0), 0);
+  const totalJPEkstra = laporan.reduce((sum, lap) => sum + (lap.jumlahJPEkstra || 0), 0);
+  const totalJP = totalJPIntra + totalJPEkstra;
   const totalHonor = totalJP * 65000;
 
   const rekap = await prisma.rekapHonorarium.create({
@@ -70,6 +72,8 @@ export async function createRekapBulanan(fasilitatorId: string, bulan: string) {
       fasilitatorId,
       bulan,
       totalJP,
+      totalJPIntra,
+      totalJPEkstra,
       totalHonor,
       status: 'DRAFT',
     }
@@ -250,7 +254,7 @@ export async function cancelTransportPaid(laporanId: string) {
 }
 
 
-export async function createRekapManual(fasilitatorId: string, bulan: string, totalJP: number, totalHonor: number, jumlahSesi: number) {
+export async function createRekapManual(fasilitatorId: string, bulan: string, totalJP: number, totalHonor: number, jumlahSesi: number, totalJPIntra?: number, totalJPEkstra?: number) {
   const session = await getServerSession(authOptions);
   
   // Create RekapHonorarium directly with SUBMITTED status
@@ -260,6 +264,8 @@ export async function createRekapManual(fasilitatorId: string, bulan: string, to
       fasilitatorId,
       bulan,
       totalJP,
+      totalJPIntra: totalJPIntra || 0,
+      totalJPEkstra: totalJPEkstra || 0,
       jumlahSesi,
       totalHonor,
       status: 'SUBMITTED',

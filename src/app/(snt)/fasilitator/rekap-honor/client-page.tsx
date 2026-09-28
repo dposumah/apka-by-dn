@@ -21,6 +21,8 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
   const [manualBulan, setManualBulan] = useState('')
   const [manualJenis, setManualJenis] = useState('INTRAKURIKULER')
   const [manualJP, setManualJP] = useState('')
+  const [manualJPIntra, setManualJPIntra] = useState('')
+  const [manualJPEkstra, setManualJPEkstra] = useState('')
   const [manualRate, setManualRate] = useState('65000')
   const [manualSesi, setManualSesi] = useState('4')
   const [manualHonor, setManualHonor] = useState('')
@@ -31,19 +33,24 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
     if (manualFasilId) {
       const f = fasilitators.find((x: any) => x.id === manualFasilId)
       if (f) {
-        const defaultJP = manualJenis === 'INTRAKURIKULER' ? (f.defaultJPIntra || 8) : (f.defaultJPEkstra || 4)
         const sesi = parseInt(manualSesi) || 4
-        setManualJP((defaultJP * sesi).toString())
+        const jpIntra = (f.defaultJPIntra || 8) * sesi
+        const jpEkstra = (f.defaultJPEkstra || 4) * sesi
+        setManualJPIntra(jpIntra.toString())
+        setManualJPEkstra(jpEkstra.toString())
       }
     }
   }, [manualJenis, manualFasilId, manualSesi, fasilitators])
 
   useEffect(() => {
-    // Auto calculate if JP changes
-    const jp = parseInt(manualJP) || 0
+    // Auto calculate total JP from Intra + Ekstra
+    const jpIntra = parseInt(manualJPIntra) || 0
+    const jpEkstra = parseInt(manualJPEkstra) || 0
+    const totalJP = jpIntra + jpEkstra
+    setManualJP(totalJP.toString())
     const rate = parseInt(manualRate) || 0
-    setManualHonor((jp * rate).toString())
-  }, [manualJP, manualRate])
+    setManualHonor((totalJP * rate).toString())
+  }, [manualJPIntra, manualJPEkstra, manualRate])
 
   
   const handleDelete = async (id: string) => {
@@ -61,7 +68,7 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
     e.preventDefault()
     setIsSubmitting(true)
     try {
-      await createRekapManual(manualFasilId, manualBulan, parseInt(manualJP) || 0, parseInt(manualHonor) || 0, parseInt(manualSesi) || 4)
+      await createRekapManual(manualFasilId, manualBulan, parseInt(manualJP) || 0, parseInt(manualHonor) || 0, parseInt(manualSesi) || 4, parseInt(manualJPIntra) || 0, parseInt(manualJPEkstra) || 0)
       setShowManualForm(false)
       setManualFasilId('')
       setManualBulan('')
@@ -226,7 +233,20 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Jumlah JP</label>
-                  <input type="number" min="0" required className="w-full border rounded p-2" value={manualJP} onChange={e => setManualJP(e.target.value)} />
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-xs text-slate-500">JP Intra</label>
+                      <input type="number" min="0" className="w-full border rounded p-2" value={manualJPIntra} onChange={e => setManualJPIntra(e.target.value)} placeholder="0" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-500">JP Ekstra</label>
+                      <input type="number" min="0" className="w-full border rounded p-2" value={manualJPEkstra} onChange={e => setManualJPEkstra(e.target.value)} placeholder="0" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-500">Total JP</label>
+                      <input type="number" readOnly className="w-full border rounded p-2 bg-slate-100" value={manualJP} />
+                    </div>
+                  </div>
                 </div>
                 
                 <div>

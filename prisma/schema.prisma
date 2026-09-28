@@ -651,6 +651,8 @@ model RekapHonorarium {
   fasilitator   Fasilitator @relation(fields: [fasilitatorId], references: [id])
   bulan         String // format: "YYYY-MM"
   totalJP       Int         @default(0)
+  totalJPIntra  Int         @default(0)
+  totalJPEkstra Int         @default(0)
   jumlahSesi    Int?        @default(4)
   totalHonor    Float       @default(0)
   filePdf       String?
