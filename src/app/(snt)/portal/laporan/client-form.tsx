@@ -11,7 +11,7 @@ import { submitLaporanKegiatan } from '@/app/actions/rab'
 import { useToast } from '@/components/ui/toast'
 import { useRouter } from 'next/navigation'
 
-export function LaporanClientForm({ fasilitatorId, besaranTransport }: { fasilitatorId: string, besaranTransport: number }) {
+export function LaporanClientForm({ fasilitatorId, besaranTransport, defaultJPIntra = 8, defaultJPEkstra = 4 }: { fasilitatorId: string, besaranTransport: number, defaultJPIntra?: number, defaultJPEkstra?: number }) {
   const router = useRouter()
   const { toast } = useToast()
   const [saving, setSaving] = useState(false)
@@ -31,8 +31,6 @@ export function LaporanClientForm({ fasilitatorId, besaranTransport }: { fasilit
     tingkatSekolah: 'SMP',
     metodePelaksanaan: 'LURING',
     jenisPembelajaran: 'INTRAKURIKULER',
-    jumlahJPIntra: '',
-    jumlahJPEkstra: '',
     biayaTransport: '',
     biayaTransportLaut: '',
   })
@@ -112,6 +110,8 @@ export function LaporanClientForm({ fasilitatorId, besaranTransport }: { fasilit
 
       await submitLaporanKegiatan(fasilitatorId, {
         ...formData,
+        jumlahJPIntra: formData.jenisPembelajaran === 'INTRAKURIKULER' ? defaultJPIntra.toString() : '',
+        jumlahJPEkstra: formData.jenisPembelajaran === 'EKSTRAKURIKULER' ? defaultJPEkstra.toString() : '',
         foto1,
         foto2,
         fileLaporanFisik,
@@ -204,7 +204,7 @@ export function LaporanClientForm({ fasilitatorId, besaranTransport }: { fasilit
                   <select 
                     className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     value={formData.jenisPembelajaran}
-                    onChange={e => setFormData({...formData, jenisPembelajaran: e.target.value, jumlahJPIntra: '', jumlahJPEkstra: ''})}
+                    onChange={e => setFormData({...formData, jenisPembelajaran: e.target.value})}
                   >
                     <option value="INTRAKURIKULER">Intrakurikuler</option>
                     <option value="EKSTRAKURIKULER">Ekstrakurikuler</option>
@@ -212,16 +212,18 @@ export function LaporanClientForm({ fasilitatorId, besaranTransport }: { fasilit
                 </div>
                 
                 {formData.jenisPembelajaran === 'INTRAKURIKULER' ? (
-                  <div className="space-y-2">
+                  <div className="space-y-2 flex flex-col justify-center">
                     <Label>Jumlah JP (Intrakurikuler)</Label>
-                    <Input type="number" min="0" value={formData.jumlahJPIntra} onChange={e => setFormData({...formData, jumlahJPIntra: e.target.value})} placeholder="0" />
-                    <p className="text-xs text-slate-500">Maksimal 8 JP / minggu / Lokasi</p>
+                    <div className="mt-1 px-3 py-2 bg-blue-50 border border-blue-200 rounded-md text-blue-700 font-medium text-sm flex items-center h-10">
+                      {defaultJPIntra} JP / Minggu (Otomatis)
+                    </div>
                   </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-2 flex flex-col justify-center">
                     <Label>Jumlah JP (Ekstrakurikuler)</Label>
-                    <Input type="number" min="0" value={formData.jumlahJPEkstra} onChange={e => setFormData({...formData, jumlahJPEkstra: e.target.value})} placeholder="0" />
-                    <p className="text-xs text-slate-500">Maksimal 4 JP / minggu / Lokasi</p>
+                    <div className="mt-1 px-3 py-2 bg-blue-50 border border-blue-200 rounded-md text-blue-700 font-medium text-sm flex items-center h-10">
+                      {defaultJPEkstra} JP / Minggu (Otomatis)
+                    </div>
                   </div>
                 )}
               

@@ -60,7 +60,9 @@ export function FasilitatorForm({ initialData }: { initialData?: any }) {
       statusKepegawaian: fd.get('statusKepegawaian'),
       pangkatGolongan: fd.get('pangkatGolongan'),
       lokasiSNT: fd.get('lokasiSNT'),
-        besaranTransport: fd.get('besaranTransport'),
+      besaranTransport: fd.get('besaranTransport') ? parseFloat(fd.get('besaranTransport') as string) : 120000,
+      defaultJPIntra: fd.get('defaultJPIntra') ? parseInt(fd.get('defaultJPIntra') as string) : 8,
+      defaultJPEkstra: fd.get('defaultJPEkstra') ? parseInt(fd.get('defaultJPEkstra') as string) : 4,
     }
 
     try {
@@ -205,7 +207,18 @@ export function FasilitatorForm({ initialData }: { initialData?: any }) {
           <div className="space-y-2 mt-4 pt-4 border-t">
             <Label>Besaran Transport Darat (Rp) *</Label>
             <Input name="besaranTransport" type="number" defaultValue={initialData?.besaranTransport ?? 120000} required />
-            <p className="text-xs text-slate-500">Angka ini akan otomatis mengisi transport pada laporan mingguan fasilitator.</p>
+            <p className="text-xs text-slate-500">Batas maksimal nominal transport darat tanpa wajib upload bukti.</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 mt-4">
+            <div className="space-y-2">
+              <Label>Default JP (Intra)</Label>
+              <Input name="defaultJPIntra" type="number" defaultValue={initialData?.defaultJPIntra ?? 8} required />
+            </div>
+            <div className="space-y-2">
+              <Label>Default JP (Ekstra)</Label>
+              <Input name="defaultJPEkstra" type="number" defaultValue={initialData?.defaultJPEkstra ?? 4} required />
+            </div>
           </div>
           
           <div className="bg-slate-50 p-4 rounded-md border space-y-4">

@@ -24,5 +24,12 @@ export default async function LaporanPage() {
     redirect("/portal")
   }
 
-  return <LaporanClientForm fasilitatorId={fasilitator.id} besaranTransport={fasilitator.besaranTransport} />
+  return (
+    <LaporanClientForm 
+      fasilitatorId={fasilitator.id} 
+      besaranTransport={fasilitator.besaranTransport}
+      defaultJPIntra={fasilitator.defaultJPIntra}
+      defaultJPEkstra={fasilitator.defaultJPEkstra}
+    />
+  )
 }
