@@ -19,11 +19,24 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
   const [showManualForm, setShowManualForm] = useState(false)
   const [manualFasilId, setManualFasilId] = useState('')
   const [manualBulan, setManualBulan] = useState('')
+  const [manualJenis, setManualJenis] = useState('INTRAKURIKULER')
   const [manualJP, setManualJP] = useState('')
   const [manualRate, setManualRate] = useState('65000')
   const [manualSesi, setManualSesi] = useState('4')
   const [manualHonor, setManualHonor] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  useEffect(() => {
+    // Auto calculate JP based on type and fasilitator config
+    if (manualFasilId) {
+      const f = fasilitators.find((x: any) => x.id === manualFasilId)
+      if (f) {
+        const defaultJP = manualJenis === 'INTRAKURIKULER' ? (f.defaultJPIntra || 8) : (f.defaultJPEkstra || 4)
+        const sesi = parseInt(manualSesi) || 4
+        setManualJP((defaultJP * sesi).toString())
+      }
+    }
+  }, [manualJenis, manualFasilId, manualSesi, fasilitators])
 
   useEffect(() => {
     // Auto calculate if JP changes
