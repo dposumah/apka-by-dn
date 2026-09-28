@@ -5,7 +5,7 @@ import { formatCurrency, terbilangRupiah } from '@/lib/format'
 import { Badge } from '@/components/ui/badge'
 import { DeleteExpenseButton } from './DeleteExpenseButton'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { generateKwitansiExpense } from '@/app/actions/rekap'
 
 export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor }: any) {
@@ -32,186 +32,152 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
     setShowPrintModal(true)
   }
 
-  const cetakInvoiceExpense = (expense: any, kopType: 'maleo' | 'robotic') => {
-    const win = window.open('', '_blank')
-    if (!win) return
+    const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  useEffect(() => {
+    import('html2pdf.js').then(m => { (window as any).html2pdf = m.default || m; }).catch(e => console.error(e));
+  }, []);
+
+  const getInvoiceHtml = (expense: any, kopType: string) => {
     const kopImage = kopType === 'maleo' ? '/kop-maleo.png' : '/kop-surat.png';
-    win.document.write(`
-      <html>
-        <head>
-          <title>Invoice Pengeluaran - ${expense.rabItem.name}</title>
-          <style>
-            body { font-family: sans-serif; padding: 40px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-            th { background-color: #f8fafc; }
-            .header { text-align: center; margin-bottom: 40px; }
-            .total { font-weight: bold; font-size: 1.2em; text-align: right; }
-          </style>
-        </head>
-        <body>
-          <div style="margin-bottom: 30px;">
-            <img src="${kopImage}" style="width: 100%; max-height: 120px; object-fit: contain;" alt="Kop Surat" />
+    return 
+      <div style="padding: 40px; font-family: sans-serif; page-break-after: always; width: 100%; box-sizing: border-box;">
+        <div style="margin-bottom: 30px;">
+          <img src=" + kopImage + " style="width: 100%; max-height: 120px; object-fit: contain;" alt="Kop Surat" />
+        </div>
+        <div style="text-align: center; margin-bottom: 40px;">
+          <h2>INVOICE PENGELUARAN LAPANGAN</h2>
+          <p>KKA Sekolah Nasional Terintegrasi Tahun 2026</p>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+          <div>
+            <p><strong>Item RAB:</strong>  + expense.rabItem.name + </p>
+             + (expense.fasilitator ? <p><strong>Nama Fasilitator:</strong>  + expense.fasilitator.namaLengkap + </p> : '') + 
+            <p><strong>Tanggal Diajukan:</strong>  + new Date(expense.createdAt).toLocaleDateString('id-ID') + </p>
+            <p><strong>Status:</strong>  + expense.status + </p>
           </div>
-          <div class="header">
-            <h2>INVOICE PENGELUARAN LAPANGAN</h2>
-            <p>KKA Sekolah Nasional Terintegrasi Tahun 2026</p>
-          </div>
-          
-          <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
-            <div>
-              <p><strong>Item RAB:</strong> ${expense.rabItem.name}</p>
-              ${expense.fasilitator ? `<p><strong>Nama Fasilitator:</strong> ${expense.fasilitator.namaLengkap}</p>` : ''}
-              <p><strong>Tanggal Diajukan:</strong> ${new Date(expense.createdAt).toLocaleDateString('id-ID')}</p>
-              <p><strong>Status:</strong> ${expense.status}</p>
-            </div>
-          </div>
-          
-          <table>
-            <thead>
-              <tr>
-                <th>Deskripsi</th>
-                <th>Nominal</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>${expense.description}</td>
-                <td>Rp ${expense.amount.toLocaleString('id-ID')}</td>
-              </tr>
-              <tr>
-                <td class="total">TOTAL:</td>
-                <td class="total text-emerald-600">Rp ${expense.amount.toLocaleString('id-ID')}</td>
-              </tr>
-            </tbody>
-          </table>
-          <div style="display: flex; justify-content: space-between; margin-top: 30px;">
-            <div></div>
-            <div style="text-align:right;">
-              <p style="margin-top:40px;">Dicetak oleh: Admin SNT</p>
-            </div>
-          </div>
-          <script>window.print()</script>
-        </body>
-      </html>
-    `)
-    win.document.close()
-  }
+        </div>
+        
+        <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+          <thead>
+            <tr>
+              <th style="border: 1px solid #ddd; padding: 12px; text-align: left; background-color: #f8fafc;">Deskripsi</th>
+              <th style="border: 1px solid #ddd; padding: 12px; text-align: left; background-color: #f8fafc;">Nominal</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="border: 1px solid #ddd; padding: 12px; text-align: left;"> + expense.description + </td>
+              <td style="border: 1px solid #ddd; padding: 12px; text-align: left;">Rp  + expense.amount.toLocaleString('id-ID') + </td>
+            </tr>
+            <tr>
+              <td style="border: 1px solid #ddd; padding: 12px; text-align: right; font-weight: bold;">TOTAL:</td>
+              <td style="border: 1px solid #ddd; padding: 12px; text-align: left; font-weight: bold;">Rp  + expense.amount.toLocaleString('id-ID') + </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    ;
+  };
 
-  const cetakKwitansiExpense = async (expense: any, noUrut: string, tanggal: string) => {
-    const win = window.open('', '_blank');
-    if (!win) return;
-    win.document.write("<html><body><h2 style='font-family:sans-serif; text-align:center; margin-top:50px;'>Menghubungkan ke Google Sheets...</h2></body></html>");
-    
-    let noKwitansi = "KWT/MTC/TEMP";
-    let kwitansiDate = new Date(expense.createdAt);
-    
-    try {
-      const record = await generateKwitansiExpense(expense.id, noUrut, tanggal);
-      noKwitansi = record.noKwitansi;
-      kwitansiDate = new Date(record.tanggal);
-    } catch (err: any) {
-      console.error("Gagal generate no kwitansi:", err);
-      win.close();
-      alert(err.message || "Gagal menghubungi Google Sheets");
-      return;
-    }
-    
-    win.document.open();
-    
-    win.document.write(`
-      <html>
-        <head>
-          <title>Kwitansi - ${expense.rabItem.name}</title>
-          <style>
-            @page { margin: 0.5cm 1cm; }
-            @media print { body { padding: 0; } }
-            body { font-family: 'Times New Roman', Times, serif; padding: 10px 40px; line-height: 1.5; font-size: 14px; }
-            .header-img { width: 100%; max-height: 120px; object-fit: contain; margin-bottom: 10px; }
-            .title-box { text-align: center; margin-bottom: 15px; }
-            .title-box h2 { margin: 0; font-size: 20px; font-weight: bold; text-decoration: underline; letter-spacing: 1px; }
-            .title-box p { margin: 5px 0 0 0; font-size: 16px; font-weight: bold; }
-            .info-row { display: flex; justify-content: space-between; margin-bottom: 10px; }
-            .form-group { margin-bottom: 8px; display: flex; }
-            .form-label { width: 220px; font-weight: normal; }
-            .form-colon { width: 20px; }
-            .form-value { flex: 1; font-weight: bold; }
-            .form-value-underline { flex: 1; border-bottom: 1px solid #000; padding-bottom: 2px; }
-            .terbilang-box { background-color: #f1f5f9; padding: 6px 10px; font-style: italic; font-weight: bold; border: 1px dashed #ccc; margin-top: 5px;}
-            .ttd-container { display: flex; justify-content: space-between; margin-top: 50px; text-align: center; }
-            .ttd-box { width: 250px; }
-            .ttd-name { margin-top: 70px; font-weight: bold; text-decoration: underline; }
-            .notes { margin-top: 40px; font-size: 12px; }
-          </style>
-        </head>
-        <body>
-          <img src="/kop-maleo.png" class="header-img" alt="Kop Surat" />
-          
-          <div class="title-box">
-            <h2>KWITANSI</h2>
+  const getKwitansiHtml = (expense: any, record: any) => {
+    return 
+      <div style="padding: 40px; font-family: sans-serif; page-break-after: always; width: 100%; box-sizing: border-box;">
+        <div style="margin-bottom: 30px;">
+          <img src="/kop-maleo.png" style="width: 100%; max-height: 120px; object-fit: contain;" alt="Kop Surat" />
+        </div>
+        <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #000; padding-bottom: 10px;">
+          <h2 style="font-size: 24px; font-weight: bold; margin: 0; letter-spacing: 2px;">KWITANSI</h2>
+          <p style="margin: 5px 0 0 0;">No:  + record.noKwitansi + </p>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+          <tr>
+            <td style="width: 30%; padding: 10px 0;"><strong>Telah terima dari</strong></td>
+            <td style="width: 5%; text-align: center;">:</td>
+            <td style="width: 65%; padding: 10px 0;">Yayasan Maleo Talenta Cendekia</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px 0;"><strong>Uang Sejumlah</strong></td>
+            <td style="text-align: center;">:</td>
+            <td style="padding: 10px 0; background-color: #f3f4f6; font-style: italic;">#  + terbilangRupiah(expense.amount) +  Rupiah #</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px 0; vertical-align: top;"><strong>Untuk Pembayaran</strong></td>
+            <td style="text-align: center; vertical-align: top;">:</td>
+            <td style="padding: 10px 0;"> + expense.description +  -  + expense.rabItem.name + </td>
+          </tr>
+        </table>
+        
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 50px;">
+          <div style="background-color: #f3f4f6; padding: 15px 30px; border: 1px solid #d1d5db; border-radius: 8px;">
+            <p style="margin: 0; font-size: 20px; font-weight: bold;">Rp  + expense.amount.toLocaleString('id-ID') + </p>
           </div>
-          
-          <div class="info-row">
-            <div>No. Kuitansi : <strong>${noKwitansi}</strong></div>
-            <div>Tanggal : <strong>${kwitansiDate.toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</strong></div>
+          <div style="text-align: center; width: 250px;">
+            <p style="margin-bottom: 60px;">Jakarta,  + new Date(record.tanggal).toLocaleDateString('id-ID') + </p>
+            <p style="margin: 0; border-top: 1px solid #000; padding-top: 10px;"><strong> + (expense.fasilitator ? expense.fasilitator.namaLengkap : 'Penerima') + </strong></p>
           </div>
-          
-          <div class="form-group">
-            <div class="form-label">Telah terima dari</div>
-            <div class="form-colon">:</div>
-            <div class="form-value-underline">Yayasan Maleo Talenta Cendekia</div>
-          </div>
-          
-          <div class="form-group" style="margin-top: 10px;">
-            <div class="form-label">Jumlah Uang</div>
-            <div class="form-colon">:</div>
-            <div class="form-value" style="font-size: 16px;">Rp ${expense.amount.toLocaleString('id-ID')}</div>
-          </div>
-          
-          <div class="form-group">
-            <div class="form-label">Terbilang</div>
-            <div class="form-colon">:</div>
-            <div class="form-value terbilang-box">${terbilangRupiah(expense.amount)}</div>
-          </div>
-
-          <div class="form-group" style="margin-top: 20px;">
-            <div class="form-label">Untuk Pembayaran</div>
-            <div class="form-colon">:</div>
-            <div class="form-value-underline">${expense.description} - ${expense.rabItem.name}</div>
-          </div>
-          
-          <div class="ttd-container">
-            <div class="ttd-box">
-              <p>Mengetahui / Menyetujui,</p>
-              <p><strong>Yayasan Maleo Talenta Cendekia</strong></p>
-              <p class="ttd-name">....................................................</p>
-            </div>
-            <div class="ttd-box">
-              <p>Yang Menerima,</p>
-              <p><strong>Penerima</strong></p>
-              <p class="ttd-name">${expense.fasilitator ? expense.fasilitator.namaLengkap : 'Penerima'}</p>
-            </div>
-          </div>
-          
-          <div class="notes">
-            <p><em>* Dokumen ini dibuat dan dicetak secara otomatis oleh sistem SNT.</em></p>
-          </div>
-          <script>window.print()</script>
-        </body>
-      </html>
-    `);
-    win.document.close();
-  }
+        </div>
+      </div>
+    ;
+  };
 
   const handlePrint = async () => {
-    setShowPrintModal(false)
-    if (printInvoice) {
-      cetakInvoiceExpense(selectedExpense, selectedKop)
-    }
-    if (printKwitansi) {
-      await cetakKwitansiExpense(selectedExpense, inputNoUrut, inputTanggal)
+    if (!selectedExpense) return;
+    setIsGeneratingPdf(true);
+    try {
+      let htmlString = "";
+      if (printInvoice) {
+        htmlString += getInvoiceHtml(selectedExpense, selectedKop);
+      }
+      if (printKwitansi) {
+        const record = await generateKwitansiExpense(selectedExpense.id, inputNoUrut, inputTanggal);
+        htmlString += getKwitansiHtml(selectedExpense, record);
+      }
+      
+      if (!htmlString) {
+        setIsGeneratingPdf(false);
+        setShowPrintModal(false);
+        return;
+      }
+      
+      const container = document.createElement('div');
+      container.innerHTML = htmlString;
+      container.style.position = 'absolute';
+      container.style.top = '-9999px';
+      container.style.left = '-9999px';
+      container.style.width = '210mm';
+      document.body.appendChild(container);
+      
+      const images = container.getElementsByTagName('img');
+      const imagePromises = Array.from(images).map(img => {
+        if (img.complete) return Promise.resolve();
+        return new Promise((resolve) => {
+          img.onload = resolve;
+          img.onerror = resolve;
+        });
+      });
+      await Promise.all(imagePromises);
+      
+      let html2pdf: any; try { html2pdf = require('html2pdf.js'); } catch (e) { html2pdf = (window as any).html2pdf; }
+      const opt = {
+        margin: 0,
+        filename: 'Pengeluaran_' + selectedExpense.rabItem.name.replace(/\s+/g, '_') + '.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+      
+      await html2pdf().set(opt).from(container).save();
+      document.body.removeChild(container);
+      setShowPrintModal(false);
+    } catch (err: any) {
+      console.error('GENERATE PDF ERROR', err, err.stack);
+      alert("Gagal generate PDF: " + err.message + "\n\nStack: " + (err.stack ? err.stack.substring(0, 200) : ''));
+    } finally {
+      setIsGeneratingPdf(false);
     }
   }
+  
 
   if (!data) return <div className="p-8">No RAB data found. Please seed the database.</div>
 
