@@ -95,7 +95,7 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
   }, []);
 
   const getInvoiceHtml = (expense: any, kopType: string) => {
-    const kopImage = kopType === 'maleo' ? '/kop-maleo.png' : '/kop-surat.png';
+    const kopImage = window.location.origin + (kopType === 'maleo' ? '/kop-maleo.png' : '/kop-surat.png');
     return 
       <div style="padding: 40px; font-family: sans-serif; page-break-after: always; width: 100%; box-sizing: border-box;">
         <div style="margin-bottom: 30px;">
@@ -196,23 +196,10 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
         return;
       }
       
-      const container = document.createElement('div');
-      container.innerHTML = htmlString;
-      container.style.position = 'absolute';
-      container.style.top = '-9999px';
-      container.style.left = '-9999px';
-      container.style.width = '210mm';
-      document.body.appendChild(container);
-      
-      const images = container.getElementsByTagName('img');
-      const imagePromises = Array.from(images).map(img => {
-        if (img.complete) return Promise.resolve();
-        return new Promise((resolve) => {
-          img.onload = resolve;
-          img.onerror = resolve;
-        });
-      });
-      await Promise.all(imagePromises);
+      const wrapper = document.createElement('div');
+        wrapper.innerHTML = htmlString;
+        wrapper.style.width = '794px';
+        wrapper.style.backgroundColor = '#ffffff';
       
       let html2pdf: any; try { html2pdf = require('html2pdf.js'); } catch (e) { html2pdf = (window as any).html2pdf; }
       const opt = {
@@ -223,8 +210,7 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
       
-      await html2pdf().set(opt).from(container).save();
-      document.body.removeChild(container);
+      await html2pdf().set(opt).from(wrapper).save();
     } catch (err: any) {
       console.error('GENERATE PDF ERROR', err, err.stack);
       alert("Gagal generate PDF: " + err.message + "\n\nStack: " + (err.stack ? err.stack.substring(0, 200) : ''));

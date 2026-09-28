@@ -1,7 +1,7 @@
 export const getInvoiceHtml = (rekap: any, kopType: 'maleo' | 'robotic') => {
-  const kopImage = kopType === 'maleo' ? '/kop-maleo.png' : '/kop-surat.png';
+  const kopImage = window.location.origin + (kopType === 'maleo' ? '/kop-maleo.png' : '/kop-surat.png');
   return `
-    <div style="font-family: sans-serif; padding: 40px; page-break-after: always; min-height: 297mm; box-sizing: border-box;">
+    <div style="font-family: sans-serif; padding: 40px; page-break-after: always; min-height: 1123px; box-sizing: border-box;">
       <div style="margin-bottom: 30px;">
         <img src="${kopImage}" style="width: 100%; max-height: 120px; object-fit: contain;" alt="Kop Surat" />
       </div>
@@ -48,12 +48,12 @@ export const getInvoiceHtml = (rekap: any, kopType: 'maleo' | 'robotic') => {
 }
 
 export const getKwitansiHtml = (rekap: any, record: any, type: 'HONOR' | 'TRANSPORT', terbilangRupiah: (n: number) => string) => {
-  const kopImage = '/kop-maleo.png';
+  const kopImage = window.location.origin + '/kop-maleo.png';
   const noKwitansi = record.noKwitansi || 'KWT/TEMP';
   const kwitansiDate = record.tanggal ? new Date(record.tanggal) : new Date();
   
   return `
-    <div style="font-family: sans-serif; padding: 40px; page-break-after: always; min-height: 297mm; box-sizing: border-box;">
+    <div style="font-family: sans-serif; padding: 40px; page-break-after: always; min-height: 1123px; box-sizing: border-box;">
       <div style="margin-bottom: 30px;">
         <img src="${kopImage}" style="width: 100%; max-height: 120px; object-fit: contain;" alt="Kop Surat" />
       </div>

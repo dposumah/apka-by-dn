@@ -147,24 +147,10 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
       }
       
       // Put html in hidden div
-      const container = document.createElement('div');
-      container.innerHTML = htmlString;
-      container.style.position = 'absolute';
-      container.style.top = '-9999px';
-      container.style.left = '-9999px';
-      container.style.width = '210mm';
-      document.body.appendChild(container);
-      
-      // Wait for images
-      const images = container.getElementsByTagName('img');
-      const imagePromises = Array.from(images).map(img => {
-        if (img.complete) return Promise.resolve();
-        return new Promise(resolve => {
-          img.onload = resolve;
-          img.onerror = resolve;
-        });
-      });
-      await Promise.all(imagePromises);
+      const wrapper = document.createElement('div');
+        wrapper.innerHTML = htmlString;
+        wrapper.style.width = '794px';
+        wrapper.style.backgroundColor = '#ffffff';
       
       // Create PDF
       let html2pdf: any; try { html2pdf = require('html2pdf.js'); } catch (e) { html2pdf = (window as any).html2pdf; }
@@ -176,8 +162,7 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
       
-      await html2pdf().set(opt).from(container).save();
-      document.body.removeChild(container);
+      await html2pdf().set(opt).from(wrapper).save();
       setShowKopModal(false);
     } catch (err: any) {
       console.error('GENERATE PDF ERROR', err, err.stack);
