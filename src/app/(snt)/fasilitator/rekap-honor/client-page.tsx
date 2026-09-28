@@ -19,7 +19,7 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
   const [showManualForm, setShowManualForm] = useState(false)
   const [manualFasilId, setManualFasilId] = useState('')
   const [manualBulan, setManualBulan] = useState('')
-  const [manualJenis, setManualJenis] = useState('INTRAKURIKULER')
+  
   const [manualJP, setManualJP] = useState('')
   const [manualJPIntra, setManualJPIntra] = useState('')
   const [manualJPEkstra, setManualJPEkstra] = useState('')
@@ -40,7 +40,7 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
         setManualJPEkstra(jpEkstra.toString())
       }
     }
-  }, [manualJenis, manualFasilId, manualSesi, fasilitators])
+  }, [manualFasilId, manualSesi, fasilitators])
 
   useEffect(() => {
     // Auto calculate total JP from Intra + Ekstra
@@ -214,13 +214,7 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
                     ))}
                   </select>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Jenis Pembelajaran</label>
-                    <select className="w-full border rounded p-2" value={manualJenis} onChange={e => setManualJenis(e.target.value)}>
-                      <option value="INTRAKURIKULER">Intrakurikuler</option>
-                      <option value="EKSTRAKURIKULER">Ekstrakurikuler</option>
-                    </select>
-                  </div>
+                  
                   <div>
                     <label className="block text-sm font-medium mb-1">Bulan (YYYY-MM)</label>
                     <input type="month" required className="w-full border rounded p-2" value={manualBulan} onChange={e => setManualBulan(e.target.value)} />
