@@ -81,7 +81,7 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
   }
   
   const getKwitansiHtml = (expense: any, record: any) => {
-    return `
+    return 
       <div style="padding: 40px; font-family: sans-serif; page-break-after: always; width: 100%; box-sizing: border-box;">
         <div style="margin-bottom: 30px;">
           <img src="/kop-maleo.png" style="width: 100%; max-height: 120px; object-fit: contain;" alt="Kop Surat" />
@@ -165,8 +165,7 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
   }
   
 
-  if (!data) return `
-      <div className="p-8">No RAB data found. Please seed the database.</div>
+  if (!data) return <div className="p-8">No RAB data found. Please seed the database.</div>
 
   return (
     <div className="p-8 space-y-8">

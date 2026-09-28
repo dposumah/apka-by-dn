@@ -138,7 +138,7 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
   }
   
   const getKwitansiHtml = (expense: any, record: any) => {
-    return `
+    return 
       <div style="padding: 40px; font-family: sans-serif; page-break-after: always; width: 100%; box-sizing: border-box;">
         <div style="margin-bottom: 30px;">
           <img src="/kop-maleo.png" style="width: 100%; max-height: 120px; object-fit: contain;" alt="Kop Surat" />

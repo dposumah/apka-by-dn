@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState } from 'react'
 import { approveExpense } from '@/app/actions/rab'
@@ -14,7 +14,7 @@ export function ApproveButton({ expenseId }: { expenseId: string }) {
     const file = e.target.files?.[0]
     if (!file) return
 
-    if (!(await confirm('Setujui pengeluaran ini dan unggah bukti transfer?')) {
+    if (!(await confirm('Setujui pengeluaran ini dan unggah bukti transfer?'))) {
       e.target.value = ''
       return
     }
@@ -39,7 +39,7 @@ export function ApproveButton({ expenseId }: { expenseId: string }) {
   }
 
   const handleReject = async () => {
-    if (!(await confirm('Tolak pengeluaran ini?')) return
+    if (!(await confirm('Tolak pengeluaran ini?'))) return
     setProcessing(true)
     try {
       await approveExpense(expenseId, 'REJECTED')
