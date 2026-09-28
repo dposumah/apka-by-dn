@@ -47,6 +47,7 @@ export function ProfilClient({ fasilitator }: { fasilitator: any }) {
     kabKota: fasilitator.kabKota || '',
     propinsi: fasilitator.propinsi || '',
     lokasiSNT: fasilitator.lokasiSNT || '',
+    jenisTugas: fasilitator.jenisTugas || 'INTRAKURIKULER',
   })
 
   useEffect(() => {
@@ -94,6 +95,19 @@ export function ProfilClient({ fasilitator }: { fasilitator: any }) {
               <div className="space-y-2">
                 <Label>Nama Lengkap</Label>
                 <Input value={formData.namaLengkap} onChange={e => setFormData({...formData, namaLengkap: e.target.value})} required />
+              </div>
+              <div className="space-y-2">
+                <Label>Jenis Tugas / Mengajar</Label>
+                <select 
+                  className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2"
+                  value={formData.jenisTugas}
+                  onChange={e => setFormData({...formData, jenisTugas: e.target.value})}
+                  required
+                >
+                  <option value="INTRAKURIKULER">Hanya Intrakurikuler</option>
+                  <option value="EKSTRAKURIKULER">Hanya Ekstrakurikuler</option>
+                  <option value="KEDUANYA">Keduanya (Intra & Ekstra)</option>
+                </select>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -227,6 +241,12 @@ export function ProfilClient({ fasilitator }: { fasilitator: any }) {
                 <div>
                   <p className="text-slate-500">Nama Lengkap</p>
                   <p className="font-medium text-lg">{fasilitator.namaLengkap}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500">Jenis Tugas / Mengajar</p>
+                  <p className="font-medium">
+                    {fasilitator.jenisTugas === 'EKSTRAKURIKULER' ? 'Ekstrakurikuler' : fasilitator.jenisTugas === 'KEDUANYA' ? 'Intrakurikuler & Ekstrakurikuler' : 'Intrakurikuler'}
+                  </p>
                 </div>
                 <div>
                   <p className="text-slate-500">Lokasi SNT</p>

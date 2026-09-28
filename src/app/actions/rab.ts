@@ -369,6 +369,7 @@ export async function createFasilitator(data: any) {
       statusKepegawaian: data.statusKepegawaian || null,
       pangkatGolongan: data.pangkatGolongan || null,
         lokasiSNT: data.lokasiSNT || null,
+      jenisTugas: data.jenisTugas || currentFasil?.jenisTugas || 'INTRAKURIKULER',
         besaranTransport: data.besaranTransport !== undefined ? parseFloat(data.besaranTransport) : currentFasil?.besaranTransport ?? 120000,
       userId: userId,
     }
