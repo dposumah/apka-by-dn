@@ -100,7 +100,7 @@ export async function approveExpense(expenseId: string, status: 'APPROVED' | 'RE
   revalidatePath('/dashboard-rab')
 }
 
-export async function submitExpense(data: { rabItemId: string, amount: number, description: string, receiptUrl?: string, userId: string, fasilitatorId?: string }) {
+export async function submitExpense(data: { rabItemId: string, amount: number, description: string, receiptUrl?: string, userId: string, fasilitatorId?: string, date?: string }) {
   const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN']);
   if (authError) throw new Error(authError);
   /* submitExpense_auth */

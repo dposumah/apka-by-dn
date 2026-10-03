@@ -71,13 +71,15 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
         description,
         receiptUrl,
         userId: 'demo-user-id',
-        fasilitatorId: isHonorarium ? selectedFasilitatorId : undefined
+        fasilitatorId: isHonorarium ? selectedFasilitatorId : undefined,
+        date: expenseDate
       })
       toast({ title: 'Berhasil', description: 'Pengeluaran berhasil ditambahkan.', type: 'success' })
       formElement.reset()
       setSelectedItemId('')
       setSelectedFasilitatorId('')
       setFile(null)
+      setExpenseDate(new Date().toISOString().split('T')[0])
       
       if (expense) {
         setSubmittedExpense(expense)
