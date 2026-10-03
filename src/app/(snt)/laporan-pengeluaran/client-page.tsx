@@ -14,6 +14,7 @@ export function LaporanClientPage({ initialData, rabData }: { initialData: any[]
   
   const [startDate, setStartDate] = useState(searchParams.get('startDate') || '')
   const [endDate, setEndDate] = useState(searchParams.get('endDate') || '')
+  const [narasi, setNarasi] = useState("Laporan ini menyajikan ringkasan pelaksanaan anggaran (RAB) dan rincian pengeluaran lapangan. Realisasi penggunaan dana sejauh ini telah dicatat dan dilampirkan sesuai dengan bukti transaksi yang sah.")
   
 
   const handleFilter = () => {
@@ -93,13 +94,31 @@ export function LaporanClientPage({ initialData, rabData }: { initialData: any[]
         </CardHeader>
       </Card>
       
+      <Card className="print:hidden mb-6">
+        <CardHeader className="bg-slate-50 border-b py-3">
+          <CardTitle className="text-sm">Narasi / Ringkasan Laporan (Tampil di Print)</CardTitle>
+        </CardHeader>
+        <CardContent className="p-4">
+          <textarea 
+            className="w-full p-3 border border-slate-200 rounded-md text-sm min-h-[100px]" 
+            value={narasi} 
+            onChange={(e) => setNarasi(e.target.value)}
+            placeholder="Ketik narasi laporan di sini..."
+          />
+        </CardContent>
+      </Card>
+
       <div id="report-container" className="space-y-8 bg-white print:p-4">
         {/* Header for PDF only */}
-        <div className="hidden print:block p-2 mb-4 border-b-2 border-slate-800">
-          <h2 className="text-2xl font-bold text-center uppercase">Laporan Pelaksanaan Anggaran (RAB) & Pengeluaran</h2>
+        <div className="hidden print:block mb-6">
+          <img src="/kop-maleo.png" alt="Kop Yayasan Maleo" className="w-full object-contain mb-4 border-b-4 border-slate-800 pb-2" />
+          <h2 className="text-xl font-bold text-center uppercase mt-4">Laporan Pelaksanaan Anggaran (RAB) & Pengeluaran</h2>
           <p className="text-center text-sm mt-1">{rabData?.project?.name || 'Proyek SNT'}</p>
-          {(startDate || endDate) ? <p className="text-center text-sm mt-1">Filter Periode Transaksi: {startDate || 'Awal'} s/d {endDate || 'Akhir'}</p> : <p className="text-center text-sm mt-1">Seluruh Periode</p>}
+          {(startDate || endDate) ? <p className="text-center text-sm mt-1">Periode: {startDate || 'Awal'} s/d {endDate || 'Akhir'}</p> : <p className="text-center text-sm mt-1">Periode: Keseluruhan</p>}
           
+          <div className="mt-6 mb-4 text-justify text-sm leading-relaxed">
+            <p className="whitespace-pre-wrap">{narasi}</p>
+          </div>
         </div>
 
         {/* SECTION 1: RAB Realisasi */}
@@ -199,7 +218,7 @@ export function LaporanClientPage({ initialData, rabData }: { initialData: any[]
                           </span>
                         </td>
                         <td className="py-2 px-4">{exp.rabItem?.name || '-'}</td>
-                        <td className="py-2 px-4 text-slate-600 line-clamp-2" title={exp.description}>
+                        <td className="py-2 px-4 text-slate-600" title={exp.description}>
                           {exp.description}
                         </td>
                         <td className="py-2 px-4">{exp.fasilitator ? exp.fasilitator.namaLengkap : 'Lainnya'}</td>
