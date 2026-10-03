@@ -11,7 +11,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <ToastProvider>
-      <div className="flex h-screen w-full overflow-hidden bg-gray-50 text-gray-900">
+      <div className="flex h-screen print:h-auto w-full overflow-hidden print:overflow-visible bg-gray-50 print:bg-white text-gray-900">
         
         {/* Desktop Sidebar */}
         <div className="hidden md:block print:hidden">
@@ -31,9 +31,9 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
           <Sidebar onMobileItemClick={() => setIsMobileMenuOpen(false)} />
         </div>
 
-        <div className="flex flex-1 flex-col overflow-hidden min-w-0">
+        <div className="flex flex-1 flex-col overflow-hidden print:overflow-visible min-w-0">
           <div className="print:hidden"><Header onMenuClick={() => setIsMobileMenuOpen(true)} /></div>
-          <main className="flex-1 overflow-y-auto p-4 md:p-6">
+          <main className="flex-1 overflow-y-auto print:overflow-visible p-4 md:p-6 print:p-0">
             {children}
           </main>
         </div>

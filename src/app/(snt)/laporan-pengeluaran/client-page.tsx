@@ -99,7 +99,7 @@ export function LaporanClientPage({ initialData, rabData }: { initialData: any[]
           <h2 className="text-2xl font-bold text-center uppercase">Laporan Pelaksanaan Anggaran (RAB) & Pengeluaran</h2>
           <p className="text-center text-sm mt-1">{rabData?.project?.name || 'Proyek SNT'}</p>
           {(startDate || endDate) ? <p className="text-center text-sm mt-1">Filter Periode Transaksi: {startDate || 'Awal'} s/d {endDate || 'Akhir'}</p> : <p className="text-center text-sm mt-1">Seluruh Periode</p>}
-          <p className="text-right text-xs mt-2 text-slate-500">Tanggal Cetak: {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+          
         </div>
 
         {/* SECTION 1: RAB Realisasi */}
