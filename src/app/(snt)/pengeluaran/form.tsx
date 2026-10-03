@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilitators: any[] }) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false)
+  const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split('T')[0])
   const [selectedItemId, setSelectedItemId] = useState('')
   const [selectedFasilitatorId, setSelectedFasilitatorId] = useState('')
   const [file, setFile] = useState<File | null>(null)
@@ -280,7 +281,19 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
         )}
 
         <div className="space-y-2">
-          <Label>Nominal Pengeluaran (Rp)</Label>
+            <Label>Tanggal Pengeluaran</Label>
+            <Input 
+              type="date"
+              name="expenseDate"
+              required
+              value={expenseDate}
+              onChange={(e) => setExpenseDate(e.target.value)}
+              className="w-full"
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <Label>Nominal Pengeluaran (Rp)</Label>
           <Input type="number" name="amount" min="1" required placeholder="Contoh: 150000" />
         </div>
 
