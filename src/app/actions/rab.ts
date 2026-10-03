@@ -622,3 +622,40 @@ export async function uploadLaporanFisik(laporanId: string, fileUrl: string) {
   revalidatePath('/fasilitator', 'layout')
   return { success: true }
 }
+
+
+export async function getLaporanPengeluaran(startDate?: string, endDate?: string) {
+  const where: any = {
+    status: 'APPROVED'
+  };
+  
+  if (startDate && endDate) {
+    where.date = {
+      gte: new Date(startDate),
+      lte: new Date(endDate)
+    };
+  } else if (startDate) {
+    where.date = { gte: new Date(startDate) };
+  } else if (endDate) {
+    where.date = { lte: new Date(endDate) };
+  }
+
+  const expenses = await prisma.expenseRequest.findMany({
+    where,
+    include: {
+      rabItem: {
+        include: {
+          category: true
+        }
+      },
+      fasilitator: true,
+      kwitansiRecord: true,
+      invoiceRecord: true
+    },
+    orderBy: {
+      date: 'desc'
+    }
+  });
+
+  return expenses;
+}
