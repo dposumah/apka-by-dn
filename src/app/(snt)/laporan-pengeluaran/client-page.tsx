@@ -171,7 +171,7 @@ export function LaporanClientPage({ initialData, rabData }: { initialData: any[]
         <div className="hidden print:block mb-6">
           <img src="/kop-maleo.png" alt="Kop Yayasan Maleo" className="w-full object-contain mb-4 border-b-4 border-slate-800 pb-2" />
           <h2 className="text-xl font-bold text-center uppercase mt-4">Laporan Pelaksanaan Anggaran (RAB) & Pengeluaran</h2>
-          <p className="text-center text-sm mt-1">{rabData?.project?.name || 'Proyek SNT'}</p>
+          <p className="text-center text-sm mt-1">{rabData?.project?.name === 'Proyek SNT' || !rabData?.project?.name ? 'Program KKA Sekolah Nasional Terintegrasi (SNT) Tahun 2026' : rabData.project.name}</p>
           {(startDate || endDate) ? <p className="text-center text-sm mt-1">Periode: {startDate || 'Awal'} s/d {endDate || 'Akhir'}</p> : <p className="text-center text-sm mt-1">Periode: Keseluruhan</p>}
           
           <div className="mt-6 mb-4 text-justify text-sm leading-relaxed">

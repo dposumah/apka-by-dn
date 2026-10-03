@@ -230,6 +230,7 @@ export async function createFasilitator(data: any) {
         pangkatGolongan: data.pangkatGolongan || null,
         lokasiSNT: data.lokasiSNT || null,
         besaranTransport: data.besaranTransport !== undefined ? parseFloat(data.besaranTransport) : 120000,
+      jarakPPKm: data.jarakPPKm !== undefined ? parseFloat(data.jarakPPKm) : 0,
       userId: userId,
     }
   })
@@ -371,6 +372,7 @@ export async function createFasilitator(data: any) {
         lokasiSNT: data.lokasiSNT || null,
       jenisTugas: data.jenisTugas || currentFasil?.jenisTugas || 'INTRAKURIKULER',
         besaranTransport: data.besaranTransport !== undefined ? parseFloat(data.besaranTransport) : currentFasil?.besaranTransport ?? 120000,
+        jarakPPKm: data.jarakPPKm !== undefined ? parseFloat(data.jarakPPKm) : currentFasil?.jarakPPKm ?? 0,
       userId: userId,
     }
   })
@@ -658,4 +660,24 @@ export async function getLaporanPengeluaran(startDate?: string, endDate?: string
   });
 
   return expenses;
+}
+
+// ==================== APP SETTINGS ====================
+
+export async function getAppSetting(key: string, defaultValue: string) {
+  const setting = await prisma.appSetting.findUnique({ where: { key } });
+  return setting ? setting.value : defaultValue;
+}
+
+export async function updateAppSetting(key: string, value: string, label?: string) {
+  const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN']);
+  if (authError) throw new Error(authError);
+
+  const setting = await prisma.appSetting.upsert({
+    where: { key },
+    update: { value, label: label || null },
+    create: { key, value, label: label || null }
+  });
+  revalidatePath('/snt-akun');
+  return setting;
 }

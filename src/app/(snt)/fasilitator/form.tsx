@@ -61,6 +61,7 @@ export function FasilitatorForm({ initialData }: { initialData?: any }) {
       pangkatGolongan: fd.get('pangkatGolongan'),
       lokasiSNT: fd.get('lokasiSNT'),
       besaranTransport: fd.get('besaranTransport') ? parseFloat(fd.get('besaranTransport') as string) : 120000,
+      jarakPPKm: fd.get('jarakPPKm') ? parseFloat(fd.get('jarakPPKm') as string) : 0,
       defaultJPIntra: fd.get('defaultJPIntra') ? parseInt(fd.get('defaultJPIntra') as string) : 8,
       defaultJPEkstra: fd.get('defaultJPEkstra') ? parseInt(fd.get('defaultJPEkstra') as string) : 4,
       jenisTugas: fd.get('jenisTugas') as string || 'INTRAKURIKULER',
@@ -205,10 +206,18 @@ export function FasilitatorForm({ initialData }: { initialData?: any }) {
             </div>
           </div>
           
-          <div className="space-y-2 mt-4 pt-4 border-t">
-            <Label>Besaran Transport Darat (Rp) *</Label>
+          <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t">
+            <div className="space-y-2">
+              <Label>Jarak Kedudukan ke Lokasi (PP) *</Label>
+              <Input name="jarakPPKm" type="number" step="0.1" min="0" defaultValue={initialData?.jarakPPKm ?? 0} required />
+              <p className="text-xs text-slate-500">Jarak tempuh Pulang-Pergi (km). Dipakai untuk rumus transport.</p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Besaran Transport Darat (Rp) *</Label>
             <Input name="besaranTransport" type="number" defaultValue={initialData?.besaranTransport ?? 120000} required />
-            <p className="text-xs text-slate-500">Batas maksimal nominal transport darat tanpa wajib upload bukti.</p>
+            <p className="text-xs text-slate-500">Batas maksimal mingguan / Plafon (tanpa bukti & hasil rumus).</p>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2 mt-4">

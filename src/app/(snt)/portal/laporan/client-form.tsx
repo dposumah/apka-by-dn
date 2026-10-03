@@ -11,7 +11,7 @@ import { submitLaporanKegiatan } from '@/app/actions/rab'
 import { useToast } from '@/components/ui/toast'
 import { useRouter } from 'next/navigation'
 
-export function LaporanClientForm({ fasilitatorId, besaranTransport, defaultJPIntra = 8, defaultJPEkstra = 4 }: { fasilitatorId: string, besaranTransport: number, defaultJPIntra?: number, defaultJPEkstra?: number }) {
+export function LaporanClientForm({ fasilitatorId, besaranTransport, jarakPPKm = 0, hargaPertamax = 13900, defaultJPIntra = 8, defaultJPEkstra = 4, jenisTugas = "INTRAKURIKULER" }: { fasilitatorId: string, besaranTransport: number, jarakPPKm?: number, hargaPertamax?: number, defaultJPIntra?: number, defaultJPEkstra?: number, jenisTugas?: string }) {
   const router = useRouter()
   const { toast } = useToast()
   const [saving, setSaving] = useState(false)
@@ -22,6 +22,10 @@ export function LaporanClientForm({ fasilitatorId, besaranTransport, defaultJPIn
   const [buktiDarat, setBuktiDarat] = useState<File | null>(null)
   const [tiket, setTiket] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
+
+  const calculatedTransport = Math.round((jarakPPKm / 10) * hargaPertamax);
+  const maxTransportDarat = Math.min(calculatedTransport, besaranTransport);
+
   
   const [formData, setFormData] = useState({
     date: new Date().toISOString().substring(0, 10),
@@ -31,7 +35,7 @@ export function LaporanClientForm({ fasilitatorId, besaranTransport, defaultJPIn
     tingkatSekolah: 'SMP',
     metodePelaksanaan: 'LURING',
     jenisPembelajaran: jenisTugas === 'EKSTRAKURIKULER' ? 'EKSTRAKURIKULER' : 'INTRAKURIKULER',
-    biayaTransport: '',
+    biayaTransport: maxTransportDarat ? maxTransportDarat.toString() : '',
     biayaTransportLaut: '',
   })
 
@@ -88,7 +92,7 @@ export function LaporanClientForm({ fasilitatorId, besaranTransport, defaultJPIn
     // Transport darat: upload wajib hanya jika melebihi besaranTransport
     const nominalDarat = parseFloat(formData.biayaTransport) || 0
     if (nominalDarat > besaranTransport && !buktiDarat) {
-      setFileError(`Bukti Transport Darat wajib diunggah jika melebihi Rp ${besaranTransport.toLocaleString('id-ID')}.`)
+      setFileError(`Bukti Transport Darat wajib diunggah jika klaim melebihi nilai wajar rumus jarak (Rp ${maxTransportDarat.toLocaleString('id-ID')}).`)
       return
     }
     // Transport antar pulau: upload selalu wajib
@@ -128,7 +132,7 @@ export function LaporanClientForm({ fasilitatorId, besaranTransport, defaultJPIn
 
   // Derive whether transport darat upload is mandatory
   const nominalDaratCurrent = parseFloat(formData.biayaTransport) || 0
-  const isDaratWajib = nominalDaratCurrent > besaranTransport
+  const isDaratWajib = nominalDaratCurrent > maxTransportDarat
 
   return (
     <div className="p-8 space-y-6 max-w-3xl mx-auto">
@@ -230,7 +234,7 @@ export function LaporanClientForm({ fasilitatorId, besaranTransport, defaultJPIn
               <div className="space-y-2">
                 <Label>Biaya Transport Darat (Rp)</Label>
                 <Input type="number" min="0" value={formData.biayaTransport} onChange={e => setFormData({...formData, biayaTransport: e.target.value})} placeholder="Kosongkan jika tidak ada" />
-                <p className="text-xs text-slate-500">Batas tanpa bukti: Rp {besaranTransport.toLocaleString('id-ID')}</p>
+                <p className="text-xs text-slate-500">Batas wajar sesuai jarak: Rp {maxTransportDarat.toLocaleString('id-ID')}</p>
               </div>
               <div className="space-y-2">
                 <Label>Biaya Transport Antar Pulau (Rp)</Label>
@@ -253,8 +257,8 @@ export function LaporanClientForm({ fasilitatorId, besaranTransport, defaultJPIn
                   <Input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => e.target.files && setBuktiDarat(e.target.files[0])} />
                   <p className={`text-xs ${isDaratWajib ? 'text-red-600' : 'text-emerald-600'}`}>
                     {isDaratWajib 
-                      ? `Nominal Rp ${nominalDaratCurrent.toLocaleString('id-ID')} melebihi batas Rp ${besaranTransport.toLocaleString('id-ID')}. Wajib lampirkan bukti (nota BBM, tiket, dll).`
-                      : `Nominal di bawah batas Rp ${besaranTransport.toLocaleString('id-ID')}. Upload opsional, tapi disarankan.`
+                      ? `Nominal Rp ${nominalDaratCurrent.toLocaleString('id-ID')} melebihi batas wajar jarak Rp ${maxTransportDarat.toLocaleString('id-ID')}. Wajib lampirkan bukti BBM/Transportasi.`
+                      : `Nominal sesuai dengan nilai wajar jarak. Upload bukti opsional, tapi disarankan.`
                     }
                   </p>
                 </div>

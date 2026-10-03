@@ -586,6 +586,7 @@ model Fasilitator {
   kabKota           String?
   isActive          Boolean @default(true)
   besaranTransport  Float   @default(120000)
+  jarakPPKm         Float   @default(0) // Jarak PP kedudukan ke lokasi kegiatan (km)
   defaultJPIntra    Int     @default(8)
   defaultJPEkstra   Int     @default(4)
   jenisTugas        String  @default("INTRAKURIKULER") // INTRAKURIKULER, EKSTRAKURIKULER, KEDUANYA
@@ -741,4 +742,18 @@ model InvoiceRecord {
   createdAt DateTime @default(now())
 
   @@map("invoice_record")
+}
+
+
+// ==================== APP SETTINGS ====================
+
+model AppSetting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+  label String?
+
+  updatedAt DateTime @updatedAt
+
+  @@map("app_settings")
 }

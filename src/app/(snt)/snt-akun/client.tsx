@@ -6,11 +6,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { updateAdminAccount, changeUserPassword, createKorwilUser } from '@/app/actions/user'
+import { updateAppSetting } from '@/app/actions/rab'
 import { AlertCircle, CheckCircle2 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { useRouter } from 'next/navigation'
 
-export function SntAkunClient({ user }: { user: any }) {
+export function SntAkunClient({ user, hargaPertamax }: { user: any, hargaPertamax?: string }) {
   const router = useRouter()
   
   const [profileLoading, setProfileLoading] = useState(false)
@@ -23,6 +24,26 @@ export function SntAkunClient({ user }: { user: any }) {
 
   const [passLoading, setPassLoading] = useState(false)
   const [passSuccess, setPassSuccess] = useState(false)
+
+  const [pertamaxLoading, setPertamaxLoading] = useState(false)
+  const [pertamaxSuccess, setPertamaxSuccess] = useState(false)
+  const [harga, setHarga] = useState(hargaPertamax || '13900')
+
+  const handleUpdateSettings = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setPertamaxLoading(true)
+    setPertamaxSuccess(false)
+    try {
+      await updateAppSetting('harga_pertamax', harga)
+      setPertamaxSuccess(true)
+      setTimeout(() => setPertamaxSuccess(false), 3000)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setPertamaxLoading(false)
+    }
+  }
+
   const [passError, setPassError] = useState('')
   const [passData, setPassData] = useState({
     currentPass: '',
