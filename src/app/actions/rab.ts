@@ -681,3 +681,19 @@ export async function updateAppSetting(key: string, value: string, label?: strin
   revalidatePath('/snt-akun');
   return setting;
 }
+
+export async function updateBulkFasilitatorTransportSettings(data: { id: string, jarakPPKm: number, besaranTransport: number }[]) {
+  const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN']);
+  if (authError) throw new Error(authError);
+
+  for (const item of data) {
+    await prisma.fasilitator.update({
+      where: { id: item.id },
+      data: {
+        jarakPPKm: item.jarakPPKm,
+        besaranTransport: item.besaranTransport
+      }
+    });
+  }
+  revalidatePath('/snt-akun');
+}

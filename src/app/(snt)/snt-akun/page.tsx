@@ -24,5 +24,10 @@ export default async function SntAkunPage() {
   }
 
   const hargaPertamax = await getAppSetting('harga_pertamax', '13900');
-  return <SntAkunClient user={user} hargaPertamax={hargaPertamax} />
+  const facilitators = await prisma.fasilitator.findMany({
+    where: { isActive: true },
+    orderBy: { namaLengkap: 'asc' },
+    select: { id: true, namaLengkap: true, jarakPPKm: true, besaranTransport: true, lokasiSNT: true }
+  });
+  return <SntAkunClient user={user} hargaPertamax={hargaPertamax} facilitators={facilitators} />
 }
