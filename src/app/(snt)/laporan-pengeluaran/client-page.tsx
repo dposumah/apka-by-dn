@@ -20,7 +20,7 @@ export function LaporanClientPage({ initialData }: { initialData: any[] }) {
     const params = new URLSearchParams()
     if (startDate) params.set('startDate', startDate)
     if (endDate) params.set('endDate', endDate)
-    router.push(\`/laporan-pengeluaran?\${params.toString()}\`)
+    router.push(`/laporan-pengeluaran?${params.toString()}`)
   }
 
   const exportCSV = () => {
@@ -41,11 +41,11 @@ export function LaporanClientPage({ initialData }: { initialData: any[] }) {
       return [date, cat, item, desc, amount, penerima, status, bukti].join(',');
     });
     
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows].join("\\n");
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows].join("\n");
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", \`Laporan_Pengeluaran_\${startDate || 'All'}_\${endDate || 'All'}.csv\`);
+    link.setAttribute("download", `Laporan_Pengeluaran_${startDate || 'All'}_${endDate || 'All'}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -66,7 +66,7 @@ export function LaporanClientPage({ initialData }: { initialData: any[] }) {
       const element = document.getElementById('report-table');
       const opt = {
         margin: 10,
-        filename: \`Laporan_Pengeluaran_\${startDate || 'All'}_\${endDate || 'All'}.pdf\`,
+        filename: `Laporan_Pengeluaran_${startDate || 'All'}_${endDate || 'All'}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2 },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
