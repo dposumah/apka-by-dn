@@ -124,7 +124,8 @@ export function LaporanClientPage({ initialData, rabData }: { initialData: any[]
         <div className="hidden print:block p-2 mb-4 border-b-2 border-slate-800">
           <h2 className="text-2xl font-bold text-center uppercase">Laporan Pelaksanaan Anggaran (RAB) & Pengeluaran</h2>
           <p className="text-center text-sm mt-1">{rabData?.project?.name || 'Proyek SNT'}</p>
-          {(startDate || endDate) && <p className="text-center text-sm mt-1">Filter Periode Transaksi: {startDate || 'Awal'} s/d {endDate || 'Akhir'}</p>}
+          {(startDate || endDate) ? <p className="text-center text-sm mt-1">Filter Periode Transaksi: {startDate || 'Awal'} s/d {endDate || 'Akhir'}</p> : <p className="text-center text-sm mt-1">Seluruh Periode</p>}
+          <p className="text-right text-xs mt-2 text-slate-500">Tanggal Cetak: {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
         </div>
 
         {/* SECTION 1: RAB Realisasi */}
@@ -151,12 +152,12 @@ export function LaporanClientPage({ initialData, rabData }: { initialData: any[]
                         <td colSpan={5} className="py-2 px-4">{cat.name}</td>
                       </tr>
                       {cat.items.map((item: any) => {
-                        const sisa = item.budget - item.realized;
-                        const persen = item.budget > 0 ? (item.realized / item.budget) * 100 : 0;
+                        const sisa = item.totalBudget - item.realized;
+                        const persen = item.totalBudget > 0 ? (item.realized / item.totalBudget) * 100 : 0;
                         return (
                           <tr key={item.id} className="hover:bg-slate-50/50">
                             <td className="py-2 px-4 pl-8 text-slate-700">{item.code} - {item.name}</td>
-                            <td className="py-2 px-4 text-right">{formatCurrency(item.budget)}</td>
+                            <td className="py-2 px-4 text-right">{formatCurrency(item.totalBudget)}</td>
                             <td className="py-2 px-4 text-right text-blue-600">{formatCurrency(item.realized)}</td>
                             <td className="py-2 px-4 text-center">
                               <Badge variant={persen > 100 ? "destructive" : persen > 80 ? "default" : "secondary"}>

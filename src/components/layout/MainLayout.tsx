@@ -14,7 +14,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
       <div className="flex h-screen w-full overflow-hidden bg-gray-50 text-gray-900">
         
         {/* Desktop Sidebar */}
-        <div className="hidden md:block">
+        <div className="hidden md:block print:hidden">
           <Sidebar />
         </div>
 
@@ -27,12 +27,12 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
         )}
         
         {/* Mobile Sidebar Content */}
-        <div className={`fixed inset-y-0 left-0 z-50 w-[260px] bg-white transform transition-transform duration-200 ease-in-out md:hidden ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className={`print:hidden fixed inset-y-0 left-0 z-50 w-[260px] bg-white transform transition-transform duration-200 ease-in-out md:hidden ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
           <Sidebar onMobileItemClick={() => setIsMobileMenuOpen(false)} />
         </div>
 
         <div className="flex flex-1 flex-col overflow-hidden min-w-0">
-          <Header onMenuClick={() => setIsMobileMenuOpen(true)} />
+          <div className="print:hidden"><Header onMenuClick={() => setIsMobileMenuOpen(true)} /></div>
           <main className="flex-1 overflow-y-auto p-4 md:p-6">
             {children}
           </main>
