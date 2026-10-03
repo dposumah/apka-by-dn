@@ -14,7 +14,7 @@ export function LaporanClientPage({ initialData, rabData }: { initialData: any[]
   
   const [startDate, setStartDate] = useState(searchParams.get('startDate') || '')
   const [endDate, setEndDate] = useState(searchParams.get('endDate') || '')
-  const [isExporting, setIsExporting] = useState(false)
+  
 
   const handleFilter = () => {
     const params = new URLSearchParams()
@@ -51,34 +51,8 @@ export function LaporanClientPage({ initialData, rabData }: { initialData: any[]
     document.body.removeChild(link);
   }
 
-  const exportPDF = async () => {
-    setIsExporting(true)
-    try {
-      let html2pdf: any; 
-      try { html2pdf = require('html2pdf.js'); } catch (e) { html2pdf = (window as any).html2pdf; }
-      
-      if (!html2pdf) {
-        alert("Modul PDF tidak tersedia, silakan gunakan fungsi Print browser (Ctrl+P)");
-        window.print();
-        return;
-      }
-      
-      const element = document.getElementById('report-container');
-      const opt = {
-        margin: [10, 10, 15, 10], // top, left, bottom, right
-        filename: `Laporan_Lengkap_${startDate || 'All'}_${endDate || 'All'}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
-      };
-      
-      await html2pdf().set(opt).from(element).save();
-    } catch (e) {
-      console.error(e);
-      window.print();
-    } finally {
-      setIsExporting(false)
-    }
+  const exportPDF = () => {
+    window.print();
   }
 
   const totalAmount = initialData.reduce((acc, curr) => acc + curr.amount, 0);
@@ -94,8 +68,8 @@ export function LaporanClientPage({ initialData, rabData }: { initialData: any[]
           <Button onClick={exportCSV} variant="outline" className="bg-white">
             Export CSV Transaksi
           </Button>
-          <Button onClick={exportPDF} disabled={isExporting} className="bg-slate-900 hover:bg-slate-800 text-white">
-            {isExporting ? 'Memproses PDF...' : 'Export Laporan Lengkap (PDF)'}
+          <Button onClick={exportPDF} className="bg-slate-900 hover:bg-slate-800 text-white">
+            Print Laporan Lengkap (PDF)
           </Button>
         </div>
       </div>
