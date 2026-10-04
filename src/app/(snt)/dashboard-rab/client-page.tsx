@@ -161,7 +161,14 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
               (${expense.fasilitator ? expense.fasilitator.namaLengkap : '_____________________'})
             </p>
           </div>
+
         </div>
+        ${expense.receiptUrl ? `
+        <div style="page-break-before: always; padding: 40px; font-family: sans-serif; box-sizing: border-box; width: 100%; text-align: center;">
+          <h3 style="margin-bottom: 20px;">Lampiran Bukti Pengeluaran</h3>
+          <img src="${expense.receiptUrl}" style="max-width: 100%; max-height: 900px; object-fit: contain; border: 1px solid #ccc; padding: 10px;" alt="Bukti Nota" crossorigin="anonymous" />
+        </div>
+        ` : ''}
       </div>
     `;
   }
