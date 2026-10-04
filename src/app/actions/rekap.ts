@@ -364,7 +364,7 @@ export async function generateKwitansiHonor(rekapId: string, inputNoUrut?: strin
       return { error: result.error };
     }
     
-    let noKwitansiSheet = result.noKwitansi || ('KWT/TEMP/' + Date.now() + Math.floor(Math.random()*1000));
+    let noKwitansiSheet = result.noSeri || result.noKwitansi || ('KWT/TEMP/' + Date.now() + Math.floor(Math.random()*1000));
       const checkConflict = await prisma.kwitansiRecord.findUnique({ where: { noKwitansi: noKwitansiSheet } });
       if (checkConflict && (!existing || checkConflict.id !== existing.id)) {
         noKwitansiSheet = noKwitansiSheet + '-' + Math.floor(Math.random() * 10000);
@@ -448,7 +448,7 @@ export async function generateKwitansiExpense(expenseId: string, inputNoUrut?: s
     const result = await response.json();
     if (result.error) return { error: result.error };
     
-    let noKwitansiSheet = result.noKwitansi || ('KWT/TEMP/' + Date.now() + Math.floor(Math.random()*1000));
+    let noKwitansiSheet = result.noSeri || result.noKwitansi || ('KWT/TEMP/' + Date.now() + Math.floor(Math.random()*1000));
       const checkConflict = await prisma.kwitansiRecord.findUnique({ where: { noKwitansi: noKwitansiSheet } });
       if (checkConflict && (!existing || checkConflict.id !== existing.id)) {
         noKwitansiSheet = noKwitansiSheet + '-' + Math.floor(Math.random() * 10000);
@@ -538,7 +538,7 @@ export async function generateKwitansiTransportBulanan(rekapId: string, inputNoU
     const result = await response.json();
     if (result.error) return { error: result.error };
     
-    let noKwitansiSheet = result.noKwitansi || ('KWT/TEMP/' + Date.now() + Math.floor(Math.random()*1000));
+    let noKwitansiSheet = result.noSeri || result.noKwitansi || ('KWT/TEMP/' + Date.now() + Math.floor(Math.random()*1000));
       const checkConflict = await prisma.kwitansiRecord.findUnique({ where: { noKwitansi: noKwitansiSheet } });
       if (checkConflict && (!existing || checkConflict.id !== existing.id)) {
         noKwitansiSheet = noKwitansiSheet + '-' + Math.floor(Math.random() * 10000);
