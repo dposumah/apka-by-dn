@@ -166,7 +166,7 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
         ${expense.receiptUrl ? `
         <div style="page-break-before: always; padding: 40px; font-family: sans-serif; box-sizing: border-box; width: 100%; text-align: center;">
           <h3 style="margin-bottom: 20px;">Lampiran Bukti Pengeluaran</h3>
-          <img src="${expense.receiptUrl}" style="max-width: 100%; max-height: 900px; object-fit: contain; border: 1px solid #ccc; padding: 10px;" alt="Bukti Nota" crossorigin="anonymous" />
+          <img src="${expense.receiptUrl}" style="max-width: 100%; max-height: 900px; object-fit: contain; border: 1px solid #ccc; padding: 10px;" alt="Bukti Nota"  />
         </div>
         ` : ''}
       </div>
@@ -197,9 +197,9 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
       if (win) {
         win.document.write(htmlString);
         win.document.close();
-        win.onload = () => {
+        setTimeout(() => {
           win.print();
-        };
+        }, 1000);
       }
     } catch (err: any) {
       console.error('GENERATE PDF ERROR', err);
@@ -229,21 +229,16 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
         return;
       }
       
-      const wrapper = document.createElement('div');
-        wrapper.innerHTML = htmlString;
-        wrapper.style.width = '794px';
-        wrapper.style.backgroundColor = '#ffffff';
       
-      let html2pdf: any; try { html2pdf = require('html2pdf.js'); } catch (e) { html2pdf = (window as any).html2pdf; }
-      const opt = {
-        margin: 0,
-        filename: 'Pengeluaran_' + selectedExpense.rabItem.name.replace(/\s+/g, '_') + '.pdf',
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      };
-      
-      await html2pdf().set(opt).from(wrapper).save();
+        const win = window.open('', '_blank');
+        if (win) {
+          win.document.write(htmlString);
+          win.document.close();
+          setTimeout(() => {
+            win.print();
+          }, 1000);
+        }
+
       setShowPrintModal(false);
     } catch (err: any) {
       console.error('GENERATE PDF ERROR', err, err.stack);
