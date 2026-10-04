@@ -7,6 +7,7 @@ import { DeleteExpenseButton } from './DeleteExpenseButton'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { generateKwitansiExpense } from '@/app/actions/rekap'
+import { updateExpense } from '@/app/actions/rab'
 
 export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor }: any) {
   const [showPrintModal, setShowPrintModal] = useState(false)
@@ -17,7 +18,45 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
   const [selectedKop, setSelectedKop] = useState<'maleo' | 'robotic'>('maleo')
   
   const [inputNoUrut, setInputNoUrut] = useState("")
+  const [inputInvoiceNoUrut, setInputInvoiceNoUrut] = useState("")
+  const [inputInvoiceTanggal, setInputInvoiceTanggal] = useState("")
   const [inputTanggal, setInputTanggal] = useState("")
+
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editData, setEditData] = useState<any>(null)
+  const [isSaving, setIsSaving] = useState(false)
+
+  const openEditModal = (expense: any) => {
+    setEditData({
+      id: expense.id,
+      date: expense.date ? new Date(expense.date).toISOString().substring(0,10) : new Date(expense.createdAt).toISOString().substring(0,10),
+      description: expense.description,
+      amount: expense.amount,
+      rabItemId: expense.rabItemId
+    })
+    setShowEditModal(true)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editData) return;
+    setIsSaving(true);
+    try {
+      const res = await updateExpense(editData.id, {
+        date: new Date(editData.date),
+        description: editData.description,
+        amount: parseFloat(editData.amount),
+        rabItemId: editData.rabItemId
+      });
+      if (res.error) throw new Error(res.error);
+      setShowEditModal(false);
+      window.location.reload();
+    } catch (err) {
+      alert("Gagal mengedit: " + err);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
 
   const openPrintModal = (expense: any) => {
     setSelectedExpense(expense)
@@ -340,7 +379,13 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
                         >
                           Cetak Dokumen
                         </button>
-                        <DeleteExpenseButton expenseId={exp.id} />
+                        <button 
+                            onClick={() => openEditModal(exp)}
+                            className="text-xs bg-amber-500 text-white hover:bg-amber-600 rounded px-2 py-1.5 transition-colors whitespace-nowrap w-full"
+                          >
+                            Edit
+                          </button>
+                          <DeleteExpenseButton expenseId={exp.id} />
                       </div>
                     </td>
                   </tr>
@@ -351,7 +396,74 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
         </CardContent>
       </Card>
       
-      {showPrintModal && (
+      
+        {showEditModal && editData && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+            <div className="bg-white p-6 rounded-lg shadow-xl w-[500px]">
+              <h3 className="text-lg font-bold mb-4">Edit Pengeluaran</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Tanggal</label>
+                  <input 
+                    type="date" 
+                    value={editData.date}
+                    onChange={e => setEditData({...editData, date: e.target.value})}
+                    className="w-full border rounded px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Deskripsi</label>
+                  <textarea 
+                    value={editData.description}
+                    onChange={e => setEditData({...editData, description: e.target.value})}
+                    className="w-full border rounded px-3 py-2 h-20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Nominal</label>
+                  <input 
+                    type="number" 
+                    value={editData.amount}
+                    onChange={e => setEditData({...editData, amount: e.target.value})}
+                    className="w-full border rounded px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Pilih Item RAB</label>
+                  <select 
+                    value={editData.rabItemId}
+                    onChange={e => setEditData({...editData, rabItemId: e.target.value})}
+                    className="w-full border rounded px-3 py-2"
+                  >
+                    {data.categories.flatMap((cat: any) => 
+                      cat.items.map((item: any) => (
+                        <option key={item.id} value={item.id}>{cat.name} - {item.name}</option>
+                      ))
+                    )}
+                  </select>
+                </div>
+              </div>
+              <div className="mt-6 flex justify-end space-x-2">
+                <button 
+                  onClick={() => setShowEditModal(false)}
+                  className="px-4 py-2 border rounded hover:bg-slate-50"
+                  disabled={isSaving}
+                >
+                  Batal
+                </button>
+                <button 
+                  onClick={handleSaveEdit}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                  disabled={isSaving}
+                >
+                  {isSaving ? 'Menyimpan...' : 'Simpan'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showPrintModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
           <div className="bg-white p-6 rounded-lg shadow-xl w-96">
             <h3 className="text-lg font-bold mb-4">Cetak Dokumen Pengeluaran</h3>
