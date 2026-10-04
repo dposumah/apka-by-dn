@@ -184,6 +184,11 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
       }
       if (printKwitansi) {
         const record = await generateKwitansiExpense(selectedExpense.id, inputNoUrut, inputTanggal);
+        if (record?.error) {
+          alert('Gagal generate kwitansi: ' + record.error);
+          setIsGeneratingPdf(false);
+          return;
+        }
         htmlString += getKwitansiHtml(selectedExpense, record);
       }
       
@@ -220,6 +225,11 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
       }
       if (printKwitansi) {
         const record = await generateKwitansiExpense(selectedExpense.id, inputNoUrut, inputTanggal);
+        if (record?.error) {
+          alert('Gagal generate kwitansi: ' + record.error);
+          setIsGeneratingPdf(false);
+          return;
+        }
         htmlString += getKwitansiHtml(selectedExpense, record);
       }
       

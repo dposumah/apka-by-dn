@@ -207,7 +207,12 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
       }
       if (printKwitansi) {
         const record = await generateKwitansiExpense(submittedExpense.id, inputNoUrut, inputTanggal);
-        htmlString += getKwitansiHtml(submittedExpense, record);
+          if (record?.error) {
+            alert('Gagal generate kwitansi: ' + record.error);
+            setIsGeneratingPdf(false);
+            return;
+          }
+          htmlString += getKwitansiHtml(submittedExpense, record);
       }
       
       if (!htmlString) {

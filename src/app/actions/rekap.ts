@@ -352,23 +352,38 @@ export async function generateKwitansiHonor(rekapId: string, inputNoUrut?: strin
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ perihal, noUrut: noUrut, tanggal: tanggalFormatted }),
+      redirect: 'follow',
     });
     
-    if (!response.ok) {
-      return { error: "HTTP error " + response.status };
-    }
+    console.log('[KwitansiHonor] Response status:', response.status, 'redirected:', response.redirected);
     
-    const result = await response.json();
+    const responseText = await response.text();
+    console.log('[KwitansiHonor] Raw response:', responseText.substring(0, 500));
+    
+    let result: any;
+    try {
+      result = JSON.parse(responseText);
+    } catch (parseErr) {
+      console.error('[KwitansiHonor] Failed to parse JSON:', parseErr);
+      return { error: "Gagal parse response dari Google Sheets. Response: " + responseText.substring(0, 200) };
+    }
     
     if (result.error) {
       return { error: result.error };
     }
     
-    let noKwitansiSheet = result.noSeri || result.noKwitansi || ('KWT/TEMP/' + Date.now() + Math.floor(Math.random()*1000));
-      const checkConflict = await prisma.kwitansiRecord.findUnique({ where: { noKwitansi: noKwitansiSheet } });
-      if (checkConflict && (!existing || checkConflict.id !== existing.id)) {
-        noKwitansiSheet = noKwitansiSheet + '-' + Math.floor(Math.random() * 10000);
-      }
+    let noKwitansiSheet = result.noSeri || result.noKwitansi || '';
+    console.log('[KwitansiHonor] noKwitansiSheet:', noKwitansiSheet);
+    
+    if (!noKwitansiSheet) {
+      noKwitansiSheet = 'KWT/TEMP/' + Date.now();
+      console.warn('[KwitansiHonor] No serial number, using TEMP');
+    }
+    
+    const checkConflict = await prisma.kwitansiRecord.findUnique({ where: { noKwitansi: noKwitansiSheet } });
+    if (checkConflict && (!existing || checkConflict.id !== existing.id)) {
+      noKwitansiSheet = noKwitansiSheet + '-' + Math.floor(Math.random() * 10000);
+    }
     
     // Save to local database
     let kwitansi;
@@ -392,6 +407,7 @@ export async function generateKwitansiHonor(rekapId: string, inputNoUrut?: strin
       });
     }
     
+    console.log('[KwitansiHonor] Saved:', kwitansi.id, kwitansi.noKwitansi);
     return JSON.parse(JSON.stringify(kwitansi));
     
   } catch (error: any) {
@@ -407,81 +423,107 @@ export async function generateKwitansiHonor(rekapId: string, inputNoUrut?: strin
 
 export async function generateKwitansiExpense(expenseId: string, inputNoUrut?: string, inputTanggal?: string) {
   try {
-  const existing = await prisma.kwitansiRecord.findFirst({ where: { expenseId } });
-  
-  const expense = await prisma.expenseRequest.findUnique({
-    where: { id: expenseId },
-    include: { rabItem: true, fasilitator: true }
-  });
-  
-  if (!expense) return { error: "Expense not found" };
-  
-  const perihal = `${expense.description} - ${expense.rabItem.name}`;
-  
-  let finalNoUrut = inputNoUrut || "";
-  if (!inputNoUrut) {
-    if (existing) {
-      if (existing.noKwitansi.includes('TEMP') || existing.noKwitansi === "") {
-        finalNoUrut = existing.noUrut.toString().padStart(3, '0');
-      } else {
-        return JSON.parse(JSON.stringify(existing));
-      }
-    } else {
-      const lastRecord = await prisma.kwitansiRecord.findFirst({ orderBy: { noUrut: 'desc' } });
-      finalNoUrut = ((lastRecord?.noUrut || 0) + 1).toString().padStart(3, '0');
-    }
-  }
-  
-  const webhookUrl = "https://script.google.com/macros/s/AKfycbx4HtXH816rxAkcPV44wM5VEp9cgJ7DQ0aLv9TMAIkDtGUVVRrVS8pRPAxL9mCuAVJe/exec";
-  const noUrut = finalNoUrut;
-  const d = inputTanggal ? new Date(inputTanggal) : new Date();
-  const tanggalFormatted = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
-  
-  try {
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ perihal, noUrut, tanggal: tanggalFormatted }),
+    const existing = await prisma.kwitansiRecord.findFirst({ where: { expenseId } });
+
+    const expense = await prisma.expenseRequest.findUnique({
+      where: { id: expenseId },
+      include: { rabItem: true, fasilitator: true }
     });
-    
-    if (!response.ok) return { error: "HTTP error " + response.status };
-    const result = await response.json();
-    if (result.error) return { error: result.error };
-    
-    let noKwitansiSheet = result.noSeri || result.noKwitansi || ('KWT/TEMP/' + Date.now() + Math.floor(Math.random()*1000));
+
+    if (!expense) return { error: "Expense not found" };
+
+    const perihal = `${expense.description} - ${expense.rabItem.name}`;
+
+    let finalNoUrut = inputNoUrut || "";
+    if (!inputNoUrut) {
+      if (existing) {
+        if (existing.noKwitansi.includes('TEMP') || existing.noKwitansi === "") {
+          finalNoUrut = existing.noUrut.toString().padStart(3, '0');
+        } else {
+          return JSON.parse(JSON.stringify(existing));
+        }
+      } else {
+        const lastRecord = await prisma.kwitansiRecord.findFirst({ orderBy: { noUrut: 'desc' } });
+        finalNoUrut = ((lastRecord?.noUrut || 0) + 1).toString().padStart(3, '0');
+      }
+    }
+
+    const webhookUrl = "https://script.google.com/macros/s/AKfycbx4HtXH816rxAkcPV44wM5VEp9cgJ7DQ0aLv9TMAIkDtGUVVRrVS8pRPAxL9mCuAVJe/exec";
+    const noUrut = finalNoUrut;
+    const d = inputTanggal ? new Date(inputTanggal) : new Date();
+    const tanggalFormatted = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+
+    console.log('[KwitansiExpense] Calling webhook with:', { perihal, noUrut, tanggal: tanggalFormatted });
+
+    try {
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ perihal, noUrut, tanggal: tanggalFormatted }),
+        redirect: 'follow',
+      });
+
+      console.log('[KwitansiExpense] Response status:', response.status, 'redirected:', response.redirected, 'url:', response.url);
+
+      const responseText = await response.text();
+      console.log('[KwitansiExpense] Raw response text:', responseText.substring(0, 500));
+
+      let result: any;
+      try {
+        result = JSON.parse(responseText);
+      } catch (parseErr) {
+        console.error('[KwitansiExpense] Failed to parse JSON response:', parseErr);
+        return { error: "Gagal parse response dari Google Sheets. Response: " + responseText.substring(0, 200) };
+      }
+
+      console.log('[KwitansiExpense] Parsed result:', JSON.stringify(result));
+
+      if (result.error) {
+        return { error: result.error };
+      }
+
+      let noKwitansiSheet = result.noSeri || result.noKwitansi || '';
+      console.log('[KwitansiExpense] noKwitansiSheet extracted:', noKwitansiSheet);
+
+      if (!noKwitansiSheet) {
+        noKwitansiSheet = 'KWT/TEMP/' + Date.now();
+        console.warn('[KwitansiExpense] No serial number in response, using TEMP:', noKwitansiSheet);
+      }
+
       const checkConflict = await prisma.kwitansiRecord.findUnique({ where: { noKwitansi: noKwitansiSheet } });
       if (checkConflict && (!existing || checkConflict.id !== existing.id)) {
         noKwitansiSheet = noKwitansiSheet + '-' + Math.floor(Math.random() * 10000);
       }
-    
-    let kwitansi;
-    if (existing) {
-      kwitansi = await prisma.kwitansiRecord.update({
-        where: { id: existing.id },
-        data: { noKwitansi: noKwitansiSheet, tanggal: d }
-      });
-    } else {
-      kwitansi = await prisma.kwitansiRecord.create({
-        data: {
-          noKwitansi: noKwitansiSheet,
-          perihal,
-          nominal: expense.amount,
-          expenseId: expense.id,
-          tanggal: d
-        }
-      });
-    }
-    return JSON.parse(JSON.stringify(kwitansi));
-  } catch (error: any) {
-    console.error("Webhook Error:", error);
-    return { error: "Gagal mengambil nomor kwitansi dari Google Sheets: " + error.message };
-  }
 
+      let kwitansi;
+      if (existing) {
+        kwitansi = await prisma.kwitansiRecord.update({
+          where: { id: existing.id },
+          data: { noKwitansi: noKwitansiSheet, tanggal: d }
+        });
+      } else {
+        kwitansi = await prisma.kwitansiRecord.create({
+          data: {
+            noKwitansi: noKwitansiSheet,
+            perihal,
+            nominal: expense.amount,
+            expenseId: expense.id,
+            tanggal: d
+          }
+        });
+      }
+      console.log('[KwitansiExpense] Saved kwitansi:', kwitansi.id, 'noKwitansi:', kwitansi.noKwitansi);
+      return JSON.parse(JSON.stringify(kwitansi));
+    } catch (error: any) {
+      console.error("[KwitansiExpense] Webhook Error:", error);
+      return { error: "Gagal mengambil nomor kwitansi dari Google Sheets: " + error.message };
+    }
   } catch (error: any) {
-    console.error('Error in generateKwitansiExpense:', error);
+    console.error('[KwitansiExpense] Error:', error);
     return { error: error.message || 'Unknown error in generateKwitansiExpense' };
   }
 }
+
 
 export async function generateKwitansiTransportBulanan(rekapId: string, inputNoUrut?: string, inputTanggal?: string) {
   try {
@@ -527,22 +569,34 @@ export async function generateKwitansiTransportBulanan(rekapId: string, inputNoU
   const d = inputTanggal ? new Date(inputTanggal) : new Date();
   const tanggalFormatted = ``//``;
   
+  
   try {
     const response = await fetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ perihal, noUrut, tanggal: tanggalFormatted }),
+      redirect: 'follow',
     });
     
-    if (!response.ok) return { error: "HTTP error " + response.status };
-    const result = await response.json();
+    console.log('[TransportBulanan] Response status:', response.status);
+    const responseText = await response.text();
+    
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch (e) {
+      console.error('[TransportBulanan] Failed to parse:', e);
+      return { error: "Gagal parse response: " + responseText.substring(0, 100) };
+    }
+    
     if (result.error) return { error: result.error };
     
-    let noKwitansiSheet = result.noSeri || result.noKwitansi || ('KWT/TEMP/' + Date.now() + Math.floor(Math.random()*1000));
-      const checkConflict = await prisma.kwitansiRecord.findUnique({ where: { noKwitansi: noKwitansiSheet } });
-      if (checkConflict && (!existing || checkConflict.id !== existing.id)) {
-        noKwitansiSheet = noKwitansiSheet + '-' + Math.floor(Math.random() * 10000);
-      }
+    let noKwitansiSheet = result.noSeri || result.noKwitansi || ('KWT/TEMP/' + Date.now());
+    const checkConflict = await prisma.kwitansiRecord.findUnique({ where: { noKwitansi: noKwitansiSheet } });
+    if (checkConflict && (!existing || checkConflict.id !== existing.id)) {
+      noKwitansiSheet = noKwitansiSheet + '-' + Math.floor(Math.random() * 10000);
+    }
+
     
     let kwitansi;
     if (existing) {
@@ -606,23 +660,34 @@ export async function generateInvoiceExpense(expenseId: string, inputNoUrut?: st
     const d = inputTanggal ? new Date(inputTanggal) : new Date();
     const tanggalFormatted = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
     
-    try {
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ perihal, noUrut, tanggal: tanggalFormatted, sheetName: 'Invoice' }),
-      });
-      
-      if (!response.ok) return { error: "HTTP error " + response.status };
-      
-      const result = await response.json();
-      if (result.error) return { error: result.error };
-      
-      let noInvoiceSheet = result.noSeri || result.noKwitansi || ('INV/TEMP/' + Date.now() + Math.floor(Math.random()*1000));
-      const checkConflict = await prisma.invoiceRecord.findUnique({ where: { noInvoice: noInvoiceSheet } });
-      if (checkConflict && (!existing || checkConflict.id !== existing.id)) {
-        noInvoiceSheet = noInvoiceSheet + '-' + Math.floor(Math.random() * 10000);
-      }
+    
+      try {
+        const response = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ perihal, noUrut, tanggal: tanggalFormatted, sheetName: 'Invoice' }),
+          redirect: 'follow',
+        });
+        
+        console.log('[InvoiceExpense] Response status:', response.status);
+        const responseText = await response.text();
+        
+        let result;
+        try {
+          result = JSON.parse(responseText);
+        } catch (e) {
+          console.error('[InvoiceExpense] Failed to parse:', e);
+          return { error: "Gagal parse response: " + responseText.substring(0, 100) };
+        }
+        
+        if (result.error) return { error: result.error };
+        
+        let noInvoiceSheet = result.noSeri || result.noKwitansi || ('INV/TEMP/' + Date.now() + Math.floor(Math.random()*1000));
+        const checkConflict = await prisma.invoiceRecord.findUnique({ where: { noInvoice: noInvoiceSheet } });
+        if (checkConflict && (!existing || checkConflict.id !== existing.id)) {
+          noInvoiceSheet = noInvoiceSheet + '-' + Math.floor(Math.random() * 10000);
+        }
+
       
       let inv;
       if (existing) {
