@@ -23,6 +23,9 @@ export function FasilitatorForm({ initialData }: { initialData?: any }) {
   const router = useRouter()
   
   const [nip, setNip] = useState(initialData?.nipNuptk || '')
+  const [ktpUrl, setKtpUrl] = useState(initialData?.ktpUrl || '')
+  const [uploadingKtp, setUploadingKtp] = useState(false)
+
   const [statusKepegawaian, setStatusKepegawaian] = useState(initialData?.statusKepegawaian || 'Non-ASN')
 
   useEffect(() => {
@@ -32,6 +35,32 @@ export function FasilitatorForm({ initialData }: { initialData?: any }) {
       setStatusKepegawaian('Non-ASN')
     }
   }, [nip])
+
+  
+  const handleKtpUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Ukuran file maksimal 2 MB')
+      return
+    }
+    setUploadingKtp(true)
+    try {
+      const uploadData = new FormData()
+      uploadData.append('file', file)
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: uploadData
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Gagal unggah KTP')
+      setKtpUrl(data.url)
+    } catch (err: any) {
+      await alert(err.message || 'Terjadi kesalahan saat unggah KTP')
+    } finally {
+      setUploadingKtp(false)
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -65,6 +94,7 @@ export function FasilitatorForm({ initialData }: { initialData?: any }) {
       defaultJPIntra: fd.get('defaultJPIntra') ? parseInt(fd.get('defaultJPIntra') as string) : 8,
       defaultJPEkstra: fd.get('defaultJPEkstra') ? parseInt(fd.get('defaultJPEkstra') as string) : 4,
       jenisTugas: fd.get('jenisTugas') as string || 'INTRAKURIKULER',
+      ktpUrl: ktpUrl,
     }
 
     try {
@@ -257,7 +287,34 @@ export function FasilitatorForm({ initialData }: { initialData?: any }) {
         </div>
       </div>
 
-      <div className="flex justify-end gap-2 pt-4 border-t">
+      
+          <div className="space-y-2 md:col-span-2 border p-4 rounded-md bg-slate-50 mt-4">
+            <Label>Dokumen KTP</Label>
+            <p className="text-xs text-slate-500 mb-2">Unggah file foto KTP (Maks 2MB)</p>
+            {ktpUrl ? (
+              <div className="flex flex-col gap-2">
+                <a href={ktpUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline text-sm font-medium">
+                  Lihat KTP Tersimpan
+                </a>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-max"
+                  onClick={() => setKtpUrl('')}
+                >
+                  Ganti Foto
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Input type="file" accept="image/*" disabled={uploadingKtp} onChange={handleKtpUpload} className="max-w-xs" />
+                {uploadingKtp && <span className="text-sm text-slate-500">Mengunggah...</span>}
+              </div>
+            )}
+          </div>
+
+      <div className="flex justify-end gap-2 pt-4 border-t mt-4">
         <Button type="button" variant="outline" onClick={() => router.back()}>Batal</Button>
         <Button type="submit" disabled={loading}>{loading ? 'Menyimpan...' : 'Simpan Data'}</Button>
       </div>

@@ -264,7 +264,7 @@ export function ProfilClient({ fasilitator }: { fasilitator: any }) {
               
                   <div className="space-y-2 col-span-1 md:col-span-2 mt-4 p-4 border rounded-md bg-slate-50">
                     <Label className="text-base font-semibold">Dokumen KTP</Label>
-                    <p className="text-xs text-slate-500 mb-2">Unggah file KTP Anda (PDF/Gambar maksimal 2MB)</p>
+                    <p className="text-xs text-slate-500 mb-2">Unggah file KTP Anda (Foto / Gambar maksimal 2MB)</p>
                     {formData.ktpUrl ? (
                       <div className="flex flex-col gap-2">
                         <a href={formData.ktpUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline text-sm font-medium">
@@ -284,7 +284,7 @@ export function ProfilClient({ fasilitator }: { fasilitator: any }) {
                       <div className="flex gap-2 items-center">
                         <Input 
                           type="file" 
-                          accept="image/*,.pdf" 
+                          accept="image/*" 
                           disabled={uploadingKtp}
                           onChange={handleKtpUpload} 
                           className="max-w-xs cursor-pointer"
