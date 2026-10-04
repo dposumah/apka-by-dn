@@ -376,8 +376,13 @@ export async function generateKwitansiHonor(rekapId: string, inputNoUrut?: strin
     console.log('[KwitansiHonor] noKwitansiSheet:', noKwitansiSheet);
     
     if (!noKwitansiSheet) {
-      noKwitansiSheet = 'KWT/TEMP/' + Date.now();
-      console.warn('[KwitansiHonor] No serial number, using TEMP');
+      const parts = tanggalFormatted.split('/');
+      if (parts.length === 3) {
+        noKwitansiSheet = `KWC/MTC/${parts[2]}.${parts[1]}.${parts[0]}.${noUrut.toString().padStart(3, '0')}`;
+        console.log('[KwitansiHonor] Constructed manually:', noKwitansiSheet);
+      } else {
+        noKwitansiSheet = 'KWT/TEMP/' + Date.now();
+      }
     }
     
     const checkConflict = await prisma.kwitansiRecord.findUnique({ where: { noKwitansi: noKwitansiSheet } });
@@ -486,8 +491,14 @@ export async function generateKwitansiExpense(expenseId: string, inputNoUrut?: s
       console.log('[KwitansiExpense] noKwitansiSheet extracted:', noKwitansiSheet);
 
       if (!noKwitansiSheet) {
-        noKwitansiSheet = 'KWT/TEMP/' + Date.now();
-        console.warn('[KwitansiExpense] No serial number in response, using TEMP:', noKwitansiSheet);
+        // Fallback: construct it manually if Apps Script returned empty string due to formula calculation delay
+        const parts = tanggalFormatted.split('/'); // DD/MM/YYYY
+        if (parts.length === 3) {
+          noKwitansiSheet = `KWC/MTC/${parts[2]}.${parts[1]}.${parts[0]}.${noUrut.toString().padStart(3, '0')}`;
+          console.log('[KwitansiExpense] Constructed manually:', noKwitansiSheet);
+        } else {
+          noKwitansiSheet = 'KWT/TEMP/' + Date.now();
+        }
       }
 
       const checkConflict = await prisma.kwitansiRecord.findUnique({ where: { noKwitansi: noKwitansiSheet } });
@@ -591,7 +602,15 @@ export async function generateKwitansiTransportBulanan(rekapId: string, inputNoU
     
     if (result.error) return { error: result.error };
     
-    let noKwitansiSheet = result.noSeri || result.noKwitansi || ('KWT/TEMP/' + Date.now());
+    let noKwitansiSheet = result.noSeri || result.noKwitansi || '';
+    if (!noKwitansiSheet) {
+      const parts = tanggalFormatted.split('/');
+      if (parts.length === 3) {
+        noKwitansiSheet = `KWC/MTC/${parts[2]}.${parts[1]}.${parts[0]}.${noUrut.toString().padStart(3, '0')}`;
+      } else {
+        noKwitansiSheet = 'KWT/TEMP/' + Date.now();
+      }
+    }
     const checkConflict = await prisma.kwitansiRecord.findUnique({ where: { noKwitansi: noKwitansiSheet } });
     if (checkConflict && (!existing || checkConflict.id !== existing.id)) {
       noKwitansiSheet = noKwitansiSheet + '-' + Math.floor(Math.random() * 10000);
@@ -682,7 +701,15 @@ export async function generateInvoiceExpense(expenseId: string, inputNoUrut?: st
         
         if (result.error) return { error: result.error };
         
-        let noInvoiceSheet = result.noSeri || result.noKwitansi || ('INV/TEMP/' + Date.now() + Math.floor(Math.random()*1000));
+        let noInvoiceSheet = result.noSeri || result.noKwitansi || '';
+        if (!noInvoiceSheet) {
+          const parts = tanggalFormatted.split('/');
+          if (parts.length === 3) {
+            noInvoiceSheet = `INV/MTC/${parts[2]}.${parts[1]}.${parts[0]}.${noUrut.toString().padStart(3, '0')}`;
+          } else {
+            noInvoiceSheet = 'INV/TEMP/' + Date.now();
+          }
+        }
         const checkConflict = await prisma.invoiceRecord.findUnique({ where: { noInvoice: noInvoiceSheet } });
         if (checkConflict && (!existing || checkConflict.id !== existing.id)) {
           noInvoiceSheet = noInvoiceSheet + '-' + Math.floor(Math.random() * 10000);
