@@ -598,6 +598,7 @@ model Fasilitator {
   statusKepegawaian String?
   pangkatGolongan   String?
   lokasiSNT         String?
+  ktpUrl            String?
 
   userId String? @unique
   user   User?   @relation(fields: [userId], references: [id])

@@ -47,6 +47,7 @@ export function ProfilClient({ fasilitator }: { fasilitator: any }) {
     kabKota: fasilitator.kabKota || '',
     propinsi: fasilitator.propinsi || '',
     lokasiSNT: fasilitator.lokasiSNT || '',
+      ktpUrl: fasilitator.ktpUrl || '',
     jenisTugas: fasilitator.jenisTugas || 'INTRAKURIKULER',
   })
 
@@ -58,7 +59,39 @@ export function ProfilClient({ fasilitator }: { fasilitator: any }) {
     }
   }, [formData.nipNuptk, fasilitator.statusKepegawaian])
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  
+  const [uploadingKtp, setUploadingKtp] = useState(false)
+
+  const handleKtpUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Ukuran file maksimal 2 MB')
+      return
+    }
+
+    setUploadingKtp(true)
+    try {
+      const uploadData = new FormData()
+      uploadData.append('file', file)
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: uploadData
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Gagal unggah KTP')
+      
+      setFormData(prev => ({ ...prev, ktpUrl: data.url }))
+    } catch (err: any) {
+      alert(err.message || 'Terjadi kesalahan saat unggah KTP')
+    } finally {
+      setUploadingKtp(false)
+    }
+  }
+
+
+    const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
     try {
@@ -228,7 +261,40 @@ export function ProfilClient({ fasilitator }: { fasilitator: any }) {
                 </div>
               </div>
               
-              <div className="flex justify-end gap-2 pt-6">
+              
+                  <div className="space-y-2 col-span-1 md:col-span-2 mt-4 p-4 border rounded-md bg-slate-50">
+                    <Label className="text-base font-semibold">Dokumen KTP</Label>
+                    <p className="text-xs text-slate-500 mb-2">Unggah file KTP Anda (PDF/Gambar maksimal 2MB)</p>
+                    {formData.ktpUrl ? (
+                      <div className="flex flex-col gap-2">
+                        <a href={formData.ktpUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline text-sm font-medium">
+                          ✓ KTP Tersimpan (Lihat File)
+                        </a>
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-max"
+                          onClick={() => setFormData({...formData, ktpUrl: ''})}
+                        >
+                          Ubah KTP
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2 items-center">
+                        <Input 
+                          type="file" 
+                          accept="image/*,.pdf" 
+                          disabled={uploadingKtp}
+                          onChange={handleKtpUpload} 
+                          className="max-w-xs cursor-pointer"
+                        />
+                        {uploadingKtp && <span className="text-sm text-slate-500 animate-pulse">Mengunggah...</span>}
+                      </div>
+                    )}
+                  </div>
+
+                <div className="flex justify-end gap-2 pt-6">
                 <Button type="button" variant="ghost" onClick={() => setIsEditing(false)}>Batal</Button>
                 <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white" disabled={saving}>
                   {saving ? 'Menyimpan...' : 'Simpan Profil'}
@@ -335,6 +401,18 @@ export function ProfilClient({ fasilitator }: { fasilitator: any }) {
                     <p className="text-slate-500">NIK / NPWP</p>
                     <p className="font-medium">{fasilitator.npwpNik}</p>
                   </div>
+
+                  <div className="col-span-1 md:col-span-2 mt-4 p-4 border rounded-md bg-slate-50">
+                    <p className="text-slate-500 font-semibold mb-2">Dokumen KTP</p>
+                    {fasilitator.ktpUrl ? (
+                      <a href={fasilitator.ktpUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-1">
+                        Lihat KTP
+                      </a>
+                    ) : (
+                      <p className="text-red-500 font-medium">Belum diunggah</p>
+                    )}
+                  </div>
+
                 </div>
               </div>
             </div>
