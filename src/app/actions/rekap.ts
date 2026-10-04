@@ -308,6 +308,9 @@ export async function deleteRekap(id: string) {
 
 export async function generateKwitansiHonor(rekapId: string, inputNoUrut?: string, inputTanggal?: string) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) return { error: "Unauthorized: Anda harus login untuk melakukan aksi ini." };
+
   // Check if it already exists locally
   const existing = await prisma.kwitansiRecord.findFirst({ where: { rekapId, tipeKwitansi: 'HONOR' } });
   
@@ -428,6 +431,9 @@ export async function generateKwitansiHonor(rekapId: string, inputNoUrut?: strin
 
 export async function generateKwitansiExpense(expenseId: string, inputNoUrut?: string, inputTanggal?: string) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) return { error: "Unauthorized: Anda harus login untuk melakukan aksi ini." };
+
     const existing = await prisma.kwitansiRecord.findFirst({ where: { expenseId } });
 
     const expense = await prisma.expenseRequest.findUnique({
@@ -538,6 +544,9 @@ export async function generateKwitansiExpense(expenseId: string, inputNoUrut?: s
 
 export async function generateKwitansiTransportBulanan(rekapId: string, inputNoUrut?: string, inputTanggal?: string) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) return { error: "Unauthorized: Anda harus login untuk melakukan aksi ini." };
+
   const existing = await prisma.kwitansiRecord.findFirst({
     where: { rekapId, tipeKwitansi: 'TRANSPORT' }
   });
@@ -649,6 +658,9 @@ export async function generateKwitansiTransportBulanan(rekapId: string, inputNoU
 
 export async function generateInvoiceExpense(expenseId: string, inputNoUrut?: string, inputTanggal?: string) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) return { error: "Unauthorized: Anda harus login untuk melakukan aksi ini." };
+
     const existing = await prisma.invoiceRecord.findFirst({ where: { expenseId } });
     
     const expense = await prisma.expenseRequest.findUnique({

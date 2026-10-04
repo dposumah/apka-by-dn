@@ -9,8 +9,18 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 // Initialize Supabase client
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// Allowed file types for security
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+
 export async function POST(req: Request) {
   try {
+    // 1. Security Check: Verify user is logged in
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized: Akses ditolak' }, { status: 401 });
+    }
+
     if (!supabaseUrl || !supabaseKey) {
       return NextResponse.json({ error: 'Konfigurasi Supabase belum disetel di .env' }, { status: 500 });
     }
@@ -22,8 +32,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Tidak ada file yang diunggah' }, { status: 400 });
     }
 
+    // 2. Security Check: Validate file type and size
+    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+      return NextResponse.json({ error: 'Format file tidak diizinkan. Hanya menerima gambar (JPG, PNG, WEBP) atau PDF.' }, { status: 400 });
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json({ error: 'Ukuran file maksimal adalah 5MB' }, { status: 400 });
+    }
+
     // Generate unique filename
-    const fileExt = file.name.split('.').pop();
+    const fileExt = file.name.split('.').pop()?.replace(/[^a-zA-Z0-9]/g, ''); // sanitize extension
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
     const filePath = `receipts/${fileName}`;
 
