@@ -885,3 +885,23 @@ export async function adminUpdateTransportAmount(laporanId: string, biayaTranspo
   revalidatePath('/fasilitator/laporan');
   return updated;
 }
+
+export async function getFasilitatorJpForMonth(fasilitatorId: string, bulan: string) {
+  if (!fasilitatorId || !bulan) return { totalJPIntra: 0, totalJPEkstra: 0, sesi: 0 };
+  const [year, month] = bulan.split('-');
+  const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+  const endDate = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59);
+
+  const laporan = await prisma.laporanKegiatan.findMany({
+    where: {
+      fasilitatorId,
+      date: { gte: startDate, lte: endDate }
+    }
+  });
+
+  const totalJPIntra = laporan.reduce((sum, lap) => sum + (lap.jumlahJPIntra || 0), 0);
+  const totalJPEkstra = laporan.reduce((sum, lap) => sum + (lap.jumlahJPEkstra || 0), 0);
+  const sesi = laporan.length;
+
+  return { totalJPIntra, totalJPEkstra, sesi };
+}

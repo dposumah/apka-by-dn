@@ -10,6 +10,8 @@ import { getInvoiceHtml, getKwitansiHtml } from './pdf-generator'
 import { useRouter } from 'next/navigation'
 import { useModal } from '@/components/modal-provider';
 
+import { getFasilitatorJpForMonth } from '@/app/actions/rekap'
+
 export function RekapHonorClient({ initialData, fasilitators = [] }: { initialData: any[], fasilitators?: any[] }) {
   const { confirm, alert } = useModal();
 
@@ -18,7 +20,11 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
   
   const [showManualForm, setShowManualForm] = useState(false)
   const [manualFasilId, setManualFasilId] = useState('')
-  const [manualBulan, setManualBulan] = useState('')
+  const [manualBulan, setManualBulan] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  })
   
   const [manualJP, setManualJP] = useState('')
   const [manualJPIntra, setManualJPIntra] = useState('')
@@ -29,18 +35,22 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
-    // Auto calculate JP based on type and fasilitator config
-    if (manualFasilId) {
-      const f = fasilitators.find((x: any) => x.id === manualFasilId)
-      if (f) {
-        const sesi = parseInt(manualSesi) || 4
-        const jpIntra = (f.defaultJPIntra || 8) * sesi
-        const jpEkstra = (f.defaultJPEkstra || 4) * sesi
-        setManualJPIntra(jpIntra.toString())
-        setManualJPEkstra(jpEkstra.toString())
+    async function fetchJp() {
+      if (manualFasilId && manualBulan) {
+        try {
+          const res = await getFasilitatorJpForMonth(manualFasilId, manualBulan);
+          if (res) {
+            setManualJPIntra(res.totalJPIntra.toString());
+            setManualJPEkstra(res.totalJPEkstra.toString());
+            setManualSesi(res.sesi.toString());
+          }
+        } catch (e) {
+          console.error(e);
+        }
       }
     }
-  }, [manualFasilId, manualSesi, fasilitators])
+    fetchJp();
+  }, [manualFasilId, manualBulan])
 
   useEffect(() => {
     // Auto calculate total JP from Intra + Ekstra
