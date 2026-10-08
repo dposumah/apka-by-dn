@@ -868,3 +868,20 @@ export async function uploadBuktiRekap(rekapId: string, urlHonor?: string, urlTr
     return { error: error.message };
   }
 }
+
+
+export async function adminUpdateTransportAmount(laporanId: string, biayaTransport: number, biayaTransportLaut: number) {
+  const { error: authError, session } = await checkAuth(['ADMIN', 'SUPER_ADMIN', 'KORWIL']);
+  if (authError || !session) throw new Error(authError || "Unauthorized");
+
+  const updated = await prisma.laporanKegiatan.update({
+    where: { id: laporanId },
+    data: {
+      biayaTransport: parseFloat(biayaTransport.toString()) || 0,
+      biayaTransportLaut: parseFloat(biayaTransportLaut.toString()) || 0,
+    }
+  });
+
+  revalidatePath('/fasilitator/laporan');
+  return updated;
+}
