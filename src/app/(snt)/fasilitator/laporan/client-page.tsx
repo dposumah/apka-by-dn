@@ -15,6 +15,9 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
 
   const router = useRouter()
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [filterNama, setFilterNama] = useState('')
+  const [filterBulan, setFilterBulan] = useState('')
+
   const [cancelingId, setCancelingId] = useState<string | null>(null)
   
   const [editingTransport, setEditingTransport] = useState<any | null>(null);
@@ -159,6 +162,17 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
     win.document.close()
   }
 
+  
+  const filteredData = initialData.filter((lap: any) => {
+    const matchNama = lap.fasilitator?.namaLengkap?.toLowerCase().includes(filterNama.toLowerCase()) ?? true;
+    let matchBulan = true;
+    if (filterBulan) {
+      const d = new Date(lap.date);
+      matchBulan = (d.getMonth() + 1).toString() === filterBulan;
+    }
+    return matchNama && matchBulan;
+  });
+
   return (
     <div className="p-8 space-y-6 max-w-7xl mx-auto">
       <div>
@@ -182,7 +196,7 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {initialData.map((lap) => (
+                {filteredData.map((lap) => (
                   <tr key={lap.id} className="hover:bg-slate-50">
                     <td className="py-3 px-4">
                       <div className="font-medium text-slate-900">{lap.fasilitator.namaLengkap}</div>
