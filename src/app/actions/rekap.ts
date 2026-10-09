@@ -941,8 +941,8 @@ export async function getRekapTargetJp(bulanTahun?: string) {
   });
 
   const rekapData = fasilitators.map(f => {
-    const targetBulan = (f.defaultJPIntra + f.defaultJPEkstra) * 4;
-    const targetTotal = targetBulan * 4; // 4 months total
+    const targetBulan = f.targetJPBulan || 32;
+    const targetTotal = f.targetJPTotal || 128;
 
     let realisasiBulan = 0;
     let realisasiTotal = 0;
@@ -973,4 +973,14 @@ export async function getRekapTargetJp(bulanTahun?: string) {
   });
 
   return rekapData;
+}
+
+export async function updateTargetJpFasilitator(id: string, targetBulan: number, targetTotal: number) {
+  await prisma.fasilitator.update({
+    where: { id },
+    data: {
+      targetJPBulan: targetBulan,
+      targetJPTotal: targetTotal
+    }
+  })
 }

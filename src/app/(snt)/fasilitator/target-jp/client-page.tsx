@@ -3,12 +3,38 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useState, useEffect } from 'react'
-import { getRekapTargetJp } from '@/app/actions/rekap'
+import { getRekapTargetJp, updateTargetJpFasilitator } from '@/app/actions/rekap'
 
 export function TargetJpClient({ initialData, defaultMonth }: { initialData: any[], defaultMonth: string }) {
   const [data, setData] = useState<any[]>(initialData)
   const [bulan, setBulan] = useState(defaultMonth)
   const [isLoading, setIsLoading] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editTargetBulan, setEditTargetBulan] = useState(32)
+  const [editTargetTotal, setEditTargetTotal] = useState(128)
+  const [isSaving, setIsSaving] = useState(false)
+
+  const handleEdit = (row: any) => {
+    setEditingId(row.fasilitator.id)
+    setEditTargetBulan(row.targetBulan)
+    setEditTargetTotal(row.targetTotal)
+  }
+
+  const handleSave = async (id: string) => {
+    setIsSaving(true)
+    try {
+      await updateTargetJpFasilitator(id, editTargetBulan, editTargetTotal)
+      setEditingId(null)
+      // refresh data
+      const res = await getRekapTargetJp(bulan)
+      setData(res)
+    } catch(e) {
+      alert("Gagal menyimpan target")
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
 
   useEffect(() => {
     if (bulan === defaultMonth) return;
@@ -53,6 +79,7 @@ export function TargetJpClient({ initialData, defaultMonth }: { initialData: any
                   <th className="py-3 px-4 font-semibold text-slate-700" rowSpan={2}>Fasilitator</th>
                   <th className="py-2 px-4 text-center font-semibold text-slate-700 border-b border-l bg-blue-50/50" colSpan={4}>Bulan Terpilih ({bulan})</th>
                   <th className="py-2 px-4 text-center font-semibold text-slate-700 border-b border-l bg-amber-50/50" colSpan={4}>Total Keseluruhan (S.d 31 Des)</th>
+                  <th className="py-3 px-4 font-semibold text-slate-700 border-l" rowSpan={2}>Aksi</th>
                 </tr>
                 <tr>
                   <th className="py-2 px-4 text-center border-l bg-blue-50/50">Target</th>
@@ -75,7 +102,7 @@ export function TargetJpClient({ initialData, defaultMonth }: { initialData: any
                     </td>
                     
                     {/* Bulan Terpilih */}
-                    <td className="py-3 px-4 text-center border-l">{row.targetBulan} JP</td>
+                    <td className="py-3 px-4 text-center border-l">{editingId === row.fasilitator.id ? <input type="number" className="w-16 border rounded p-1 text-center" value={editTargetBulan} onChange={e=>setEditTargetBulan(parseInt(e.target.value)||0)} /> : `${row.targetBulan} JP`}</td>
                     <td className="py-3 px-4 text-center font-medium text-blue-600">{row.realisasiBulan} JP</td>
                     <td className="py-3 px-4 text-center text-red-500">{row.sisaBulan} JP</td>
                     <td className="py-3 px-4 text-center">
@@ -85,13 +112,23 @@ export function TargetJpClient({ initialData, defaultMonth }: { initialData: any
                     </td>
 
                     {/* Total Keseluruhan */}
-                    <td className="py-3 px-4 text-center border-l">{row.targetTotal} JP</td>
+                    <td className="py-3 px-4 text-center border-l">{editingId === row.fasilitator.id ? <input type="number" className="w-16 border rounded p-1 text-center" value={editTargetTotal} onChange={e=>setEditTargetTotal(parseInt(e.target.value)||0)} /> : `${row.targetTotal} JP`}</td>
                     <td className="py-3 px-4 text-center font-medium text-amber-600">{row.realisasiTotal} JP</td>
                     <td className="py-3 px-4 text-center text-red-500">{row.sisaTotal} JP</td>
                     <td className="py-3 px-4 text-center">
                       <Badge variant={row.persenTotal >= 100 ? 'default' : 'secondary'} className={row.persenTotal >= 100 ? 'bg-green-600 hover:bg-green-700' : ''}>
                         {row.persenTotal}%
                       </Badge>
+                    </td>
+                    <td className="py-3 px-4 text-center border-l">
+                      {editingId === row.fasilitator.id ? (
+                        <div className="flex gap-2 justify-center">
+                          <button onClick={() => handleSave(row.fasilitator.id)} disabled={isSaving} className="text-xs bg-blue-600 text-white px-2 py-1 rounded">Simpan</button>
+                          <button onClick={() => setEditingId(null)} className="text-xs bg-slate-200 px-2 py-1 rounded">Batal</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => handleEdit(row)} className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded border">Edit Target</button>
+                      )}
                     </td>
                   </tr>
                 ))}
