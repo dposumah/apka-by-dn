@@ -46,6 +46,7 @@ const menuItems: MenuItem[] = [
       { title: "Data Fasilitator", href: "/fasilitator" },
       { title: "Laporan Mingguan", href: "/fasilitator/laporan" },
       { title: "Rekap Honorarium", href: "/fasilitator/rekap-honor" },
+          { title: "Target JP", href: "/fasilitator/target-jp" },
       { title: "Sewa & Akomodasi", href: "/fasilitator/akomodasi" },
       { title: "Tagihan Transport", href: "/fasilitator/transport" },
     ],

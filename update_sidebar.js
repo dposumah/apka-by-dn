@@ -1,11 +1,11 @@
 const fs = require('fs');
+const path = 'src/app/(snt)/sidebar.tsx';
+let content = fs.readFileSync(path, 'utf8');
 
-let page = fs.readFileSync('src/app/(snt)/sidebar.tsx', 'utf8');
-
-page = page.replace(
-  /\{ title: "Pengeluaran Lapangan", href: "\/pengeluaran", icon: Wallet, adminOnly: true \},/,
-  `{ title: "Pengeluaran Lapangan", href: "/pengeluaran", icon: Wallet, adminOnly: true },\n  { title: "Laporan Pengeluaran", href: "/laporan-pengeluaran", icon: ClipboardList, adminOnly: true },`
+content = content.replace(
+  '{ title: "Rekap Honorarium", href: "/fasilitator/rekap-honor" }',
+  '{ title: "Rekap Honorarium", href: "/fasilitator/rekap-honor" },\n          { title: "Target JP", href: "/fasilitator/target-jp" }'
 );
 
-fs.writeFileSync('src/app/(snt)/sidebar.tsx', page);
-console.log('Fixed sidebar');
+fs.writeFileSync(path, content);
+console.log('Sidebar updated');

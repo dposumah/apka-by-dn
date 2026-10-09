@@ -1,16 +1,14 @@
 const fs = require('fs');
 
-let page = fs.readFileSync('src/app/(snt)/dashboard-rab/client-page.tsx', 'utf8');
+let page = fs.readFileSync('src/app/(snt)/laporan-pengeluaran/client-page.tsx', 'utf8');
 
-// Imports
 if (!page.includes('updateExpense')) {
   page = page.replace(
-    /import \{ generateKwitansiExpense \} from '@\/app\/actions\/rekap'/,
-    "import { generateKwitansiExpense } from '@/app/actions/rekap'\nimport { updateExpense } from '@/app/actions/rab'"
+    /import \{ Badge \} from '@\/components\/ui\/badge'/,
+    "import { Badge } from '@/components/ui/badge'\nimport { updateExpense } from '@/app/actions/rab'"
   );
 }
 
-// Add state
 const editState = `
   const [showEditModal, setShowEditModal] = useState(false)
   const [editData, setEditData] = useState<any>(null)
@@ -50,26 +48,35 @@ const editState = `
 
 if (!page.includes('showEditModal')) {
   page = page.replace(
-    /const \[inputNoUrut, setInputNoUrut\] = useState\(""\)\n  const \[inputTanggal, setInputTanggal\] = useState\(""\)/,
-    `const [inputNoUrut, setInputNoUrut] = useState("")\n  const [inputTanggal, setInputTanggal] = useState("")\n${editState}`
+    /const \[endDate, setEndDate\] = useState\(searchParams.get\('endDate'\) \|\| ''\)/,
+    `const [endDate, setEndDate] = useState(searchParams.get('endDate') || '')\n${editState}`
   );
 }
 
-// Add Button
-if (!page.includes('openEditModal(exp)')) {
-  page = page.replace(
-    /<DeleteExpenseButton expenseId=\{exp\.id\} \/>/,
-    `<button 
-                            onClick={() => openEditModal(exp)}
-                            className="text-xs bg-amber-500 text-white hover:bg-amber-600 rounded px-2 py-1.5 transition-colors whitespace-nowrap w-full"
-                          >
+// Add Aksi column
+page = page.replace(
+  /<th className="py-3 px-4 text-center print:hidden">Bukti<\/th>/,
+  '<th className="py-3 px-4 text-center print:hidden">Bukti</th>\n                    <th className="py-3 px-4 text-center print:hidden">Aksi</th>'
+);
+
+page = page.replace(
+  /<\/td>\s*<\/tr>\s*\)\)\s*\)\}/,
+  `</td>
+                        <td className="py-2 px-4 text-center print:hidden">
+                          <button onClick={() => openEditModal(exp)} className="text-xs bg-amber-500 text-white px-2 py-1 rounded hover:bg-amber-600">
                             Edit
                           </button>
-                          <DeleteExpenseButton expenseId={exp.id} />`
-  );
-}
+                        </td>
+                      </tr>
+                    ))
+                  )}`
+);
 
-// Add Modal
+page = page.replace(
+  /<td className="print:hidden"><\/td>/,
+  '<td className="print:hidden"></td>\n                      <td className="print:hidden"></td>'
+);
+
 const editModal = `
         {showEditModal && editData && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
@@ -109,7 +116,7 @@ const editModal = `
                     onChange={e => setEditData({...editData, rabItemId: e.target.value})}
                     className="w-full border rounded px-3 py-2"
                   >
-                    {data.categories.flatMap((cat: any) => 
+                    {rabData?.categories?.flatMap((cat: any) => 
                       cat.items.map((item: any) => (
                         <option key={item.id} value={item.id}>{cat.name} - {item.name}</option>
                       ))
@@ -140,10 +147,10 @@ const editModal = `
 
 if (!page.includes('showEditModal && editData')) {
   page = page.replace(
-    /\{showPrintModal && \(/,
-    `${editModal}\n        {showPrintModal && (`
+    /<\/div>\s*<\/div>\s*\)\s*\}\s*$/,
+    `</div>\n${editModal}\n    </div>\n  )\n}`
   );
 }
 
-fs.writeFileSync('src/app/(snt)/dashboard-rab/client-page.tsx', page);
-console.log('Fixed dashboard-rab client page');
+fs.writeFileSync('src/app/(snt)/laporan-pengeluaran/client-page.tsx', page);
+console.log('Fixed laporan-pengeluaran client page');

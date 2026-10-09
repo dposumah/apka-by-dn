@@ -1,24 +1,69 @@
 const fs = require('fs');
 
-let page = fs.readFileSync('src/app/(snt)/laporan-pengeluaran/client-page.tsx', 'utf8');
+function fixPrintLogic(filePath) {
+  let content = fs.readFileSync(filePath, 'utf8');
 
-// Replace the exportPDF function
-const oldFuncRegex = /const exportPDF = async \(\) => \{[\s\S]*?\}\s*const totalAmount/m;
-const newFunc = `const exportPDF = () => {
-    window.print();
+  // Remove crossorigin="anonymous"
+  content = content.replace(/crossorigin="anonymous"/g, '');
+
+  if (filePath.includes('form.tsx')) {
+    // Replace html2pdf logic with window.open in form.tsx
+    const oldPrintLogic = `const wrapper = document.createElement('div');
+        wrapper.innerHTML = htmlString;
+        wrapper.style.width = '794px';
+        wrapper.style.backgroundColor = '#ffffff';
+      
+      let html2pdf: any; try { html2pdf = require('html2pdf.js'); } catch (e) { html2pdf = (window as any).html2pdf; }
+      const opt = {
+        margin: 0,
+        filename: 'Pengeluaran_' + submittedExpense.rabItem.name.replace(/\\s+/g, '_') + '.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+      
+      await html2pdf().set(opt).from(wrapper).save();`;
+
+    const newPrintLogic = `
+        const win = window.open('', '_blank');
+        if (win) {
+          win.document.write(htmlString);
+          win.document.close();
+          // Give images a moment to load before printing
+          setTimeout(() => {
+            win.print();
+          }, 1000);
+        }`;
+
+    content = content.replace(oldPrintLogic, newPrintLogic);
   }
 
-  const totalAmount`;
+  if (filePath.includes('dashboard-rab/client-page.tsx')) {
+    // Also add setTimeout to dashboard-rab window.print to ensure images load
+    const oldWinPrint = `const win = window.open('', '_blank');
+      if (win) {
+        win.document.write(htmlString);
+        win.document.close();
+        win.onload = () => {
+          win.print();
+        };
+      }`;
+    
+    const newWinPrint = `const win = window.open('', '_blank');
+      if (win) {
+        win.document.write(htmlString);
+        win.document.close();
+        setTimeout(() => {
+          win.print();
+        }, 1000);
+      }`;
 
-page = page.replace(oldFuncRegex, newFunc);
+    content = content.replace(oldWinPrint, newWinPrint);
+  }
 
-// Change button text and remove isExporting
-page = page.replace(
-  /<Button onClick=\{exportPDF\} disabled=\{isExporting\} className="bg-slate-900 hover:bg-slate-800 text-white">[\s\S]*?<\/Button>/,
-  `<Button onClick={exportPDF} className="bg-slate-900 hover:bg-slate-800 text-white">
-            Print Laporan Lengkap (PDF)
-          </Button>`
-);
+  fs.writeFileSync(filePath, content);
+  console.log('Fixed ' + filePath);
+}
 
-fs.writeFileSync('src/app/(snt)/laporan-pengeluaran/client-page.tsx', page);
-console.log('Fixed exportPDF to use window.print()');
+fixPrintLogic('src/app/(snt)/pengeluaran/form.tsx');
+fixPrintLogic('src/app/(snt)/dashboard-rab/client-page.tsx');

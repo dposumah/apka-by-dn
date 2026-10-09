@@ -1,19 +1,15 @@
 const fs = require('fs');
 
-let rab = fs.readFileSync('src/app/actions/rab.ts', 'utf8');
+const rabPath = 'src/app/actions/rab.ts';
+let rabContent = fs.readFileSync(rabPath, 'utf8');
 
-// I want to add jenisTugas to updateFasilitatorProfile
-// Let's find updateFasilitatorProfile function specifically
+// The field is added inside the `data: { ... }` block of `prisma.fasilitator.create` and `prisma.fasilitator.update`
+// We can use a more precise regex.
 
-let funcStart = rab.indexOf('export async function updateFasilitatorProfile');
-if (funcStart > -1) {
-  let innerStart = rab.indexOf('lokasiSNT: data.lokasiSNT || null,', funcStart);
-  if (innerStart > -1) {
-    let before = rab.substring(0, innerStart);
-    let after = rab.substring(innerStart + 'lokasiSNT: data.lokasiSNT || null,'.length);
-    rab = before + "lokasiSNT: data.lokasiSNT || null,\n      jenisTugas: data.jenisTugas || currentFasil?.jenisTugas || 'INTRAKURIKULER'," + after;
-  }
-}
+rabContent = rabContent.replace(
+  /lokasiSNT: data.lokasiSNT \|\| null,/g,
+  'lokasiSNT: data.lokasiSNT || null,\n        ktpUrl: data.ktpUrl !== undefined ? data.ktpUrl : undefined,'
+);
 
-fs.writeFileSync('src/app/actions/rab.ts', rab);
-console.log('Fixed rab.ts correctly');
+fs.writeFileSync(rabPath, rabContent);
+console.log('Fixed rab.ts');
