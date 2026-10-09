@@ -713,7 +713,7 @@ export async function generateInvoiceExpense(expenseId: string, inputNoUrut?: st
         
         if (result.error) return { error: result.error };
         
-        let noInvoiceSheet = result.noSeri || result.noKwitansi || '';
+        let noInvoiceSheet = result.noInvoice || result.noSeri || result.noKwitansi || '';
         if (!noInvoiceSheet) {
           const parts = tanggalFormatted.split('/');
           if (parts.length === 3) {
@@ -1076,7 +1076,7 @@ export async function generateInvoiceHonorRecord(rekapId: string, inputNoUrut?: 
       
       if (result.error) return { error: result.error };
       
-      let noInvoiceSheet = result.noSeri || result.noKwitansi || '';
+      let noInvoiceSheet = result.noInvoice || result.noSeri || result.noKwitansi || '';
       if (!noInvoiceSheet) {
         const parts = tanggalFormatted.split('/');
         if (parts.length === 3) {

@@ -174,8 +174,10 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
       
       // 1. Invoice
       if (printCheckInvoice) {
-        htmlString += getInvoiceHtml(selectedRekap, printKopType);
-      }
+                          const invRecord = await generateInvoiceHonorRecord(selectedRekap.id, inputNoUrut, inputTanggal);
+                          if (invRecord?.error) throw new Error(invRecord.error);
+                          htmlString += getInvoiceHtml(selectedRekap, printKopType, invRecord);
+                        }
       
       // 2. Kwitansi Honor
       if (printCheckHonor) {
@@ -576,8 +578,10 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
                       let htmlString = "";
                       
                       if (printCheckInvoice) {
-                        htmlString += getInvoiceHtml(selectedRekap, printKopType);
-                      }
+                          const invRecord = await generateInvoiceHonorRecord(selectedRekap.id, inputNoUrut, inputTanggal);
+                          if (invRecord?.error) throw new Error(invRecord.error);
+                          htmlString += getInvoiceHtml(selectedRekap, printKopType, invRecord);
+                        }
                       
                       if (printCheckHonor) {
                         const record = await generateKwitansiHonor(selectedRekap.id, inputNoUrut, inputTanggal);
