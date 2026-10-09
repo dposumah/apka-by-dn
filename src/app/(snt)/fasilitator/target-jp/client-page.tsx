@@ -102,7 +102,7 @@ export function TargetJpClient({ initialData, defaultMonth }: { initialData: any
                     </td>
                     
                     {/* Bulan Terpilih */}
-                    <td className="py-3 px-4 text-center border-l">{editingId === row.fasilitator.id ? <input type="number" className="w-16 border rounded p-1 text-center" value={editTargetBulan} onChange={e=>setEditTargetBulan(parseInt(e.target.value)||0)} /> : `${row.targetBulan} JP`}</td>
+                    <td className="py-3 px-4 text-center border-l">{editingId === row.fasilitator.id ? <input type="number" className="w-16 border rounded p-1 text-center" value={editTargetBulan} onChange={e=>{ const val = parseInt(e.target.value)||0; setEditTargetBulan(val); setEditTargetTotal(val * 4); }} /> : `${row.targetBulan} JP`}</td>
                     <td className="py-3 px-4 text-center font-medium text-blue-600">{row.realisasiBulan} JP</td>
                     <td className="py-3 px-4 text-center text-red-500">{row.sisaBulan} JP</td>
                     <td className="py-3 px-4 text-center">
