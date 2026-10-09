@@ -38,6 +38,32 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
     const computedTotalHonor = computedTotalJP * (parseInt(manualRate) || 0);
 
 
+    const [sortField, setSortField] = useState<'nama' | 'lokasi' | 'bulan' | 'tanggal'>('tanggal')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+
+  const handleSort = (field: 'nama' | 'lokasi' | 'bulan' | 'tanggal') => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortOrder('asc')
+    }
+  }
+
+  const sortedData = [...initialData].sort((a, b) => {
+    let comparison = 0
+    if (sortField === 'nama') {
+      comparison = (a.fasilitator.namaLengkap || '').localeCompare(b.fasilitator.namaLengkap || '')
+    } else if (sortField === 'lokasi') {
+      comparison = (a.fasilitator.lokasiSNT || '').localeCompare(b.fasilitator.lokasiSNT || '')
+    } else if (sortField === 'bulan') {
+      comparison = (a.bulan || '').localeCompare(b.bulan || '')
+    } else {
+      comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    }
+    return sortOrder === 'asc' ? comparison : -comparison
+  })
+
   useEffect(() => {
     async function fetchJp() {
       if (manualFasilId && manualBulan) {
@@ -298,8 +324,8 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
             <table className="w-full text-sm text-left">
               <thead className="bg-slate-50 border-b">
                 <tr>
-                  <th className="py-3 px-4">Fasilitator</th>
-                  <th className="py-3 px-4">Bulan</th>
+                  <th className="py-3 px-4 cursor-pointer hover:bg-slate-100" onClick={() => handleSort("nama")}>Fasilitator & Lokasi {sortField==="nama" ? (sortOrder==="asc"?"?":"?") : ""}</th>
+                  <th className="py-3 px-4 cursor-pointer hover:bg-slate-100" onClick={() => handleSort("bulan")}>Bulan {sortField==="bulan" ? (sortOrder==="asc"?"↑":"↓") : ""}</th>
                   <th className="py-3 px-4 text-center">Total JP</th>
                   <th className="py-3 px-4 text-right">Total Honor</th>
                   <th className="py-3 px-4 text-center">Status</th>
@@ -308,9 +334,12 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {initialData.map((rekap) => (
+                {sortedData.map((rekap) => (
                   <tr key={rekap.id} className="hover:bg-slate-50">
-                    <td className="py-3 px-4 font-medium text-slate-900">{rekap.fasilitator.namaLengkap}</td>
+                    <td className="py-3 px-4">
+                        <div className="font-medium text-slate-900">{rekap.fasilitator.namaLengkap}</div>
+                        <div className="text-xs text-slate-500 uppercase">{rekap.fasilitator.lokasiSNT || '-'}</div>
+                      </td>
                     <td className="py-3 px-4">{rekap.bulan}</td>
                     <td className="py-3 px-4 text-center">{rekap.totalJP}</td>
                     <td className="py-3 px-4 text-right font-medium">{formatCurrency(rekap.totalHonor)}</td>
