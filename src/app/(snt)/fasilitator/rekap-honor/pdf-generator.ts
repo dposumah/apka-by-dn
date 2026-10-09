@@ -1,5 +1,9 @@
-export const getInvoiceHtml = (rekap: any, kopType: 'maleo' | 'robotic') => {
+export const getInvoiceHtml = (rekap: any, kopType: 'maleo' | 'robotic', invoiceRecord?: any) => {
   const kopImage = window.location.origin + (kopType === 'maleo' ? '/kop-maleo.png' : '/kop-surat.png');
+  
+  const noInvoiceStr = invoiceRecord ? invoiceRecord.noInvoice : '';
+  const tanggalInvoice = invoiceRecord ? new Date(invoiceRecord.tanggal).toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'}) : '';
+
   const formatBulan = (bulan: string) => {
     if (!bulan) return '-';
     const [year, month] = bulan.split('-');

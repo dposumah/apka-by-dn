@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { formatCurrency, terbilangRupiah } from '@/lib/format'
 import { useState, useEffect } from 'react'
 import { createRekapManual, deleteRekap, generateKwitansiHonor, generateKwitansiTransportBulanan } from '@/app/actions/rekap'
-import { adminGenerateInvoiceHonor, uploadBuktiRekap } from '@/app/actions/rekap'
+import { adminGenerateInvoiceHonor, uploadBuktiRekap, generateInvoiceHonorRecord } from '@/app/actions/rekap'
 import { getInvoiceHtml, getKwitansiHtml } from './pdf-generator'
 import { useRouter } from 'next/navigation'
 import { useModal } from '@/components/modal-provider';
