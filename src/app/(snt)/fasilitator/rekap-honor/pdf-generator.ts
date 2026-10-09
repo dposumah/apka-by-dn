@@ -24,15 +24,10 @@ export const getInvoiceHtml = (rekap: any, kopType: 'maleo' | 'robotic', invoice
           ${tanggalInvoice ? `<div style="text-align: center; margin-top: 5px; font-size: 14px;"><strong>Tanggal:</strong> ${tanggalInvoice}</div>` : ''}
           <p>KKA Sekolah Nasional Terintegrasi Tahun 2026</p>
         </div>
-        <div style="margin-bottom: 20px; font-size: 14px;">
-          <table style="width: 100%; border-collapse: collapse;">
-            <tr><td style="width: 25%; padding: 4px 0;"><strong>Nama Fasilitator</strong></td><td>:</td><td>${rekap.fasilitator?.namaLengkap}</td></tr>
-            <tr><td style="padding: 4px 0;"><strong>Lokasi (SNT)</strong></td><td>:</td><td>${rekap.fasilitator?.lokasiSNT || '-'}</td></tr>
-            <tr><td style="padding: 4px 0;"><strong>Bulan Laporan</strong></td><td>:</td><td>${formatBulan(rekap.bulan)}</td></tr>
-            <tr><td style="padding: 4px 0;"><strong>Total JP (Intra + Ekstra)</strong></td><td>:</td><td>${rekap.totalJP} JP</td></tr>
-          </table>
-        </div>
+        
+        <p style="margin-top: 0; margin-bottom: 15px; font-size: 14px;">Pembayaran honor fasilitator atas nama tersebut di bawah, untuk kegiatan/program:</p>
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px;">
+          <tr><td style="width: 30%; padding: 6px 0;">Nama fasilitator</td><td style="width: 5%;">:</td><td style="width: 65%; border-bottom: 1px solid #000;">${rekap.fasilitator?.namaLengkap || '-'}</td></tr>
           <tr><td style="width: 30%; padding: 6px 0;">Nama program/kegiatan</td><td style="width: 5%;">:</td><td style="width: 65%; border-bottom: 1px solid #000;">KKA Sekolah Nasional Terintegrasi (SNT)</td></tr>
           <tr><td style="padding: 6px 0;">Periode / sesi honor</td><td>:</td><td style="border-bottom: 1px solid #000;">${formatBulan(rekap.bulan)}</td></tr>
           <tr><td style="padding: 6px 0;">Jumlah sesi / JP</td><td>:</td><td style="border-bottom: 1px solid #000;">${(rekap.totalJPIntra > 0 && rekap.totalJPEkstra > 0) ? `${rekap.totalJP} JP (Intra: ${rekap.totalJPIntra} JP + Ekstra: ${rekap.totalJPEkstra} JP)` : `${rekap.totalJP} JP`}</td></tr>
