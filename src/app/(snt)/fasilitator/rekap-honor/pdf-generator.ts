@@ -20,6 +20,8 @@ export const getInvoiceHtml = (rekap: any, kopType: 'maleo' | 'robotic', invoice
       <div style="padding: 0 50px;">
         <div style="text-align: center; margin-bottom: 40px;">
           <h2>INVOICE HONORARIUM FASILITATOR</h2>
+          ${noInvoiceStr ? `<div style="text-align: center; margin-top: 5px; font-size: 14px;"><strong>No Invoice:</strong> ${noInvoiceStr}</div>` : ''}
+          ${tanggalInvoice ? `<div style="text-align: center; margin-top: 5px; font-size: 14px;"><strong>Tanggal:</strong> ${tanggalInvoice}</div>` : ''}
           <p>KKA Sekolah Nasional Terintegrasi Tahun 2026</p>
         </div>
         <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
@@ -29,7 +31,7 @@ export const getInvoiceHtml = (rekap: any, kopType: 'maleo' | 'robotic', invoice
             <p><strong>Bulan Laporan:</strong> ${formatBulan(rekap.bulan)}</p>
           </div>
           <div>
-            <p><strong>Keterangan:</strong> ${rekap.isLocked ? 'Terkunci' : 'Draft'}</p>
+            
             <p><strong>Total JP (Intra + Ekstra):</strong> ${rekap.totalJP} JP</p>
           </div>
         </div>
