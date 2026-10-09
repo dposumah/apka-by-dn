@@ -745,6 +745,9 @@ model InvoiceRecord {
 
   createdAt DateTime @default(now())
 
+  rekapId String? @unique
+  rekap RekapHonorarium? @relation(fields: [rekapId], references: [id])
+
   @@map("invoice_record")
 }
 
