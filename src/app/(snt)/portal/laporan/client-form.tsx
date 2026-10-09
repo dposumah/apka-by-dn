@@ -112,7 +112,7 @@ export function LaporanClientForm({ fasilitatorId, besaranTransport, jarakPPKm =
         tiketUrl = await uploadFile(tiket);
       }
 
-      await submitLaporanKegiatan(fasilitatorId, {
+      const res = await submitLaporanKegiatan(fasilitatorId, {
         ...formData,
         jumlahJPIntra: formData.jenisPembelajaran === 'INTRAKURIKULER' ? defaultJPIntra.toString() : '',
         jumlahJPEkstra: formData.jenisPembelajaran === 'EKSTRAKURIKULER' ? defaultJPEkstra.toString() : '',
@@ -121,9 +121,17 @@ export function LaporanClientForm({ fasilitatorId, besaranTransport, jarakPPKm =
         fileLaporanFisik,
         buktiTransportDarat: daratUrl,
         buktiTiketTransport: tiketUrl
-      })
-      router.push('/portal')
-      router.refresh()
+      });
+
+      if (res && res.error) {
+        toast({ title: 'Gagal', description: res.error, type: 'error' });
+        setSaving(false);
+        return;
+      }
+
+      toast({ title: 'Berhasil', description: 'Laporan kegiatan berhasil dikirim', type: 'success' });
+      router.push('/portal');
+      router.refresh();
     } catch (error: any) {
       toast({ title: 'Gagal', description: error.message || 'Gagal mengirim laporan', type: 'error' })
       setSaving(false)
