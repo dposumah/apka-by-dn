@@ -10,7 +10,7 @@ import {
   LayoutDashboard,
   Wallet,
   Users,
-  ClipboardList,
+  ClipboardList, FileText,
   Award,
   Bus,
   Settings,
@@ -47,6 +47,7 @@ const menuItems: MenuItem[] = [
       { title: "Laporan Mingguan", href: "/fasilitator/laporan" },
       { title: "Rekap Honorarium", href: "/fasilitator/rekap-honor" },
           { title: "Target JP", href: "/fasilitator/target-jp" },
+          { title: "Target JP", href: "/fasilitator/target-jp" },
       { title: "Sewa & Akomodasi", href: "/fasilitator/akomodasi" },
       { title: "Tagihan Transport", href: "/fasilitator/transport" },
     ],
@@ -54,6 +55,7 @@ const menuItems: MenuItem[] = [
   { title: "Pengaturan Akun", href: "/snt-akun", icon: Settings, adminOnly: true },
   { title: "Dashboard", href: "/portal", icon: Home, fasilOnly: true },
   { title: "Profil Fasilitator", href: "/portal/profil", icon: UserCircle, fasilOnly: true },
+  { title: "Rekap Honorarium", href: "/portal/rekap", icon: FileText, fasilOnly: true },
   { title: "Pengaturan Sandi", href: "/portal/password", icon: Lock, fasilOnly: true },
 ]
 
