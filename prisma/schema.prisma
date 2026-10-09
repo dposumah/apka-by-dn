@@ -673,6 +673,7 @@ model RekapHonorarium {
   updatedAt DateTime @updatedAt
 
   kwitansiRecord KwitansiRecord[]
+  invoiceRecord InvoiceRecord?
 
   @@map("rekap_honorarium")
 }
