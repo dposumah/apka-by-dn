@@ -26,13 +26,17 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   })
   
-  const [manualJP, setManualJP] = useState('')
-  const [manualJPIntra, setManualJPIntra] = useState('')
+    const [manualJPIntra, setManualJPIntra] = useState('')
   const [manualJPEkstra, setManualJPEkstra] = useState('')
   const [manualRate, setManualRate] = useState('65000')
   const [manualSesi, setManualSesi] = useState('4')
   const [manualHonor, setManualHonor] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+    
+    // Computed values
+    const computedTotalJP = (parseInt(manualJPIntra) || 0) + (parseInt(manualJPEkstra) || 0);
+    const computedTotalHonor = computedTotalJP * (parseInt(manualRate) || 0);
+
 
   useEffect(() => {
     async function fetchJp() {
@@ -52,15 +56,7 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
     fetchJp();
   }, [manualFasilId, manualBulan])
 
-  useEffect(() => {
-    // Auto calculate total JP from Intra + Ekstra
-    const jpIntra = parseInt(manualJPIntra) || 0
-    const jpEkstra = parseInt(manualJPEkstra) || 0
-    const totalJP = jpIntra + jpEkstra
-    setManualJP(totalJP.toString())
-    const rate = parseInt(manualRate) || 0
-    setManualHonor((totalJP * rate).toString())
-  }, [manualJPIntra, manualJPEkstra, manualRate])
+  
 
   
   const handleDelete = async (id: string) => {
@@ -78,12 +74,12 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
     e.preventDefault()
     setIsSubmitting(true)
     try {
-      await createRekapManual(manualFasilId, manualBulan, parseInt(manualJP) || 0, parseInt(manualHonor) || 0, parseInt(manualSesi) || 4, parseInt(manualJPIntra) || 0, parseInt(manualJPEkstra) || 0)
+      await createRekapManual(manualFasilId, manualBulan, computedTotalJP, computedTotalHonor, parseInt(manualSesi) || 4, parseInt(manualJPIntra) || 0, parseInt(manualJPEkstra) || 0)
       setShowManualForm(false)
       setManualFasilId('')
       setManualBulan('')
-      setManualJP('')
-      setManualHonor('')
+
+
       setManualRate('65000')
       setManualSesi('4')
       router.refresh()
@@ -253,7 +249,7 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
                     </div>
                     <div>
                       <label className="text-xs text-slate-500">Total JP</label>
-                      <input type="number" readOnly className="w-full border rounded p-2 bg-slate-100" value={manualJP} />
+                      <input type="number" readOnly className="w-full border rounded p-2 bg-slate-100" value={computedTotalJP} />
                     </div>
                   </div>
                 </div>
@@ -265,7 +261,7 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
 
                 <div>
                   <label className="block text-sm font-medium mb-1">Total Honor (Rp)</label>
-                  <input type="number" min="0" required className="w-full border rounded p-2" value={manualHonor} onChange={e => setManualHonor(e.target.value)} />
+                  <input type="number" min="0" required value={computedTotalHonor} readOnly className="w-full border rounded p-2 bg-slate-100" />
                 </div>
               </div>
               <div className="flex justify-end pt-2">
