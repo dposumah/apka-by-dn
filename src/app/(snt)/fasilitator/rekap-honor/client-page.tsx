@@ -10,7 +10,7 @@ import { getInvoiceHtml, getKwitansiHtml } from './pdf-generator'
 import { useRouter } from 'next/navigation'
 import { useModal } from '@/components/modal-provider';
 
-import { getFasilitatorJpForMonth } from '@/app/actions/rekap'
+import { getFasilitatorJpForMonth, syncLaporanToRekap } from '@/app/actions/rekap'
 
 export function RekapHonorClient({ initialData, fasilitators = [] }: { initialData: any[], fasilitators?: any[] }) {
   const { confirm, alert } = useModal();
@@ -59,6 +59,19 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
   
 
   
+  
+  const handleSync = async (id: string) => {
+    if (confirm('Tautkan semua laporan telat di bulan ini ke rekap ini? (Angka Honor tidak akan berubah)')) {
+      try {
+        const count = await syncLaporanToRekap(id)
+        alert(`Berhasil menautkan ${count} laporan.`)
+        router.refresh()
+      } catch (e: any) {
+        alert(e.message)
+      }
+    }
+  }
+
   const handleDelete = async (id: string) => {
     if (confirm('Yakin ingin menghapus rekap ini?')) {
       try {
@@ -341,12 +354,8 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
                           >
                             {loadingId === rekap.id ? 'Memproses...' : 'Buat Invoice & Cetak'}
                           </button>
-                          <button 
-                            onClick={() => handleDelete(rekap.id)}
-                            className="text-xs bg-red-600 text-white hover:bg-red-700 rounded px-2 py-1.5 transition-colors whitespace-nowrap"
-                          >
-                            Hapus
-                          </button>
+                          <button onClick={() => handleDelete(rekap.id)} className="text-xs bg-red-600 text-white hover:bg-red-700 rounded px-2 py-1.5 transition-colors whitespace-nowrap">Hapus</button>
+                            <button onClick={() => handleSync(rekap.id)} className="text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-200 rounded px-2 py-1.5 transition-colors whitespace-nowrap" title="Tautkan laporan mingguan fasilitator yang telat ke rekap ini (Tidak merubah honor)">Tautkan</button>
                         </div>
                       )}
 
