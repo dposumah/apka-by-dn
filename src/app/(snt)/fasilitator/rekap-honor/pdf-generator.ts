@@ -14,7 +14,7 @@ export const getInvoiceHtml = (rekap: any, kopType: 'maleo' | 'robotic', invoice
   
   return `
     <div style="font-family: sans-serif; padding: 0 0 40px 0; min-height: 1123px; page-break-after: always; box-sizing: border-box; background-color: #ffffff;">
-      <div style="margin-bottom: 30px;">
+      <div style="margin-bottom: 15px;">
         <img src="${kopImage}" style="width: 100%; max-height: 140px; object-fit: fill;" alt="Kop Surat" />
       </div>
       <div style="padding: 0 50px;">
@@ -24,16 +24,13 @@ export const getInvoiceHtml = (rekap: any, kopType: 'maleo' | 'robotic', invoice
           ${tanggalInvoice ? `<div style="text-align: center; margin-top: 5px; font-size: 14px;"><strong>Tanggal:</strong> ${tanggalInvoice}</div>` : ''}
           <p>KKA Sekolah Nasional Terintegrasi Tahun 2026</p>
         </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
-          <div>
-            <p><strong>Nama Fasilitator:</strong> ${rekap.fasilitator?.namaLengkap}</p>
-            <p><strong>Lokasi (SNT):</strong> ${rekap.fasilitator?.lokasiSNT || '-'}</p>
-            <p><strong>Bulan Laporan:</strong> ${formatBulan(rekap.bulan)}</p>
-          </div>
-          <div>
-            
-            <p><strong>Total JP (Intra + Ekstra):</strong> ${rekap.totalJP} JP</p>
-          </div>
+        <div style="margin-bottom: 20px; font-size: 14px;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr><td style="width: 25%; padding: 4px 0;"><strong>Nama Fasilitator</strong></td><td>:</td><td>${rekap.fasilitator?.namaLengkap}</td></tr>
+            <tr><td style="padding: 4px 0;"><strong>Lokasi (SNT)</strong></td><td>:</td><td>${rekap.fasilitator?.lokasiSNT || '-'}</td></tr>
+            <tr><td style="padding: 4px 0;"><strong>Bulan Laporan</strong></td><td>:</td><td>${formatBulan(rekap.bulan)}</td></tr>
+            <tr><td style="padding: 4px 0;"><strong>Total JP (Intra + Ekstra)</strong></td><td>:</td><td>${rekap.totalJP} JP</td></tr>
+          </table>
         </div>
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px;">
           <tr><td style="width: 30%; padding: 6px 0;">Nama program/kegiatan</td><td style="width: 5%;">:</td><td style="width: 65%; border-bottom: 1px solid #000;">KKA Sekolah Nasional Terintegrasi (SNT)</td></tr>
@@ -74,10 +71,10 @@ export const getInvoiceHtml = (rekap: any, kopType: 'maleo' | 'robotic', invoice
             <tr><td style="padding: 15px 0; font-weight: bold;">Honor diterima bersih</td><td style="font-weight: bold; font-size: 1.1em;">Rp ${(rekap.totalHonor || 0).toLocaleString('id-ID')}</td></tr>
           </table>
         </div>
-        <div style="display: flex; justify-content: space-between; margin-top: 50px; text-align: center; font-size: 14px;">
+        <div style="display: flex; justify-content: space-between; margin-top: 30px; text-align: center; font-size: 14px;">
           <div>
             <p style="margin: 0;">Mengetahui / Menyetujui,</p>
-            <p style="font-weight: bold; margin: 5px 0 0 0;">Yayasan Maleo Talenta Cendekia</p>
+            <p style="font-weight: bold; margin: 5px 0 0 0;">${kopType === 'maleo' ? 'Yayasan Maleo Talenta Cendekia' : 'PT Jully Tjindrawan Robotik'}</p>
           </div>
           <div>
             <p style="margin: 0;">Yang Menerima Honor,</p>
