@@ -1029,12 +1029,22 @@ export async function generateInvoiceHonorRecord(rekapId: string, inputNoUrut?: 
     
     const rekap = await prisma.rekapHonorarium.findUnique({
       where: { id: rekapId },
-      include: { fasilitator: true }
+      include: { fasilitator: true, laporan: true }
     });
     
     if (!rekap) return { error: "Rekap not found" };
-    
-    const perihal = `Honorarium Fasilitator ${rekap.fasilitator.namaLengkap} - Bulan ${rekap.bulan}`;
+
+    let totalTransport = 0;
+    if (rekap.laporan && rekap.laporan.length > 0) {
+      totalTransport = rekap.laporan.reduce((acc, lap) => acc + (lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0), 0);
+    } else if (rekap.fasilitator?.besaranTransport) {
+      totalTransport = rekap.fasilitator.besaranTransport * (rekap.jumlahSesi || 4);
+    }
+
+    const totalTagihan = (rekap.totalHonor || 0) + totalTransport;
+    const perihal = totalTransport > 0 
+      ? `Honorarium & Transport Fasilitator ${rekap.fasilitator.namaLengkap} - Bulan ${rekap.bulan}`
+      : `Honorarium Fasilitator ${rekap.fasilitator.namaLengkap} - Bulan ${rekap.bulan}`;
     
     let finalNoUrut = inputNoUrut || "";
     if (!inputNoUrut) {
@@ -1090,14 +1100,14 @@ export async function generateInvoiceHonorRecord(rekapId: string, inputNoUrut?: 
       if (existing) {
         invoice = await prisma.invoiceRecord.update({
           where: { id: existing.id },
-          data: { noInvoice: noInvoiceSheet, tanggal: d, perihal: perihal }
+          data: { noInvoice: noInvoiceSheet, tanggal: d, perihal: perihal, nominal: totalTagihan }
         });
       } else {
         invoice = await prisma.invoiceRecord.create({
           data: {
             noInvoice: noInvoiceSheet,
             perihal: perihal,
-            nominal: rekap.totalHonor,
+            nominal: totalTagihan,
             rekapId: rekap.id,
             tanggal: d
           }

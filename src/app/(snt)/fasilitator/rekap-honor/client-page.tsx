@@ -161,18 +161,27 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
       const namaLengkap = rekap.fasilitator?.namaLengkap || '-';
       const lokasi = rekap.fasilitator?.lokasiSNT || '-';
       const jumlahJP = rekap.totalJP;
-      // Using a simple local format since formatCurrency is imported
-      let nominalStr = "Rp 0";
-      if (rekap.totalHonor) {
-        nominalStr = "Rp " + Math.round(rekap.totalHonor).toLocaleString('id-ID');
-      }
       
-      const text = `Data Pembayaran Honor:
+      let totalTransport = 0;
+      if (rekap.laporan && rekap.laporan.length > 0) {
+        totalTransport = rekap.laporan.reduce((acc: number, lap: any) => acc + (lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0), 0);
+      } else if (rekap.fasilitator?.besaranTransport) {
+        totalTransport = rekap.fasilitator.besaranTransport * (rekap.jumlahSesi || 4);
+      }
+
+      const totalHonor = rekap.totalHonor || 0;
+      const totalTransfer = totalHonor + totalTransport;
+      
+      const text = `Data Pembayaran Fasilitator:
 Nama Fasilitator: ${namaLengkap}
 Lokasi (SNT): ${lokasi}
 Bulan Laporan: ${rekap.bulan}
 Jumlah JP: ${jumlahJP} JP
-Total Pembayaran: ${nominalStr}
+
+Rincian Pembayaran:
+- Subtotal Honor: Rp ${Math.round(totalHonor).toLocaleString('id-ID')}
+- Bantuan Transport: Rp ${Math.round(totalTransport).toLocaleString('id-ID')}
+Total Transfer: Rp ${Math.round(totalTransfer).toLocaleString('id-ID')}
 
 Informasi Rekening:
 Bank: ${bankName}
@@ -358,11 +367,13 @@ Atas Nama: ${namaLengkap}`;
             <table className="w-full text-sm text-left">
               <thead className="bg-slate-50 border-b">
                 <tr>
-                  <th className="py-3 px-4 cursor-pointer hover:bg-slate-100" onClick={() => handleSort("nama")}>Fasilitator & Lokasi {sortField==="nama" ? (sortOrder==="asc"?"?":"?") : ""}</th>
+                  <th className="py-3 px-4 cursor-pointer hover:bg-slate-100" onClick={() => handleSort("nama")}>Fasilitator & Lokasi {sortField==="nama" ? (sortOrder==="asc"?"↑":"↓") : ""}</th>
                   <th className="py-3 px-4 cursor-pointer hover:bg-slate-100" onClick={() => handleSort("bulan")}>Bulan {sortField==="bulan" ? (sortOrder==="asc"?"↑":"↓") : ""}</th>
                   <th className="py-3 px-4 text-center">Total JP</th>
                   <th className="py-3 px-4 text-right">Total Honor</th>
                   <th className="py-3 px-4 text-center">Status</th>
+                  <th className="py-3 px-4 text-right">Total Transport</th>
+                  <th className="py-3 px-4 text-center">Bukti Bayar</th>
                   <th className="py-3 px-4 text-center">Dokumen PDF</th>
                   <th className="py-3 px-4 text-right">Aksi</th>
                 </tr>
@@ -381,7 +392,11 @@ Atas Nama: ${namaLengkap}`;
                       <Badge variant={rekap.status === 'SUBMITTED' ? 'default' : 'secondary'}>{rekap.status}</Badge>
                     </td>
                     <td className="py-3 px-4 text-right font-medium">
-                      {formatCurrency(rekap.laporan?.reduce((acc: number, lap: any) => acc + (lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0), 0) || 0)}
+                      {formatCurrency(
+                        (rekap.laporan && rekap.laporan.length > 0)
+                          ? rekap.laporan.reduce((acc: number, lap: any) => acc + (lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0), 0)
+                          : ((rekap.fasilitator?.besaranTransport || 120000) * (rekap.jumlahSesi || 4))
+                      )}
                     </td>
                     <td className="py-3 px-4 text-center">
                       <div className="flex flex-col items-center gap-1">

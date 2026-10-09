@@ -12,58 +12,71 @@ export const getInvoiceHtml = (rekap: any, kopType: 'maleo' | 'robotic', invoice
     return `${monthName} ${year}`;
   };
   
+  // Hitung total transport
+  let totalTransport = 0;
+  if (rekap.laporan && rekap.laporan.length > 0) {
+    totalTransport = rekap.laporan.reduce((acc: number, lap: any) => acc + (lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0), 0);
+  } else if (rekap.fasilitator?.besaranTransport) {
+    totalTransport = rekap.fasilitator.besaranTransport * (rekap.jumlahSesi || 4);
+  }
+
+  const totalHonor = rekap.totalHonor || 0;
+  const totalKeseluruhan = totalHonor + totalTransport;
+  
   return `
     <div style="font-family: sans-serif; padding: 0 0 40px 0; min-height: 1123px; page-break-after: always; box-sizing: border-box; background-color: #ffffff;">
       <div style="margin-bottom: 15px;">
         <img src="${kopImage}" style="width: 100%; max-height: 140px; object-fit: fill;" alt="Kop Surat" />
       </div>
       <div style="padding: 0 50px;">
-        <div style="text-align: center; margin-bottom: 40px;">
-          <h2>INVOICE HONORARIUM FASILITATOR</h2>
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h2>INVOICE HONORARIUM & TRANSPORT</h2>
           ${noInvoiceStr ? `<div style="text-align: center; margin-top: 5px; font-size: 14px;"><strong>No Invoice:</strong> ${noInvoiceStr}</div>` : ''}
           ${tanggalInvoice ? `<div style="text-align: center; margin-top: 5px; font-size: 14px;"><strong>Tanggal:</strong> ${tanggalInvoice}</div>` : ''}
           <p>KKA Sekolah Nasional Terintegrasi Tahun 2026</p>
         </div>
         
-        <p style="margin-top: 0; margin-bottom: 15px; font-size: 14px;">Pembayaran honor fasilitator atas nama tersebut di bawah, untuk kegiatan/program:</p>
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px;">
-          <tr><td style="width: 30%; padding: 6px 0;">Nama fasilitator</td><td style="width: 5%;">:</td><td style="width: 65%; border-bottom: 1px solid #000;">${rekap.fasilitator?.namaLengkap || '-'}</td></tr>
-          <tr><td style="width: 30%; padding: 6px 0;">Nama program/kegiatan</td><td style="width: 5%;">:</td><td style="width: 65%; border-bottom: 1px solid #000;">KKA Sekolah Nasional Terintegrasi (SNT)</td></tr>
-          <tr><td style="padding: 6px 0;">Periode / sesi honor</td><td>:</td><td style="border-bottom: 1px solid #000;">${formatBulan(rekap.bulan)}</td></tr>
-          <tr><td style="padding: 6px 0;">Jumlah sesi / JP</td><td>:</td><td style="border-bottom: 1px solid #000;">${(rekap.totalJPIntra > 0 && rekap.totalJPEkstra > 0) ? `${rekap.totalJP} JP (Intra: ${rekap.totalJPIntra} JP + Ekstra: ${rekap.totalJPEkstra} JP)` : `${rekap.totalJP} JP`}</td></tr>
-          <tr><td style="padding: 6px 0;">Honor per JP</td><td>:</td><td style="border-bottom: 1px solid #000;">Rp ${(Math.round(rekap.totalHonor / (rekap.totalJP || 1))).toLocaleString('id-ID')}</td></tr>
-          <tr><td style="padding: 6px 0;">Total Honor</td><td>:</td><td style="border-bottom: 1px solid #000; font-weight: bold;">Rp ${(rekap.totalHonor || 0).toLocaleString('id-ID')}</td></tr>
-          <tr><td style="padding: 6px 0;">Lokasi pelaksanaan</td><td>:</td><td style="border-bottom: 1px solid #000;">${rekap.fasilitator?.lokasiSNT ? rekap.fasilitator.lokasiSNT : '-'}</td></tr>
+        <p style="margin-top: 0; margin-bottom: 12px; font-size: 14px;">Pembayaran honorarium dan transport fasilitator atas nama tersebut di bawah, untuk kegiatan/program:</p>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px;">
+          <tr><td style="width: 32%; padding: 5px 0;">Nama fasilitator</td><td style="width: 3%;">:</td><td style="width: 65%; border-bottom: 1px solid #000;">${rekap.fasilitator?.namaLengkap || '-'}</td></tr>
+          <tr><td style="padding: 5px 0;">Nama program/kegiatan</td><td>:</td><td style="border-bottom: 1px solid #000;">KKA Sekolah Nasional Terintegrasi (SNT)</td></tr>
+          <tr><td style="padding: 5px 0;">Periode / sesi honor</td><td>:</td><td style="border-bottom: 1px solid #000;">${formatBulan(rekap.bulan)}</td></tr>
+          <tr><td style="padding: 5px 0;">Jumlah sesi / JP</td><td>:</td><td style="border-bottom: 1px solid #000;">${(rekap.totalJPIntra > 0 && rekap.totalJPEkstra > 0) ? `${rekap.totalJP} JP (Intra: ${rekap.totalJPIntra} JP + Ekstra: ${rekap.totalJPEkstra} JP)` : `${rekap.totalJP} JP`}</td></tr>
+          <tr><td style="padding: 5px 0;">Honor per JP</td><td>:</td><td style="border-bottom: 1px solid #000;">Rp ${(Math.round(totalHonor / (rekap.totalJP || 1))).toLocaleString('id-ID')}</td></tr>
+          <tr><td style="padding: 5px 0;">Subtotal Honor</td><td>:</td><td style="border-bottom: 1px solid #000; font-weight: bold;">Rp ${totalHonor.toLocaleString('id-ID')}</td></tr>
+          <tr><td style="padding: 5px 0;">Bantuan Biaya Transport</td><td>:</td><td style="border-bottom: 1px solid #000; font-weight: bold;">Rp ${totalTransport.toLocaleString('id-ID')}</td></tr>
+          <tr style="background-color: #f8fafc;"><td style="padding: 6px 0; font-weight: bold;">Total Pembayaran</td><td>:</td><td style="border-bottom: 2px solid #000; font-weight: bold; font-size: 1.05em;">Rp ${totalKeseluruhan.toLocaleString('id-ID')}</td></tr>
+          <tr><td style="padding: 5px 0;">Lokasi pelaksanaan</td><td>:</td><td style="border-bottom: 1px solid #000;">${rekap.fasilitator?.lokasiSNT ? rekap.fasilitator.lokasiSNT : '-'}</td></tr>
         </table>
         
-          <br/>
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px;">
-            <tr>
-              <td style="width: 35%; padding: 6px 0; font-weight: bold;">Informasi Rekening Pembayaran:</td>
-              <td></td>
-              <td></td>
-            </tr>
-            <tr>
-              <td style="padding: 4px 0;">Nama Bank</td>
-              <td>:</td>
-              <td>${rekap.fasilitator?.bankName || '-'}</td>
-            </tr>
-            <tr>
-              <td style="padding: 4px 0;">Nomor Rekening</td>
-              <td>:</td>
-              <td>${rekap.fasilitator?.bankAccount || '-'}</td>
-            </tr>
-            <tr>
-              <td style="padding: 4px 0;">Atas Nama</td>
-              <td>:</td>
-              <td>${rekap.fasilitator?.namaLengkap || '-'}</td>
-            </tr>
-          </table>
-<div style="margin-bottom: 30px; font-size: 14px;">
-          <p style="font-weight: bold; text-decoration: underline; margin-bottom: 15px;">Rincian potongan (bila ada):</p>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 14px;">
+          <tr>
+            <td style="width: 35%; padding: 4px 0; font-weight: bold;">Informasi Rekening Pembayaran:</td>
+            <td></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td style="padding: 3px 0;">Nama Bank</td>
+            <td>:</td>
+            <td>${rekap.fasilitator?.bankName || '-'}</td>
+          </tr>
+          <tr>
+            <td style="padding: 3px 0;">Nomor Rekening</td>
+            <td>:</td>
+            <td>${rekap.fasilitator?.bankAccount || '-'}</td>
+          </tr>
+          <tr>
+            <td style="padding: 3px 0;">Atas Nama</td>
+            <td>:</td>
+            <td>${rekap.fasilitator?.namaLengkap || '-'}</td>
+          </tr>
+        </table>
+        
+        <div style="margin-bottom: 25px; font-size: 14px;">
+          <p style="font-weight: bold; text-decoration: underline; margin-bottom: 8px;">Rincian potongan (bila ada):</p>
           <table style="width: 100%; border-collapse: collapse;">
-            <tr><td style="width: 35%; padding: 5px 0;">PPh Pasal 21 (jika ada)</td><td>Rp 0</td></tr>
-            <tr><td style="padding: 15px 0; font-weight: bold;">Honor diterima bersih</td><td style="font-weight: bold; font-size: 1.1em;">Rp ${(rekap.totalHonor || 0).toLocaleString('id-ID')}</td></tr>
+            <tr><td style="width: 35%; padding: 4px 0;">PPh Pasal 21 (jika ada)</td><td>Rp 0</td></tr>
+            <tr><td style="padding: 8px 0; font-weight: bold;">Total diterima bersih</td><td style="font-weight: bold; font-size: 1.1em;">Rp ${totalKeseluruhan.toLocaleString('id-ID')}</td></tr>
           </table>
         </div>
         <div style="display: flex; justify-content: space-between; margin-top: 30px; text-align: center; font-size: 14px;">
