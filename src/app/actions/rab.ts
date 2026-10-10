@@ -541,6 +541,62 @@ export async function deleteLaporanKegiatan(laporanId: string, fasilitatorId: st
   return { success: true }
 }
 
+export async function updateLaporanKegiatan(laporanId: string, data: {
+  date?: string | Date;
+  topic?: string;
+  attendance?: number;
+  evaluation?: string;
+  tingkatSekolah?: string;
+  metodePelaksanaan?: string;
+  jumlahJPIntra?: number;
+  jumlahJPEkstra?: number;
+  biayaTransport?: number;
+  biayaTransportLaut?: number;
+}) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) return { error: 'Unauthorized: Harap login terlebih dahulu' };
+    if (session.user.role !== 'ADMIN' && session.user.role !== 'SUPER_ADMIN') {
+      return { error: 'Forbidden: Hanya Admin yang dapat mengedit laporan kegiatan' };
+    }
+
+    const lap = await prisma.laporanKegiatan.findUnique({
+      where: { id: laporanId },
+      include: { fasilitator: true }
+    });
+    if (!lap) return { error: 'Laporan tidak ditemukan' };
+
+    const updateData: any = {};
+    if (data.date) updateData.date = new Date(data.date);
+    if (data.topic !== undefined) updateData.topic = data.topic;
+    if (data.attendance !== undefined) updateData.attendance = Number(data.attendance) || 0;
+    if (data.evaluation !== undefined) updateData.evaluation = data.evaluation;
+    if (data.tingkatSekolah !== undefined) updateData.tingkatSekolah = data.tingkatSekolah;
+    if (data.metodePelaksanaan !== undefined) updateData.metodePelaksanaan = data.metodePelaksanaan;
+    if (data.jumlahJPIntra !== undefined) updateData.jumlahJPIntra = Number(data.jumlahJPIntra) || 0;
+    if (data.jumlahJPEkstra !== undefined) updateData.jumlahJPEkstra = Number(data.jumlahJPEkstra) || 0;
+    if (data.biayaTransport !== undefined) updateData.biayaTransport = Number(data.biayaTransport) || 0;
+    if (data.biayaTransportLaut !== undefined) updateData.biayaTransportLaut = Number(data.biayaTransportLaut) || 0;
+
+    const updated = await prisma.laporanKegiatan.update({
+      where: { id: laporanId },
+      data: updateData
+    });
+
+    revalidatePath('/fasilitator/laporan');
+    revalidatePath('/fasilitator/rekap-honor');
+    revalidatePath('/dashboard-rab');
+    revalidatePath('/portal');
+    revalidatePath('/', 'layout');
+
+    return { success: true, data: updated };
+  } catch (err: any) {
+    console.error('Error in updateLaporanKegiatan:', err);
+    return { error: err.message || 'Gagal memperbarui laporan kegiatan' };
+  }
+}
+
+
 export async function deleteExpense(id: string) {
   const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN']);
   if (authError) return undefined;

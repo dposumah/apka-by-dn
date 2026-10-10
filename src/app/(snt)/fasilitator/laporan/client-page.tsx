@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/format'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { deleteLaporanKegiatan } from '@/app/actions/rab'
+import { deleteLaporanKegiatan, updateLaporanKegiatan } from '@/app/actions/rab'
 import { Trash2 } from 'lucide-react'
 import { cancelTransportPaid, adminUpdateTransportAmount } from '@/app/actions/rekap'
 import { useModal } from '@/components/modal-provider';
