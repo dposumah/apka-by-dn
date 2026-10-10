@@ -1131,3 +1131,30 @@ export async function generateInvoiceHonorRecord(rekapId: string, inputNoUrut?: 
     return { error: error.message || 'Unknown error' };
   }
 }
+
+export async function updateRekapTransport(rekapId: string, totalTransport: number | null) {
+  try {
+    const { error: authError, session } = await checkAuth(['ADMIN', 'SUPER_ADMIN']);
+    if (authError || !session) return { error: authError || "Unauthorized" };
+
+    const dataToUpdate: any = {};
+    if (totalTransport === null || totalTransport === undefined) {
+      dataToUpdate.totalTransport = null;
+    } else {
+      dataToUpdate.totalTransport = parseFloat(totalTransport.toString()) || 0;
+    }
+
+    const updated = await prisma.rekapHonorarium.update({
+      where: { id: rekapId },
+      data: dataToUpdate,
+      include: { fasilitator: true, laporan: true }
+    });
+
+    revalidatePath('/fasilitator/rekap-honor');
+    revalidatePath('/portal/rekap');
+    return { success: true, rekap: JSON.parse(JSON.stringify(updated)) };
+  } catch (error: any) {
+    console.error('Error in updateRekapTransport:', error);
+    return { error: error.message || 'Unknown error' };
+  }
+}

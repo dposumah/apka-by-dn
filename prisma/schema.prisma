@@ -662,6 +662,7 @@ model RekapHonorarium {
   totalJPEkstra Int         @default(0)
   jumlahSesi    Int?        @default(4)
   totalHonor    Float       @default(0)
+  totalTransport Float?
   filePdf       String?
   status        String      @default("DRAFT")
     buktiPembayaranHonor      String?

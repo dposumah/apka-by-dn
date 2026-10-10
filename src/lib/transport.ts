@@ -35,6 +35,7 @@ export function hitungTransportSesi(
 
 export function hitungTotalTransportRekap(
   rekap?: {
+    totalTransport?: number | null;
     jumlahSesi?: number | null;
     fasilitator?: { besaranTransport?: number | null; jarakPPKm?: number | null } | null;
     laporan?: Array<{
@@ -46,6 +47,11 @@ export function hitungTotalTransportRekap(
   hargaBBM = HARGA_BBM_DEFAULT
 ): number {
   if (!rekap) return 0;
+  // Jika admin telah mengatur/mengedit total transport secara manual, gunakan nilai tersebut
+  if (rekap.totalTransport !== null && rekap.totalTransport !== undefined) {
+    return Number(rekap.totalTransport) || 0;
+  }
+
   const fasil = rekap.fasilitator;
   const standarSesi = hitungBatasWajarTransport(fasil, hargaBBM);
 

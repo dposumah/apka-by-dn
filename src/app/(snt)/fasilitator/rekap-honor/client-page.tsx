@@ -1,3 +1,4 @@
+import { Edit } from 'lucide-react'
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -5,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { formatCurrency, terbilangRupiah } from '@/lib/format'
 import { hitungTotalTransportRekap } from '@/lib/transport'
 import { useState, useEffect } from 'react'
-import { createRekapManual, deleteRekap, generateKwitansiHonor, generateKwitansiTransportBulanan } from '@/app/actions/rekap'
+import { createRekapManual, deleteRekap, generateKwitansiHonor, generateKwitansiTransportBulanan, updateRekapTransport } from '@/app/actions/rekap'
 import { adminGenerateInvoiceHonor, uploadBuktiRekap, generateInvoiceHonorRecord } from '@/app/actions/rekap'
 import { getInvoiceHtml, getKwitansiHtml } from './pdf-generator'
 import { useRouter } from 'next/navigation'
@@ -20,6 +21,55 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
   
   
   const [showManualForm, setShowManualForm] = useState(false)
+  const [editingTransportRekap, setEditingTransportRekap] = useState<any | null>(null)
+  const [transportAmountInput, setTransportAmountInput] = useState<string>('')
+  const [isSavingTransport, setIsSavingTransport] = useState(false)
+
+  const openEditTransportModal = (rekap: any) => {
+    setEditingTransportRekap(rekap)
+    const currentAmount = hitungTotalTransportRekap(rekap)
+    setTransportAmountInput(currentAmount.toString())
+  }
+
+  const handleSaveTransport = async () => {
+    if (!editingTransportRekap) return
+    setIsSavingTransport(true)
+    try {
+      const nominal = parseFloat(transportAmountInput) || 0
+      const res = await updateRekapTransport(editingTransportRekap.id, nominal)
+      if (res?.error) {
+        await alert(res.error)
+      } else {
+        await alert('Biaya transport berhasil diperbarui.')
+        setEditingTransportRekap(null)
+        router.refresh()
+      }
+    } catch (e: any) {
+      await alert('Gagal memperbarui: ' + (e.message || ''))
+    } finally {
+      setIsSavingTransport(false)
+    }
+  }
+
+  const handleResetTransportToSystem = async () => {
+    if (!editingTransportRekap) return
+    if (!(await confirm('Kembalikan ke hitungan transport otomatis sistem?'))) return
+    setIsSavingTransport(true)
+    try {
+      const res = await updateRekapTransport(editingTransportRekap.id, null)
+      if (res?.error) {
+        await alert(res.error)
+      } else {
+        await alert('Biaya transport dikembalikan ke kalkulasi sistem.')
+        setEditingTransportRekap(null)
+        router.refresh()
+      }
+    } catch (e: any) {
+      await alert('Gagal mereset: ' + (e.message || ''))
+    } finally {
+      setIsSavingTransport(false)
+    }
+  }
   const [manualFasilId, setManualFasilId] = useState('')
   const [manualBulan, setManualBulan] = useState(() => {
     const d = new Date();
@@ -454,8 +504,21 @@ Atas Nama: ${namaLengkap}`;
                     <td className="py-3 px-4 text-center">
                       <Badge variant={rekap.status === 'SUBMITTED' ? 'default' : 'secondary'}>{rekap.status}</Badge>
                     </td>
-                    <td className="py-3 px-4 text-right font-medium">
-                      {formatCurrency(hitungTotalTransportRekap(rekap))}
+                    <td className="py-3 px-4 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <span className="font-medium text-slate-900">{formatCurrency(hitungTotalTransportRekap(rekap))}</span>
+                        <button 
+                          type="button"
+                          onClick={() => openEditTransportModal(rekap)}
+                          className="p-1 hover:bg-amber-100 bg-amber-50 text-amber-700 border border-amber-200 rounded transition-colors"
+                          title="Edit Biaya Transport"
+                        >
+                          <Edit className="w-3 h-3" />
+                        </button>
+                      </div>
+                      {rekap.totalTransport !== null && rekap.totalTransport !== undefined && (
+                        <span className="text-[10px] text-amber-600 font-medium block">Disesuaikan Admin</span>
+                      )}
                     </td>
                     <td className="py-3 px-4 text-center">
                       <div className="flex flex-col items-center gap-1">
@@ -490,6 +553,15 @@ Atas Nama: ${namaLengkap}`;
                             className="text-xs bg-slate-900 text-white hover:bg-slate-800 rounded px-2 py-1.5 transition-colors whitespace-nowrap"
                           >
                             {loadingId === rekap.id ? 'Memproses...' : 'Buat Invoice & Cetak'}
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => openEditTransportModal(rekap)} 
+                            className="text-xs bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 rounded px-2 py-1.5 transition-colors whitespace-nowrap flex items-center gap-1 font-medium" 
+                            title="Edit Biaya Transport Rekap"
+                          >
+                            <Edit className="w-3 h-3" />
+                            Edit Transport
                           </button>
                           <button onClick={() => handleCopyText(rekap)} className="text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-200 rounded px-2 py-1.5 transition-colors whitespace-nowrap" title="Salin detail pembayaran">Salin Data</button>
                             <button onClick={() => handleDelete(rekap.id)} className="text-xs bg-red-600 text-white hover:bg-red-700 rounded px-2 py-1.5 transition-colors whitespace-nowrap">Hapus</button>
@@ -793,6 +865,101 @@ Atas Nama: ${namaLengkap}`;
             </div>
           </div>
         )}
-      </div>
+      
+      {/* Modal Edit Transport Rekap */}
+      {editingTransportRekap && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Edit Biaya Transport Rekap</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {editingTransportRekap.fasilitator?.namaLengkap} &bull; Bulan {editingTransportRekap.bulan}
+                </p>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setEditingTransportRekap(null)}
+                className="text-slate-400 hover:text-slate-600 text-xl font-bold px-2"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="p-3 bg-slate-50 border rounded-lg text-xs space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Standar Fasilitator:</span>
+                  <span className="font-semibold">{formatCurrency(editingTransportRekap.fasilitator?.besaranTransport || 120000)} / sesi</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Jumlah Pertemuan:</span>
+                  <span className="font-semibold">{editingTransportRekap.jumlahSesi || 4} Sesi ({editingTransportRekap.laporan?.length || 0} Terlapor)</span>
+                </div>
+                {editingTransportRekap.totalTransport !== null && editingTransportRekap.totalTransport !== undefined && (
+                  <div className="text-amber-700 font-medium pt-1 border-t">
+                    Status: Nominal saat ini telah disesuaikan manual oleh Admin.
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Nominal Total Transport (Rp)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-medium">Rp</span>
+                  <input 
+                    type="number"
+                    min="0"
+                    value={transportAmountInput}
+                    onChange={e => setTransportAmountInput(e.target.value)}
+                    className="w-full border rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"
+                    placeholder="Masukkan nominal transport..."
+                    required
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Nominal ini langsung tercatat sebagai total transport fasilitator pada invoice, kwitansi, dan rekap transfer.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 pt-3 border-t flex justify-between items-center gap-2">
+              {editingTransportRekap.totalTransport !== null && editingTransportRekap.totalTransport !== undefined ? (
+                <button
+                  type="button"
+                  onClick={handleResetTransportToSystem}
+                  disabled={isSavingTransport}
+                  className="text-xs text-red-600 hover:underline"
+                >
+                  Reset ke Sistem
+                </button>
+              ) : <div />}
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingTransportRekap(null)}
+                  disabled={isSavingTransport}
+                  className="px-4 py-2 text-xs text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveTransport}
+                  disabled={isSavingTransport}
+                  className="px-4 py-2 text-xs text-white bg-blue-600 rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
+                >
+                  {isSavingTransport ? 'Menyimpan...' : 'Simpan Transport'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
     )
   }
