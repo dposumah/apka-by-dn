@@ -1,3 +1,5 @@
+import { hitungTotalTransportRekap } from '@/lib/transport';
+
 export const getInvoiceHtml = (rekap: any, kopType: 'maleo' | 'robotic', invoiceRecord?: any) => {
   const kopImage = window.location.origin + (kopType === 'maleo' ? '/kop-maleo.png' : '/kop-surat.png');
   
@@ -13,12 +15,7 @@ export const getInvoiceHtml = (rekap: any, kopType: 'maleo' | 'robotic', invoice
   };
   
   // Hitung total transport
-  let totalTransport = 0;
-  if (rekap.laporan && rekap.laporan.length > 0) {
-    totalTransport = rekap.laporan.reduce((acc: number, lap: any) => acc + (lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0), 0);
-  } else if (rekap.fasilitator?.besaranTransport) {
-    totalTransport = rekap.fasilitator.besaranTransport * (rekap.jumlahSesi || 4);
-  }
+  const totalTransport = hitungTotalTransportRekap(rekap);
 
   const totalHonor = rekap.totalHonor || 0;
   const totalKeseluruhan = totalHonor + totalTransport;

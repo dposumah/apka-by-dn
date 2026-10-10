@@ -9,6 +9,7 @@ import { revalidatePath } from 'next/cache';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { checkAuth } from '@/lib/auth-check';
+import { hitungTotalTransportRekap } from '@/lib/transport';
 
 
 export async function getAvailableMonths(fasilitatorId: string) {
@@ -269,6 +270,22 @@ export async function createRekapManual(fasilitatorId: string, bulan: string, to
       jumlahSesi,
       totalHonor,
       status: 'SUBMITTED',
+    }
+  });
+
+  // Otomatis tautkan laporan mingguan pada bulan ini yang belum tertaut
+  const [y, m] = bulan.split('-');
+  const startDate = new Date(parseInt(y), parseInt(m) - 1, 1);
+  const endDate = new Date(parseInt(y), parseInt(m), 0, 23, 59, 59);
+
+  await prisma.laporanKegiatan.updateMany({
+    where: {
+      fasilitatorId,
+      date: { gte: startDate, lte: endDate },
+      rekapHonorariumId: null
+    },
+    data: {
+      rekapHonorariumId: rekap.id
     }
   });
 
@@ -558,13 +575,8 @@ export async function generateKwitansiTransportBulanan(rekapId: string, inputNoU
   
   if (!rekap) return { error: "Rekap tidak ditemukan" };
   
-  // Calculate total transport
-  let totalTransport = 0;
-  if (rekap.laporan.length > 0) {
-    totalTransport = rekap.laporan.reduce((acc, lap) => acc + (lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0), 0);
-  } else {
-    totalTransport = (rekap.fasilitator.besaranTransport || 120000) * (rekap.jumlahSesi || 4);
-  }
+  // Calculate total transport with proper receipt + standard breakdown
+  const totalTransport = hitungTotalTransportRekap(rekap);
 
   if (totalTransport <= 0) return { error: "Total transport adalah 0, tidak bisa generate kwitansi." };
   
@@ -823,7 +835,7 @@ export async function uploadBuktiRekap(rekapId: string, urlHonor?: string, urlTr
 
     // 2. Potong RAB Sewa Rumah untuk Transport
     if (urlTransport) {
-      const totalTransport = rekap.laporan.reduce((acc, lap) => acc + (lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0), 0);
+      const totalTransport = hitungTotalTransportRekap(rekap);
       
       if (totalTransport > 0) {
         const transportRabItem = await prisma.rabItem.findFirst({
@@ -1034,12 +1046,7 @@ export async function generateInvoiceHonorRecord(rekapId: string, inputNoUrut?: 
     
     if (!rekap) return { error: "Rekap not found" };
 
-    let totalTransport = 0;
-    if (rekap.laporan && rekap.laporan.length > 0) {
-      totalTransport = rekap.laporan.reduce((acc, lap) => acc + (lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0), 0);
-    } else if (rekap.fasilitator?.besaranTransport) {
-      totalTransport = rekap.fasilitator.besaranTransport * (rekap.jumlahSesi || 4);
-    }
+    const totalTransport = hitungTotalTransportRekap(rekap);
 
     const totalTagihan = (rekap.totalHonor || 0) + totalTransport;
     const perihal = totalTransport > 0 

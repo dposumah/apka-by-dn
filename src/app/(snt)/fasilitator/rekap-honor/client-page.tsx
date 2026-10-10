@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency, terbilangRupiah } from '@/lib/format'
+import { hitungTotalTransportRekap } from '@/lib/transport'
 import { useState, useEffect } from 'react'
 import { createRekapManual, deleteRekap, generateKwitansiHonor, generateKwitansiTransportBulanan } from '@/app/actions/rekap'
 import { adminGenerateInvoiceHonor, uploadBuktiRekap, generateInvoiceHonorRecord } from '@/app/actions/rekap'
@@ -180,12 +181,7 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
       const lokasi = rekap.fasilitator?.lokasiSNT || '-';
       const jumlahJP = rekap.totalJP;
       
-      let totalTransport = 0;
-      if (rekap.laporan && rekap.laporan.length > 0) {
-        totalTransport = rekap.laporan.reduce((acc: number, lap: any) => acc + (lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0), 0);
-      } else if (rekap.fasilitator?.besaranTransport) {
-        totalTransport = rekap.fasilitator.besaranTransport * (rekap.jumlahSesi || 4);
-      }
+      const totalTransport = hitungTotalTransportRekap(rekap);
 
       const totalHonor = rekap.totalHonor || 0;
       const totalTransfer = totalHonor + totalTransport;
@@ -459,11 +455,7 @@ Atas Nama: ${namaLengkap}`;
                       <Badge variant={rekap.status === 'SUBMITTED' ? 'default' : 'secondary'}>{rekap.status}</Badge>
                     </td>
                     <td className="py-3 px-4 text-right font-medium">
-                      {formatCurrency(
-                        (rekap.laporan && rekap.laporan.length > 0)
-                          ? rekap.laporan.reduce((acc: number, lap: any) => acc + (lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0), 0)
-                          : ((rekap.fasilitator?.besaranTransport || 120000) * (rekap.jumlahSesi || 4))
-                      )}
+                      {formatCurrency(hitungTotalTransportRekap(rekap))}
                     </td>
                     <td className="py-3 px-4 text-center">
                       <div className="flex flex-col items-center gap-1">

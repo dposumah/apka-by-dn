@@ -10,8 +10,25 @@ import Link from 'next/link'
 import { submitLaporanKegiatan } from '@/app/actions/rab'
 import { useToast } from '@/components/ui/toast'
 import { useRouter } from 'next/navigation'
+import { hitungBatasWajarTransport } from '@/lib/transport'
 
-export function LaporanClientForm({ fasilitatorId, besaranTransport, jarakPPKm = 0, hargaPertamax = 13900, defaultJPIntra = 8, defaultJPEkstra = 4, jenisTugas = "INTRAKURIKULER" }: { fasilitatorId: string, besaranTransport: number, jarakPPKm?: number, hargaPertamax?: number, defaultJPIntra?: number, defaultJPEkstra?: number, jenisTugas?: string }) {
+export function LaporanClientForm({ 
+  fasilitatorId, 
+  besaranTransport, 
+  jarakPPKm = 0, 
+  hargaPertamax = 13900, 
+  defaultJPIntra = 8, 
+  defaultJPEkstra = 4, 
+  jenisTugas = "INTRAKURIKULER" 
+}: { 
+  fasilitatorId: string, 
+  besaranTransport: number, 
+  jarakPPKm?: number, 
+  hargaPertamax?: number, 
+  defaultJPIntra?: number, 
+  defaultJPEkstra?: number, 
+  jenisTugas?: string 
+}) {
   const router = useRouter()
   const { toast } = useToast()
   const [saving, setSaving] = useState(false)
@@ -23,10 +40,12 @@ export function LaporanClientForm({ fasilitatorId, besaranTransport, jarakPPKm =
   const [tiket, setTiket] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
 
-  const calculatedTransport = Math.round((jarakPPKm / 10) * hargaPertamax);
-  const maxTransportDarat = Math.min(calculatedTransport, besaranTransport);
+  // Hitung batas wajar rumus jarak (minimal besaranTransport / 120.000)
+  const batasWajarDarat = hitungBatasWajarTransport({ besaranTransport, jarakPPKm }, hargaPertamax)
 
-  
+  const initialJenisPembelajaran = jenisTugas === 'EKSTRAKURIKULER' ? 'EKSTRAKURIKULER' : 'INTRAKURIKULER'
+  const initialJam = (initialJenisPembelajaran === 'EKSTRAKURIKULER' ? defaultJPEkstra : defaultJPIntra).toString()
+
   const [formData, setFormData] = useState({
     date: new Date().toISOString().substring(0, 10),
     topic: '',
@@ -34,8 +53,9 @@ export function LaporanClientForm({ fasilitatorId, besaranTransport, jarakPPKm =
     evaluation: '',
     tingkatSekolah: 'SMP',
     metodePelaksanaan: 'LURING',
-    jenisPembelajaran: jenisTugas === 'EKSTRAKURIKULER' ? 'EKSTRAKURIKULER' : 'INTRAKURIKULER',
-    biayaTransport: maxTransportDarat ? maxTransportDarat.toString() : '',
+    jenisPembelajaran: initialJenisPembelajaran,
+    jumlahJam: initialJam,
+    biayaTransport: batasWajarDarat.toString(),
     biayaTransportLaut: '',
   })
 
@@ -84,17 +104,22 @@ export function LaporanClientForm({ fasilitatorId, besaranTransport, jarakPPKm =
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setFileError('')
+
     if (!foto1 && !foto2) {
       setFileError('Harap lampirkan minimal 1 foto kegiatan')
       return
     }
 
-    // Transport darat: upload wajib hanya jika melebihi besaranTransport
     const nominalDarat = parseFloat(formData.biayaTransport) || 0
-    if (nominalDarat > besaranTransport && !buktiDarat) {
-      setFileError(`Bukti Transport Darat wajib diunggah jika klaim melebihi nilai wajar rumus jarak (Rp ${maxTransportDarat.toLocaleString('id-ID')}).`)
+    const isDaratWajib = formData.metodePelaksanaan === 'LURING' && nominalDarat > batasWajarDarat
+    
+    // Transport darat: upload nota wajib jika melebihi batas rumus jarak
+    if (isDaratWajib && !buktiDarat) {
+      setFileError(`Bukti Transport Darat (nota/kwitansi) wajib diunggah karena nominal klaim (Rp ${nominalDarat.toLocaleString('id-ID')}) melebihi batas wajar rumus jarak (Rp ${batasWajarDarat.toLocaleString('id-ID')}).`)
       return
     }
+
     // Transport antar pulau: upload selalu wajib
     if (parseFloat(formData.biayaTransportLaut) > 0 && !tiket) {
       setFileError('Bukti Tiket Transport Antar Pulau wajib diunggah.')
@@ -112,10 +137,19 @@ export function LaporanClientForm({ fasilitatorId, besaranTransport, jarakPPKm =
         tiketUrl = await uploadFile(tiket);
       }
 
+      const jamNum = parseInt(formData.jumlahJam) || 0
       const res = await submitLaporanKegiatan(fasilitatorId, {
-        ...formData,
-        jumlahJPIntra: formData.jenisPembelajaran === 'INTRAKURIKULER' ? defaultJPIntra.toString() : '',
-        jumlahJPEkstra: formData.jenisPembelajaran === 'EKSTRAKURIKULER' ? defaultJPEkstra.toString() : '',
+        date: formData.date,
+        topic: formData.topic,
+        attendance: formData.attendance,
+        evaluation: formData.evaluation,
+        tingkatSekolah: formData.tingkatSekolah || 'SMP',
+        metodePelaksanaan: formData.metodePelaksanaan,
+        jenisPembelajaran: formData.jenisPembelajaran,
+        jumlahJPIntra: formData.jenisPembelajaran === 'INTRAKURIKULER' ? jamNum.toString() : '0',
+        jumlahJPEkstra: formData.jenisPembelajaran === 'EKSTRAKURIKULER' ? jamNum.toString() : '0',
+        biayaTransport: formData.metodePelaksanaan === 'DARING' ? '0' : formData.biayaTransport,
+        biayaTransportLaut: formData.metodePelaksanaan === 'DARING' ? '0' : formData.biayaTransportLaut,
         foto1,
         foto2,
         fileLaporanFisik,
@@ -140,7 +174,7 @@ export function LaporanClientForm({ fasilitatorId, besaranTransport, jarakPPKm =
 
   // Derive whether transport darat upload is mandatory
   const nominalDaratCurrent = parseFloat(formData.biayaTransport) || 0
-  const isDaratWajib = nominalDaratCurrent > maxTransportDarat
+  const isDaratWajib = formData.metodePelaksanaan === 'LURING' && nominalDaratCurrent > batasWajarDarat
 
   return (
     <div className="p-8 space-y-6 max-w-3xl mx-auto">
@@ -155,38 +189,41 @@ export function LaporanClientForm({ fasilitatorId, besaranTransport, jarakPPKm =
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             
-            
             <div className="space-y-3 p-4 bg-slate-50 rounded-md border border-slate-200">
               <Label>Metode Pelaksanaan</Label>
               <div className="flex gap-4">
-                <label className="flex items-center gap-2">
-                  <input type="radio" name="metodePelaksanaan" value="LURING" checked={formData.metodePelaksanaan === 'LURING'} onChange={e => setFormData({...formData, metodePelaksanaan: e.target.value})} className="w-4 h-4 text-emerald-600" />
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="radio" 
+                    name="metodePelaksanaan" 
+                    value="LURING" 
+                    checked={formData.metodePelaksanaan === 'LURING'} 
+                    onChange={e => setFormData({
+                      ...formData, 
+                      metodePelaksanaan: e.target.value,
+                      biayaTransport: batasWajarDarat.toString()
+                    })} 
+                    className="w-4 h-4 text-emerald-600" 
+                  />
                   Luring (Tatap Muka)
                 </label>
-                <label className="flex items-center gap-2">
-                  <input type="radio" name="metodePelaksanaan" value="DARING" checked={formData.metodePelaksanaan === 'DARING'} onChange={e => setFormData({...formData, metodePelaksanaan: e.target.value})} className="w-4 h-4 text-emerald-600" />
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="radio" 
+                    name="metodePelaksanaan" 
+                    value="DARING" 
+                    checked={formData.metodePelaksanaan === 'DARING'} 
+                    onChange={e => setFormData({
+                      ...formData, 
+                      metodePelaksanaan: e.target.value,
+                      biayaTransport: '0',
+                      biayaTransportLaut: '0'
+                    })} 
+                    className="w-4 h-4 text-emerald-600" 
+                  />
                   Daring (Online)
                 </label>
               </div>
-              
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Tingkat Sekolah</Label>
-                <div className="flex gap-4 mt-2">
-                  <label className="flex items-center gap-2">
-                    <input type="radio" name="tingkatSekolah" value="SMP" checked={formData.tingkatSekolah === 'SMP'} onChange={e => setFormData({...formData, tingkatSekolah: e.target.value})} className="w-4 h-4 text-emerald-600" />
-                    SMP
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input type="radio" name="tingkatSekolah" value="SMA" checked={formData.tingkatSekolah === 'SMA'} onChange={e => setFormData({...formData, tingkatSekolah: e.target.value})} className="w-4 h-4 text-emerald-600" />
-                    SMA
-                  </label>
-                </div>
-              </div>
-
-              
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -195,14 +232,14 @@ export function LaporanClientForm({ fasilitatorId, besaranTransport, jarakPPKm =
                 <Input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} required />
               </div>
               <div className="space-y-2">
-                <Label>Jumlah Peserta Hadir</Label>
+                <Label>Jumlah Peserta Hadir (Siswa)</Label>
                 <Input type="number" min="0" value={formData.attendance} onChange={e => setFormData({...formData, attendance: e.target.value})} required />
               </div>
             </div>
 
             <div className="space-y-2">
               <Label>Topik Pembelajaran</Label>
-              <Input value={formData.topic} onChange={e => setFormData({...formData, topic: e.target.value})} placeholder="Misal: Pengenalan Komponen Robotika" required />
+              <Input value={formData.topic} onChange={e => setFormData({...formData, topic: e.target.value})} placeholder="Misal: Modul Robotika - Pengenalan Sensor" required />
             </div>
             
             <div className="space-y-2">
@@ -210,91 +247,122 @@ export function LaporanClientForm({ fasilitatorId, besaranTransport, jarakPPKm =
               <Textarea value={formData.evaluation} onChange={e => setFormData({...formData, evaluation: e.target.value})} placeholder="Catatan singkat tentang pelaksanaan..." />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t pt-4 mt-2">
+            {/* Jam Mengajar & Jenis Kegiatan */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4 mt-2">
+              {jenisTugas === 'KEDUANYA' ? (
                 <div className="space-y-2">
-                  <Label>Jenis Pembelajaran</Label>
+                  <Label>Jenis Kegiatan</Label>
                   <select 
-                      className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      value={formData.jenisPembelajaran}
-                      onChange={e => setFormData({...formData, jenisPembelajaran: e.target.value})}
-                    >
-                      {jenisTugas !== 'EKSTRAKURIKULER' && <option value="INTRAKURIKULER">Intrakurikuler</option>}
-                      {jenisTugas !== 'INTRAKURIKULER' && <option value="EKSTRAKURIKULER">Ekstrakurikuler</option>}
-                    </select>
+                    className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2"
+                    value={formData.jenisPembelajaran}
+                    onChange={e => {
+                      const jenis = e.target.value
+                      setFormData({
+                        ...formData, 
+                        jenisPembelajaran: jenis,
+                        jumlahJam: (jenis === 'EKSTRAKURIKULER' ? defaultJPEkstra : defaultJPIntra).toString()
+                      })
+                    }}
+                  >
+                    <option value="INTRAKURIKULER">Intrakurikuler</option>
+                    <option value="EKSTRAKURIKULER">Ekstrakurikuler</option>
+                  </select>
                 </div>
-                
-                {formData.jenisPembelajaran === 'INTRAKURIKULER' ? (
-                  <div className="space-y-2 flex flex-col justify-center">
-                    <Label>Jumlah JP (Intrakurikuler)</Label>
-                    <div className="mt-1 px-3 py-2 bg-blue-50 border border-blue-200 rounded-md text-blue-700 font-medium text-sm flex items-center h-10">
-                      {defaultJPIntra} JP / Minggu (Otomatis)
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-2 flex flex-col justify-center">
-                    <Label>Jumlah JP (Ekstrakurikuler)</Label>
-                    <div className="mt-1 px-3 py-2 bg-blue-50 border border-blue-200 rounded-md text-blue-700 font-medium text-sm flex items-center h-10">
-                      {defaultJPEkstra} JP / Minggu (Otomatis)
-                    </div>
-                  </div>
-                )}
+              ) : null}
               
+              <div className={`space-y-2 ${jenisTugas !== 'KEDUANYA' ? 'col-span-2' : ''}`}>
+                <Label>Jumlah Jam Mengajar (JP)</Label>
+                <Input 
+                  type="number" 
+                  min="1" 
+                  required 
+                  value={formData.jumlahJam} 
+                  onChange={e => setFormData({...formData, jumlahJam: e.target.value})} 
+                  placeholder="Misal: 8" 
+                />
+                <p className="text-xs text-slate-500">
+                  {jenisTugas !== 'KEDUANYA' && (
+                    <span>Kegiatan: <strong>{jenisTugas === 'EKSTRAKURIKULER' ? 'Ekstrakurikuler' : 'Intrakurikuler'}</strong> (sesuai profil). </span>
+                  )}
+                  Masukkan jumlah jam pembelajaran pada pertemuan ini.
+                </p>
+              </div>
+            </div>
+
+            {/* Transport Darat & Antar Pulau */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4 mt-2">
               <div className="space-y-2">
                 <Label>Biaya Transport Darat (Rp)</Label>
-                <Input type="number" min="0" value={formData.biayaTransport} onChange={e => setFormData({...formData, biayaTransport: e.target.value})} placeholder="Kosongkan jika tidak ada" />
-                <p className="text-xs text-slate-500">Batas wajar sesuai jarak: Rp {maxTransportDarat.toLocaleString('id-ID')}</p>
+                <Input 
+                  type="number" 
+                  min="0" 
+                  value={formData.biayaTransport} 
+                  onChange={e => setFormData({...formData, biayaTransport: e.target.value})} 
+                  disabled={formData.metodePelaksanaan === 'DARING'}
+                  placeholder="0" 
+                />
+                <p className="text-xs text-slate-500">
+                  Batas wajar rumus jarak: <strong>Rp {batasWajarDarat.toLocaleString('id-ID')}</strong> {jarakPPKm > 0 ? `(${jarakPPKm} km PP)` : ''}
+                </p>
               </div>
               <div className="space-y-2">
                 <Label>Biaya Transport Antar Pulau (Rp)</Label>
-
-                <Input type="number" min="0" value={formData.biayaTransportLaut} onChange={e => setFormData({...formData, biayaTransportLaut: e.target.value})} placeholder="Kosongkan jika tidak ada" />
+                <Input 
+                  type="number" 
+                  min="0" 
+                  value={formData.biayaTransportLaut} 
+                  onChange={e => setFormData({...formData, biayaTransportLaut: e.target.value})} 
+                  disabled={formData.metodePelaksanaan === 'DARING'}
+                  placeholder="Kosongkan jika tidak ada" 
+                />
                 <p className="text-xs text-slate-500">Wajib lampirkan bukti tiket</p>
               </div>
             </div>
 
-            
-            {nominalDaratCurrent > 0 && (
-                <div className={`space-y-2 col-span-2 p-4 rounded-md mt-2 border ${isDaratWajib ? 'border-red-200 bg-red-50' : 'border-emerald-100 bg-emerald-50'}`}>
-                  <Label>
-                    Bukti Transport Darat {isDaratWajib ? (
-                      <span className="text-red-600 font-bold">(Wajib — melebihi batas Rp {besaranTransport.toLocaleString('id-ID')})</span>
-                    ) : (
-                      <span className="text-emerald-600">(Opsional)</span>
-                    )}
-                  </Label>
-                  <Input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => e.target.files && setBuktiDarat(e.target.files[0])} />
-                  <p className={`text-xs ${isDaratWajib ? 'text-red-600' : 'text-emerald-600'}`}>
-                    {isDaratWajib 
-                      ? `Nominal Rp ${nominalDaratCurrent.toLocaleString('id-ID')} melebihi batas wajar jarak Rp ${maxTransportDarat.toLocaleString('id-ID')}. Wajib lampirkan bukti BBM/Transportasi.`
-                      : `Nominal sesuai dengan nilai wajar jarak. Upload bukti opsional, tapi disarankan.`
-                    }
-                  </p>
-                </div>
+            {/* Bukti Transport Darat */}
+            {formData.metodePelaksanaan === 'LURING' && nominalDaratCurrent > 0 && (
+              <div className={`space-y-2 col-span-2 p-4 rounded-md mt-2 border ${isDaratWajib ? 'border-red-200 bg-red-50' : 'border-emerald-100 bg-emerald-50'}`}>
+                <Label>
+                  Bukti Transport Darat {isDaratWajib ? (
+                    <span className="text-red-600 font-bold">(Wajib — melebihi batas rumus jarak Rp {batasWajarDarat.toLocaleString('id-ID')})</span>
+                  ) : (
+                    <span className="text-emerald-600 font-medium">(Opsional — sesuai batas wajar)</span>
+                  )}
+                </Label>
+                <Input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => e.target.files && setBuktiDarat(e.target.files[0])} />
+                <p className={`text-xs ${isDaratWajib ? 'text-red-600 font-medium' : 'text-emerald-600'}`}>
+                  {isDaratWajib 
+                    ? `⚠️ Nominal Rp ${nominalDaratCurrent.toLocaleString('id-ID')} melebihi batas wajar rumus jarak (Rp ${batasWajarDarat.toLocaleString('id-ID')}). Anda wajib melampirkan foto struk/nota BBM atau kwitansi transport.`
+                    : `✓ Nominal sesuai nilai wajar jarak. Unggah bukti bersifat opsional.`
+                  }
+                </p>
+              </div>
             )}
             
-            {parseFloat(formData.biayaTransportLaut) > 0 && (
-
-                <div className="space-y-2 col-span-2 border border-blue-100 bg-blue-50 p-4 rounded-md mt-2">
-                  <Label>Bukti Tiket Transport Antar Pulau <span className="text-red-600 font-bold">(Wajib)</span></Label>
-                  <Input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => e.target.files && setTiket(e.target.files[0])} />
-                  <p className="text-xs text-blue-600">Unggah foto/scan tiket atau bukti pembayaran transport antar pulau. Wajib untuk semua nominal.</p>
-                </div>
-              )}
-  
-              
-              <div className="space-y-2 border border-slate-200 bg-slate-50 p-4 rounded-md mt-4">
-                <div className="flex justify-between items-center mb-2">
-                  <Label className="text-sm font-semibold">Laporan Fisik <span className="text-slate-500 font-normal">(Opsional - Bisa dilengkapi menyusul)</span></Label>
-                  <a href="/templates/Template_Laporan_Fisik_Fasilitator.docx" download className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                    Download Template
-                  </a>
-                </div>
-                <Input type="file" onChange={(e) => handleFileChange(e, 'fileLaporanFisik')} accept=".pdf" />
-                {fileLaporanFisik && <p className="text-xs text-emerald-600">Laporan fisik terlampir.</p>}
-                <p className="text-xs text-slate-500">Silakan unduh template, isi, tanda tangani, simpan sebagai PDF, lalu unggah kembali di sini (Maksimal 2 MB). Jika belum selesai, Anda dapat melewati ini dan mengunggahnya nanti.</p>
+            {/* Bukti Tiket Transport Laut */}
+            {formData.metodePelaksanaan === 'LURING' && parseFloat(formData.biayaTransportLaut) > 0 && (
+              <div className="space-y-2 col-span-2 border border-blue-100 bg-blue-50 p-4 rounded-md mt-2">
+                <Label>Bukti Tiket Transport Antar Pulau <span className="text-red-600 font-bold">(Wajib)</span></Label>
+                <Input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => e.target.files && setTiket(e.target.files[0])} />
+                <p className="text-xs text-blue-600">Unggah foto/scan tiket atau bukti pembayaran transport antar pulau. Wajib untuk semua nominal.</p>
               </div>
+            )}
 
-              <div className="space-y-4 border-t pt-4 mt-2">
+            {/* Laporan Fisik */}
+            <div className="space-y-2 border border-slate-200 bg-slate-50 p-4 rounded-md mt-4">
+              <div className="flex justify-between items-center mb-2">
+                <Label className="text-sm font-semibold">Laporan Fisik <span className="text-slate-500 font-normal">(Opsional - Bisa dilengkapi menyusul)</span></Label>
+                <a href="/templates/Template_Laporan_Fisik_Fasilitator.docx" download className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                  Download Template
+                </a>
+              </div>
+              <Input type="file" onChange={(e) => handleFileChange(e, 'fileLaporanFisik')} accept=".pdf" />
+              {fileLaporanFisik && <p className="text-xs text-emerald-600">Laporan fisik terlampir.</p>}
+              <p className="text-xs text-slate-500">Silakan unduh template, isi, tanda tangani, simpan sebagai PDF, lalu unggah kembali di sini (Maksimal 2 MB). Jika belum selesai, Anda dapat melewati ini dan mengunggahnya nanti.</p>
+            </div>
+
+            {/* Lampiran Foto Kegiatan */}
+            <div className="space-y-4 border-t pt-4 mt-2">
               <Label>Lampiran Bukti (Foto Kegiatan)</Label>
               <p className="text-xs text-slate-500">Maksimal 2 foto (jpg/png/jpeg), ukuran per file max 5 MB.</p>
               

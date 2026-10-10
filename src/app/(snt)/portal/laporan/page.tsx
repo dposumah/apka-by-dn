@@ -25,10 +25,15 @@ export default async function LaporanPage() {
     redirect("/portal")
   }
 
+  const hargaBBMSetting = await getAppSetting('HARGA_PERTAMAX', '13900')
+  const hargaPertamax = parseFloat(hargaBBMSetting) || 13900
+
   return (
     <LaporanClientForm 
       fasilitatorId={fasilitator.id} 
       besaranTransport={fasilitator.besaranTransport}
+      jarakPPKm={fasilitator.jarakPPKm ?? 0}
+      hargaPertamax={hargaPertamax}
       defaultJPIntra={fasilitator.defaultJPIntra}
       defaultJPEkstra={fasilitator.defaultJPEkstra}
       jenisTugas={fasilitator.jenisTugas}

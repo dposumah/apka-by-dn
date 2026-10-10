@@ -365,10 +365,6 @@ export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
       }
     });
 
-    const claimedThisWeek = weeklyReports.reduce((sum, lap) => sum + (lap.biayaTransport || 0), 0);
-    const maxBudget = fasil?.besaranTransport ?? 120000;
-    const remainingBudget = Math.max(0, maxBudget - claimedThisWeek);
-
     const reqTransportDarat = parseFloat(data.biayaTransport) || 0;
     
     const sameDayReports = weeklyReports.filter(lap => {
@@ -382,7 +378,14 @@ export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
       finalReqTransportDarat = 0;
     }
 
-    let grantedTransportDarat = Math.min(finalReqTransportDarat, remainingBudget);
+    const rumusJarak = Math.round(((fasil?.jarakPPKm || 0) / 10) * 13900);
+    const batasWajar = Math.max(fasil?.besaranTransport ?? 120000, rumusJarak);
+
+    let grantedTransportDarat = finalReqTransportDarat;
+    if (!data.buktiTransportDarat) {
+      // Jika tanpa bukti nota, dibatasi oleh batas wajar
+      grantedTransportDarat = Math.min(finalReqTransportDarat, batasWajar);
+    }
 
     const hasTransportLautToday = sameDayReports.some(lap => (lap.biayaTransportLaut || 0) > 0);
     let grantedTransportLaut = parseFloat(data.biayaTransportLaut) || 0;
@@ -398,8 +401,8 @@ export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
     // Pengecekan kuota mingguan per fasilitator
     const totalIntraUsed = weeklyReports.reduce((sum, lap) => sum + lap.jumlahJPIntra, 0);
     const totalEkstraUsed = weeklyReports.reduce((sum, lap) => sum + lap.jumlahJPEkstra, 0);
-    const maxIntra = fasil?.defaultJPIntra ?? 8;
-    const maxEkstra = fasil?.defaultJPEkstra ?? 4;
+    const maxIntra = Math.max(fasil?.defaultJPIntra ?? 8, 16);
+    const maxEkstra = Math.max(fasil?.defaultJPEkstra ?? 4, 12);
     
     if (reqJpIntra > 0 && (totalIntraUsed + reqJpIntra > maxIntra)) {
       return { 
