@@ -1,17 +1,17 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/format'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { deleteLaporanKegiatan, updateLaporanKegiatan } from '@/app/actions/rab'
-import { Trash2 } from 'lucide-react'
-import { cancelTransportPaid, adminUpdateTransportAmount } from '@/app/actions/rekap'
-import { useModal } from '@/components/modal-provider';
+import { Trash2, Edit } from 'lucide-react'
+import { cancelTransportPaid } from '@/app/actions/rekap'
+import { useModal } from '@/components/modal-provider'
 
 export function LaporanClient({ initialData }: { initialData: any[] }) {
-  const { confirm, alert } = useModal();
+  const { confirm, alert } = useModal()
 
   const router = useRouter()
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -19,71 +19,102 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
   const [filterBulan, setFilterBulan] = useState('')
 
   const [cancelingId, setCancelingId] = useState<string | null>(null)
-  
-  const [editingTransport, setEditingTransport] = useState<any | null>(null);
-  const [editDarat, setEditDarat] = useState(0);
-  const [editLaut, setEditLaut] = useState(0);
-  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSaveTransport = async () => {
-    if (!editingTransport) return;
-    setIsSaving(true);
+  // Edit Laporan State
+  const [editingLaporan, setEditingLaporan] = useState<any | null>(null)
+  const [editForm, setEditForm] = useState({
+    date: '',
+    topic: '',
+    attendance: 0,
+    tingkatSekolah: 'SMP',
+    metodePelaksanaan: 'LURING',
+    jumlahJPIntra: 0,
+    jumlahJPEkstra: 0,
+    biayaTransport: 0,
+    biayaTransportLaut: 0,
+    evaluation: ''
+  })
+  const [isSavingEdit, setIsSavingEdit] = useState(false)
+
+  const openEditModal = (lap: any) => {
+    setEditingLaporan(lap)
+    const d = new Date(lap.date)
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    setEditForm({
+      date: `${year}-${month}-${day}`,
+      topic: lap.topic || '',
+      attendance: lap.attendance || 0,
+      tingkatSekolah: lap.tingkatSekolah || 'SMP',
+      metodePelaksanaan: lap.metodePelaksanaan || 'LURING',
+      jumlahJPIntra: lap.jumlahJPIntra || 0,
+      jumlahJPEkstra: lap.jumlahJPEkstra || 0,
+      biayaTransport: lap.biayaTransport || 0,
+      biayaTransportLaut: lap.biayaTransportLaut || 0,
+      evaluation: lap.evaluation || ''
+    })
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editingLaporan) return
+    setIsSavingEdit(true)
     try {
-      await adminUpdateTransportAmount(editingTransport.id, editDarat, editLaut);
-      alert('Success', 'Biaya transport berhasil diperbarui.');
-      setEditingTransport(null);
-      router.refresh();
-    } catch (e: any) {
-      alert('Error', e.message || 'Gagal menyimpan perubahan');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-
-  const handleDelete = async (lapId: string, fasilitatorId: string) => {
-    if (!(await confirm('Apakah Anda yakin ingin menghapus laporan ini? Tindakan ini tidak dapat dibatalkan.'))) return;
-    setDeletingId(lapId);
-    try {
-      const res = await deleteLaporanKegiatan(lapId, fasilitatorId);
+      const res = await updateLaporanKegiatan(editingLaporan.id, editForm)
       if (res?.error) {
-        await alert(res.error);
+        await alert(res.error)
       } else {
-        router.refresh();
+        await alert('Laporan mingguan berhasil diperbarui.')
+        setEditingLaporan(null)
+        router.refresh()
       }
     } catch (e: any) {
-      await alert('Gagal menghapus: ' + e.message);
+      await alert('Gagal menyimpan perubahan: ' + (e.message || ''))
     } finally {
-      setDeletingId(null);
+      setIsSavingEdit(false)
     }
   }
-  
-  
-  const handleCancelPaid = async (lapId: string) => {
-    if (!(await confirm('Apakah Anda yakin ingin membatalkan status Lunas untuk laporan ini? Data Pengeluaran yang terkait juga akan dihapus.'))) return;
-    setCancelingId(lapId);
+
+  const handleDelete = async (lapId: string, fasilitatorId: string) => {
+    if (!(await confirm('Apakah Anda yakin ingin menghapus laporan ini? Tindakan ini tidak dapat dibatalkan.'))) return
+    setDeletingId(lapId)
     try {
-      const res = await cancelTransportPaid(lapId);
+      const res = await deleteLaporanKegiatan(lapId, fasilitatorId)
       if (res?.error) {
-        await alert(res.error);
+        await alert(res.error)
       } else {
-        router.refresh();
+        router.refresh()
       }
     } catch (e: any) {
-      await alert('Gagal membatalkan lunas: ' + e.message);
+      await alert('Gagal menghapus: ' + e.message)
     } finally {
-      setCancelingId(null);
+      setDeletingId(null)
+    }
+  }
+
+  const handleCancelPaid = async (lapId: string) => {
+    if (!(await confirm('Apakah Anda yakin ingin membatalkan status Lunas untuk laporan ini? Data Pengeluaran yang terkait juga akan dihapus.'))) return
+    setCancelingId(lapId)
+    try {
+      const res = await cancelTransportPaid(lapId)
+      if (res?.error) {
+        await alert(res.error)
+      } else {
+        router.refresh()
+      }
+    } catch (e: any) {
+      await alert('Gagal membatalkan lunas: ' + e.message)
+    } finally {
+      setCancelingId(null)
     }
   }
 
   const cetakInvoiceTransport = (lap: any) => {
-    // Cari semua laporan pada tanggal yang sama untuk fasilitator ini
     const sameDayReports = initialData.filter(r => 
       r.fasilitatorId === lap.fasilitatorId && 
       new Date(r.date).toDateString() === new Date(lap.date).toDateString()
-    );
+    )
 
-    // Generate Invoice PDF
     const win = window.open('', '_blank')
     if (!win) return
     win.document.write(`
@@ -114,7 +145,6 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
               <p><strong>Lokasi SNT:</strong> ${lap.fasilitator.lokasiSNT || '-'}</p>
               <p><strong>Tanggal Laporan:</strong> ${new Date(lap.date).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
             </div>
-            
           </div>
           
           <table>
@@ -162,16 +192,15 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
     win.document.close()
   }
 
-  
   const filteredData = initialData.filter((lap: any) => {
-    const matchNama = lap.fasilitator?.namaLengkap?.toLowerCase().includes(filterNama.toLowerCase()) ?? true;
-    let matchBulan = true;
+    const matchNama = lap.fasilitator?.namaLengkap?.toLowerCase().includes(filterNama.toLowerCase()) ?? true
+    let matchBulan = true
     if (filterBulan) {
-      const d = new Date(lap.date);
-      matchBulan = (d.getMonth() + 1).toString() === filterBulan;
+      const d = new Date(lap.date)
+      matchBulan = (d.getMonth() + 1).toString() === filterBulan
     }
-    return matchNama && matchBulan;
-  });
+    return matchNama && matchBulan
+  })
 
   return (
     <div className="p-8 space-y-6 max-w-7xl mx-auto">
@@ -275,20 +304,17 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
                           className="w-full text-xs bg-slate-900 text-white hover:bg-slate-800 rounded px-2 py-1.5 transition-colors whitespace-nowrap"
                         >
                           Cetak Invoice Transport
-                          </button>
-                        )}
-                        {((lap.biayaTransport || 0) > 0 || (lap.reqBiayaTransport || 0) > 0) && lap.statusTransport === 'PENDING' && (
-                          <button 
-                            onClick={() => {
-                              setEditingTransport(lap);
-                              setEditDarat(lap.biayaTransport || 0);
-                              setEditLaut(lap.biayaTransportLaut || 0);
-                            }}
-                            className="w-full text-xs bg-amber-100 text-amber-700 hover:bg-amber-200 rounded px-2 py-1.5 transition-colors whitespace-nowrap mt-1"
-                          >
-                            ✏️ Edit Transport
-                          </button>
-                        )}
+                        </button>
+                      )}
+                      
+                      <button 
+                        onClick={() => openEditModal(lap)}
+                        className="w-full flex items-center justify-center gap-1 text-xs bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 rounded px-2 py-1.5 transition-colors whitespace-nowrap mt-1 font-medium"
+                      >
+                        <Edit className="w-3 h-3" />
+                        Edit Laporan
+                      </button>
+
                       {lap.statusTransport === 'PAID' && (
                         <button 
                           onClick={() => handleCancelPaid(lap.id)}
@@ -315,57 +341,167 @@ export function LaporanClient({ initialData }: { initialData: any[] }) {
         </CardContent>
       </Card>
 
-      {editingTransport && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-            <h3 className="text-lg font-bold mb-4">Edit Nominal Transport</h3>
-            <div className="mb-4 text-sm text-slate-600 bg-slate-50 p-3 rounded-lg border">
-              <p><strong>Fasilitator:</strong> {editingTransport.fasilitator?.namaLengkap}</p>
-              <p><strong>Tanggal:</strong> {new Date(editingTransport.date).toLocaleDateString('id-ID')}</p>
-              <p><strong>Req Awal Darat:</strong> {formatCurrency(editingTransport.reqBiayaTransport || 0)}</p>
-            </div>
-            
-            <div className="space-y-4">
+      {/* Modal Edit Laporan */}
+      {editingLaporan && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 my-8">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b">
               <div>
-                <label className="block text-sm font-medium mb-1">Biaya Transport Darat (Disetujui)</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-2 text-slate-500">Rp</span>
-                  <input 
-                    type="number" 
-                    value={editDarat} 
-                    onChange={e => setEditDarat(Number(e.target.value))}
-                    className="w-full border rounded-lg pl-8 pr-2 py-2"
-                  />
-                </div>
+                <h3 className="text-lg font-bold text-slate-900">Edit Laporan Mingguan Fasilitator</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {editingLaporan.fasilitator?.namaLengkap} &bull; {editingLaporan.fasilitator?.lokasiSNT || '-'}
+                </p>
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Biaya Transport Laut (Disetujui)</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-2 text-slate-500">Rp</span>
-                  <input 
-                    type="number" 
-                    value={editLaut} 
-                    onChange={e => setEditLaut(Number(e.target.value))}
-                    className="w-full border rounded-lg pl-8 pr-2 py-2"
-                  />
-                </div>
-              </div>
-            </div>
-            
-            <div className="mt-6 flex justify-end gap-2">
               <button 
-                onClick={() => setEditingTransport(null)}
-                className="px-4 py-2 text-sm text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200"
-                disabled={isSaving}
+                type="button"
+                onClick={() => setEditingLaporan(null)}
+                className="text-slate-400 hover:text-slate-600 text-xl font-bold px-2"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+              {/* Row 1: Tanggal & Tingkat */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Tanggal Kegiatan</label>
+                  <input 
+                    type="date"
+                    value={editForm.date}
+                    onChange={e => setEditForm(prev => ({ ...prev, date: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Tingkat Sekolah</label>
+                  <select
+                    value={editForm.tingkatSekolah}
+                    onChange={e => setEditForm(prev => ({ ...prev, tingkatSekolah: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="SMP">SMP</option>
+                    <option value="SMA">SMA</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Row 2: Metode Pelaksanaan & Kehadiran */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Metode Pelaksanaan</label>
+                  <select
+                    value={editForm.metodePelaksanaan}
+                    onChange={e => setEditForm(prev => ({ ...prev, metodePelaksanaan: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="LURING">LURING (Tatap Muka)</option>
+                    <option value="DARING">DARING (Online)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Jumlah Peserta / Siswa</label>
+                  <input 
+                    type="number"
+                    min="0"
+                    value={editForm.attendance}
+                    onChange={e => setEditForm(prev => ({ ...prev, attendance: parseInt(e.target.value) || 0 }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Row 3: JP Intra & JP Ekstra */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-3 rounded-lg border">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">JP Intrakurikuler</label>
+                  <input 
+                    type="number"
+                    min="0"
+                    value={editForm.jumlahJPIntra}
+                    onChange={e => setEditForm(prev => ({ ...prev, jumlahJPIntra: parseInt(e.target.value) || 0 }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">JP Ekstrakurikuler</label>
+                  <input 
+                    type="number"
+                    min="0"
+                    value={editForm.jumlahJPEkstra}
+                    onChange={e => setEditForm(prev => ({ ...prev, jumlahJPEkstra: parseInt(e.target.value) || 0 }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Row 4: Biaya Transport Darat & Laut */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-3 rounded-lg border">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Biaya Transport Darat (Rp)</label>
+                  <input 
+                    type="number"
+                    min="0"
+                    value={editForm.biayaTransport}
+                    onChange={e => setEditForm(prev => ({ ...prev, biayaTransport: parseFloat(e.target.value) || 0 }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Biaya Transport Laut (Rp)</label>
+                  <input 
+                    type="number"
+                    min="0"
+                    value={editForm.biayaTransportLaut}
+                    onChange={e => setEditForm(prev => ({ ...prev, biayaTransportLaut: parseFloat(e.target.value) || 0 }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Row 5: Topik Kegiatan */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Topik / Materi Kegiatan</label>
+                <input 
+                  type="text"
+                  value={editForm.topic}
+                  onChange={e => setEditForm(prev => ({ ...prev, topic: e.target.value }))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Contoh: Modul 1 - Algoritma dan Pemrograman"
+                  required
+                />
+              </div>
+
+              {/* Row 6: Evaluasi / Catatan */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Catatan / Evaluasi Kegiatan</label>
+                <textarea 
+                  rows={3}
+                  value={editForm.evaluation}
+                  onChange={e => setEditForm(prev => ({ ...prev, evaluation: e.target.value }))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Catatan hasil pelaksanaan kegiatan..."
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 pt-3 border-t flex justify-end gap-2">
+              <button 
+                type="button"
+                onClick={() => setEditingLaporan(null)}
+                className="px-4 py-2 text-sm text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
+                disabled={isSavingEdit}
               >
                 Batal
               </button>
               <button 
-                onClick={handleSaveTransport}
-                className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700"
-                disabled={isSaving}
+                type="button"
+                onClick={handleSaveEdit}
+                disabled={isSavingEdit}
+                className="px-5 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 font-medium transition-colors disabled:opacity-50"
               >
-                {isSaving ? 'Menyimpan...' : 'Simpan Perubahan'}
+                {isSavingEdit ? 'Menyimpan...' : 'Simpan Perubahan'}
               </button>
             </div>
           </div>
