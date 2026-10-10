@@ -38,7 +38,18 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
     const computedTotalHonor = computedTotalJP * (parseInt(manualRate) || 0);
 
 
-    const [sortField, setSortField] = useState<'nama' | 'lokasi' | 'bulan' | 'tanggal'>('tanggal')
+  const [filterLokasi, setFilterLokasi] = useState('')
+  const [filterNama, setFilterNama] = useState('')
+  const [filterBulan, setFilterBulan] = useState('')
+
+  const lokasiList = Array.from(
+    new Set([
+      ...initialData.map((r: any) => r.fasilitator?.lokasiSNT),
+      ...fasilitators.map((f: any) => f.lokasiSNT)
+    ].filter(Boolean))
+  ).sort((a: any, b: any) => (a as string).localeCompare(b as string)) as string[];
+
+  const [sortField, setSortField] = useState<'nama' | 'lokasi' | 'bulan' | 'tanggal'>('tanggal')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
 
   const handleSort = (field: 'nama' | 'lokasi' | 'bulan' | 'tanggal') => {
@@ -50,7 +61,14 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
     }
   }
 
-  const sortedData = [...initialData].sort((a, b) => {
+  const filteredData = initialData.filter((rekap: any) => {
+    const matchLokasi = filterLokasi ? rekap.fasilitator?.lokasiSNT === filterLokasi : true;
+    const matchNama = filterNama ? rekap.fasilitator?.namaLengkap?.toLowerCase().includes(filterNama.toLowerCase()) : true;
+    const matchBulan = filterBulan ? rekap.bulan === filterBulan : true;
+    return matchLokasi && matchNama && matchBulan;
+  });
+
+  const sortedData = [...filteredData].sort((a, b) => {
     let comparison = 0
     if (sortField === 'nama') {
       comparison = (a.fasilitator.namaLengkap || '').localeCompare(b.fasilitator.namaLengkap || '')
@@ -360,6 +378,55 @@ Atas Nama: ${namaLengkap}`;
         </Card>
       )}
 
+
+      {/* Filter Bar */}
+      <div className="flex flex-col md:flex-row gap-4 mb-2 items-end">
+        <div className="flex-1">
+          <label className="text-sm font-medium mb-1 block">Cari Nama Fasilitator</label>
+          <input 
+            type="text" 
+            placeholder="Ketik nama fasilitator..." 
+            value={filterNama}
+            onChange={e => setFilterNama(e.target.value)}
+            className="w-full border rounded-lg p-2 text-sm bg-white"
+          />
+        </div>
+        <div className="w-full md:w-80">
+          <label className="text-sm font-medium mb-1 block">Filter Lokasi SNT</label>
+          <select 
+            value={filterLokasi}
+            onChange={e => setFilterLokasi(e.target.value)}
+            className="w-full border rounded-lg p-2 text-sm bg-white"
+          >
+            <option value="">Semua Lokasi SNT ({lokasiList.length} Lokasi)</option>
+            {lokasiList.map((loc: string) => (
+              <option key={loc} value={loc}>{loc}</option>
+            ))}
+          </select>
+        </div>
+        <div className="w-full md:w-48">
+          <label className="text-sm font-medium mb-1 block">Filter Bulan</label>
+          <input 
+            type="month"
+            value={filterBulan}
+            onChange={e => setFilterBulan(e.target.value)}
+            className="w-full border rounded-lg p-2 text-sm bg-white"
+          />
+        </div>
+        {(filterLokasi || filterNama || filterBulan) && (
+          <button
+            onClick={() => { setFilterLokasi(''); setFilterNama(''); setFilterBulan(''); }}
+            className="px-3 py-2 text-sm text-slate-500 hover:text-slate-800 border rounded-lg bg-slate-50 hover:bg-slate-100 whitespace-nowrap"
+          >
+            Reset Filter
+          </button>
+        )}
+      </div>
+
+      <div className="flex justify-between items-center text-xs text-slate-500 mb-1">
+        <span>Menampilkan <strong>{sortedData.length}</strong> dari <strong>{initialData.length}</strong> rekapitulasi honor</span>
+        {filterLokasi && <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-medium">Lokasi: {filterLokasi}</span>}
+      </div>
 
       <Card>
         <CardContent className="p-0">
