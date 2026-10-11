@@ -45,7 +45,7 @@ const menuItems: MenuItem[] = [
     submenu: [
       { title: "Data Fasilitator", href: "/fasilitator" },
       { title: "Laporan Mingguan", href: "/fasilitator/laporan" },
-      { title: "Rekap Honorarium", href: "/fasilitator/rekap-honor" },
+      { title: "Rekap Honorarium", href: "/fasilitator/rekap-honor" },{ title: "Laporan Bulanan", href: "/fasilitator/laporan-bulanan" },
           { title: "Target JP", href: "/fasilitator/target-jp" },
       { title: "Sewa & Akomodasi", href: "/fasilitator/akomodasi" },
       { title: "Tagihan Transport", href: "/fasilitator/transport" },
@@ -266,3 +266,4 @@ export function SntSidebar({ isCollapsed = false, onToggleCollapse }: { isCollap
     </div>
   )
 }
+
