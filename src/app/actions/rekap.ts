@@ -793,8 +793,19 @@ export async function uploadBuktiRekap(rekapId: string, urlHonor?: string, urlTr
 
     // Lakukan update URL bukti di RekapHonorarium
     const updateData: any = {};
-    if (urlHonor) updateData.buktiPembayaranHonor = urlHonor;
-    if (urlTransport) updateData.buktiPembayaranTransport = urlTransport;
+    if (urlHonor) {
+      updateData.buktiPembayaranHonor = urlHonor;
+      updateData.statusHonor = 'PAID';
+    }
+    if (urlTransport) {
+      updateData.buktiPembayaranTransport = urlTransport;
+      updateData.statusTransport = 'PAID';
+    }
+    const hasHonor = urlHonor || rekap.buktiPembayaranHonor;
+    const hasTransport = urlTransport || rekap.buktiPembayaranTransport;
+    if (hasHonor && hasTransport) {
+      updateData.status = 'APPROVED';
+    }
     
     await prisma.rekapHonorarium.update({
       where: { id: rekapId },
@@ -822,6 +833,7 @@ export async function uploadBuktiRekap(rekapId: string, urlHonor?: string, urlTr
               amount: rekap.totalHonor,
               description: descText,
               paymentReceiptUrl: urlHonor,
+              receiptUrl: urlHonor,
               status: 'APPROVED',
               createdById: currentUser.id,
               approvedById: currentUser.id,
@@ -833,7 +845,12 @@ export async function uploadBuktiRekap(rekapId: string, urlHonor?: string, urlTr
           // Update receipt url if it already existed
           await prisma.expenseRequest.update({
             where: { id: existingExpense.id },
-            data: { paymentReceiptUrl: urlHonor }
+            data: {
+              paymentReceiptUrl: urlHonor,
+              receiptUrl: urlHonor,
+              amount: rekap.totalHonor,
+              status: 'APPROVED'
+            }
           });
         }
       }
@@ -861,6 +878,7 @@ export async function uploadBuktiRekap(rekapId: string, urlHonor?: string, urlTr
                 amount: totalTransport,
                 description: descText,
                 paymentReceiptUrl: urlTransport,
+                receiptUrl: urlTransport,
                 status: 'APPROVED',
                 createdById: currentUser.id,
                 approvedById: currentUser.id,
@@ -871,7 +889,12 @@ export async function uploadBuktiRekap(rekapId: string, urlHonor?: string, urlTr
           } else {
             await prisma.expenseRequest.update({
               where: { id: existingExpense.id },
-              data: { paymentReceiptUrl: urlTransport }
+              data: {
+                paymentReceiptUrl: urlTransport,
+                receiptUrl: urlTransport,
+                amount: totalTransport,
+                status: 'APPROVED'
+              }
             });
           }
         }
@@ -879,7 +902,9 @@ export async function uploadBuktiRekap(rekapId: string, urlHonor?: string, urlTr
     }
 
     revalidatePath('/fasilitator/rekap-honor');
+    revalidatePath('/fasilitator/laporan-bulanan');
     revalidatePath('/dashboard-rab');
+    revalidatePath('/laporan-pengeluaran');
     return { success: true };
   } catch (error: any) {
     console.error('Error in uploadBuktiRekap:', error);
@@ -1271,16 +1296,19 @@ export async function syncSingleRekapToRabExpenses(rekapId: string) {
             rabItemId: honorRabItem.id,
             status: 'APPROVED',
             date: expDate,
-            fasilitatorId: rekap.fasilitatorId
+            fasilitatorId: rekap.fasilitatorId,
+            ...(rekap.buktiPembayaranHonor ? { paymentReceiptUrl: rekap.buktiPembayaranHonor, receiptUrl: rekap.buktiPembayaranHonor } : {})
           }
         });
-      } else {
+      } else if (rekap.buktiPembayaranHonor) {
         await prisma.expenseRequest.create({
           data: {
             rabItemId: honorRabItem.id,
             amount: rekap.totalHonor,
             description: honorDesc,
             status: 'APPROVED',
+            paymentReceiptUrl: rekap.buktiPembayaranHonor,
+            receiptUrl: rekap.buktiPembayaranHonor,
             createdById: adminId,
             approvedById: adminId,
             fasilitatorId: rekap.fasilitatorId,
@@ -1311,16 +1339,19 @@ export async function syncSingleRekapToRabExpenses(rekapId: string) {
             rabItemId: transportRabItem.id,
             status: 'APPROVED',
             date: expDate,
-            fasilitatorId: rekap.fasilitatorId
+            fasilitatorId: rekap.fasilitatorId,
+            ...(rekap.buktiPembayaranTransport ? { paymentReceiptUrl: rekap.buktiPembayaranTransport, receiptUrl: rekap.buktiPembayaranTransport } : {})
           }
         });
-      } else {
+      } else if (rekap.buktiPembayaranTransport) {
         await prisma.expenseRequest.create({
           data: {
             rabItemId: transportRabItem.id,
             amount: totalTransport,
             description: transportDesc,
             status: 'APPROVED',
+            paymentReceiptUrl: rekap.buktiPembayaranTransport,
+            receiptUrl: rekap.buktiPembayaranTransport,
             createdById: adminId,
             approvedById: adminId,
             fasilitatorId: rekap.fasilitatorId,

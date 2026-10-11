@@ -607,7 +607,7 @@ Atas Nama: ${namaLengkap}`;
               </div>
 
               <div className="border p-4 rounded-md">
-                <label className="block text-sm font-medium mb-2">2. Bukti Transfer Transportasi (Rp {formatCurrency(uploadingRekap.laporan?.reduce((acc: number, lap: any) => acc + (lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0), 0) || 0)})</label>
+                <label className="block text-sm font-medium mb-2">2. Bukti Transfer Transportasi (Rp {formatCurrency(hitungTotalTransportRekap(uploadingRekap))})</label>
                 {uploadingRekap.buktiPembayaranTransport ? (
                   <div className="text-sm text-green-600 mb-2">✓ Sudah ada bukti terupload</div>
                 ) : null}

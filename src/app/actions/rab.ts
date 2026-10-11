@@ -82,6 +82,7 @@ export async function getRecentExpenses(limit = 10) {
     take: limit,
     include: {
       rabItem: true,
+      fasilitator: true,
       createdBy: {
         select: { name: true }
       }
