@@ -73,8 +73,8 @@ export async function createCashflowTransaction(data: any) {
       }
     });
     
-    revalidatePath("/admin/cashflow");
-    revalidatePath("/admin/cashflow/transactions");
+    revalidatePath("/cashflow");
+    revalidatePath("/cashflow/transactions");
     return { success: true, transaction };
   } catch (error: any) {
     console.error("Failed to create transaction:", error);
@@ -99,8 +99,8 @@ export async function updateCashflowTransaction(id: string, data: any) {
       }
     });
     
-    revalidatePath("/admin/cashflow");
-    revalidatePath("/admin/cashflow/transactions");
+    revalidatePath("/cashflow");
+    revalidatePath("/cashflow/transactions");
     return { success: true, transaction };
   } catch (error: any) {
     console.error("Failed to update transaction:", error);
@@ -113,8 +113,8 @@ export async function deleteCashflowTransaction(id: string) {
     await prisma.cashflowTransaction.delete({
       where: { id }
     });
-    revalidatePath("/admin/cashflow");
-    revalidatePath("/admin/cashflow/transactions");
+    revalidatePath("/cashflow");
+    revalidatePath("/cashflow/transactions");
     return { success: true };
   } catch (error: any) {
     console.error("Failed to delete transaction:", error);
@@ -164,3 +164,4 @@ export async function generateCashflowInsights(transactions: any[]) {
     return { success: false, error: error.message };
   }
 }
+

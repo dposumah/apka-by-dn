@@ -36,7 +36,7 @@ interface MenuItem {
 const menuItems: MenuItem[] = [
   { title: "Dashboard Proyek", href: "/dashboard-rab", icon: LayoutDashboard, adminOnly: true },
   { title: "Pengeluaran Lapangan", href: "/pengeluaran", icon: Wallet, adminOnly: true },
-  { title: "Laporan Pengeluaran", href: "/laporan-pengeluaran", icon: ClipboardList, adminOnly: true },
+  { title: "Laporan Pengeluaran", href: "/laporan-pengeluaran", icon: ClipboardList, adminOnly: true },{ title: "Uang Masuk & Keluar", href: "/cashflow", icon: Wallet, adminOnly: true },
   {
     title: "Manajemen Fasilitator",
     href: "/fasilitator",
@@ -266,4 +266,5 @@ export function SntSidebar({ isCollapsed = false, onToggleCollapse }: { isCollap
     </div>
   )
 }
+
 

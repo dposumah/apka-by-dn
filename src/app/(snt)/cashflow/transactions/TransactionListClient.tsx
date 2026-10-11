@@ -35,7 +35,7 @@ export default function TransactionListClient({ projects, initialTransactions }:
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Data Transaksi Cashflow</h1>
           <div className="text-sm text-gray-500 mt-1">
-            <Link href="/admin/cashflow" className="text-blue-600 hover:underline">← Kembali ke Dashboard</Link>
+            <Link href="/cashflow" className="text-blue-600 hover:underline">← Kembali ke Dashboard</Link>
           </div>
         </div>
         {!showForm && (
