@@ -1017,25 +1017,87 @@ export async function syncLaporanToRekap(rekapId: string) {
   const startDate = new Date(parseInt(y), parseInt(m) - 1, 1);
   const endDate = new Date(parseInt(y), parseInt(m), 0, 23, 59, 59);
 
-  const updated = await prisma.laporanKegiatan.updateMany({
+  // Cari draft rekap lain milik fasilitator di bulan yang sama (jika ada) untuk diambil laporannya
+  const draftRekaps = await prisma.rekapHonorarium.findMany({
+    where: {
+      fasilitatorId: rekap.fasilitatorId,
+      bulan: rekap.bulan,
+      id: { not: rekap.id },
+      status: 'DRAFT'
+    }
+  });
+  const draftIds = draftRekaps.map(d => d.id);
+
+  // Cari semua laporan di bulan ini (baik yang belum tertaut, tertaut ke rekap ini, atau tertaut ke draft)
+  const reports = await prisma.laporanKegiatan.findMany({
     where: {
       fasilitatorId: rekap.fasilitatorId,
       date: {
         gte: startDate,
         lte: endDate
       },
-      rekapHonorariumId: null
+      OR: [
+        { rekapHonorariumId: null },
+        { rekapHonorariumId: rekap.id },
+        ...(draftIds.length > 0 ? [{ rekapHonorariumId: { in: draftIds } }] : [])
+      ]
     },
-    data: {
-      rekapHonorariumId: rekap.id
-    }
+    orderBy: { date: 'asc' }
   });
 
+  if (reports.length === 0) {
+    return 0;
+  }
+
+  // Hitung pembagian JP dari rekap manual secara merata ke seluruh laporan yang ada
+  const totalIntra = rekap.totalJPIntra || (rekap.totalJPEkstra ? 0 : rekap.totalJP) || 0;
+  const totalEkstra = rekap.totalJPEkstra || 0;
+
+  const numReports = reports.length;
+  const intraPerLap = Math.floor(totalIntra / numReports);
+  const intraRem = totalIntra % numReports;
+
+  const ekstraPerLap = Math.floor(totalEkstra / numReports);
+  const ekstraRem = totalEkstra % numReports;
+
+  for (let i = 0; i < numReports; i++) {
+    const lap = reports[i];
+    const jumlahJPIntra = intraPerLap + (i < intraRem ? 1 : 0);
+    const jumlahJPEkstra = ekstraPerLap + (i < ekstraRem ? 1 : 0);
+
+    await prisma.laporanKegiatan.update({
+      where: { id: lap.id },
+      data: {
+        rekapHonorariumId: rekap.id,
+        jumlahJPIntra,
+        jumlahJPEkstra
+        // Semua data catatan/topik, jenjang, attendance, dan foto tetap utuh
+      }
+    });
+  }
+
+  // Jika ada rekap draft lama yang digantikan, bersihkan agar tidak duplikat
+  if (draftIds.length > 0) {
+    await prisma.expenseRequest.deleteMany({
+      where: {
+        OR: draftIds.map(dId => ({ description: { contains: `(RekapID: ${dId})` } }))
+      }
+    });
+    await prisma.rekapHonorarium.deleteMany({
+      where: { id: { in: draftIds } }
+    });
+  }
+
+  // Sinkronkan pengeluaran ke RAB
+  await syncSingleRekapToRabExpenses(rekap.id);
+
   revalidatePath('/fasilitator/rekap-honor');
+  revalidatePath('/dashboard-rab');
+  revalidatePath('/laporan-pengeluaran');
   revalidatePath('/portal');
   revalidatePath('/portal/rekap');
   
-  return updated.count;
+  return reports.length;
 }
 
 export async function generateInvoiceHonorRecord(rekapId: string, inputNoUrut?: string, inputTanggal?: string) {
@@ -1194,7 +1256,10 @@ export async function syncSingleRekapToRabExpenses(rekapId: string) {
       const honorDesc = `Honorarium ${rekap.fasilitator.namaLengkap} - Bulan ${rekap.bulan} (RekapID: ${rekap.id})`;
       const existingHonor = await prisma.expenseRequest.findFirst({
         where: {
-          description: { contains: `(RekapID: ${rekap.id})` }
+          AND: [
+            { description: { contains: 'Honorarium' } },
+            { description: { contains: `(RekapID: ${rekap.id})` } }
+          ]
         }
       });
 
@@ -1231,7 +1296,10 @@ export async function syncSingleRekapToRabExpenses(rekapId: string) {
       const transportDesc = `Transportasi ${rekap.fasilitator.namaLengkap} - Bulan ${rekap.bulan} (RekapID: ${rekap.id})`;
       const existingTransport = await prisma.expenseRequest.findFirst({
         where: {
-          description: { contains: `(RekapID: ${rekap.id})` }
+          AND: [
+            { description: { contains: 'Transportasi' } },
+            { description: { contains: `(RekapID: ${rekap.id})` } }
+          ]
         }
       });
 
