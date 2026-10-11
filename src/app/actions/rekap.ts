@@ -1194,10 +1194,7 @@ export async function syncSingleRekapToRabExpenses(rekapId: string) {
       const honorDesc = `Honorarium ${rekap.fasilitator.namaLengkap} - Bulan ${rekap.bulan} (RekapID: ${rekap.id})`;
       const existingHonor = await prisma.expenseRequest.findFirst({
         where: {
-          OR: [
-            { description: honorDesc },
-            { description: { contains: `Honorarium ${rekap.fasilitator.namaLengkap} - Bulan ${rekap.bulan}` } }
-          ]
+          description: { contains: `(RekapID: ${rekap.id})` }
         }
       });
 
@@ -1234,10 +1231,7 @@ export async function syncSingleRekapToRabExpenses(rekapId: string) {
       const transportDesc = `Transportasi ${rekap.fasilitator.namaLengkap} - Bulan ${rekap.bulan} (RekapID: ${rekap.id})`;
       const existingTransport = await prisma.expenseRequest.findFirst({
         where: {
-          OR: [
-            { description: transportDesc },
-            { description: { contains: `Transportasi ${rekap.fasilitator.namaLengkap} - Bulan ${rekap.bulan}` } }
-          ]
+          description: { contains: `(RekapID: ${rekap.id})` }
         }
       });
 
