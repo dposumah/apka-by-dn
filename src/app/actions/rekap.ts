@@ -289,6 +289,7 @@ export async function createRekapManual(fasilitatorId: string, bulan: string, to
     }
   });
 
+  await syncSingleRekapToRabExpenses(rekap.id);
   revalidatePath('/fasilitator/rekap-honor');
   revalidatePath('/portal/rekap');
   return rekap;
@@ -309,7 +310,12 @@ export async function deleteRekap(id: string) {
 
   // Delete ExpenseRequest if any
   await prisma.expenseRequest.deleteMany({
-    where: { receiptUrl: rekap.filePdf } // the only way we linked them previously
+    where: {
+      OR: [
+        { receiptUrl: rekap.filePdf },
+        { description: { contains: `(RekapID: ${id})` } }
+      ]
+    }
   });
 
   await prisma.rekapHonorarium.delete({
@@ -1150,11 +1156,121 @@ export async function updateRekapTransport(rekapId: string, totalTransport: numb
       include: { fasilitator: true, laporan: true }
     });
 
+    await syncSingleRekapToRabExpenses(rekapId);
     revalidatePath('/fasilitator/rekap-honor');
     revalidatePath('/portal/rekap');
     return { success: true, rekap: JSON.parse(JSON.stringify(updated)) };
   } catch (error: any) {
     console.error('Error in updateRekapTransport:', error);
     return { error: error.message || 'Unknown error' };
+  }
+}
+export async function syncSingleRekapToRabExpenses(rekapId: string) {
+  try {
+    const rekap = await prisma.rekapHonorarium.findUnique({
+      where: { id: rekapId },
+      include: { fasilitator: true, laporan: true }
+    });
+    if (!rekap) return;
+
+    const adminUser = await prisma.user.findFirst({ where: { role: 'ADMIN' } });
+    const adminId = adminUser?.id || 'admin';
+
+    const honorRabItem = await prisma.rabItem.findFirst({
+      where: { name: { contains: 'Fasilitator Koding & KA', mode: 'insensitive' } }
+    });
+
+    const transportRabItem = await prisma.rabItem.findFirst({
+      where: { name: { contains: 'Bantuan Sewa Rumah Fasilitator', mode: 'insensitive' } }
+    });
+
+    if (!honorRabItem || !transportRabItem) return;
+
+    const [y, m] = rekap.bulan.split('-');
+    const expDate = new Date(parseInt(y), parseInt(m), 0);
+
+    // 1. Honor
+    if (rekap.totalHonor > 0) {
+      const honorDesc = \Honorarium \ - Bulan \ (RekapID: \)\;
+      const existingHonor = await prisma.expenseRequest.findFirst({
+        where: {
+          OR: [
+            { description: honorDesc },
+            { description: { contains: \Honorarium \ - Bulan \\ } }
+          ]
+        }
+      });
+
+      if (existingHonor) {
+        await prisma.expenseRequest.update({
+          where: { id: existingHonor.id },
+          data: {
+            amount: rekap.totalHonor,
+            rabItemId: honorRabItem.id,
+            status: 'APPROVED',
+            date: expDate,
+            fasilitatorId: rekap.fasilitatorId
+          }
+        });
+      } else {
+        await prisma.expenseRequest.create({
+          data: {
+            rabItemId: honorRabItem.id,
+            amount: rekap.totalHonor,
+            description: honorDesc,
+            status: 'APPROVED',
+            createdById: adminId,
+            approvedById: adminId,
+            fasilitatorId: rekap.fasilitatorId,
+            date: expDate
+          }
+        });
+      }
+    }
+
+    // 2. Transport
+    const totalTransport = hitungTotalTransportRekap(rekap);
+    if (totalTransport > 0) {
+      const transportDesc = \Transportasi \ - Bulan \ (RekapID: \)\;
+      const existingTransport = await prisma.expenseRequest.findFirst({
+        where: {
+          OR: [
+            { description: transportDesc },
+            { description: { contains: \Transportasi \ - Bulan \\ } }
+          ]
+        }
+      });
+
+      if (existingTransport) {
+        await prisma.expenseRequest.update({
+          where: { id: existingTransport.id },
+          data: {
+            amount: totalTransport,
+            rabItemId: transportRabItem.id,
+            status: 'APPROVED',
+            date: expDate,
+            fasilitatorId: rekap.fasilitatorId
+          }
+        });
+      } else {
+        await prisma.expenseRequest.create({
+          data: {
+            rabItemId: transportRabItem.id,
+            amount: totalTransport,
+            description: transportDesc,
+            status: 'APPROVED',
+            createdById: adminId,
+            approvedById: adminId,
+            fasilitatorId: rekap.fasilitatorId,
+            date: expDate
+          }
+        });
+      }
+    }
+
+    revalidatePath('/dashboard-rab');
+    revalidatePath('/laporan-pengeluaran');
+  } catch (err) {
+    console.error('Failed to sync rekap to RAB expense:', err);
   }
 }
