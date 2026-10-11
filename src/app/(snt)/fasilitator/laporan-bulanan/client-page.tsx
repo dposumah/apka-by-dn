@@ -45,9 +45,37 @@ export default function LaporanBulananClient({ rekaps }: { rekaps: any[] }) {
     document.body.removeChild(link);
   };
 
+  const copyToWA = async () => {
+    if (chartData.length === 0) return alert('Tidak ada data untuk disalin');
+    
+    let text = `*LAPORAN PENGELUARAN BULANAN (HONOR & TRANSPORT)*\n\n`;
+    
+    chartData.forEach((d: any) => {
+      const total = d.totalHonor + d.totalTransport;
+      text += `*Bulan: ${d.bulan}*\n`;
+      text += `👥 Jumlah Fasilitator: ${d.jumlahFasilitator} Orang\n`;
+      text += `💰 Total Honor: ${formatCurrency(d.totalHonor)}\n`;
+      text += `🚗 Total Transport: ${formatCurrency(d.totalTransport)}\n`;
+      text += `✅ *Total Keseluruhan: ${formatCurrency(total)}*\n\n`;
+    });
+
+    try {
+      await navigator.clipboard.writeText(text);
+      alert('Teks berhasil disalin! Silakan paste di WhatsApp.');
+    } catch (err) {
+      alert('Gagal menyalin teks. Silakan coba lagi.');
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-3">
+        <button 
+          onClick={copyToWA}
+          className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium"
+        >
+          Salin Format WA
+        </button>
         <button 
           onClick={exportCSV}
           className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 font-medium"
