@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCurrency } from '@/lib/format';
+import { hitungTotalTransportRekap } from '@/lib/transport';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export default function LaporanBulananClient({ rekaps }: { rekaps: any[] }) {
@@ -17,8 +18,9 @@ export default function LaporanBulananClient({ rekaps }: { rekaps: any[] }) {
         jumlahFasilitator: 0,
       };
     }
+    const transportPerRekap = hitungTotalTransportRekap(curr);
     acc[bulan].totalHonor += curr.totalHonor || 0;
-    acc[bulan].totalTransport += curr.totalTransport || 0;
+    acc[bulan].totalTransport += transportPerRekap;
     acc[bulan].jumlahFasilitator += 1;
     return acc;
   }, {} as Record<string, any>);

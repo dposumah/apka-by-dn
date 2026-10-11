@@ -9,7 +9,8 @@ export default async function LaporanBulananPage() {
   // Ambil semua rekap, di-group berdasarkan bulan
   const rekaps = await prisma.rekapHonorarium.findMany({
     include: {
-      fasilitator: true
+      fasilitator: true,
+      laporan: true
     },
     orderBy: {
       bulan: 'desc'
