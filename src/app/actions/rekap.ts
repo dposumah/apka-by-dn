@@ -1191,12 +1191,12 @@ export async function syncSingleRekapToRabExpenses(rekapId: string) {
 
     // 1. Honor
     if (rekap.totalHonor > 0) {
-      const honorDesc = \Honorarium \ - Bulan \ (RekapID: \)\;
+      const honorDesc = `Honorarium ${rekap.fasilitator.namaLengkap} - Bulan ${rekap.bulan} (RekapID: ${rekap.id})`;
       const existingHonor = await prisma.expenseRequest.findFirst({
         where: {
           OR: [
             { description: honorDesc },
-            { description: { contains: \Honorarium \ - Bulan \\ } }
+            { description: { contains: `Honorarium ${rekap.fasilitator.namaLengkap} - Bulan ${rekap.bulan}` } }
           ]
         }
       });
@@ -1231,12 +1231,12 @@ export async function syncSingleRekapToRabExpenses(rekapId: string) {
     // 2. Transport
     const totalTransport = hitungTotalTransportRekap(rekap);
     if (totalTransport > 0) {
-      const transportDesc = \Transportasi \ - Bulan \ (RekapID: \)\;
+      const transportDesc = `Transportasi ${rekap.fasilitator.namaLengkap} - Bulan ${rekap.bulan} (RekapID: ${rekap.id})`;
       const existingTransport = await prisma.expenseRequest.findFirst({
         where: {
           OR: [
             { description: transportDesc },
-            { description: { contains: \Transportasi \ - Bulan \\ } }
+            { description: { contains: `Transportasi ${rekap.fasilitator.namaLengkap} - Bulan ${rekap.bulan}` } }
           ]
         }
       });
