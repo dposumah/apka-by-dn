@@ -41,8 +41,8 @@ export default function TransactionForm({
       if (!e.target.files || e.target.files.length === 0) return;
       
       const file = e.target.files[0];
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random()}.${fileExt}`;
+      const fileExt = file.name.split('.').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'jpg';
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
       const filePath = `${fileName}`;
 
       setUploading(true);
@@ -50,7 +50,7 @@ export default function TransactionForm({
 
       const { error: uploadError } = await supabase.storage
         .from('cashflow-receipts')
-        .upload(filePath, file);
+        .upload(filePath, file, { cacheControl: '3600', upsert: false });
 
       if (uploadError) {
         throw uploadError;
@@ -60,7 +60,7 @@ export default function TransactionForm({
       
       setFormData(prev => ({ ...prev, receiptUrl: data.publicUrl }));
     } catch (err: any) {
-      setError("Gagal upload file: " + err.message);
+      setError("Gagal upload file: " + (err.message || "Terjadi kesalahan upload"));
     } finally {
       setUploading(false);
     }
