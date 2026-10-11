@@ -1014,6 +1014,10 @@ export async function syncLaporanToRekap(rekapId: string) {
   const updated = await prisma.laporanKegiatan.updateMany({
     where: {
       fasilitatorId: rekap.fasilitatorId,
+      date: {
+        gte: startDate,
+        lte: endDate
+      },
       rekapHonorariumId: null
     },
     data: {
