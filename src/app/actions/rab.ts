@@ -81,7 +81,11 @@ export async function getRecentExpenses(limit = 10) {
     orderBy: { createdAt: 'desc' },
     take: limit,
     include: {
-      rabItem: true,
+      rabItem: {
+        include: {
+          category: true
+        }
+      },
       fasilitator: true,
       createdBy: {
         select: { name: true }
@@ -710,7 +714,8 @@ export async function updateExpense(
     amount: number,
     description: string,
     fasilitatorId?: string,
-    date?: Date
+    date?: Date,
+    receiptUrl?: string
   }
 ) {
   const { error: authError, session } = await checkAuth(['ADMIN', 'SUPER_ADMIN', 'ACCOUNTANT', 'KORWIL']);
@@ -730,7 +735,8 @@ export async function updateExpense(
         amount: data.amount,
         description: data.description,
         fasilitatorId: data.fasilitatorId || null,
-        ...(data.date ? { date: data.date } : {})
+        ...(data.date ? { date: data.date } : {}),
+        ...(data.receiptUrl ? { receiptUrl: data.receiptUrl, paymentReceiptUrl: data.receiptUrl } : {})
       },
       include: {
         rabItem: true,
@@ -740,6 +746,7 @@ export async function updateExpense(
 
     revalidatePath('/dashboard-rab');
     revalidatePath('/laporan-pengeluaran');
+    revalidatePath('/pengeluaran');
     return { success: true, expense: updated };
   } catch (error: any) {
     return { error: error.message };
