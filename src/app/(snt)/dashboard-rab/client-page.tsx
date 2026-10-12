@@ -6,8 +6,23 @@ import { Badge } from '@/components/ui/badge'
 import { DeleteExpenseButton } from './DeleteExpenseButton'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
-import { generateKwitansiExpense } from '@/app/actions/rekap'
-import { updateExpense } from '@/app/actions/rab'
+import { generateKwitansiExpense, generateInvoiceExpense } from '@/app/actions/rekap'
+import { 
+  updateExpense, 
+  createRabItem, 
+  updateRabItem, 
+  deleteRabItem, 
+  createRabCategory 
+} from '@/app/actions/rab'
+import { 
+  Plus, 
+  Pencil, 
+  Trash2, 
+  ChevronDown, 
+  ChevronUp, 
+  FolderPlus, 
+  Loader2 
+} from 'lucide-react'
 
 export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor }: any) {
   const [showPrintModal, setShowPrintModal] = useState(false)
@@ -22,9 +37,31 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
   const [inputInvoiceTanggal, setInputInvoiceTanggal] = useState("")
   const [inputTanggal, setInputTanggal] = useState("")
 
+  // Edit Expense State
   const [showEditModal, setShowEditModal] = useState(false)
   const [editData, setEditData] = useState<any>(null)
   const [isSaving, setIsSaving] = useState(false)
+
+  // RAB Item Management State
+  const [showItemModal, setShowItemModal] = useState(false)
+  const [itemModalMode, setItemModalMode] = useState<'create' | 'edit'>('create')
+  const [itemFormData, setItemFormData] = useState({
+    id: '',
+    categoryId: '',
+    code: '',
+    name: '',
+    volume: '',
+    unitPrice: 0,
+    totalBudget: 0
+  })
+  const [isSavingItem, setIsSavingItem] = useState(false)
+  const [deletingItemId, setDeletingItemId] = useState<string | null>(null)
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({})
+
+  // Category Modal State
+  const [showCatModal, setShowCatModal] = useState(false)
+  const [newCatName, setNewCatName] = useState('')
+  const [isSavingCat, setIsSavingCat] = useState(false)
 
   const openEditModal = (expense: any) => {
     setEditData({
@@ -47,16 +84,137 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
         amount: parseFloat(editData.amount),
         rabItemId: editData.rabItemId
       });
-      if (res.error) throw new Error(res.error);
+      if (res?.error) throw new Error(res.error);
       setShowEditModal(false);
       window.location.reload();
-    } catch (err) {
-      alert("Gagal mengedit: " + err);
+    } catch (err: any) {
+      alert("Gagal mengedit: " + (err.message || err));
     } finally {
       setIsSaving(false);
     }
   }
 
+  const toggleCategoryExpand = (catId: string) => {
+    setExpandedCategories(prev => ({
+      ...prev,
+      [catId]: !prev[catId]
+    }))
+  }
+
+  const openCreateItemModal = (defaultCategoryId?: string) => {
+    setItemModalMode('create')
+    setItemFormData({
+      id: '',
+      categoryId: defaultCategoryId || (data?.categories?.[0]?.id || ''),
+      code: '',
+      name: '',
+      volume: '',
+      unitPrice: 0,
+      totalBudget: 0
+    })
+    setShowItemModal(true)
+  }
+
+  const openEditItemModal = (item: any, categoryId: string) => {
+    setItemModalMode('edit')
+    setItemFormData({
+      id: item.id,
+      categoryId: item.categoryId || categoryId,
+      code: item.code || '',
+      name: item.name || '',
+      volume: item.volume || '',
+      unitPrice: item.unitPrice || 0,
+      totalBudget: item.totalBudget || 0
+    })
+    setShowItemModal(true)
+  }
+
+  const handleSaveItem = async () => {
+    if (!itemFormData.categoryId) {
+      alert('Pilih Kategori RAB')
+      return
+    }
+    if (!itemFormData.code.trim()) {
+      alert('Isi kode item RAB (misal: 8a, C.2, dll)')
+      return
+    }
+    if (!itemFormData.name.trim()) {
+      alert('Isi nama/uraian item RAB')
+      return
+    }
+    if (Number(itemFormData.totalBudget) < 0) {
+      alert('Total anggaran tidak boleh negatif')
+      return
+    }
+
+    setIsSavingItem(true)
+    try {
+      if (itemModalMode === 'create') {
+        const res = await createRabItem({
+          categoryId: itemFormData.categoryId,
+          code: itemFormData.code.trim(),
+          name: itemFormData.name.trim(),
+          volume: itemFormData.volume.trim() || undefined,
+          unitPrice: Number(itemFormData.unitPrice) || 0,
+          totalBudget: Number(itemFormData.totalBudget) || 0
+        })
+        if (res?.error) throw new Error(res.error)
+        alert('Item RAB berhasil ditambahkan!')
+      } else {
+        const res = await updateRabItem(itemFormData.id, {
+          categoryId: itemFormData.categoryId,
+          code: itemFormData.code.trim(),
+          name: itemFormData.name.trim(),
+          volume: itemFormData.volume.trim() || undefined,
+          unitPrice: Number(itemFormData.unitPrice) || 0,
+          totalBudget: Number(itemFormData.totalBudget) || 0
+        })
+        if (res?.error) throw new Error(res.error)
+        alert('Item RAB berhasil diperbarui!')
+      }
+      setShowItemModal(false)
+      window.location.reload()
+    } catch (err: any) {
+      alert('Gagal menyimpan item RAB: ' + (err.message || err))
+    } finally {
+      setIsSavingItem(false)
+    }
+  }
+
+  const handleDeleteItem = async (item: any) => {
+    if (!confirm(`Apakah Anda yakin ingin menghapus item RAB "${item.name}"?`)) return
+    setDeletingItemId(item.id)
+    try {
+      const res = await deleteRabItem(item.id)
+      if (res?.error) throw new Error(res.error)
+      alert('Item RAB berhasil dihapus!')
+      window.location.reload()
+    } catch (err: any) {
+      alert('Gagal menghapus item RAB: ' + (err.message || err))
+    } finally {
+      setDeletingItemId(null)
+    }
+  }
+
+  const handleCreateCategory = async () => {
+    if (!newCatName.trim()) {
+      alert('Nama kategori tidak boleh kosong')
+      return
+    }
+    setIsSavingCat(true)
+    try {
+      const res = await createRabCategory(newCatName.trim())
+      if (res?.error) throw new Error(res.error)
+      alert('Kategori RAB berhasil dibuat!')
+      setShowCatModal(false)
+      setNewCatName('')
+      window.location.reload()
+    } catch (err: any) {
+      alert('Gagal membuat kategori: ' + (err.message || err))
+    } finally {
+      setIsSavingCat(false)
+    }
+  }
 
   const openPrintModal = (expense: any) => {
     setSelectedExpense(expense)
@@ -68,101 +226,137 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
     const localISOTime = (new Date(Date.now() - tzoffset)).toISOString().slice(0, 10);
     setInputTanggal(localISOTime)
     setInputInvoiceTanggal(localISOTime)
-    
+    setInputInvoiceNoUrut("")
     setShowPrintModal(true)
   }
 
-    const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-  useEffect(() => {
-    import('html2pdf.js').then(m => { (window as any).html2pdf = m.default || m; }).catch(e => console.error(e));
-  }, []);
+  const getKwitansiHtml = (expense: any, record: any) => {
+    const tanggalStr = record.tanggal 
+      ? new Date(record.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+      : new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
 
-  const getInvoiceHtml = (expense: any, record: any, kopType: string) => {
-    const kopImage = window.location.origin + (kopType === 'maleo' ? '/kop-maleo.png' : '/kop-surat.png');
     return `
-      <div style="padding: 40px; font-family: sans-serif; page-break-after: always; width: 100%; box-sizing: border-box;">
-        <div style="margin-bottom: 30px;">
-          <img src="${kopImage}" style="width: 100%; max-height: 120px; object-fit: contain;" alt="Kop Surat" />
-        </div>
-        <div style="text-align: center; margin-bottom: 40px;">
-          <h2>INVOICE PENGELUARAN LAPANGAN</h2>
-          <p>KKA Sekolah Nasional Terintegrasi Tahun 2026</p>
-        </div>
-        
-        <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
-          <div>
-            <p><strong>Item RAB:</strong> ${expense.rabItem.name}</p>
-            ${expense.fasilitator ? `<p><strong>Nama Fasilitator:</strong> ${expense.fasilitator.namaLengkap}</p>` : ''}
-            <p><strong>No Invoice:</strong> ${record?.noInvoice || '-'}</p>
-            <p><strong>Tanggal Invoice:</strong> ${record?.tanggal ? new Date(record.tanggal).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }) : new Date(expense.createdAt).toLocaleDateString('id-ID')}</p>
-            <p><strong>Status:</strong> ${expense.status}</p>
+      <div style="font-family: Arial, sans-serif; padding: 30px; border: 2px solid #000; max-width: 800px; margin: 0 auto; box-sizing: border-box;">
+        <div style="border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;">
+          <img src="/kop-maleo.png" style="height: 60px;" alt="Logo" onerror="this.style.display='none'" />
+          <div style="text-align: right;">
+            <h2 style="margin: 0; font-size: 20px; font-weight: bold;">KWITANSI</h2>
+            <p style="margin: 5px 0 0 0; font-size: 14px;">No: ${record.noKwitansi || '-'}</p>
           </div>
         </div>
-        
-        <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
-          <thead>
-            <tr>
-              <th style="border: 1px solid #ddd; padding: 12px; text-align: left; background-color: #f8fafc;">Deskripsi</th>
-              <th style="border: 1px solid #ddd; padding: 12px; text-align: left; background-color: #f8fafc;">Nominal</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td style="border: 1px solid #ddd; padding: 12px; text-align: left;">${expense.description}</td>
-              <td style="border: 1px solid #ddd; padding: 12px; text-align: left;">${formatCurrency(expense.amount)}</td>
-            </tr>
-            <tr>
-              <td style="border: 1px solid #ddd; padding: 12px; text-align: right; font-weight: bold; font-size: 1.2em;">TOTAL:</td>
-              <td style="border: 1px solid #ddd; padding: 12px; text-align: left; font-weight: bold; font-size: 1.2em;">${formatCurrency(expense.amount)}</td>
-            </tr>
-          </tbody>
+
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 20px;">
+          <tr>
+            <td style="width: 180px; padding: 6px 0;">Sudah Terima Dari</td>
+            <td style="width: 10px;">:</td>
+            <td style="padding: 6px 0; font-weight: bold;">${record.owner || 'Yayasan Maleo Talenta Cendekia'}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0;">Banyaknya Uang</td>
+            <td>:</td>
+            <td style="padding: 6px 0; font-style: italic; background-color: #f0f0f0; padding-left: 8px;">${terbilangRupiah(expense.amount)} Rupiah</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; vertical-align: top;">Untuk Pembayaran</td>
+            <td style="vertical-align: top;">:</td>
+            <td style="padding: 6px 0;">${record.perihal}</td>
+          </tr>
         </table>
+
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 40px;">
+          <div style="border: 2px solid #000; padding: 10px 20px; font-size: 18px; font-weight: bold; background-color: #f9f9f9;">
+            Rp ${formatCurrency(expense.amount)}
+          </div>
+          <div style="text-align: center; width: 220px;">
+            <p style="margin: 0 0 50px 0; font-size: 14px;">Jakarta, ${tanggalStr}</p>
+            <p style="margin: 0; font-weight: bold; text-decoration: underline;">${expense.fasilitator ? expense.fasilitator.namaLengkap : (record.owner || 'Yayasan Maleo')}</p>
+          </div>
+        </div>
       </div>
     `;
   }
-  
-  const getKwitansiHtml = (expense: any, record: any) => {
-    const kwitansiDate = record.tanggal ? new Date(record.tanggal) : new Date();
+
+  const getInvoiceHtml = (expense: any, invRecord?: any, kopType: string = 'maleo') => {
+    const tanggalStr = invRecord?.tanggal 
+      ? new Date(invRecord.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+      : (expense.date 
+          ? new Date(expense.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+          : new Date(expense.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }));
+
+    const kopImage = kopType === 'robotic' ? '/kop-robotic.png' : '/kop-maleo.png';
+    const isRobotic = kopType === 'robotic';
+
     return `
-      <div style="padding: 40px; font-family: sans-serif; page-break-after: always; width: 100%; box-sizing: border-box;">
-        <div style="margin-bottom: 30px;">
-          <img src="${window.location.origin}/kop-maleo.png" style="width: 100%; max-height: 120px; object-fit: contain;" alt="Kop Surat" />
-        </div>
-        <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #000; padding-bottom: 10px;">
-          <h2 style="font-size: 24px; font-weight: bold; margin: 0; letter-spacing: 2px;">KWITANSI</h2>
-          <p style="margin: 5px 0 0 0;">No: ${record.noKwitansi || 'KWT/TEMP'}</p>
-        </div>
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
-          <tr>
-            <td style="width: 30%; padding: 10px 0;"><strong>Telah terima dari</strong></td>
-            <td style="width: 5%; text-align: center;">:</td>
-            <td style="width: 65%; padding: 10px 0;">Yayasan Maleo Talenta Cendekia</td>
-          </tr>
-          <tr>
-            <td style="padding: 10px 0;"><strong>Uang sejumlah</strong></td>
-            <td style="text-align: center;">:</td>
-            <td style="padding: 10px 0; font-style: italic;">${terbilangRupiah(expense.amount)} Rupiah</td>
-          </tr>
-          <tr>
-            <td style="padding: 10px 0;"><strong>Untuk pembayaran</strong></td>
-            <td style="text-align: center;">:</td>
-            <td style="padding: 10px 0;">${expense.description} - ${expense.rabItem.name}</td>
-          </tr>
-        </table>
-        <div style="display: flex; justify-content: space-between; align-items: flex-end;">
-          <div style="background-color: #f3f4f6; padding: 15px 30px; border-radius: 8px; font-size: 20px; font-weight: bold;">
-            ${formatCurrency(expense.amount)}
-          </div>
-          <div style="text-align: center;">
-            <p style="margin: 0 0 10px 0;">Tanggal: ${kwitansiDate.toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-            <p>Penerima,</p>
-            <p style="margin-top: 50px;">
-              <br/><br/>
-              (${expense.fasilitator ? expense.fasilitator.namaLengkap : '_____________________'})
+      <div>
+        <div style="font-family: Arial, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; box-sizing: border-box; border: 1px solid #ccc; min-height: 1000px; position: relative;">
+          <div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 25px;">
+            <img src="${kopImage}" style="height: 70px; margin-bottom: 10px;" alt="Logo" onerror="this.style.display='none'" />
+            <h2 style="margin: 0; font-size: 20px; font-weight: bold; text-transform: uppercase;">
+              ${isRobotic ? 'INVOICE PENGELUARAN PROGRAM' : 'INVOICE PENGELUARAN LAPANGAN'}
+            </h2>
+            <p style="margin: 5px 0 0 0; font-size: 14px; color: #555;">
+              ${isRobotic ? 'Program Koding & Kecerdasan Artifisial (KKA) 2026' : 'KKA Sekolah Nasional Terintegrasi Tahun 2026'}
             </p>
           </div>
 
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 20px;">
+            <tr>
+              <td style="width: 140px; padding: 4px 0;">Nomor Invoice</td>
+              <td style="width: 10px;">:</td>
+              <td style="padding: 4px 0; font-weight: bold;">${invRecord?.noInvoice || '-'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 4px 0;">Tanggal</td>
+              <td>:</td>
+              <td style="padding: 4px 0;">${tanggalStr}</td>
+            </tr>
+            <tr>
+              <td style="padding: 4px 0;">Penerima / Pemohon</td>
+              <td>:</td>
+              <td style="padding: 4px 0;">${expense.fasilitator ? expense.fasilitator.namaLengkap : (expense.createdBy?.name || 'Staf Lapangan')}</td>
+            </tr>
+          </table>
+
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 30px;">
+            <thead>
+              <tr style="background-color: #f2f2f2;">
+                <th style="border: 1px solid #000; padding: 8px; text-align: left;">Pos Anggaran (RAB)</th>
+                <th style="border: 1px solid #000; padding: 8px; text-align: left;">Keterangan / Deskripsi</th>
+                <th style="border: 1px solid #000; padding: 8px; text-align: right; width: 150px;">Jumlah</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="border: 1px solid #000; padding: 10px;">${expense.rabItem?.name || '-'}</td>
+                <td style="border: 1px solid #000; padding: 10px;">${expense.description}</td>
+                <td style="border: 1px solid #000; padding: 10px; text-align: right; font-weight: bold;">Rp ${formatCurrency(expense.amount)}</td>
+              </tr>
+              <tr style="background-color: #f9f9f9;">
+                <td colspan="2" style="border: 1px solid #000; padding: 8px; text-align: right; font-weight: bold;">TOTAL:</td>
+                <td style="border: 1px solid #000; padding: 8px; text-align: right; font-weight: bold;">Rp ${formatCurrency(expense.amount)}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div style="margin-bottom: 40px; font-size: 14px; font-style: italic;">
+            Terbilang: <strong>${terbilangRupiah(expense.amount)} Rupiah</strong>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; text-align: center; font-size: 14px; margin-top: 50px;">
+            <p>
+              Menyetujui,<br/>
+              <strong>${isRobotic ? 'Robotic Explorer' : 'Yayasan Maleo'}</strong>
+              <br/><br/><br/><br/>
+              (_____________________)
+            </p>
+            <p>
+              Penerima / Pelaksana,
+              <br/><br/><br/><br/>
+              (${expense.fasilitator ? expense.fasilitator.namaLengkap : '_____________________'})
+            </p>
+          </div>
         </div>
+
         ${(expense.receiptUrl || expense.paymentReceiptUrl) ? `
         <div style="page-break-before: always; padding: 40px; font-family: sans-serif; box-sizing: border-box; width: 100%; text-align: center;">
           <h3 style="margin-bottom: 20px;">Lampiran Bukti Pengeluaran</h3>
@@ -178,8 +372,10 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
       </div>
     `;
   }
-  
-    const handlePrintDokumen = async () => {
+
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+  const handlePrintDokumen = async () => {
     if (!selectedExpense) return;
     setIsGeneratingPdf(true);
     try {
@@ -194,6 +390,9 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
           alert('Gagal generate kwitansi: ' + record.error);
           setIsGeneratingPdf(false);
           return;
+        }
+        if (htmlString) {
+          htmlString += '<div style="page-break-before: always;"></div>';
         }
         htmlString += getKwitansiHtml(selectedExpense, record);
       }
@@ -245,33 +444,56 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
         return;
       }
       
-      
-        const win = window.open('', '_blank');
-        if (win) {
-          win.document.write(htmlString);
-          win.document.close();
-          setTimeout(() => {
-            win.print();
-          }, 1000);
-        }
+      const win = window.open('', '_blank');
+      if (win) {
+        win.document.write(htmlString);
+        win.document.close();
+        setTimeout(() => {
+          win.print();
+        }, 1000);
+      }
 
       setShowPrintModal(false);
     } catch (err: any) {
       console.error('GENERATE PDF ERROR', err, err.stack);
-      alert("Gagal generate PDF: " + err.message + "\n\nStack: " + (err.stack ? err.stack.substring(0, 200) : ''));
+      alert("Gagal generate PDF: " + err.message);
     } finally {
       setIsGeneratingPdf(false);
     }
   }
-  
 
   if (!data) return <div className="p-8">No RAB data found. Please seed the database.</div>
 
   return (
-    <div className="p-8 space-y-8">
-      <h1 className="text-3xl font-bold">Dashboard Monitoring RAB</h1>
+    <div className="p-8 space-y-8 max-w-7xl mx-auto">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-4">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900">Dashboard Monitoring RAB</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Proyek: <span className="font-semibold text-slate-700">{data.name}</span>
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowCatModal(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors"
+          >
+            <FolderPlus className="w-4 h-4" />
+            <span>+ Kategori RAB</span>
+          </button>
+          <button
+            onClick={() => openCreateItemModal()}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold shadow-sm transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ Tambah Item RAB</span>
+          </button>
+        </div>
+      </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+      {/* Pending Notification Badges */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Link href="/fasilitator/laporan" className="block">
           <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg flex items-center justify-between hover:bg-amber-100 transition">
             <div>
@@ -296,67 +518,174 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
         </Link>
       </div>
 
+      {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card>
-          <CardHeader><CardTitle>Total Anggaran</CardTitle></CardHeader>
-          <CardContent><p className="text-2xl font-bold">{formatCurrency(data.totalBudget)}</p></CardContent>
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500 font-medium">Total Anggaran RAB</CardTitle></CardHeader>
+          <CardContent><p className="text-2xl font-bold text-slate-900">{formatCurrency(data.totalBudget)}</p></CardContent>
         </Card>
-        <Card>
-          <CardHeader><CardTitle>Total Realisasi</CardTitle></CardHeader>
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500 font-medium">Total Realisasi Pengeluaran</CardTitle></CardHeader>
           <CardContent><p className="text-2xl font-bold text-red-600">{formatCurrency(data.totalRealized)}</p></CardContent>
         </Card>
-        <Card>
-          <CardHeader><CardTitle>Sisa Anggaran</CardTitle></CardHeader>
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500 font-medium">Sisa Anggaran Tersedia</CardTitle></CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-green-600">{formatCurrency(data.totalRemaining)}</p>
-            <p className="text-sm text-gray-500">Terserap: {data.percentage.toFixed(2)}%</p>
+            <p className="text-xs text-slate-500 mt-1">Terserap: {data.percentage.toFixed(2)}%</p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {data.categories.map((cat: any) => (
-          <Card key={cat.id}>
-            <CardHeader><CardTitle>{cat.name}</CardTitle></CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex justify-between">
-                  <span>Anggaran</span>
-                  <span className="font-medium">{formatCurrency(cat.budget)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Realisasi</span>
-                  <span className="font-medium text-red-600">{formatCurrency(cat.realized)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Sisa</span>
-                  <span className="font-bold text-green-600">{formatCurrency(cat.remaining)}</span>
-                </div>
-                
-                <div className="mt-4 pt-4 border-t">
-                  <h4 className="font-medium mb-2">Item Overbudget / Mendekati Penuh</h4>
-                  {cat.items.filter((item: any) => item.realized > item.totalBudget * 0.8).map((item: any) => (
-                    <div key={item.id} className="text-sm text-red-500 flex justify-between">
-                      <span>{item.name}</span>
-                      <span>{item.realized > item.totalBudget ? 'OVERBUDGET' : 'WARNING'}</span>
+      {/* Category Breakdown & Item Management */}
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-slate-900">Rincian Anggaran Per Kategori & Item</h2>
+          <span className="text-xs text-slate-500">Klik "Lihat Rincian Item" untuk melihat, mengedit, atau menambah item anggaran</span>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+          {data.categories.map((cat: any) => {
+            const isExpanded = expandedCategories[cat.id]
+            return (
+              <Card key={cat.id} className="border-slate-200 shadow-sm overflow-hidden">
+                <CardHeader className="bg-slate-50/70 border-b border-slate-100 pb-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <CardTitle className="text-base font-bold text-slate-900">{cat.name}</CardTitle>
+                    <button
+                      onClick={() => openCreateItemModal(cat.id)}
+                      className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+                      title="Tambah item di kategori ini"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Tambah Item</span>
+                    </button>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-4">
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">Pagu Anggaran:</span>
+                      <span className="font-semibold text-slate-900">{formatCurrency(cat.budget)}</span>
                     </div>
-                  ))}
-                  {cat.items.filter((item: any) => item.realized > item.totalBudget * 0.8).length === 0 && (
-                     <span className="text-sm text-gray-500">Aman</span>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">Realisasi:</span>
+                      <span className="font-semibold text-red-600">{formatCurrency(cat.realized)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm border-b pb-3">
+                      <span className="text-slate-600">Sisa Anggaran:</span>
+                      <span className="font-bold text-green-600">{formatCurrency(cat.remaining)}</span>
+                    </div>
+                    
+                    {/* Warning Box */}
+                    {cat.items.filter((item: any) => item.realized > item.totalBudget * 0.8).length > 0 && (
+                      <div className="bg-amber-50 border border-amber-200 rounded p-2.5 text-xs">
+                        <span className="font-bold text-amber-900 block mb-1">Perhatian Overbudget / Kritis:</span>
+                        {cat.items.filter((item: any) => item.realized > item.totalBudget * 0.8).map((item: any) => (
+                          <div key={item.id} className="text-amber-800 flex justify-between py-0.5">
+                            <span>{item.name}</span>
+                            <span className="font-semibold">{item.realized > item.totalBudget ? 'OVERBUDGET' : 'PERINGATAN (>80%)'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Toggle Accordion */}
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={() => toggleCategoryExpand(cat.id)}
+                        className="w-full flex items-center justify-between text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-md transition-colors"
+                      >
+                        <span>Kelola Rincian Item ({cat.items.length} item)</span>
+                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      </button>
+
+                      {isExpanded && (
+                        <div className="mt-3 overflow-x-auto border rounded-md">
+                          <table className="w-full text-xs text-left">
+                            <thead className="bg-slate-50 text-slate-600 uppercase border-b">
+                              <tr>
+                                <th className="px-3 py-2">Kode</th>
+                                <th className="px-3 py-2">Uraian Item</th>
+                                <th className="px-3 py-2 text-right">Anggaran</th>
+                                <th className="px-3 py-2 text-right">Realisasi</th>
+                                <th className="px-3 py-2 text-right">Sisa</th>
+                                <th className="px-3 py-2 text-center">Aksi</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y">
+                              {cat.items.map((item: any) => (
+                                <tr key={item.id} className="hover:bg-slate-50/70">
+                                  <td className="px-3 py-2 font-mono font-medium text-slate-500 whitespace-nowrap">
+                                    {item.code}
+                                  </td>
+                                  <td className="px-3 py-2 font-medium text-slate-800">
+                                    {item.name}
+                                    {item.volume && (
+                                      <span className="block text-[10px] text-slate-400 font-normal">
+                                        Vol: {item.volume}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-2 text-right font-medium whitespace-nowrap">
+                                    {formatCurrency(item.totalBudget)}
+                                  </td>
+                                  <td className="px-3 py-2 text-right text-red-600 whitespace-nowrap font-medium">
+                                    {formatCurrency(item.realized)}
+                                  </td>
+                                  <td className="px-3 py-2 text-right text-green-600 whitespace-nowrap font-medium">
+                                    {formatCurrency(item.remaining)}
+                                  </td>
+                                  <td className="px-3 py-2 text-center whitespace-nowrap">
+                                    <div className="flex items-center justify-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => openEditItemModal(item, cat.id)}
+                                        className="p-1 text-amber-700 bg-amber-50 hover:bg-amber-100 rounded border border-amber-200"
+                                        title="Edit Item & Anggaran"
+                                      >
+                                        <Pencil className="w-3 h-3" />
+                                      </button>
+                                      {item.realized === 0 && (
+                                        <button
+                                          type="button"
+                                          disabled={deletingItemId === item.id}
+                                          onClick={() => handleDeleteItem(item)}
+                                          className="p-1 text-red-700 bg-red-50 hover:bg-red-100 rounded border border-red-200 disabled:opacity-50"
+                                          title="Hapus Item"
+                                        >
+                                          {deletingItemId === item.id ? (
+                                            <Loader2 className="w-3 h-3 animate-spin" />
+                                          ) : (
+                                            <Trash2 className="w-3 h-3" />
+                                          )}
+                                        </button>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
       </div>
 
-      <Card>
+      {/* Recent Expenses Table */}
+      <Card className="border-slate-200 shadow-sm">
         <CardHeader><CardTitle>Riwayat Pengeluaran Terbaru</CardTitle></CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
-              <thead className="text-xs uppercase bg-gray-50">
+              <thead className="text-xs uppercase bg-gray-50 border-b">
                 <tr>
                   <th className="px-6 py-3">Tanggal</th>
                   <th className="px-6 py-3">Pengaju</th>
@@ -369,10 +698,10 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
               </thead>
               <tbody>
                 {expenses.map((exp: any) => (
-                  <tr key={exp.id} className="border-b">
+                  <tr key={exp.id} className="border-b hover:bg-slate-50/50">
                     <td className="px-6 py-4">{new Date(exp.date || exp.createdAt).toLocaleDateString('id-ID')}</td>
-                    <td className="px-6 py-4">{exp.createdBy?.name}</td>
-                    <td className="px-6 py-4">{exp.rabItem?.name}</td>
+                    <td className="px-6 py-4">{exp.createdBy?.name || '-'}</td>
+                    <td className="px-6 py-4">{exp.rabItem?.name || '-'}</td>
                     <td className="px-6 py-4">
                       {exp.description}
                       {(exp.receiptUrl || exp.paymentReceiptUrl) && (
@@ -398,12 +727,12 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
                           Cetak Dokumen
                         </button>
                         <button 
-                            onClick={() => openEditModal(exp)}
-                            className="text-xs bg-amber-500 text-white hover:bg-amber-600 rounded px-2 py-1.5 transition-colors whitespace-nowrap w-full"
-                          >
-                            Edit
-                          </button>
-                          <DeleteExpenseButton expenseId={exp.id} />
+                          onClick={() => openEditModal(exp)}
+                          className="text-xs bg-amber-500 text-white hover:bg-amber-600 rounded px-2 py-1.5 transition-colors whitespace-nowrap w-full"
+                        >
+                          Edit
+                        </button>
+                        <DeleteExpenseButton expenseId={exp.id} />
                       </div>
                     </td>
                   </tr>
@@ -414,76 +743,241 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
         </CardContent>
       </Card>
       
-      
-        {showEditModal && editData && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-            <div className="bg-white p-6 rounded-lg shadow-xl w-[500px]">
-              <h3 className="text-lg font-bold mb-4">Edit Pengeluaran</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Tanggal</label>
-                  <input 
-                    type="date" 
-                    value={editData.date}
-                    onChange={e => setEditData({...editData, date: e.target.value})}
-                    className="w-full border rounded px-3 py-2"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Deskripsi</label>
-                  <textarea 
-                    value={editData.description}
-                    onChange={e => setEditData({...editData, description: e.target.value})}
-                    className="w-full border rounded px-3 py-2 h-20"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Nominal</label>
-                  <input 
-                    type="number" 
-                    value={editData.amount}
-                    onChange={e => setEditData({...editData, amount: e.target.value})}
-                    className="w-full border rounded px-3 py-2"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Pilih Item RAB</label>
-                  <select 
-                    value={editData.rabItemId}
-                    onChange={e => setEditData({...editData, rabItemId: e.target.value})}
-                    className="w-full border rounded px-3 py-2"
-                  >
-                    {data.categories.flatMap((cat: any) => 
-                      cat.items.map((item: any) => (
-                        <option key={item.id} value={item.id}>{cat.name} - {item.name}</option>
-                      ))
-                    )}
-                  </select>
-                </div>
+      {/* Modal Edit Expense */}
+      {showEditModal && editData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="bg-white p-6 rounded-lg shadow-xl w-[500px] max-w-full">
+            <h3 className="text-lg font-bold mb-4">Edit Pengeluaran</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Tanggal</label>
+                <input 
+                  type="date" 
+                  value={editData.date}
+                  onChange={e => setEditData({...editData, date: e.target.value})}
+                  className="w-full border rounded px-3 py-2 text-sm"
+                />
               </div>
-              <div className="mt-6 flex justify-end space-x-2">
-                <button 
-                  onClick={() => setShowEditModal(false)}
-                  className="px-4 py-2 border rounded hover:bg-slate-50"
-                  disabled={isSaving}
+              <div>
+                <label className="block text-sm font-medium mb-1">Deskripsi</label>
+                <textarea 
+                  value={editData.description}
+                  onChange={e => setEditData({...editData, description: e.target.value})}
+                  className="w-full border rounded px-3 py-2 text-sm h-20"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Nominal</label>
+                <input 
+                  type="number" 
+                  value={editData.amount}
+                  onChange={e => setEditData({...editData, amount: e.target.value})}
+                  className="w-full border rounded px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Pilih Item RAB</label>
+                <select 
+                  value={editData.rabItemId}
+                  onChange={e => setEditData({...editData, rabItemId: e.target.value})}
+                  className="w-full border rounded px-3 py-2 text-sm"
                 >
-                  Batal
-                </button>
-                <button 
-                  onClick={handleSaveEdit}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                  disabled={isSaving}
-                >
-                  {isSaving ? 'Menyimpan...' : 'Simpan'}
-                </button>
+                  {data.categories.flatMap((cat: any) => 
+                    cat.items.map((item: any) => (
+                      <option key={item.id} value={item.id}>{cat.name} - {item.name}</option>
+                    ))
+                  )}
+                </select>
               </div>
             </div>
+            <div className="mt-6 flex justify-end space-x-2">
+              <button 
+                onClick={() => setShowEditModal(false)}
+                className="px-4 py-2 border rounded hover:bg-slate-50 text-sm"
+                disabled={isSaving}
+              >
+                Batal
+              </button>
+              <button 
+                onClick={handleSaveEdit}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 text-sm"
+                disabled={isSaving}
+              >
+                {isSaving ? 'Menyimpan...' : 'Simpan'}
+              </button>
+            </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {showPrintModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white p-6 rounded-lg shadow-xl w-96">
+      {/* Modal Tambah / Edit Item RAB */}
+      {showItemModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-bold text-slate-900 mb-1">
+              {itemModalMode === 'create' ? '+ Tambah Item RAB Baru' : 'Edit Item & Anggaran RAB'}
+            </h3>
+            <p className="text-xs text-slate-500 mb-4">
+              Item baru akan otomatis terdaftar dan bisa dipilih saat mencatat pengeluaran.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Kategori RAB <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={itemFormData.categoryId}
+                  onChange={e => setItemFormData({ ...itemFormData, categoryId: e.target.value })}
+                  className="w-full border rounded-md px-3 py-2 text-sm bg-white"
+                >
+                  <option value="">-- Pilih Kategori --</option>
+                  {data.categories.map((cat: any) => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Kode Item <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: 8a, C.2, dll"
+                    value={itemFormData.code}
+                    onChange={e => setItemFormData({ ...itemFormData, code: e.target.value })}
+                    className="w-full border rounded-md px-3 py-2 text-sm bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Volume / Satuan (Opsional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: 1 Paket, 6 Bulan"
+                    value={itemFormData.volume}
+                    onChange={e => setItemFormData({ ...itemFormData, volume: e.target.value })}
+                    className="w-full border rounded-md px-3 py-2 text-sm bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Uraian / Nama Item RAB <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Pengadaan Modul Tambahan Robotik"
+                  value={itemFormData.name}
+                  onChange={e => setItemFormData({ ...itemFormData, name: e.target.value })}
+                  className="w-full border rounded-md px-3 py-2 text-sm bg-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Harga Satuan (Rp) (Opsional)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={itemFormData.unitPrice}
+                    onChange={e => setItemFormData({ ...itemFormData, unitPrice: Number(e.target.value) })}
+                    className="w-full border rounded-md px-3 py-2 text-sm bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Pagu Anggaran RAB (Rp) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={itemFormData.totalBudget}
+                    onChange={e => setItemFormData({ ...itemFormData, totalBudget: Number(e.target.value) })}
+                    className="w-full border rounded-md px-3 py-2 text-sm bg-white font-semibold"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowItemModal(false)}
+                className="px-4 py-2 border rounded-md text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                disabled={isSavingItem}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveItem}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+                disabled={isSavingItem}
+              >
+                {isSavingItem && <Loader2 className="w-4 h-4 animate-spin" />}
+                <span>{isSavingItem ? 'Menyimpan...' : (itemModalMode === 'create' ? 'Tambah Item' : 'Simpan Perubahan')}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Tambah Kategori RAB */}
+      {showCatModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-bold text-slate-900 mb-1">+ Tambah Kategori RAB</h3>
+            <p className="text-xs text-slate-500 mb-4">
+              Buat kategori baru untuk mengelompokkan item anggaran.
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Nama Kategori <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: D. BIAYA PENDUKUNG OPERASIONAL"
+                  value={newCatName}
+                  onChange={e => setNewCatName(e.target.value)}
+                  className="w-full border rounded-md px-3 py-2 text-sm bg-white"
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowCatModal(false)}
+                className="px-4 py-2 border rounded-md text-sm text-slate-700 hover:bg-slate-50"
+                disabled={isSavingCat}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateCategory}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                disabled={isSavingCat}
+              >
+                {isSavingCat && <Loader2 className="w-4 h-4 animate-spin" />}
+                <span>{isSavingCat ? 'Membuat...' : 'Buat Kategori'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Print Dokumen */}
+      {showPrintModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="bg-white p-6 rounded-lg shadow-xl w-96 max-w-full">
             <h3 className="text-lg font-bold mb-4">Cetak Dokumen Pengeluaran</h3>
             <div className="space-y-4">
               <label className="flex items-center space-x-2">
@@ -494,35 +988,34 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
                 />
                 <span>Invoice Pengeluaran (Standar)</span>
               </label>
-              
+
               {printInvoice && (
-                <div className="pl-6 space-y-4 border-l-2 border-green-200 ml-1">
+                <div className="pl-6 space-y-3 border-l-2 border-blue-200 ml-1">
                   <div className="space-y-2">
                     <p className="text-sm font-medium text-gray-700">Pilih Kop Surat:</p>
-
-                  <label className="flex items-center space-x-2 cursor-pointer">
-                    <input 
-                      type="radio" 
-                      name="kopType"
-                      value="maleo"
-                      checked={selectedKop === 'maleo'}
-                      onChange={() => setSelectedKop('maleo')}
-                      className="w-4 h-4 text-blue-600"
-                    />
-                    <span className="text-sm">Kop Yayasan Maleo</span>
-                  </label>
-                  <label className="flex items-center space-x-2 cursor-pointer">
-                    <input 
-                      type="radio" 
-                      name="kopType"
-                      value="robotic"
-                      checked={selectedKop === 'robotic'}
-                      onChange={() => setSelectedKop('robotic')}
-                      className="w-4 h-4 text-blue-600"
-                    />
-                    <span className="text-sm">Kop Robotic Explorer</span>
-                  </label>
-                                  </div>
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input 
+                        type="radio" 
+                        name="kopType"
+                        value="maleo"
+                        checked={selectedKop === 'maleo'}
+                        onChange={() => setSelectedKop('maleo')}
+                        className="w-4 h-4 text-blue-600"
+                      />
+                      <span className="text-sm">Kop Yayasan Maleo</span>
+                    </label>
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input 
+                        type="radio" 
+                        name="kopType"
+                        value="robotic"
+                        checked={selectedKop === 'robotic'}
+                        onChange={() => setSelectedKop('robotic')}
+                        className="w-4 h-4 text-blue-600"
+                      />
+                      <span className="text-sm">Kop Robotic Explorer</span>
+                    </label>
+                  </div>
                   <div className="space-y-2 pt-2 border-t border-gray-100">
                     <div>
                       <label className="block text-sm font-medium mb-1">Nomor Urut Invoice</label>
@@ -531,7 +1024,7 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
                         value={inputInvoiceNoUrut}
                         onChange={(e) => setInputInvoiceNoUrut(e.target.value)}
                         placeholder="Kosongkan untuk nomor otomatis"
-                        className="w-full border rounded p-2"
+                        className="w-full border rounded p-2 text-sm"
                       />
                     </div>
                     <div>
@@ -540,7 +1033,7 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
                         type="date" 
                         value={inputInvoiceTanggal}
                         onChange={(e) => setInputInvoiceTanggal(e.target.value)}
-                        className="w-full border rounded p-2"
+                        className="w-full border rounded p-2 text-sm"
                       />
                     </div>
                   </div>
@@ -580,21 +1073,21 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
               )}
               
               <div className="flex gap-2 mt-4">
-                  <button 
-                    onClick={handlePrint}
-                    disabled={!printInvoice && !printKwitansi || isGeneratingPdf}
-                    className="flex-1 py-2 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium rounded-md transition-colors"
-                  >
-                    {isGeneratingPdf ? 'Memproses...' : 'Export PDF'}
-                  </button>
-                  <button 
-                    onClick={handlePrintDokumen}
-                    disabled={!printInvoice && !printKwitansi || isGeneratingPdf}
-                    className="flex-1 py-2 px-4 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-medium rounded-md transition-colors"
-                  >
-                    {isGeneratingPdf ? 'Memproses...' : 'Print Dokumen'}
-                  </button>
-                </div>
+                <button 
+                  onClick={handlePrint}
+                  disabled={!printInvoice && !printKwitansi || isGeneratingPdf}
+                  className="flex-1 py-2 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium rounded-md transition-colors text-sm"
+                >
+                  {isGeneratingPdf ? 'Memproses...' : 'Export PDF'}
+                </button>
+                <button 
+                  onClick={handlePrintDokumen}
+                  disabled={!printInvoice && !printKwitansi || isGeneratingPdf}
+                  className="flex-1 py-2 px-4 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-medium rounded-md transition-colors text-sm"
+                >
+                  {isGeneratingPdf ? 'Memproses...' : 'Print Dokumen'}
+                </button>
+              </div>
             </div>
             
             <div className="mt-4 flex justify-end">

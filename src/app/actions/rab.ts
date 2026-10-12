@@ -752,3 +752,166 @@ export async function updateExpense(
     return { error: error.message };
   }
 }
+
+export async function createRabCategory(name: string) {
+  const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN']);
+  if (authError) return { error: authError };
+
+  const project = await prisma.rabProject.findFirst();
+  if (!project) return { error: 'Project RAB tidak ditemukan' };
+
+  try {
+    const cat = await prisma.rabCategory.create({
+      data: {
+        name,
+        projectId: project.id
+      }
+    });
+    revalidatePath('/dashboard-rab');
+    return { success: true, category: cat };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
+
+export async function createRabItem(data: {
+  categoryId: string,
+  code: string,
+  name: string,
+  volume?: string,
+  unitPrice?: number,
+  totalBudget: number
+}) {
+  const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN']);
+  if (authError) return { error: authError };
+
+  try {
+    const category = await prisma.rabCategory.findUnique({
+      where: { id: data.categoryId },
+      include: { project: true }
+    });
+    if (!category) return { error: 'Kategori RAB tidak ditemukan' };
+
+    const item = await prisma.rabItem.create({
+      data: {
+        categoryId: data.categoryId,
+        code: data.code,
+        name: data.name,
+        volume: data.volume || null,
+        unitPrice: Number(data.unitPrice) || 0,
+        totalBudget: Number(data.totalBudget) || 0
+      }
+    });
+
+    if (category.project) {
+      const allItems = await prisma.rabItem.findMany({
+        where: { category: { projectId: category.project.id } }
+      });
+      const newTotal = allItems.reduce((sum, it) => sum + it.totalBudget, 0);
+      await prisma.rabProject.update({
+        where: { id: category.project.id },
+        data: { totalBudget: newTotal }
+      });
+    }
+
+    revalidatePath('/dashboard-rab');
+    revalidatePath('/pengeluaran');
+    revalidatePath('/laporan-pengeluaran');
+    return { success: true, item };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
+
+export async function updateRabItem(
+  id: string,
+  data: {
+    code?: string,
+    name?: string,
+    volume?: string,
+    unitPrice?: number,
+    totalBudget?: number,
+    categoryId?: string
+  }
+) {
+  const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN']);
+  if (authError) return { error: authError };
+
+  try {
+    const item = await prisma.rabItem.findUnique({
+      where: { id },
+      include: { category: { include: { project: true } } }
+    });
+    if (!item) return { error: 'Item RAB tidak ditemukan' };
+
+    const updated = await prisma.rabItem.update({
+      where: { id },
+      data: {
+        ...(data.code ? { code: data.code } : {}),
+        ...(data.name ? { name: data.name } : {}),
+        ...(data.volume !== undefined ? { volume: data.volume } : {}),
+        ...(data.unitPrice !== undefined ? { unitPrice: Number(data.unitPrice) } : {}),
+        ...(data.totalBudget !== undefined ? { totalBudget: Number(data.totalBudget) } : {}),
+        ...(data.categoryId ? { categoryId: data.categoryId } : {})
+      }
+    });
+
+    const projectId = item.category?.project?.id;
+    if (projectId) {
+      const allItems = await prisma.rabItem.findMany({
+        where: { category: { projectId } }
+      });
+      const newTotal = allItems.reduce((sum, it) => sum + it.totalBudget, 0);
+      await prisma.rabProject.update({
+        where: { id: projectId },
+        data: { totalBudget: newTotal }
+      });
+    }
+
+    revalidatePath('/dashboard-rab');
+    revalidatePath('/pengeluaran');
+    revalidatePath('/laporan-pengeluaran');
+    return { success: true, item: updated };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
+
+export async function deleteRabItem(id: string) {
+  const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN']);
+  if (authError) return { error: authError };
+
+  try {
+    const item = await prisma.rabItem.findUnique({
+      where: { id },
+      include: { expenses: true, category: { include: { project: true } } }
+    });
+    if (!item) return { error: 'Item RAB tidak ditemukan' };
+
+    if (item.expenses.length > 0) {
+      return { error: 'Tidak dapat menghapus item RAB yang sudah memiliki riwayat pengeluaran.' };
+    }
+
+    const projectId = item.category?.project?.id;
+    await prisma.rabItem.delete({ where: { id } });
+
+    if (projectId) {
+      const allItems = await prisma.rabItem.findMany({
+        where: { category: { projectId } }
+      });
+      const newTotal = allItems.reduce((sum, it) => sum + it.totalBudget, 0);
+      await prisma.rabProject.update({
+        where: { id: projectId },
+        data: { totalBudget: newTotal }
+      });
+    }
+
+    revalidatePath('/dashboard-rab');
+    revalidatePath('/pengeluaran');
+    revalidatePath('/laporan-pengeluaran');
+    return { success: true };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+
+}
