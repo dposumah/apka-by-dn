@@ -14,12 +14,22 @@ import { useRouter } from 'next/navigation'
 import { useModal } from '@/components/modal-provider';
 
 import { getFasilitatorJpForMonth, syncLaporanToRekap } from '@/app/actions/rekap'
+import { FilePreviewModal } from '@/components/shared/FilePreviewModal'
 
 export function RekapHonorClient({ initialData, fasilitators = [] }: { initialData: any[], fasilitators?: any[] }) {
   const { confirm, alert } = useModal();
 
   const router = useRouter()
   
+  const [previewModal, setPreviewModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    url: string;
+  }>({
+    isOpen: false,
+    title: '',
+    url: ''
+  });
   
   const [showManualForm, setShowManualForm] = useState(false)
   const [editingTransportRekap, setEditingTransportRekap] = useState<any | null>(null)
@@ -524,10 +534,30 @@ Atas Nama: ${namaLengkap}`;
                     <td className="py-3 px-4 text-center">
                       <div className="flex flex-col items-center gap-1">
                         {rekap.buktiPembayaranHonor ? (
-                          <a href={rekap.buktiPembayaranHonor} target="_blank" className="text-xs text-green-600 hover:underline">✓ Honor</a>
+                          <button 
+                            type="button"
+                            onClick={() => setPreviewModal({
+                              isOpen: true,
+                              title: `Bukti Transfer Honor - ${rekap.fasilitator?.namaLengkap || 'Fasilitator'} (${rekap.bulan})`,
+                              url: rekap.buktiPembayaranHonor
+                            })}
+                            className="text-xs text-green-700 hover:text-green-900 font-medium hover:underline inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            ✓ Honor
+                          </button>
                         ) : null}
                         {rekap.buktiPembayaranTransport ? (
-                          <a href={rekap.buktiPembayaranTransport} target="_blank" className="text-xs text-green-600 hover:underline">✓ Transport</a>
+                          <button 
+                            type="button"
+                            onClick={() => setPreviewModal({
+                              isOpen: true,
+                              title: `Bukti Transfer Transport - ${rekap.fasilitator?.namaLengkap || 'Fasilitator'} (${rekap.bulan})`,
+                              url: rekap.buktiPembayaranTransport
+                            })}
+                            className="text-xs text-green-700 hover:text-green-900 font-medium hover:underline inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            ✓ Transport
+                          </button>
                         ) : null}
                         {(rekap.status === 'SUBMITTED' || rekap.status === 'APPROVED') && (
                           <button 
@@ -541,7 +571,17 @@ Atas Nama: ${namaLengkap}`;
                     </td>
                     <td className="py-3 px-4 text-center">
                       {rekap.filePdf ? (
-                        <a href={rekap.filePdf} target="_blank" className="text-blue-600 hover:underline">Lihat PDF TTD</a>
+                        <button 
+                          type="button"
+                          onClick={() => setPreviewModal({
+                            isOpen: true,
+                            title: `Dokumen PDF TTD - ${rekap.fasilitator?.namaLengkap || 'Fasilitator'} (${rekap.bulan})`,
+                            url: rekap.filePdf
+                          })}
+                          className="text-xs text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                        >
+                          Lihat PDF TTD
+                        </button>
                       ) : '-'}
                     </td>
                     <td className="py-3 px-4 text-right">
@@ -961,6 +1001,14 @@ Atas Nama: ${namaLengkap}`;
         </div>
       )}
 
+      {/* Preview Modal for Bukti Transfer / PDF */}
+      <FilePreviewModal
+        isOpen={previewModal.isOpen}
+        onClose={() => setPreviewModal(prev => ({ ...prev, isOpen: false }))}
+        title={previewModal.title}
+        url={previewModal.url}
+      />
+
     </div>
-    )
-  }
+  )
+}

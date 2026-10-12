@@ -1,7 +1,7 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { FileText, CheckCircle2, Wallet, Car, BookOpen, Clock, ExternalLink } from 'lucide-react'
+import { FileText, CheckCircle2, Wallet, Car, BookOpen, Clock, ExternalLink, Eye } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import Link from 'next/link'
 import { deleteLaporanKegiatan } from '@/app/actions/rab'
@@ -9,11 +9,21 @@ import { useState } from 'react'
 import { UploadLaporanFisikButton } from './upload-fisik-btn'
 import { useModal } from '@/components/modal-provider'
 import { hitungTotalTransportRekap } from '@/lib/transport'
+import { FilePreviewModal } from '@/components/shared/FilePreviewModal'
 
 export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilitator: any, isIncomplete: boolean, userName: string }) {
   const { confirm, alert } = useModal();
 
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [previewModal, setPreviewModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    url: string;
+  }>({
+    isOpen: false,
+    title: '',
+    url: ''
+  });
 
   const handleDeleteLaporan = async (laporanId: string) => {
     if (!(await confirm('Apakah Anda yakin ingin membatalkan dan menghapus laporan ini?'))) return;
@@ -275,21 +285,45 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
                         </a>
                       )}
                       {lap.fileLaporanFisik ? (
-                        <a href={lap.fileLaporanFisik} target="_blank" rel="noreferrer" className="text-xs text-emerald-600 hover:underline mt-1 inline-block mr-3">
-                          Laporan Fisik
-                        </a>
+                        <button 
+                          type="button"
+                          onClick={() => setPreviewModal({
+                            isOpen: true,
+                            title: `Laporan Fisik - ${lap.topic || 'Kegiatan'}`,
+                            url: lap.fileLaporanFisik
+                          })}
+                          className="text-xs text-emerald-600 hover:text-emerald-800 hover:underline mt-1 inline-flex items-center gap-1 mr-3 cursor-pointer"
+                        >
+                          <Eye className="w-3 h-3" /> Laporan Fisik
+                        </button>
                       ) : (
                         <UploadLaporanFisikButton laporanId={lap.id} />
                       )}
                       {lap.foto1 && (
-                        <a href={lap.foto1} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 hover:underline mt-1 inline-block mr-3">
-                          Foto 1
-                        </a>
+                        <button 
+                          type="button"
+                          onClick={() => setPreviewModal({
+                            isOpen: true,
+                            title: `Dokumentasi Foto 1 - ${lap.topic || 'Kegiatan'}`,
+                            url: lap.foto1
+                          })}
+                          className="text-xs text-indigo-600 hover:text-indigo-800 hover:underline mt-1 inline-flex items-center gap-1 mr-3 cursor-pointer"
+                        >
+                          <Eye className="w-3 h-3" /> Foto 1
+                        </button>
                       )}
                       {lap.foto2 && (
-                        <a href={lap.foto2} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 hover:underline mt-1 inline-block">
-                          Foto 2
-                        </a>
+                        <button 
+                          type="button"
+                          onClick={() => setPreviewModal({
+                            isOpen: true,
+                            title: `Dokumentasi Foto 2 - ${lap.topic || 'Kegiatan'}`,
+                            url: lap.foto2
+                          })}
+                          className="text-xs text-indigo-600 hover:text-indigo-800 hover:underline mt-1 inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          <Eye className="w-3 h-3" /> Foto 2
+                        </button>
                       )}
                     </div>
                     <div className="mt-4 md:mt-0 text-left md:text-right space-y-2 w-full md:w-auto bg-slate-50 md:bg-transparent p-3 md:p-0 rounded-md">
@@ -309,13 +343,29 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
                           <div className="text-xs text-slate-700">
                             Rp {totalBiayaTransportLap.toLocaleString('id-ID')}
                             {lap.rekapHonorarium?.buktiPembayaranTransport ? (
-                              <a href={lap.rekapHonorarium.buktiPembayaranTransport} target="_blank" rel="noreferrer" className="ml-2 text-emerald-600 font-medium hover:underline inline-flex items-center bg-emerald-100 px-2 py-0.5 rounded">
-                                Lunas (Lihat Bukti)
-                              </a>
+                              <button 
+                                type="button"
+                                onClick={() => setPreviewModal({
+                                  isOpen: true,
+                                  title: `Bukti Transfer Transportasi - ${lap.topic || 'Kegiatan'}`,
+                                  url: lap.rekapHonorarium.buktiPembayaranTransport
+                                })}
+                                className="ml-2 text-emerald-700 hover:text-emerald-900 font-medium hover:underline inline-flex items-center gap-1 bg-emerald-100 hover:bg-emerald-200/80 px-2 py-0.5 rounded cursor-pointer transition-colors"
+                              >
+                                <Eye className="w-3 h-3" /> Lunas (Lihat Bukti)
+                              </button>
                             ) : (lap.statusTransport === 'PAID' && lap.buktiTransferTransport) ? (
-                              <a href={lap.buktiTransferTransport} target="_blank" rel="noreferrer" className="ml-2 text-emerald-600 font-medium hover:underline inline-flex items-center bg-emerald-100 px-2 py-0.5 rounded">
-                                Lunas (Lihat Bukti)
-                              </a>
+                              <button 
+                                type="button"
+                                onClick={() => setPreviewModal({
+                                  isOpen: true,
+                                  title: `Bukti Transfer Transportasi - ${lap.topic || 'Kegiatan'}`,
+                                  url: lap.buktiTransferTransport
+                                })}
+                                className="ml-2 text-emerald-700 hover:text-emerald-900 font-medium hover:underline inline-flex items-center gap-1 bg-emerald-100 hover:bg-emerald-200/80 px-2 py-0.5 rounded cursor-pointer transition-colors"
+                              >
+                                <Eye className="w-3 h-3" /> Lunas (Lihat Bukti)
+                              </button>
                             ) : (lap.statusTransport === 'PAID' || isRekapPaid) ? (
                               <span className="ml-2 text-emerald-600 font-medium inline-block bg-emerald-100 px-2 py-0.5 rounded">Lunas</span>
                             ) : (
@@ -360,6 +410,13 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
           )}
         </CardContent>
       </Card>
+
+      <FilePreviewModal
+        isOpen={previewModal.isOpen}
+        onClose={() => setPreviewModal(prev => ({ ...prev, isOpen: false }))}
+        title={previewModal.title}
+        url={previewModal.url}
+      />
     </div>
   )
 }

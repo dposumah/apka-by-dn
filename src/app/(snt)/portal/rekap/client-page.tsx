@@ -8,9 +8,10 @@ import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
 import { createRekapBulanan, submitRekapBulanan } from '@/app/actions/rekap'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, FileText, Printer, Upload, ExternalLink, Wallet, Car } from 'lucide-react'
+import { CheckCircle2, FileText, Printer, Upload, Eye, Wallet, Car } from 'lucide-react'
 import { useModal } from '@/components/modal-provider'
 import { hitungTotalTransportRekap } from '@/lib/transport'
+import { FilePreviewModal } from '@/components/shared/FilePreviewModal'
 
 export function RekapClientPage({ fasilitator, availableMonths, rekaps }: { fasilitator: any, availableMonths: any[], rekaps: any[] }) {
   const { alert } = useModal();
@@ -19,6 +20,15 @@ export function RekapClientPage({ fasilitator, availableMonths, rekaps }: { fasi
   const [loading, setLoading] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState('')
   const [uploadingId, setUploadingId] = useState<string | null>(null)
+  const [previewModal, setPreviewModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    url: string;
+  }>({
+    isOpen: false,
+    title: '',
+    url: ''
+  });
   
   const handleCreate = async () => {
     if (!selectedMonth) return
@@ -196,14 +206,17 @@ export function RekapClientPage({ fasilitator, availableMonths, rekaps }: { fasi
                       {/* Bukti Transfer Honor */}
                       {(rekap.buktiPembayaranHonor || rekap.expense?.paymentReceiptUrl) && (
                         <div className="mt-3 pt-2 border-t border-slate-200/60">
-                          <a 
-                            href={rekap.buktiPembayaranHonor || rekap.expense?.paymentReceiptUrl} 
-                            target="_blank" 
-                            rel="noreferrer" 
-                            className="text-xs text-blue-600 hover:text-blue-800 font-medium inline-flex items-center gap-1 hover:underline"
+                          <button 
+                            type="button"
+                            onClick={() => setPreviewModal({
+                              isOpen: true,
+                              title: `Bukti Transfer Honorarium - Bulan ${formatBulan(rekap.bulan)}`,
+                              url: (rekap.buktiPembayaranHonor || rekap.expense?.paymentReceiptUrl)!
+                            })}
+                            className="text-xs text-blue-600 hover:text-blue-800 font-medium inline-flex items-center gap-1.5 hover:underline cursor-pointer"
                           >
-                            <ExternalLink className="w-3 h-3" /> Bukti Transfer Honor
-                          </a>
+                            <Eye className="w-3.5 h-3.5" /> Bukti Transfer Honor
+                          </button>
                         </div>
                       )}
                     </div>
@@ -237,14 +250,17 @@ export function RekapClientPage({ fasilitator, availableMonths, rekaps }: { fasi
                       {/* Bukti Transfer Transport */}
                       {rekap.buktiPembayaranTransport && (
                         <div className="mt-3 pt-2 border-t border-slate-200/60">
-                          <a 
-                            href={rekap.buktiPembayaranTransport} 
-                            target="_blank" 
-                            rel="noreferrer" 
-                            className="text-xs text-purple-600 hover:text-purple-800 font-medium inline-flex items-center gap-1 hover:underline"
+                          <button 
+                            type="button"
+                            onClick={() => setPreviewModal({
+                              isOpen: true,
+                              title: `Bukti Transfer Transportasi - Bulan ${formatBulan(rekap.bulan)}`,
+                              url: rekap.buktiPembayaranTransport
+                            })}
+                            className="text-xs text-purple-600 hover:text-purple-800 font-medium inline-flex items-center gap-1.5 hover:underline cursor-pointer"
                           >
-                            <ExternalLink className="w-3 h-3" /> Bukti Transfer Transport
-                          </a>
+                            <Eye className="w-3.5 h-3.5" /> Bukti Transfer Transport
+                          </button>
                         </div>
                       )}
                     </div>
@@ -273,14 +289,17 @@ export function RekapClientPage({ fasilitator, availableMonths, rekaps }: { fasi
 
                       {rekap.filePdf && (
                         <div className="mt-3 pt-2 border-t border-emerald-200/60">
-                          <a 
-                            href={rekap.filePdf} 
-                            target="_blank" 
-                            rel="noreferrer" 
-                            className="text-xs text-emerald-700 hover:underline font-medium inline-flex items-center gap-1"
+                          <button 
+                            type="button"
+                            onClick={() => setPreviewModal({
+                              isOpen: true,
+                              title: `Dokumen TTD Diajukan - Bulan ${formatBulan(rekap.bulan)}`,
+                              url: rekap.filePdf
+                            })}
+                            className="text-xs text-emerald-700 hover:text-emerald-900 hover:underline font-medium inline-flex items-center gap-1.5 cursor-pointer"
                           >
-                            <ExternalLink className="w-3 h-3" /> Dokumen TTD Diajukan
-                          </a>
+                            <Eye className="w-3.5 h-3.5" /> Dokumen TTD Diajukan
+                          </button>
                         </div>
                       )}
                     </div>
@@ -297,6 +316,13 @@ export function RekapClientPage({ fasilitator, availableMonths, rekaps }: { fasi
           })
         )}
       </div>
+
+      <FilePreviewModal
+        isOpen={previewModal.isOpen}
+        onClose={() => setPreviewModal(prev => ({ ...prev, isOpen: false }))}
+        title={previewModal.title}
+        url={previewModal.url}
+      />
     </div>
   )
 }
