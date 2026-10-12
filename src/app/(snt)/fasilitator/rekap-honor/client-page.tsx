@@ -529,12 +529,12 @@ Atas Nama: ${namaLengkap}`;
                         {rekap.buktiPembayaranTransport ? (
                           <a href={rekap.buktiPembayaranTransport} target="_blank" className="text-xs text-green-600 hover:underline">✓ Transport</a>
                         ) : null}
-                        {rekap.status === 'SUBMITTED' && (
+                        {(rekap.status === 'SUBMITTED' || rekap.status === 'APPROVED') && (
                           <button 
                             onClick={() => { setUploadingRekap(rekap); setHonorFile(null); setTransportFile(null); setShowUploadModal(true); }}
                             className="text-[10px] bg-slate-200 text-slate-700 px-2 py-1 rounded hover:bg-slate-300 mt-1"
                           >
-                            Upload Bukti
+                            {rekap.buktiPembayaranHonor && rekap.buktiPembayaranTransport ? 'Ganti Bukti' : 'Upload Bukti'}
                           </button>
                         )}
                       </div>
@@ -546,7 +546,7 @@ Atas Nama: ${namaLengkap}`;
                     </td>
                     <td className="py-3 px-4 text-right">
                       
-                      {rekap.status === 'SUBMITTED' && (
+                      {(rekap.status === 'SUBMITTED' || rekap.status === 'APPROVED') && (
                         <div className="flex gap-2 justify-end">
                           <button 
                             onClick={() => openKopModal(rekap)}

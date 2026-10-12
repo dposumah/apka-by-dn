@@ -795,11 +795,11 @@ export async function uploadBuktiRekap(rekapId: string, urlHonor?: string, urlTr
     const updateData: any = {};
     if (urlHonor) {
       updateData.buktiPembayaranHonor = urlHonor;
-      updateData.statusHonor = 'PAID';
+
     }
     if (urlTransport) {
       updateData.buktiPembayaranTransport = urlTransport;
-      updateData.statusTransport = 'PAID';
+
     }
     const hasHonor = urlHonor || rekap.buktiPembayaranHonor;
     const hasTransport = urlTransport || rekap.buktiPembayaranTransport;
@@ -811,6 +811,16 @@ export async function uploadBuktiRekap(rekapId: string, urlHonor?: string, urlTr
       where: { id: rekapId },
       data: updateData
     });
+
+    if (urlTransport && rekap.laporan && rekap.laporan.length > 0) {
+      await prisma.laporanKegiatan.updateMany({
+        where: { rekapHonorariumId: rekapId },
+        data: {
+          statusTransport: 'PAID',
+          buktiTransferTransport: urlTransport
+        }
+      });
+    }
 
     // Otomatis buat Pengeluaran Lapangan (ExpenseRequest) untuk memotong RAB
     // 1. Potong RAB Honorarium Fasilitator Koding & KA
