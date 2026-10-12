@@ -115,63 +115,60 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
 
       {/* Ringkasan Utama: Total Kinerja & Total Pencairan Bersih */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="bg-gradient-to-br from-blue-50 to-indigo-50/50 border-blue-200/70 shadow-sm">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
+        <Card className="bg-gradient-to-br from-blue-50/80 to-indigo-50/40 border-blue-200/70 shadow-sm">
+          <CardContent className="p-4 sm:p-5 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3.5">
               <div className="p-2.5 bg-blue-600 text-white rounded-lg shadow-sm">
                 <BookOpen className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-xs uppercase font-semibold text-blue-800 tracking-wider">Total Kinerja</p>
+                <p className="text-xs font-semibold text-blue-800 tracking-wide uppercase">Total Kinerja</p>
                 <h3 className="text-2xl font-bold text-slate-900">{totalJP} <span className="text-sm font-normal text-slate-500">JP</span></h3>
               </div>
             </div>
             <div className="text-right">
-              <span className="text-xs font-medium text-slate-500 block">Rincian:</span>
-              <span className="text-xs font-semibold text-blue-700 bg-blue-100/70 px-2 py-0.5 rounded">
+              <span className="text-xs font-medium text-slate-500 block mb-0.5">Rincian Sesi:</span>
+              <span className="text-xs font-semibold text-blue-700 bg-blue-100/70 px-2.5 py-1 rounded-md inline-block">
                 Intra: {totalJPIntra} JP &bull; Ekstra: {totalJPEkstra} JP
               </span>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-emerald-50 to-teal-50/50 border-emerald-200/70 shadow-sm">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
+        <Card className="bg-gradient-to-br from-emerald-50/80 to-teal-50/40 border-emerald-200/70 shadow-sm">
+          <CardContent className="p-4 sm:p-5 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3.5">
               <div className="p-2.5 bg-emerald-600 text-white rounded-lg shadow-sm">
                 <CheckCircle2 className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-xs uppercase font-semibold text-emerald-800 tracking-wider">Total Dana Dicairkan (Lunas)</p>
+                <p className="text-xs font-semibold text-emerald-800 tracking-wide uppercase">Total Dana Dicairkan</p>
                 <h3 className="text-2xl font-bold text-slate-900" title={`Rp ${totalSelesai.toLocaleString('id-ID')}`}>
                   Rp {(totalSelesai / 1000).toLocaleString('id-ID')}<span className="text-sm font-normal text-slate-500">k</span>
                 </h3>
               </div>
             </div>
-            <div className="text-right text-xs text-slate-600">
-              <div>Honor: <strong className="text-emerald-700">Rp {(honorSelesai / 1000).toLocaleString('id-ID')}k</strong></div>
-              <div>Transport: <strong className="text-purple-700">Rp {(transportSelesai / 1000).toLocaleString('id-ID')}k</strong></div>
+            <div className="text-right text-xs text-slate-600 space-y-0.5">
+              <div>Honor: <strong className="text-emerald-700 font-semibold">Rp {(honorSelesai / 1000).toLocaleString('id-ID')}k</strong></div>
+              <div>Transport: <strong className="text-purple-700 font-semibold">Rp {(transportSelesai / 1000).toLocaleString('id-ID')}k</strong></div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* 4 Cards: Symmetrical Honor & Transport Breakdown */}
+      {/* 4 Cards: Symmetrical Honor & Transport Breakdown (Tanpa Ikon Terpotong & Tanpa Text Wrap) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Honor Menunggu */}
         <Card className="bg-white border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-          <CardContent className="p-5 relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
-              <Clock className="w-20 h-20" />
-            </div>
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-amber-50 rounded-md text-amber-600">
+          <CardContent className="p-5 flex flex-col justify-between h-full">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-semibold text-slate-600">Honor Menunggu</span>
+              <div className="p-1.5 bg-amber-50 text-amber-600 rounded-lg">
                 <Clock className="w-4 h-4" />
               </div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Honor Menunggu</p>
             </div>
             <div>
-              <h3 className="text-2xl font-bold text-slate-900 mb-1" title={`Rp ${honorMenunggu.toLocaleString('id-ID')}`}>
+              <h3 className="text-2xl font-bold text-slate-900 mb-1 tracking-tight" title={`Rp ${honorMenunggu.toLocaleString('id-ID')}`}>
                 Rp {(honorMenunggu / 1000).toLocaleString('id-ID')}<span className="text-base font-normal text-slate-500">k</span>
               </h3>
               <p className="text-xs text-amber-600 font-medium">
@@ -183,18 +180,15 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
 
         {/* Card 2: Honor Selesai */}
         <Card className="bg-white border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-          <CardContent className="p-5 relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
-              <Wallet className="w-20 h-20" />
-            </div>
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-emerald-50 rounded-md text-emerald-600">
+          <CardContent className="p-5 flex flex-col justify-between h-full">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-semibold text-slate-600">Honor Selesai</span>
+              <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
                 <Wallet className="w-4 h-4" />
               </div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Honor Selesai</p>
             </div>
             <div>
-              <h3 className="text-2xl font-bold text-slate-900 mb-1" title={`Rp ${honorSelesai.toLocaleString('id-ID')}`}>
+              <h3 className="text-2xl font-bold text-slate-900 mb-1 tracking-tight" title={`Rp ${honorSelesai.toLocaleString('id-ID')}`}>
                 Rp {(honorSelesai / 1000).toLocaleString('id-ID')}<span className="text-base font-normal text-slate-500">k</span>
               </h3>
               <p className="text-xs text-emerald-600 font-medium">Total pencairan lunas</p>
@@ -204,18 +198,15 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
 
         {/* Card 3: Transport Menunggu */}
         <Card className="bg-white border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-          <CardContent className="p-5 relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
-              <Car className="w-20 h-20" />
-            </div>
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-amber-50 rounded-md text-amber-600">
+          <CardContent className="p-5 flex flex-col justify-between h-full">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-semibold text-slate-600">Transport Menunggu</span>
+              <div className="p-1.5 bg-amber-50 text-amber-600 rounded-lg">
                 <Car className="w-4 h-4" />
               </div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Transport Menunggu</p>
             </div>
             <div>
-              <h3 className="text-2xl font-bold text-slate-900 mb-1" title={`Rp ${transportMenunggu.toLocaleString('id-ID')}`}>
+              <h3 className="text-2xl font-bold text-slate-900 mb-1 tracking-tight" title={`Rp ${transportMenunggu.toLocaleString('id-ID')}`}>
                 Rp {(transportMenunggu / 1000).toLocaleString('id-ID')}<span className="text-base font-normal text-slate-500">k</span>
               </h3>
               <p className="text-xs text-amber-600 font-medium">Menunggu verifikasi/cair</p>
@@ -225,18 +216,15 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
 
         {/* Card 4: Transport Selesai */}
         <Card className="bg-white border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-          <CardContent className="p-5 relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
-              <Car className="w-20 h-20" />
-            </div>
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-purple-50 rounded-md text-purple-600">
+          <CardContent className="p-5 flex flex-col justify-between h-full">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-semibold text-slate-600">Transport Selesai</span>
+              <div className="p-1.5 bg-purple-50 text-purple-600 rounded-lg">
                 <Car className="w-4 h-4" />
               </div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Transport Selesai</p>
             </div>
             <div>
-              <h3 className="text-2xl font-bold text-slate-900 mb-1" title={`Rp ${transportSelesai.toLocaleString('id-ID')}`}>
+              <h3 className="text-2xl font-bold text-slate-900 mb-1 tracking-tight" title={`Rp ${transportSelesai.toLocaleString('id-ID')}`}>
                 Rp {(transportSelesai / 1000).toLocaleString('id-ID')}<span className="text-base font-normal text-slate-500">k</span>
               </h3>
               <p className="text-xs text-purple-600 font-medium">Total pencairan lunas</p>
