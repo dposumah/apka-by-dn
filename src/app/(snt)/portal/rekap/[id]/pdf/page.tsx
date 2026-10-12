@@ -1,6 +1,7 @@
-﻿import { prisma } from "@/lib/prisma"
+import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import { PrintButton } from "./print-button"
+import { hitungTotalTransportRekap } from "@/lib/transport"
 
 export default async function RekapPdfPage({ params }: { params: { id: string } }) {
   const rekap = await prisma.rekapHonorarium.findUnique({
@@ -14,6 +15,9 @@ export default async function RekapPdfPage({ params }: { params: { id: string } 
   })
 
   if (!rekap) return notFound()
+
+  const totalTransport = hitungTotalTransportRekap(rekap)
+  const totalKeseluruhan = (rekap.totalHonor || 0) + totalTransport
 
   const formatBulan = (bulan: string) => {
     const [y, m] = bulan.split('-')
@@ -40,6 +44,9 @@ export default async function RekapPdfPage({ params }: { params: { id: string } 
             <p><span className="font-semibold w-32 inline-block">Nama Lengkap</span> : {rekap.fasilitator.namaLengkap}</p>
             <p><span className="font-semibold w-32 inline-block">Lokasi SNT</span> : {rekap.fasilitator.lokasiSNT ? rekap.fasilitator.lokasiSNT.split(' - ')[0] : '-'}</p>
             <p><span className="font-semibold w-32 inline-block">Status</span> : {rekap.fasilitator.statusKepegawaian || '-'}</p>
+            {rekap.fasilitator.bankName && (
+              <p><span className="font-semibold w-32 inline-block">Rekening</span> : {rekap.fasilitator.bankName} - {rekap.fasilitator.bankAccount}</p>
+            )}
           </div>
           <div>
             <p><span className="font-semibold w-32 inline-block">Bulan Laporan</span> : {formatBulan(rekap.bulan)}</p>
@@ -77,8 +84,16 @@ export default async function RekapPdfPage({ params }: { params: { id: string } 
               <td className="border border-black px-3 py-2 text-center">{rekap.totalJP}</td>
             </tr>
             <tr className="font-bold">
-              <td colSpan={5} className="border border-black px-3 py-2 text-right">TOTAL HONORARIUM (JP x Rp 65.000)</td>
+              <td colSpan={5} className="border border-black px-3 py-2 text-right">SUBTOTAL HONORARIUM</td>
               <td className="border border-black px-3 py-2 text-right whitespace-nowrap">Rp {rekap.totalHonor.toLocaleString('id-ID')}</td>
+            </tr>
+            <tr className="font-bold">
+              <td colSpan={5} className="border border-black px-3 py-2 text-right">BANTUAN BIAYA TRANSPORTASI</td>
+              <td className="border border-black px-3 py-2 text-right whitespace-nowrap">Rp {totalTransport.toLocaleString('id-ID')}</td>
+            </tr>
+            <tr className="font-bold bg-slate-50">
+              <td colSpan={5} className="border border-black px-3 py-2 text-right">TOTAL PEMBAYARAN DITERIMA</td>
+              <td className="border border-black px-3 py-2 text-right whitespace-nowrap font-bold">Rp {totalKeseluruhan.toLocaleString('id-ID')}</td>
             </tr>
           </tfoot>
         </table>

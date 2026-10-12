@@ -1,4 +1,4 @@
-﻿import { getServerSession } from "next-auth"
+import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { redirect } from "next/navigation"
@@ -25,7 +25,8 @@ export default async function PortalRekapPage() {
     where: { fasilitatorId: fasilitator.id },
     orderBy: { bulan: 'desc' },
     include: {
-      laporan: true
+      laporan: true,
+      fasilitator: true
     }
   })
   
