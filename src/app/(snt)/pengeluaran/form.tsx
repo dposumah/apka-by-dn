@@ -53,7 +53,7 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
         receiptUrl = await uploadFileClient(file, 'receipts')
       }
 
-      const expense = await submitExpense({
+      const res: any = await submitExpense({
         rabItemId: selectedItemId,
         amount,
         description,
@@ -62,6 +62,13 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
         fasilitatorId: isHonorarium ? selectedFasilitatorId : undefined,
         date: expenseDate
       })
+
+      if (res?.error) {
+        toast({ title: 'Gagal', description: res.error, type: 'error' })
+        return
+      }
+
+      const expense = res?.expense || res
       toast({ title: 'Berhasil', description: 'Pengeluaran berhasil ditambahkan.', type: 'success' })
       formElement.reset()
       setSelectedItemId('')

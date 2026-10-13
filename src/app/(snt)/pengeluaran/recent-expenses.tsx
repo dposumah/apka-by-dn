@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/format'
 import { updateExpense, deleteExpense } from '@/app/actions/rab'
-import { Pencil, Trash2, ExternalLink, Loader2 } from 'lucide-react'
+import { Pencil, Trash2, ExternalLink, Loader2, Calendar, Paperclip } from 'lucide-react'
 import { uploadFileClient } from '@/lib/upload-client'
 
 interface RecentExpensesProps {
@@ -144,8 +144,9 @@ export function RecentExpensesList({ expenses, items, fasilitators }: RecentExpe
                       )}
 
                       <div className="flex items-center gap-3 mt-2 text-xs text-slate-400">
-                        <span>
-                          ðŸ“… {new Date(expense.date || expense.createdAt).toLocaleDateString('id-ID', {
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                          {new Date(expense.date || expense.createdAt).toLocaleDateString('id-ID', {
                             day: 'numeric',
                             month: 'short',
                             year: 'numeric'
@@ -159,7 +160,7 @@ export function RecentExpensesList({ expenses, items, fasilitators }: RecentExpe
                             rel="noreferrer" 
                             className="text-blue-600 hover:underline flex items-center gap-1 font-medium"
                           >
-                            ðŸ“Ž Nota <ExternalLink className="w-3 h-3" />
+                            <Paperclip className="w-3.5 h-3.5" /> Nota <ExternalLink className="w-3 h-3" />
                           </a>
                         )}
                       </div>

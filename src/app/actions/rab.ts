@@ -105,44 +105,57 @@ export async function approveExpense(expenseId: string, status: 'APPROVED' | 'RE
   revalidatePath('/dashboard-rab')
 }
 
-export async function submitExpense(data: { rabItemId: string, amount: number, description: string, receiptUrl?: string, userId: string, fasilitatorId?: string, date?: string }) {
-  const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN']);
-  if (authError) throw new Error(authError);
+export async function submitExpense(data: {
+  rabItemId: string;
+  amount: number;
+  description: string;
+  receiptUrl?: string;
+  userId?: string;
+  fasilitatorId?: string;
+  date?: string;
+}) {
+  const { error: authError, session } = await checkAuth(['ADMIN', 'SUPER_ADMIN', 'ACCOUNTANT', 'KORWIL']);
+  if (authError) return { error: authError };
   /* submitExpense_auth */
-  let user = await prisma.user.findFirst()
-  
-  if (!user) {
-    user = await prisma.user.create({
-      data: {
-        email: 'demo@korwil.com',
-        password: 'hash',
-        name: 'Demo Korwil',
-        role: 'KORWIL'
-      }
-    })
-  }
-
-  const expense = await prisma.expenseRequest.create({
-    data: {
-      rabItemId: data.rabItemId,
-      amount: data.amount,
-      description: data.description,
-      receiptUrl: data.receiptUrl,
-      createdById: user.id,
-      fasilitatorId: data.fasilitatorId || null,
-      status: 'APPROVED'
-    },
-    include: {
-      rabItem: true,
-      fasilitator: true
+  try {
+    let createdById = session?.user?.id;
+    if (!createdById) {
+      const user = await prisma.user.findFirst();
+      createdById = user?.id;
     }
-  })
-  revalidatePath('/dashboard-rab')
-  revalidatePath('/pengeluaran')
-  return expense
+
+    if (!createdById) {
+      return { error: 'User tidak ditemukan' };
+    }
+
+    const expense = await prisma.expenseRequest.create({
+      data: {
+        rabItemId: data.rabItemId,
+        amount: data.amount,
+        description: data.description,
+        receiptUrl: data.receiptUrl || null,
+        createdById,
+        fasilitatorId: data.fasilitatorId || null,
+        status: 'APPROVED',
+        date: data.date ? new Date(data.date) : new Date()
+      },
+      include: {
+        rabItem: true,
+        fasilitator: true
+      }
+    });
+
+    revalidatePath('/dashboard-rab');
+    revalidatePath('/pengeluaran');
+    revalidatePath('/laporan-pengeluaran');
+    return { ...expense, success: true, expense };
+  } catch (err: any) {
+    console.error('Error in submitExpense:', err);
+    return { error: err.message || 'Gagal menyimpan pengeluaran' };
+  }
 }
 export async function getFasilitators() {
-  const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN', 'KORWIL']);
+  const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN', 'ACCOUNTANT', 'KORWIL']);
   if (authError) return [];
   /* getFasilitators_auth */
   return await prisma.fasilitator.findMany({
@@ -606,12 +619,18 @@ export async function updateLaporanKegiatan(laporanId: string, data: {
 
 
 export async function deleteExpense(id: string) {
-  const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN']);
-  if (authError) return undefined;
+  const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN', 'ACCOUNTANT', 'KORWIL']);
+  if (authError) return { error: authError };
   /* deleteExpense_auth */
-  await prisma.expenseRequest.delete({ where: { id } })
-  revalidatePath('/dashboard-rab')
-  revalidatePath('/pengeluaran')
+  try {
+    await prisma.expenseRequest.delete({ where: { id } });
+    revalidatePath('/dashboard-rab');
+    revalidatePath('/pengeluaran');
+    revalidatePath('/laporan-pengeluaran');
+    return { success: true };
+  } catch (err: any) {
+    return { error: err.message || 'Gagal menghapus pengeluaran' };
+  }
 }
 
 export async function uploadLaporanFisik(laporanId: string, fileUrl: string) {
