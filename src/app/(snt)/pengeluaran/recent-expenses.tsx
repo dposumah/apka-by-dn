@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/format'
 import { updateExpense, deleteExpense } from '@/app/actions/rab'
 import { Pencil, Trash2, ExternalLink, Loader2 } from 'lucide-react'
+import { uploadFileClient } from '@/lib/upload-client'
 
 interface RecentExpensesProps {
   expenses: any[]
@@ -55,17 +56,7 @@ export function RecentExpensesList({ expenses, items, fasilitators }: RecentExpe
 
       // Jika ada file baru diunggah
       if (newFile) {
-        const uploadData = new FormData()
-        uploadData.append('file', newFile)
-        const uploadRes = await fetch('/api/upload', {
-          method: 'POST',
-          body: uploadData,
-        })
-        if (!uploadRes.ok) {
-          throw new Error('Gagal mengunggah bukti nota baru')
-        }
-        const json = await uploadRes.json()
-        receiptUrl = json.url
+        receiptUrl = await uploadFileClient(newFile, 'receipts')
       }
 
       const res = await updateExpense(editData.id, {
@@ -154,7 +145,7 @@ export function RecentExpensesList({ expenses, items, fasilitators }: RecentExpe
 
                       <div className="flex items-center gap-3 mt-2 text-xs text-slate-400">
                         <span>
-                          📅 {new Date(expense.date || expense.createdAt).toLocaleDateString('id-ID', {
+                          ðŸ“… {new Date(expense.date || expense.createdAt).toLocaleDateString('id-ID', {
                             day: 'numeric',
                             month: 'short',
                             year: 'numeric'
@@ -168,7 +159,7 @@ export function RecentExpensesList({ expenses, items, fasilitators }: RecentExpe
                             rel="noreferrer" 
                             className="text-blue-600 hover:underline flex items-center gap-1 font-medium"
                           >
-                            📎 Nota <ExternalLink className="w-3 h-3" />
+                            ðŸ“Ž Nota <ExternalLink className="w-3 h-3" />
                           </a>
                         )}
                       </div>

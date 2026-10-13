@@ -12,6 +12,7 @@ import { CheckCircle2, FileText, Printer, Upload, Eye, Wallet, Car } from 'lucid
 import { useModal } from '@/components/modal-provider'
 import { hitungTotalTransportRekap } from '@/lib/transport'
 import { FilePreviewModal } from '@/components/shared/FilePreviewModal'
+import { uploadFileClient } from '@/lib/upload-client'
 
 export function RekapClientPage({ fasilitator, availableMonths, rekaps }: { fasilitator: any, availableMonths: any[], rekaps: any[] }) {
   const { alert } = useModal();
@@ -49,16 +50,8 @@ export function RekapClientPage({ fasilitator, availableMonths, rekaps }: { fasi
 
     setUploadingId(rekapId)
     try {
-      const uploadData = new FormData()
-      uploadData.append('file', file)
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: uploadData
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-
-      await submitRekapBulanan(rekapId, data.url)
+      const url = await uploadFileClient(file, 'rekap-ttd')
+      await submitRekapBulanan(rekapId, url)
       await alert('Berhasil mengirim tagihan honorarium!')
       router.refresh()
     } catch (e: any) {

@@ -15,6 +15,7 @@ import { useModal } from '@/components/modal-provider';
 
 import { getFasilitatorJpForMonth, syncLaporanToRekap } from '@/app/actions/rekap'
 import { FilePreviewModal } from '@/components/shared/FilePreviewModal'
+import { uploadFileClient } from '@/lib/upload-client'
 
 export function RekapHonorClient({ initialData, fasilitators = [] }: { initialData: any[], fasilitators?: any[] }) {
   const { confirm, alert } = useModal();
@@ -679,14 +680,10 @@ Atas Nama: ${namaLengkap}`;
                     let urlHonor;
                     let urlTransport;
                     if (honorFile) {
-                      const data = new FormData(); data.append('file', honorFile);
-                      const res = await fetch('/api/upload', { method: 'POST', body: data });
-                      if (res.ok) { const json = await res.json(); urlHonor = json.url; } else throw new Error("Gagal upload bukti honor");
+                      urlHonor = await uploadFileClient(honorFile, 'receipts');
                     }
                     if (transportFile) {
-                      const data = new FormData(); data.append('file', transportFile);
-                      const res = await fetch('/api/upload', { method: 'POST', body: data });
-                      if (res.ok) { const json = await res.json(); urlTransport = json.url; } else throw new Error("Gagal upload bukti transport");
+                      urlTransport = await uploadFileClient(transportFile, 'receipts');
                     }
                     
                     const result = await uploadBuktiRekap(uploadingRekap.id, urlHonor, urlTransport);

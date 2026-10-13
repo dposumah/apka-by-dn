@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { formatCurrency, terbilangRupiah } from '@/lib/format'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { uploadFileClient } from '@/lib/upload-client'
 
 export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilitators: any[] }) {
   const { toast } = useToast();
@@ -49,21 +50,7 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
       let receiptUrl = ''
 
       if (file) {
-        const uploadData = new FormData()
-        uploadData.append('file', file)
-        
-        const uploadRes = await fetch('/api/upload', {
-          method: 'POST',
-          body: uploadData,
-        })
-        
-        if (!uploadRes.ok) {
-          const err = await uploadRes.json()
-          throw new Error(err.error || 'Gagal mengunggah gambar')
-        }
-        
-        const uploadResult = await uploadRes.json()
-        receiptUrl = uploadResult.url
+        receiptUrl = await uploadFileClient(file, 'receipts')
       }
 
       const expense = await submitExpense({
@@ -339,7 +326,7 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
                 className="absolute right-4 top-4 text-gray-500 hover:text-gray-700"
                 type="button"
               >
-                ✕
+                âœ•
               </button>
               <CardTitle className="text-green-800 text-lg flex items-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { approveExpense } from '@/app/actions/rab'
 import { Upload } from 'lucide-react'
 import { useModal } from '@/components/modal-provider';
+import { uploadFileClient } from '@/lib/upload-client';
 
 export function ApproveButton({ expenseId }: { expenseId: string }) {
   const { confirm, alert } = useModal();
@@ -21,18 +22,10 @@ export function ApproveButton({ expenseId }: { expenseId: string }) {
 
     setProcessing(true)
     try {
-      const uploadData = new FormData()
-      uploadData.append('file', file)
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: uploadData
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-
-      await approveExpense(expenseId, 'APPROVED', data.url)
+      const url = await uploadFileClient(file, 'transfer-rab')
+      await approveExpense(expenseId, 'APPROVED', url)
     } catch (e: any) {
-      await alert('Gagal mengunggah bukti transfer: ' + e.message)
+      await alert('Gagal mengunggah bukti transfer: ' + (e.message || ''))
     } finally {
       setProcessing(false)
     }

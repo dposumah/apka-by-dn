@@ -1,9 +1,10 @@
-﻿"use client"
+"use client"
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { uploadLaporanFisik } from '@/app/actions/rab'
 import { useModal } from '@/components/modal-provider';
+import { uploadFileClient } from '@/lib/upload-client';
 
 export function UploadLaporanFisikButton({ laporanId }: { laporanId: string }) {
   const { confirm, alert } = useModal();
@@ -12,30 +13,18 @@ export function UploadLaporanFisikButton({ laporanId }: { laporanId: string }) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const uploadFile = async (file: File) => {
-    const uploadData = new FormData()
-    uploadData.append('file', file)
-    const res = await fetch('/api/upload', {
-      method: 'POST',
-      body: uploadData
-    })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Gagal unggah')
-    return data.url
-  }
-
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    if (file.size > 2 * 1024 * 1024) {
-      await alert('Ukuran file maksimal 2 MB')
+    if (file.size > 20 * 1024 * 1024) {
+      await alert('Ukuran file maksimal 20 MB')
       return
     }
 
     setUploading(true)
     try {
-      const url = await uploadFile(file)
+      const url = await uploadFileClient(file, 'laporan-fisik')
       await uploadLaporanFisik(laporanId, url)
       await alert('Laporan Fisik berhasil diunggah')
       router.refresh()

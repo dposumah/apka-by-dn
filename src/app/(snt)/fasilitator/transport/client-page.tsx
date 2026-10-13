@@ -1,10 +1,11 @@
-﻿"use client"
+"use client"
 
 import { useState } from 'react'
 import { markTransportPaid } from '@/app/actions/rekap'
 import { CheckCircle2, Upload } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useModal } from '@/components/modal-provider';
+import { uploadFileClient } from '@/lib/upload-client';
 
 export function TransportClient({ initialData }: { initialData: any[] }) {
   const { confirm, alert } = useModal();
@@ -23,19 +24,11 @@ export function TransportClient({ initialData }: { initialData: any[] }) {
     
     setProcessingId(id)
     try {
-      const uploadData = new FormData()
-      uploadData.append('file', file)
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: uploadData
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-
-      await markTransportPaid(id, data.url)
+      const url = await uploadFileClient(file, 'transfer-transport')
+      await markTransportPaid(id, url)
       router.refresh()
     } catch (e: any) {
-      await alert('Gagal mengupdate data atau mengunggah bukti transfer')
+      await alert('Gagal mengupdate data atau mengunggah bukti transfer: ' + (e.message || ''))
     } finally {
       setProcessingId(null)
     }

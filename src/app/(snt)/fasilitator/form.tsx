@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useModal } from '@/components/modal-provider';
+import { uploadFileClient } from '@/lib/upload-client';
 
 const PANGKAT_GOLONGAN = [
   'I/a (Juru Muda)', 'I/b (Juru Muda Tingkat I)', 'I/c (Juru)', 'I/d (Juru Tingkat I)',
@@ -40,21 +41,14 @@ export function FasilitatorForm({ initialData }: { initialData?: any }) {
   const handleKtpUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > 2 * 1024 * 1024) {
-      alert('Ukuran file maksimal 2 MB')
+    if (file.size > 20 * 1024 * 1024) {
+      alert('Ukuran file maksimal 20 MB')
       return
     }
     setUploadingKtp(true)
     try {
-      const uploadData = new FormData()
-      uploadData.append('file', file)
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: uploadData
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Gagal unggah KTP')
-      setKtpUrl(data.url)
+      const url = await uploadFileClient(file, 'ktp')
+      setKtpUrl(url)
     } catch (err: any) {
       await alert(err.message || 'Terjadi kesalahan saat unggah KTP')
     } finally {

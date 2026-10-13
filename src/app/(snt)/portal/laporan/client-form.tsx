@@ -11,6 +11,7 @@ import { submitLaporanKegiatan } from '@/app/actions/rab'
 import { useToast } from '@/components/ui/toast'
 import { useRouter } from 'next/navigation'
 import { hitungBatasWajarTransport } from '@/lib/transport'
+import { uploadFileClient } from '@/lib/upload-client'
 
 export function LaporanClientForm({ 
   fasilitatorId, 
@@ -36,9 +37,11 @@ export function LaporanClientForm({
   const [foto1, setFoto1] = useState('')
   const [foto2, setFoto2] = useState('')
   const [fileLaporanFisik, setFileLaporanFisik] = useState('')
-  const [buktiDarat, setBuktiDarat] = useState<File | null>(null)
-  const [tiket, setTiket] = useState<File | null>(null)
-  const [uploading, setUploading] = useState(false)
+  const [buktiDaratUrl, setBuktiDaratUrl] = useState('')
+  const [buktiDaratName, setBuktiDaratName] = useState('')
+  const [tiketUrl, setTiketUrl] = useState('')
+  const [tiketName, setTiketName] = useState('')
+  const [uploadingField, setUploadingField] = useState<string | null>(null)
 
   // Hitung batas wajar rumus jarak (minimal besaranTransport / 120.000)
   const batasWajarDarat = hitungBatasWajarTransport({ besaranTransport, jarakPPKm }, hargaPertamax)
@@ -59,46 +62,46 @@ export function LaporanClientForm({
     biayaTransportLaut: '',
   })
 
-  const uploadFile = async (file: File) => {
-    const uploadData = new FormData()
-    uploadData.append('file', file)
-    const res = await fetch('/api/upload', {
-      method: 'POST',
-      body: uploadData
-    })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Gagal unggah')
-    return data.url
-  }
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, field: 'foto1' | 'foto2' | 'fileLaporanFisik') => {
+  const handleFileChange = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    field: 'foto1' | 'foto2' | 'fileLaporanFisik' | 'buktiTransportDarat' | 'buktiTiketTransport'
+  ) => {
     const file = e.target.files?.[0]
     setFileError('')
     
     if (!file) return
-    
-    if (field === 'fileLaporanFisik' && file.size > 2 * 1024 * 1024) {
-      setFileError('Ukuran file laporan fisik maksimal 2MB')
-      e.target.value = ''
-      return
-    }
-    
-    if (field !== 'fileLaporanFisik' && file.size > 5 * 1024 * 1024) {
-      setFileError('Ukuran foto maksimal 5MB')
+
+    if (field === 'fileLaporanFisik' && file.size > 10 * 1024 * 1024) {
+      setFileError('Ukuran file laporan fisik maksimal 10MB')
       e.target.value = ''
       return
     }
 
-    setUploading(true)
+    if (file.size > 25 * 1024 * 1024) {
+      setFileError(`Ukuran file "${file.name}" terlalu besar (maksimal 25MB)`)
+      e.target.value = ''
+      return
+    }
+
+    setUploadingField(field)
     try {
-      const url = await uploadFile(file)
+      const url = await uploadFileClient(file)
       if (field === 'foto1') setFoto1(url)
       if (field === 'foto2') setFoto2(url)
       if (field === 'fileLaporanFisik') setFileLaporanFisik(url)
+      if (field === 'buktiTransportDarat') {
+        setBuktiDaratUrl(url)
+        setBuktiDaratName(file.name)
+      }
+      if (field === 'buktiTiketTransport') {
+        setTiketUrl(url)
+        setTiketName(file.name)
+      }
     } catch (error: any) {
-      setFileError(error.message || 'Gagal terhubung ke server unggahan')
+      setFileError(error.message || 'Gagal mengunggah file. Pastikan koneksi internet stabil.')
+      e.target.value = ''
     } finally {
-      setUploading(false)
+      setUploadingField(null)
     }
   }
 
@@ -115,28 +118,19 @@ export function LaporanClientForm({
     const isDaratWajib = formData.metodePelaksanaan === 'LURING' && nominalDarat > batasWajarDarat
     
     // Transport darat: upload nota wajib jika melebihi batas rumus jarak
-    if (isDaratWajib && !buktiDarat) {
+    if (isDaratWajib && !buktiDaratUrl) {
       setFileError(`Bukti Transport Darat (nota/kwitansi) wajib diunggah karena nominal klaim (Rp ${nominalDarat.toLocaleString('id-ID')}) melebihi batas wajar rumus jarak (Rp ${batasWajarDarat.toLocaleString('id-ID')}).`)
       return
     }
 
     // Transport antar pulau: upload selalu wajib
-    if (parseFloat(formData.biayaTransportLaut) > 0 && !tiket) {
+    if (parseFloat(formData.biayaTransportLaut) > 0 && !tiketUrl) {
       setFileError('Bukti Tiket Transport Antar Pulau wajib diunggah.')
       return
     }
     
     setSaving(true)
     try {
-      let daratUrl = null;
-      if (buktiDarat) {
-        daratUrl = await uploadFile(buktiDarat);
-      }
-      let tiketUrl = null;
-      if (tiket) {
-        tiketUrl = await uploadFile(tiket);
-      }
-
       const jamNum = parseInt(formData.jumlahJam) || 0
       const res = await submitLaporanKegiatan(fasilitatorId, {
         date: formData.date,
@@ -153,8 +147,8 @@ export function LaporanClientForm({
         foto1,
         foto2,
         fileLaporanFisik,
-        buktiTransportDarat: daratUrl,
-        buktiTiketTransport: tiketUrl
+        buktiTransportDarat: buktiDaratUrl || null,
+        buktiTiketTransport: tiketUrl || null
       });
 
       if (res && res.error) {
@@ -329,7 +323,18 @@ export function LaporanClientForm({
                     <span className="text-emerald-600 font-medium">(Opsional — sesuai batas wajar)</span>
                   )}
                 </Label>
-                <Input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => e.target.files && setBuktiDarat(e.target.files[0])} />
+                <Input 
+                  type="file" 
+                  accept=".pdf,.jpg,.jpeg,.png" 
+                  onChange={e => handleFileChange(e, 'buktiTransportDarat')} 
+                  disabled={uploadingField === 'buktiTransportDarat'}
+                />
+                {uploadingField === 'buktiTransportDarat' && (
+                  <p className="text-xs text-blue-600 animate-pulse font-medium">Sedang mengunggah bukti transport darat...</p>
+                )}
+                {buktiDaratUrl && !uploadingField && (
+                  <p className="text-xs text-emerald-600 font-medium">✓ Bukti transport darat terlampir: {buktiDaratName}</p>
+                )}
                 <p className={`text-xs ${isDaratWajib ? 'text-red-600 font-medium' : 'text-emerald-600'}`}>
                   {isDaratWajib 
                     ? `⚠️ Nominal Rp ${nominalDaratCurrent.toLocaleString('id-ID')} melebihi batas wajar rumus jarak (Rp ${batasWajarDarat.toLocaleString('id-ID')}). Anda wajib melampirkan foto struk/nota BBM atau kwitansi transport.`
@@ -343,7 +348,18 @@ export function LaporanClientForm({
             {formData.metodePelaksanaan === 'LURING' && parseFloat(formData.biayaTransportLaut) > 0 && (
               <div className="space-y-2 col-span-2 border border-blue-100 bg-blue-50 p-4 rounded-md mt-2">
                 <Label>Bukti Tiket Transport Antar Pulau <span className="text-red-600 font-bold">(Wajib)</span></Label>
-                <Input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => e.target.files && setTiket(e.target.files[0])} />
+                <Input 
+                  type="file" 
+                  accept=".pdf,.jpg,.jpeg,.png" 
+                  onChange={e => handleFileChange(e, 'buktiTiketTransport')} 
+                  disabled={uploadingField === 'buktiTiketTransport'}
+                />
+                {uploadingField === 'buktiTiketTransport' && (
+                  <p className="text-xs text-blue-600 animate-pulse font-medium">Sedang mengunggah tiket antar pulau...</p>
+                )}
+                {tiketUrl && !uploadingField && (
+                  <p className="text-xs text-emerald-600 font-medium">✓ Bukti tiket antar pulau terlampir: {tiketName}</p>
+                )}
                 <p className="text-xs text-blue-600">Unggah foto/scan tiket atau bukti pembayaran transport antar pulau. Wajib untuk semua nominal.</p>
               </div>
             )}
@@ -356,36 +372,63 @@ export function LaporanClientForm({
                   Download Template
                 </a>
               </div>
-              <Input type="file" onChange={(e) => handleFileChange(e, 'fileLaporanFisik')} accept=".pdf" />
-              {fileLaporanFisik && <p className="text-xs text-emerald-600">Laporan fisik terlampir.</p>}
-              <p className="text-xs text-slate-500">Silakan unduh template, isi, tanda tangani, simpan sebagai PDF, lalu unggah kembali di sini (Maksimal 2 MB). Jika belum selesai, Anda dapat melewati ini dan mengunggahnya nanti.</p>
+              <Input 
+                type="file" 
+                onChange={(e) => handleFileChange(e, 'fileLaporanFisik')} 
+                accept=".pdf" 
+                disabled={uploadingField === 'fileLaporanFisik'}
+              />
+              {uploadingField === 'fileLaporanFisik' && (
+                <p className="text-xs text-blue-600 animate-pulse font-medium">Sedang mengunggah laporan fisik...</p>
+              )}
+              {fileLaporanFisik && !uploadingField && <p className="text-xs text-emerald-600">✓ Laporan fisik terlampir.</p>}
+              <p className="text-xs text-slate-500">Silakan unduh template, isi, tanda tangani, simpan sebagai PDF, lalu unggah kembali di sini (Maksimal 10 MB). Jika belum selesai, Anda dapat melewati ini dan mengunggahnya nanti.</p>
             </div>
 
             {/* Lampiran Foto Kegiatan */}
             <div className="space-y-4 border-t pt-4 mt-2">
               <Label>Lampiran Bukti (Foto Kegiatan)</Label>
-              <p className="text-xs text-slate-500">Maksimal 2 foto (jpg/png/jpeg), ukuran per file max 5 MB.</p>
+              <p className="text-xs text-slate-500">Maksimal 2 foto (jpg/png/jpeg), ukuran per file max 20 MB (akan dikompres otomatis oleh sistem).</p>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm text-slate-600">Foto Kegiatan 1 *</Label>
-                  <Input type="file" onChange={(e) => handleFileChange(e, 'foto1')} accept=".jpg,.jpeg,.png" />
-                  {foto1 && <p className="text-xs text-emerald-600">Foto 1 terlampir.</p>}
+                  <Input 
+                    type="file" 
+                    onChange={(e) => handleFileChange(e, 'foto1')} 
+                    accept=".jpg,.jpeg,.png" 
+                    disabled={uploadingField === 'foto1'}
+                  />
+                  {uploadingField === 'foto1' && (
+                    <p className="text-xs text-blue-600 animate-pulse font-medium">Sedang mengunggah & mengompres foto 1...</p>
+                  )}
+                  {foto1 && !uploadingField && <p className="text-xs text-emerald-600 font-medium">✓ Foto 1 terlampir.</p>}
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm text-slate-600">Foto Kegiatan 2 (Opsional)</Label>
-                  <Input type="file" onChange={(e) => handleFileChange(e, 'foto2')} accept=".jpg,.jpeg,.png" />
-                  {foto2 && <p className="text-xs text-emerald-600">Foto 2 terlampir.</p>}
+                  <Input 
+                    type="file" 
+                    onChange={(e) => handleFileChange(e, 'foto2')} 
+                    accept=".jpg,.jpeg,.png" 
+                    disabled={uploadingField === 'foto2'}
+                  />
+                  {uploadingField === 'foto2' && (
+                    <p className="text-xs text-blue-600 animate-pulse font-medium">Sedang mengunggah & mengompres foto 2...</p>
+                  )}
+                  {foto2 && !uploadingField && <p className="text-xs text-emerald-600 font-medium">✓ Foto 2 terlampir.</p>}
                 </div>
               </div>
               
-              {uploading && <p className="text-xs text-blue-600">Mengunggah file...</p>}
-              {fileError && <p className="text-xs text-red-600">{fileError}</p>}
+              {fileError && <p className="text-xs text-red-600 font-medium bg-red-50 p-2.5 rounded border border-red-200">{fileError}</p>}
             </div>
             
             <div className="pt-4 flex justify-end">
-              <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white w-full md:w-auto" disabled={saving || uploading}>
-                {saving ? 'Menyimpan...' : 'Kirim Laporan'}
+              <Button 
+                type="submit" 
+                className="bg-emerald-600 hover:bg-emerald-700 text-white w-full md:w-auto" 
+                disabled={saving || !!uploadingField}
+              >
+                {saving ? 'Menyimpan...' : uploadingField ? 'Sedang Mengunggah...' : 'Kirim Laporan'}
               </Button>
             </div>
           </form>

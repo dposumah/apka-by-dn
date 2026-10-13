@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Zap, UploadCloud, CheckCircle2, FileText, ArrowDownRight, ArrowUpRight } from 'lucide-react';
 import { parseRupiah, formatCurrency } from '@/lib/format';
 import { CurrencyInput } from '@/components/shared/CurrencyInput';
+import { uploadFileClient } from '@/lib/upload-client';
 
 type Account = { id: string; code: string; name: string; type: string };
 
@@ -64,23 +65,13 @@ export default function KasCepatPage() {
     if (!file) return null;
     
     setUploading(true);
-    const formData = new FormData();
-    formData.append('file', file);
-
     try {
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await res.json();
-      
-      if (!res.ok) throw new Error(data.error || 'Gagal upload file');
-      
-      return data.url;
+      const url = await uploadFileClient(file, 'receipts');
+      return url;
     } catch (error: any) {
       toast({
         title: "Upload Gagal",
-        description: error.message || "Periksa konfigurasi Supabase Anda",
+        description: error.message || "Gagal mengunggah file",
         type: "error"
       });
       return null;

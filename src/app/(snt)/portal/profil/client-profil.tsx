@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { updateFasilitatorProfile } from '@/app/actions/rab'
+import { uploadFileClient } from '@/lib/upload-client'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useModal } from '@/components/modal-provider';
 
@@ -66,23 +67,15 @@ export function ProfilClient({ fasilitator }: { fasilitator: any }) {
     const file = e.target.files?.[0]
     if (!file) return
 
-    if (file.size > 2 * 1024 * 1024) {
-      alert('Ukuran file maksimal 2 MB')
+    if (file.size > 20 * 1024 * 1024) {
+      alert('Ukuran file maksimal 20 MB')
       return
     }
 
     setUploadingKtp(true)
     try {
-      const uploadData = new FormData()
-      uploadData.append('file', file)
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: uploadData
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Gagal unggah KTP')
-      
-      setFormData(prev => ({ ...prev, ktpUrl: data.url }))
+      const url = await uploadFileClient(file, 'ktp')
+      setFormData(prev => ({ ...prev, ktpUrl: url }))
     } catch (err: any) {
       alert(err.message || 'Terjadi kesalahan saat unggah KTP')
     } finally {
