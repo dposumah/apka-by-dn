@@ -1,6 +1,6 @@
 "use client"
 
-import { Edit } from 'lucide-react'
+import { Edit, Printer, Copy, Trash2, Link as LinkIcon, FileText } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -486,135 +486,250 @@ Atas Nama: ${namaLengkap}`;
         {filterLokasi && <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-medium">Lokasi: {filterLokasi}</span>}
       </div>
 
-      <Card>
+      <Card className="border-slate-200 shadow-sm overflow-hidden">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50 border-b">
+            <table className="w-full text-sm text-left border-collapse">
+              <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700 uppercase tracking-wider">
                 <tr>
-                  <th className="py-3 px-4 cursor-pointer hover:bg-slate-100" onClick={() => handleSort("nama")}>Fasilitator & Lokasi {sortField==="nama" ? (sortOrder==="asc"?"↑":"↓") : ""}</th>
-                  <th className="py-3 px-4 cursor-pointer hover:bg-slate-100" onClick={() => handleSort("bulan")}>Bulan {sortField==="bulan" ? (sortOrder==="asc"?"↑":"↓") : ""}</th>
-                  <th className="py-3 px-4 text-center">Total JP</th>
-                  <th className="py-3 px-4 text-right">Total Honor</th>
-                  <th className="py-3 px-4 text-center">Status</th>
-                  <th className="py-3 px-4 text-right">Total Transport</th>
-                  <th className="py-3 px-4 text-center">Bukti Bayar</th>
-                  <th className="py-3 px-4 text-center">Dokumen PDF</th>
-                  <th className="py-3 px-4 text-right">Aksi</th>
+                  <th className="py-3.5 px-4 cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort("nama")}>
+                    <div className="flex items-center gap-1.5">
+                      <span>Fasilitator</span>
+                      <span className="text-slate-400 font-normal">{sortField === "nama" ? (sortOrder === "asc" ? "↑" : "↓") : "↕"}</span>
+                    </div>
+                  </th>
+                  <th className="py-3.5 px-4 cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort("lokasi")}>
+                    <div className="flex items-center gap-1.5">
+                      <span>Lokasi SNT</span>
+                      <span className="text-slate-400 font-normal">{sortField === "lokasi" ? (sortOrder === "asc" ? "↑" : "↓") : "↕"}</span>
+                    </div>
+                  </th>
+                  <th className="py-3.5 px-4 cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort("bulan")}>
+                    <div className="flex items-center gap-1.5">
+                      <span>Bulan</span>
+                      <span className="text-slate-400 font-normal">{sortField === "bulan" ? (sortOrder === "asc" ? "↑" : "↓") : "↕"}</span>
+                    </div>
+                  </th>
+                  <th className="py-3.5 px-4 text-center whitespace-nowrap">Total JP</th>
+                  <th className="py-3.5 px-4 text-right whitespace-nowrap">Total Honor</th>
+                  <th className="py-3.5 px-4 text-center whitespace-nowrap">Status</th>
+                  <th className="py-3.5 px-4 text-right whitespace-nowrap">Total Transport</th>
+                  <th className="py-3.5 px-4 text-center whitespace-nowrap">Bukti Bayar</th>
+                  <th className="py-3.5 px-4 text-center whitespace-nowrap">Dokumen PDF</th>
+                  <th className="py-3.5 px-4 text-center whitespace-nowrap w-40">Aksi</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
-                {sortedData.map((rekap) => (
-                  <tr key={rekap.id} className="hover:bg-slate-50">
-                    <td className="py-3 px-4">
-                        <div className="font-medium text-slate-900">{rekap.fasilitator.namaLengkap}</div>
-                        <div className="text-xs text-slate-500 uppercase">{rekap.fasilitator.lokasiSNT || '-'}</div>
-                      </td>
-                    <td className="py-3 px-4">{rekap.bulan}</td>
-                    <td className="py-3 px-4 text-center">{rekap.totalJP}</td>
-                    <td className="py-3 px-4 text-right font-medium">{formatCurrency(rekap.totalHonor)}</td>
-                    <td className="py-3 px-4 text-center">
-                      <Badge variant={rekap.status === 'SUBMITTED' ? 'default' : 'secondary'}>{rekap.status}</Badge>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <span className="font-medium text-slate-900">{formatCurrency(hitungTotalTransportRekap(rekap))}</span>
-                        <button 
-                          type="button"
-                          onClick={() => openEditTransportModal(rekap)}
-                          className="p-1 hover:bg-amber-100 bg-amber-50 text-amber-700 border border-amber-200 rounded transition-colors"
-                          title="Edit Biaya Transport"
-                        >
-                          <Edit className="w-3 h-3" />
-                        </button>
-                      </div>
-                      {rekap.totalTransport !== null && rekap.totalTransport !== undefined && (
-                        <span className="text-[10px] text-amber-600 font-medium block">Disesuaikan Admin</span>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <div className="flex flex-col items-center gap-1">
-                        {rekap.buktiPembayaranHonor ? (
-                          <button 
-                            type="button"
-                            onClick={() => setPreviewModal({
-                              isOpen: true,
-                              title: `Bukti Transfer Honor - ${rekap.fasilitator?.namaLengkap || 'Fasilitator'} (${rekap.bulan})`,
-                              url: rekap.buktiPembayaranHonor
-                            })}
-                            className="text-xs text-green-700 hover:text-green-900 font-medium hover:underline inline-flex items-center gap-1 cursor-pointer"
-                          >
-                            ✓ Honor
-                          </button>
-                        ) : null}
-                        {rekap.buktiPembayaranTransport ? (
-                          <button 
-                            type="button"
-                            onClick={() => setPreviewModal({
-                              isOpen: true,
-                              title: `Bukti Transfer Transport - ${rekap.fasilitator?.namaLengkap || 'Fasilitator'} (${rekap.bulan})`,
-                              url: rekap.buktiPembayaranTransport
-                            })}
-                            className="text-xs text-green-700 hover:text-green-900 font-medium hover:underline inline-flex items-center gap-1 cursor-pointer"
-                          >
-                            ✓ Transport
-                          </button>
-                        ) : null}
-                        {(rekap.status === 'SUBMITTED' || rekap.status === 'APPROVED') && (
-                          <button 
-                            onClick={() => { setUploadingRekap(rekap); setHonorFile(null); setTransportFile(null); setShowUploadModal(true); }}
-                            className="text-[10px] bg-slate-200 text-slate-700 px-2 py-1 rounded hover:bg-slate-300 mt-1"
-                          >
-                            {rekap.buktiPembayaranHonor && rekap.buktiPembayaranTransport ? 'Ganti Bukti' : 'Upload Bukti'}
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      {rekap.filePdf ? (
-                        <button 
-                          type="button"
-                          onClick={() => setPreviewModal({
-                            isOpen: true,
-                            title: `Dokumen PDF TTD - ${rekap.fasilitator?.namaLengkap || 'Fasilitator'} (${rekap.bulan})`,
-                            url: rekap.filePdf
-                          })}
-                          className="text-xs text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
-                        >
-                          Lihat PDF TTD
-                        </button>
-                      ) : '-'}
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      
-                      {(rekap.status === 'SUBMITTED' || rekap.status === 'APPROVED') && (
-                        <div className="flex gap-2 justify-end">
-                          <button 
-                            onClick={() => openKopModal(rekap)}
-                            disabled={loadingId === rekap.id}
-                            className="text-xs bg-slate-900 text-white hover:bg-slate-800 rounded px-2 py-1.5 transition-colors whitespace-nowrap"
-                          >
-                            {loadingId === rekap.id ? 'Memproses...' : 'Buat Invoice & Cetak'}
-                          </button>
-                          <button 
-                            type="button"
-                            onClick={() => openEditTransportModal(rekap)} 
-                            className="text-xs bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 rounded px-2 py-1.5 transition-colors whitespace-nowrap flex items-center gap-1 font-medium" 
-                            title="Edit Biaya Transport Rekap"
-                          >
-                            <Edit className="w-3 h-3" />
-                            Edit Transport
-                          </button>
-                          <button onClick={() => handleCopyText(rekap)} className="text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-200 rounded px-2 py-1.5 transition-colors whitespace-nowrap" title="Salin detail pembayaran">Salin Data</button>
-                            <button onClick={() => handleDelete(rekap.id)} className="text-xs bg-red-600 text-white hover:bg-red-700 rounded px-2 py-1.5 transition-colors whitespace-nowrap">Hapus</button>
-                            <button onClick={() => handleSync(rekap.id)} className="text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-200 rounded px-2 py-1.5 transition-colors whitespace-nowrap" title="Tautkan laporan mingguan fasilitator yang telat ke rekap ini (Tidak merubah honor)">Tautkan</button>
-                        </div>
-                      )}
-
-                      {/* Note: Generating ExpenseRequest happens on Fasil submit currently. We can change this logic later if needed. */}
+              <tbody className="divide-y divide-slate-200/70">
+                {sortedData.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="py-12 text-center text-slate-500">
+                      Tidak ada data rekapitulasi honorarium.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  sortedData.map((rekap) => (
+                    <tr key={rekap.id} className="hover:bg-slate-50/80 transition-colors">
+                      {/* 1. Fasilitator */}
+                      <td className="py-3.5 px-4 align-top">
+                        <div className="font-semibold text-slate-900 leading-snug">{rekap.fasilitator.namaLengkap}</div>
+                        {(rekap.fasilitator.bankName || rekap.fasilitator.bankAccount) ? (
+                          <div className="text-[11px] text-slate-400 mt-1 font-mono">
+                            {rekap.fasilitator.bankName} {rekap.fasilitator.bankAccount ? `• ${rekap.fasilitator.bankAccount}` : ''}
+                          </div>
+                        ) : null}
+                      </td>
+
+                      {/* 2. Lokasi SNT (Kolom Tersendiri) */}
+                      <td className="py-3.5 px-4 align-top">
+                        {rekap.fasilitator.lokasiSNT ? (
+                          <div className="text-xs">
+                            <span className="font-semibold text-slate-800 block">
+                              {rekap.fasilitator.lokasiSNT.split(' - ')[0]}
+                            </span>
+                            {rekap.fasilitator.lokasiSNT.split(' - ')[1] && (
+                              <span className="text-slate-500 block text-[11px] mt-0.5 leading-tight">
+                                {rekap.fasilitator.lokasiSNT.split(' - ')[1]}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 text-xs italic">-</span>
+                        )}
+                      </td>
+
+                      {/* 3. Bulan */}
+                      <td className="py-3.5 px-4 align-top whitespace-nowrap">
+                        <span className="inline-block px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 text-xs font-mono font-medium border border-slate-200">
+                          {rekap.bulan}
+                        </span>
+                      </td>
+
+                      {/* 4. Total JP */}
+                      <td className="py-3.5 px-4 align-top text-center whitespace-nowrap">
+                        <span className="font-bold text-slate-800 text-sm">{rekap.totalJP}</span>
+                        <span className="text-[11px] text-slate-400 block font-medium">JP</span>
+                      </td>
+
+                      {/* 5. Total Honor */}
+                      <td className="py-3.5 px-4 align-top text-right whitespace-nowrap">
+                        <div className="font-bold text-slate-900 text-sm">
+                          {formatCurrency(rekap.totalHonor)}
+                        </div>
+                      </td>
+
+                      {/* 6. Status */}
+                      <td className="py-3.5 px-4 align-top text-center whitespace-nowrap">
+                        <Badge 
+                          variant={rekap.status === 'SUBMITTED' ? 'default' : 'secondary'}
+                          className={rekap.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100 font-semibold text-[11px]' : 'text-[11px]'}
+                        >
+                          {rekap.status}
+                        </Badge>
+                      </td>
+
+                      {/* 7. Total Transport */}
+                      <td className="py-3.5 px-4 align-top text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <span className="font-medium text-slate-900">{formatCurrency(hitungTotalTransportRekap(rekap))}</span>
+                          <button 
+                            type="button"
+                            onClick={() => openEditTransportModal(rekap)}
+                            className="p-1 hover:bg-amber-100 bg-amber-50 text-amber-700 border border-amber-200 rounded transition-colors"
+                            title="Edit Biaya Transport"
+                          >
+                            <Edit className="w-3 h-3" />
+                          </button>
+                        </div>
+                        {rekap.totalTransport !== null && rekap.totalTransport !== undefined && (
+                          <span className="text-[10px] text-amber-600 font-medium block mt-0.5">Disesuaikan Admin</span>
+                        )}
+                      </td>
+
+                      {/* 8. Bukti Bayar */}
+                      <td className="py-3.5 px-4 align-top text-center">
+                        <div className="flex flex-col items-center gap-1.5">
+                          {rekap.buktiPembayaranHonor ? (
+                            <button 
+                              type="button"
+                              onClick={() => setPreviewModal({
+                                isOpen: true,
+                                title: `Bukti Transfer Honor - ${rekap.fasilitator?.namaLengkap || 'Fasilitator'} (${rekap.bulan})`,
+                                url: rekap.buktiPembayaranHonor
+                              })}
+                              className="text-xs text-emerald-700 hover:text-emerald-900 font-medium hover:underline inline-flex items-center gap-1 cursor-pointer bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200 w-full justify-center transition-colors"
+                            >
+                              ✓ Honor
+                            </button>
+                          ) : null}
+                          {rekap.buktiPembayaranTransport ? (
+                            <button 
+                              type="button"
+                              onClick={() => setPreviewModal({
+                                isOpen: true,
+                                title: `Bukti Transfer Transport - ${rekap.fasilitator?.namaLengkap || 'Fasilitator'} (${rekap.bulan})`,
+                                url: rekap.buktiPembayaranTransport
+                              })}
+                              className="text-xs text-purple-700 hover:text-purple-900 font-medium hover:underline inline-flex items-center gap-1 cursor-pointer bg-purple-50 px-2.5 py-0.5 rounded border border-purple-200 w-full justify-center transition-colors"
+                            >
+                              ✓ Transport
+                            </button>
+                          ) : null}
+                          {(rekap.status === 'SUBMITTED' || rekap.status === 'APPROVED') && (
+                            <button 
+                              onClick={() => { setUploadingRekap(rekap); setHonorFile(null); setTransportFile(null); setShowUploadModal(true); }}
+                              className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 px-2.5 py-1 rounded transition-colors font-medium cursor-pointer w-full mt-0.5"
+                            >
+                              {rekap.buktiPembayaranHonor && rekap.buktiPembayaranTransport ? 'Ganti Bukti' : 'Upload Bukti'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* 9. Dokumen PDF */}
+                      <td className="py-3.5 px-4 align-top text-center whitespace-nowrap">
+                        {rekap.filePdf ? (
+                          <button 
+                            type="button"
+                            onClick={() => setPreviewModal({
+                              isOpen: true,
+                              title: `Dokumen PDF TTD - ${rekap.fasilitator?.namaLengkap || 'Fasilitator'} (${rekap.bulan})`,
+                              url: rekap.filePdf
+                            })}
+                            className="text-xs text-blue-700 hover:text-blue-900 font-medium hover:underline inline-flex items-center gap-1 cursor-pointer bg-blue-50 px-2.5 py-1 rounded border border-blue-200 transition-colors shadow-sm"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-blue-600" />
+                            <span>Lihat PDF</span>
+                          </button>
+                        ) : (
+                          <span className="text-slate-400 text-xs italic">-</span>
+                        )}
+                      </td>
+
+                      {/* 10. Aksi (Menu Tersusun Secara Vertikal) */}
+                      <td className="py-3.5 px-4 align-top text-right">
+                        {(rekap.status === 'SUBMITTED' || rekap.status === 'APPROVED') && (
+                          <div className="flex flex-col gap-1.5 w-36 ml-auto">
+                            {/* Tombol Utama: Cetak / Invoice */}
+                            <button 
+                              type="button"
+                              onClick={() => openKopModal(rekap)}
+                              disabled={loadingId === rekap.id}
+                              className="w-full inline-flex items-center justify-center gap-1.5 text-xs bg-slate-900 text-white hover:bg-slate-800 rounded-md px-2.5 py-1.5 font-medium transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+                              title="Buat invoice dan cetak dokumen rekap honorarium"
+                            >
+                              <Printer className="w-3.5 h-3.5" />
+                              <span>{loadingId === rekap.id ? 'Memproses...' : 'Invoice & Cetak'}</span>
+                            </button>
+
+                            {/* Tombol Edit Transport */}
+                            <button 
+                              type="button"
+                              onClick={() => openEditTransportModal(rekap)} 
+                              className="w-full inline-flex items-center justify-center gap-1.5 text-xs bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer" 
+                              title="Edit Biaya Transport Rekap"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                              <span>Edit Transport</span>
+                            </button>
+
+                            {/* Tombol Salin Data */}
+                            <button 
+                              type="button"
+                              onClick={() => handleCopyText(rekap)} 
+                              className="w-full inline-flex items-center justify-center gap-1.5 text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer" 
+                              title="Salin rincian data pembayaran ke clipboard"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>Salin Data</span>
+                            </button>
+
+                            {/* Tombol Tautkan Laporan */}
+                            <button 
+                              type="button"
+                              onClick={() => handleSync(rekap.id)} 
+                              className="w-full inline-flex items-center justify-center gap-1.5 text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer" 
+                              title="Tautkan laporan mingguan fasilitator yang telat ke rekap ini (Tidak merubah honor)"
+                            >
+                              <LinkIcon className="w-3.5 h-3.5" />
+                              <span>Tautkan</span>
+                            </button>
+
+                            {/* Tombol Hapus */}
+                            <button 
+                              type="button"
+                              onClick={() => handleDelete(rekap.id)} 
+                              className="w-full inline-flex items-center justify-center gap-1.5 text-xs bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer"
+                              title="Hapus Rekapitulasi Ini"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Hapus</span>
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
