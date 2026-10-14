@@ -202,7 +202,8 @@ export function LaporanClientForm({
                     onChange={e => setFormData({
                       ...formData, 
                       metodePelaksanaan: e.target.value,
-                      biayaTransport: formData.biayaTransport
+                      biayaTransport: formData.biayaTransport === '0' ? '' : formData.biayaTransport,
+                      biayaTransportLaut: formData.biayaTransportLaut === '0' ? '' : formData.biayaTransportLaut
                     })} 
                     className="w-4 h-4 text-emerald-600" 
                   />
@@ -290,86 +291,88 @@ export function LaporanClientForm({
               </div>
             </div>
 
-            {/* Transport Darat & Antar Pulau */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4 mt-2">
-              <div className="space-y-2">
-                <Label>Biaya Transport Darat (Rp)</Label>
-                <Input 
-                  type="number" 
-                  min="0" 
-                  max={maxPlafon}
-                  value={formData.biayaTransport} 
-                  onChange={e => setFormData({...formData, biayaTransport: e.target.value})} 
-                  disabled={formData.metodePelaksanaan === 'DARING'}
-                  placeholder="0" 
-                />
-                <p className="text-xs text-slate-400">
-                  Maksimal Rp {maxPlafon.toLocaleString('id-ID')} / sesi
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label>Biaya Transport Antar Pulau (Rp)</Label>
-                <Input 
-                  type="number" 
-                  min="0" 
-                  value={formData.biayaTransportLaut} 
-                  onChange={e => setFormData({...formData, biayaTransportLaut: e.target.value})} 
-                  disabled={formData.metodePelaksanaan === 'DARING'}
-                  placeholder="Kosongkan jika tidak ada" 
-                />
-                <p className="text-xs text-slate-500">Wajib lampirkan bukti tiket</p>
-              </div>
-            </div>
+            {/* Transport Darat & Antar Pulau (Hanya untuk LURING / Tatap Muka) */}
+            {formData.metodePelaksanaan === 'LURING' && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4 mt-2">
+                  <div className="space-y-2">
+                    <Label>Biaya Transport Darat (Rp)</Label>
+                    <Input 
+                      type="number" 
+                      min="0" 
+                      max={maxPlafon}
+                      value={formData.biayaTransport} 
+                      onChange={e => setFormData({...formData, biayaTransport: e.target.value})} 
+                      placeholder="0" 
+                    />
+                    <p className="text-xs text-slate-400">
+                      Maksimal Rp {maxPlafon.toLocaleString('id-ID')} / sesi
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Biaya Transport Antar Pulau (Rp)</Label>
+                    <Input 
+                      type="number" 
+                      min="0" 
+                      value={formData.biayaTransportLaut} 
+                      onChange={e => setFormData({...formData, biayaTransportLaut: e.target.value})} 
+                      placeholder="Kosongkan jika tidak ada" 
+                    />
+                    <p className="text-xs text-slate-500">Wajib lampirkan bukti tiket</p>
+                  </div>
+                </div>
 
-            {/* Bukti Transport Darat */}
-            {formData.metodePelaksanaan === 'LURING' && nominalDaratCurrent > 0 && (
-              <div className={`space-y-2 col-span-2 p-4 rounded-md mt-2 border ${isDaratWajib ? 'border-red-200 bg-red-50' : 'border-emerald-100 bg-emerald-50'}`}>
-                <Label>
-                  Bukti Transport Darat {isDaratWajib ? (
-                    <span className="text-red-600 font-bold">(Wajib — lampirkan struk BBM / receipt transportasi online)</span>
-                  ) : (
-                    <span className="text-emerald-600 font-medium">(Opsional)</span>
-                  )}
-                </Label>
-                <Input 
-                  type="file" 
-                  accept=".pdf,.jpg,.jpeg,.png" 
-                  onChange={e => handleFileChange(e, 'buktiTransportDarat')} 
-                  disabled={uploadingField === 'buktiTransportDarat'}
-                />
-                {uploadingField === 'buktiTransportDarat' && (
-                  <p className="text-xs text-blue-600 animate-pulse font-medium">Sedang mengunggah bukti transport darat...</p>
+                {/* Bukti Transport Darat */}
+                {nominalDaratCurrent > 0 && (
+                  <div className={`space-y-2 col-span-2 p-4 rounded-md mt-2 border ${isDaratWajib ? 'border-red-200 bg-red-50' : 'border-emerald-100 bg-emerald-50'}`}>
+                    <Label>
+                      Bukti Transport Darat {isDaratWajib ? (
+                        <span className="text-red-600 font-bold">(Wajib — lampirkan struk BBM / receipt transportasi online)</span>
+                      ) : (
+                        <span className="text-emerald-600 font-medium">(Opsional)</span>
+                      )}
+                    </Label>
+                    <Input 
+                      type="file" 
+                      accept=".pdf,.jpg,.jpeg,.png" 
+                      onChange={e => handleFileChange(e, 'buktiTransportDarat')} 
+                      disabled={uploadingField === 'buktiTransportDarat'}
+                    />
+                    {uploadingField === 'buktiTransportDarat' && (
+                      <p className="text-xs text-blue-600 animate-pulse font-medium">Sedang mengunggah bukti transport darat...</p>
+                    )}
+                    {buktiDaratUrl && !uploadingField && (
+                      <p className="text-xs text-emerald-600 font-medium">✓ Bukti transport darat terlampir: {buktiDaratName}</p>
+                    )}
+                    <p className={`text-xs ${isDaratWajib ? 'text-red-600 font-medium' : 'text-emerald-600'}`}>
+                      {isDaratWajib 
+                        ? `⚠️ Nominal Rp ${nominalDaratCurrent.toLocaleString('id-ID')} melebihi batas tanpa nota${batasTanpaNota > 0 ? ` (Rp ${batasTanpaNota.toLocaleString('id-ID')})` : ''}. Anda wajib melampirkan foto struk BBM atau receipt transportasi online.`
+                        : `✓ Nominal sesuai ketentuan tanpa nota. Unggah bukti bersifat opsional.`
+                      }
+                    </p>
+                  </div>
                 )}
-                {buktiDaratUrl && !uploadingField && (
-                  <p className="text-xs text-emerald-600 font-medium">✓ Bukti transport darat terlampir: {buktiDaratName}</p>
+                
+                {/* Bukti Tiket Transport Laut */}
+                {parseFloat(formData.biayaTransportLaut) > 0 && (
+                  <div className="space-y-2 col-span-2 border border-blue-100 bg-blue-50 p-4 rounded-md mt-2">
+                    <Label>Bukti Tiket Transport Antar Pulau <span className="text-red-600 font-bold">(Wajib)</span></Label>
+                    <Input 
+                      type="file" 
+                      accept=".pdf,.jpg,.jpeg,.png" 
+                      onChange={e => handleFileChange(e, 'buktiTiketTransport')} 
+                      disabled={uploadingField === 'buktiTiketTransport'}
+                    />
+                    {uploadingField === 'buktiTiketTransport' && (
+                      <p className="text-xs text-blue-600 animate-pulse font-medium">Sedang mengunggah tiket antar pulau...</p>
+                    )}
+                    {tiketUrl && !uploadingField && (
+                      <p className="text-xs text-emerald-600 font-medium">✓ Bukti tiket antar pulau terlampir: {tiketName}</p>
+                    )}
+                    <p className="text-xs text-blue-600">Unggah foto/scan tiket atau bukti pembayaran transport antar pulau. Wajib untuk semua nominal.</p>
+                  </div>
                 )}
-                <p className={`text-xs ${isDaratWajib ? 'text-red-600 font-medium' : 'text-emerald-600'}`}>
-                  {isDaratWajib 
-                    ? `⚠️ Nominal Rp ${nominalDaratCurrent.toLocaleString('id-ID')} melebihi batas tanpa nota${batasTanpaNota > 0 ? ` (Rp ${batasTanpaNota.toLocaleString('id-ID')})` : ''}. Anda wajib melampirkan foto struk BBM atau receipt transportasi online.`
-                    : `✓ Nominal sesuai ketentuan tanpa nota. Unggah bukti bersifat opsional.`
-                  }
-                </p>
-              </div>
-            )}
-            
-            {/* Bukti Tiket Transport Laut */}
-            {formData.metodePelaksanaan === 'LURING' && parseFloat(formData.biayaTransportLaut) > 0 && (
-              <div className="space-y-2 col-span-2 border border-blue-100 bg-blue-50 p-4 rounded-md mt-2">
-                <Label>Bukti Tiket Transport Antar Pulau <span className="text-red-600 font-bold">(Wajib)</span></Label>
-                <Input 
-                  type="file" 
-                  accept=".pdf,.jpg,.jpeg,.png" 
-                  onChange={e => handleFileChange(e, 'buktiTiketTransport')} 
-                  disabled={uploadingField === 'buktiTiketTransport'}
-                />
-                {uploadingField === 'buktiTiketTransport' && (
-                  <p className="text-xs text-blue-600 animate-pulse font-medium">Sedang mengunggah tiket antar pulau...</p>
-                )}
-                {tiketUrl && !uploadingField && (
-                  <p className="text-xs text-emerald-600 font-medium">✓ Bukti tiket antar pulau terlampir: {tiketName}</p>
-                )}
-                <p className="text-xs text-blue-600">Unggah foto/scan tiket atau bukti pembayaran transport antar pulau. Wajib untuk semua nominal.</p>
-              </div>
+              </>
             )}
 
             {/* Laporan Fisik */}
