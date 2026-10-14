@@ -529,23 +529,22 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
         <div class="title-block">
           <h1>Laporan Realisasi Anggaran & Pengeluaran Kategori</h1>
           <h2>${cat.name}</h2>
-          <p>Program KKA Sekolah Nasional Terintegrasi (SNT) Tahun 2026 &bull; Dicetak pada: ${tanggalStr}</p>
+          <p>Program KKA Sekolah Nasional Terintegrasi (SNT) Tahun 2026</p>
         </div>
 
         <div class="metrics-grid">
           <div class="metric-card">
             <div class="metric-label">Pagu / Dana Masuk (Alokasi)</div>
-            <div class="metric-value">Rp ${formatCurrency(totalBudget)}</div>
+            <div class="metric-value">${formatCurrency(totalBudget)}</div>
             <div class="metric-sub">Total Anggaran Kategori</div>
           </div>
           <div class="metric-card">
             <div class="metric-label">Total Pengeluaran (Realisasi)</div>
-            <div class="metric-value" style="color: #dc2626;">Rp ${formatCurrency(totalRealized)}</div>
-            <div class="metric-sub">${allExpenses.length} Transaksi Disetujui</div>
+            <div class="metric-value" style="color: #dc2626;">${formatCurrency(totalRealized)}</div>
           </div>
           <div class="metric-card">
             <div class="metric-label">Sisa Saldo Anggaran</div>
-            <div class="metric-value" style="color: #16a34a;">Rp ${formatCurrency(remaining)}</div>
+            <div class="metric-value" style="color: #16a34a;">${formatCurrency(remaining)}</div>
             <div class="metric-sub">Tersedia untuk kegiatan</div>
           </div>
           <div class="metric-card">
@@ -601,17 +600,16 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
           <thead>
             <tr>
               <th style="width: 30px;" class="text-center">No</th>
-              <th style="width: 80px;">Tanggal</th>
-              <th style="width: 140px;">Item RAB</th>
+              <th style="width: 85px;">Tanggal</th>
+              <th style="width: 160px;">Item RAB</th>
               <th>Uraian / Keterangan Transaksi</th>
-              <th style="width: 130px;">Penerima / Pemohon</th>
-              <th class="text-right" style="width: 110px;">Nominal (Rp)</th>
+              <th class="text-right" style="width: 120px;">Nominal (Rp)</th>
             </tr>
           </thead>
           <tbody>
             ${allExpenses.length === 0 ? `
               <tr>
-                <td colspan="6" class="text-center" style="padding: 16px; color: #64748b;">
+                <td colspan="5" class="text-center" style="padding: 16px; color: #64748b;">
                   Belum ada transaksi realisasi pengeluaran untuk kategori ini.
                 </td>
               </tr>
@@ -621,15 +619,14 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
                 <td style="white-space: nowrap;">${new Date(exp.date || exp.createdAt).toLocaleDateString('id-ID')}</td>
                 <td>${exp.rabItem?.name || '-'}</td>
                 <td>${exp.description || '-'}</td>
-                <td>${exp.fasilitator ? exp.fasilitator.namaLengkap : (exp.createdBy?.name || 'Staf Lapangan')}</td>
                 <td class="text-right" style="font-weight: bold;">${formatCurrency(exp.amount)}</td>
               </tr>
             `).join('')}
           </tbody>
           <tfoot>
             <tr>
-              <td colspan="5" class="text-right">TOTAL PENGELUARAN TEREALISASI:</td>
-              <td class="text-right" style="color: #dc2626; font-size: 13px;">Rp ${formatCurrency(totalRealized)}</td>
+              <td colspan="4" class="text-right">TOTAL PENGELUARAN TEREALISASI:</td>
+              <td class="text-right" style="color: #dc2626; font-size: 13px;">${formatCurrency(totalRealized)}</td>
             </tr>
           </tfoot>
         </table>
@@ -647,6 +644,10 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
             <div class="signature-space"></div>
             <p style="margin: 0; font-weight: bold; text-decoration: underline;">( __________________________ )</p>
           </div>
+        </div>
+
+        <div style="margin-top: 35px; border-top: 1px dashed #cbd5e1; padding-top: 8px; font-size: 11px; color: #64748b; text-align: right; font-style: italic;">
+          Dicetak pada: ${tanggalStr}
         </div>
       </body>
       </html>
