@@ -706,7 +706,7 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
                       {exp.description}
                       {(exp.receiptUrl || exp.paymentReceiptUrl) && (
                         <div className="mt-1">
-                          <a href={exp.receiptUrl || exp.paymentReceiptUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline text-xs flex items-center gap-1">
+                          <a href={exp.receiptUrl || exp.paymentReceiptUrl} target="_blank" rel="noreferrer" data-preview-title={`Bukti Pengeluaran - ${exp.rabItem?.name || exp.description}`} className="text-blue-500 hover:underline text-xs flex items-center gap-1">
                             📎 Lihat Nota
                           </a>
                         </div>

@@ -86,8 +86,8 @@ export function TransportClient({ initialData }: { initialData: any[] }) {
                       {(lap.biayaTransportLaut || 0) > 0 && <span>Laut: Rp {(lap.biayaTransportLaut || 0).toLocaleString('id-ID')}</span>}
                     </div>
                   <div className="flex flex-col items-end gap-1 mt-1 text-xs">
-                    {lap.buktiTransportDarat && <a href={lap.buktiTransportDarat} target="_blank" className="text-blue-600 hover:underline">Bukti Darat</a>}
-                    {lap.buktiTiketTransport && <a href={lap.buktiTiketTransport} target="_blank" className="text-emerald-600 hover:underline">Bukti Laut</a>}
+                    {lap.buktiTransportDarat && <a href={lap.buktiTransportDarat} target="_blank" data-preview-title={`Bukti Transport Darat - ${lap.fasilitator.namaLengkap}`} className="text-blue-600 hover:underline">Bukti Darat</a>}
+                    {lap.buktiTiketTransport && <a href={lap.buktiTiketTransport} target="_blank" data-preview-title={`Bukti Tiket Laut - ${lap.fasilitator.namaLengkap}`} className="text-emerald-600 hover:underline">Bukti Laut</a>}
                   </div>
                 </td>
                 <td className="px-4 py-3 text-center">

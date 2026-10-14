@@ -158,6 +158,7 @@ export function RecentExpensesList({ expenses, items, fasilitators }: RecentExpe
                             href={receipt} 
                             target="_blank" 
                             rel="noreferrer" 
+                            data-preview-title={`Bukti Nota - ${expense.rabItem?.name || expense.description}`}
                             className="text-blue-600 hover:underline flex items-center gap-1 font-medium"
                           >
                             <Paperclip className="w-3.5 h-3.5" /> Nota <ExternalLink className="w-3 h-3" />
@@ -309,6 +310,7 @@ export function RecentExpensesList({ expenses, items, fasilitators }: RecentExpe
                       href={editData.currentReceiptUrl} 
                       target="_blank" 
                       rel="noreferrer"
+                      data-preview-title="Bukti Nota Saat Ini"
                       className="underline font-medium"
                     >
                       Lihat Nota Saat Ini

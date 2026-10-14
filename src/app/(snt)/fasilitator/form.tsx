@@ -287,7 +287,7 @@ export function FasilitatorForm({ initialData }: { initialData?: any }) {
             <p className="text-xs text-slate-500 mb-2">Unggah file foto KTP (Maks 2MB)</p>
             {ktpUrl ? (
               <div className="flex flex-col gap-2">
-                <a href={ktpUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline text-sm font-medium">
+                <a href={ktpUrl} target="_blank" rel="noreferrer" data-preview-title="Dokumen KTP Fasilitator" className="text-blue-600 hover:underline text-sm font-medium">
                   Lihat KTP Tersimpan
                 </a>
                 <Button 

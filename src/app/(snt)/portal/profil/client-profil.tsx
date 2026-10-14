@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { Eye, AlertCircle } from 'lucide-react'
 import { updateFasilitatorProfile } from '@/app/actions/rab'
 import { uploadFileClient } from '@/lib/upload-client'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -18,7 +19,7 @@ const PANGKAT_GOLONGAN = [
 ]
 
 export function ProfilClient({ fasilitator }: { fasilitator: any }) {
-  const { confirm, alert } = useModal();
+  const { confirm, alert, preview } = useModal();
 
   const router = useRouter()
   
@@ -260,9 +261,13 @@ export function ProfilClient({ fasilitator }: { fasilitator: any }) {
                     <p className="text-xs text-slate-500 mb-2">Unggah file KTP Anda (Foto / Gambar maksimal 2MB)</p>
                     {formData.ktpUrl ? (
                       <div className="flex flex-col gap-2">
-                        <a href={formData.ktpUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline text-sm font-medium">
-                          ✓ KTP Tersimpan (Lihat File)
-                        </a>
+                        <button 
+                          type="button"
+                          onClick={() => preview(formData.ktpUrl, 'Dokumen KTP Fasilitator')}
+                          className="text-blue-600 hover:underline text-sm font-medium inline-flex items-center gap-1.5 cursor-pointer text-left"
+                        >
+                          <Eye className="w-4 h-4 text-blue-500" /> ✓ KTP Tersimpan (Lihat File)
+                        </button>
                         <Button 
                           type="button" 
                           variant="outline" 
@@ -398,11 +403,26 @@ export function ProfilClient({ fasilitator }: { fasilitator: any }) {
                   <div className="col-span-1 md:col-span-2 mt-4 p-4 border rounded-md bg-slate-50">
                     <p className="text-slate-500 font-semibold mb-2">Dokumen KTP</p>
                     {fasilitator.ktpUrl ? (
-                      <a href={fasilitator.ktpUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-1">
-                        Lihat KTP
-                      </a>
+                      <button 
+                        type="button"
+                        onClick={() => preview(fasilitator.ktpUrl, 'Dokumen KTP Fasilitator')}
+                        className="text-blue-600 hover:underline inline-flex items-center gap-1.5 cursor-pointer font-medium"
+                      >
+                        <Eye className="w-4 h-4 text-blue-500" /> Lihat KTP
+                      </button>
                     ) : (
-                      <p className="text-red-500 font-medium">Belum diunggah</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-red-500 font-medium text-sm flex items-center gap-1.5">
+                          <AlertCircle className="w-4 h-4" /> Belum diunggah
+                        </p>
+                        <button 
+                          type="button"
+                          onClick={() => setIsEditing(true)}
+                          className="text-xs bg-amber-500 hover:bg-amber-600 text-white font-medium px-3 py-1 rounded transition-colors"
+                        >
+                          Unggah Sekarang
+                        </button>
+                      </div>
                     )}
                   </div>
 

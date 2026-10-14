@@ -32,7 +32,7 @@ export function FilePreviewModal({ isOpen, onClose, title, url }: FilePreviewMod
   const isPdf = url.toLowerCase().includes('.pdf')
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
+    <div className="file-preview-modal fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
       <div 
         className="fixed inset-0" 
         onClick={onClose} 
@@ -52,6 +52,7 @@ export function FilePreviewModal({ isOpen, onClose, title, url }: FilePreviewMod
               target="_blank" 
               rel="noreferrer" 
               className="p-1.5 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100 transition-colors"
+              data-no-preview="true"
               title="Buka di tab baru jika diperlukan"
             >
               <ExternalLink className="w-4 h-4" />
@@ -93,6 +94,7 @@ export function FilePreviewModal({ isOpen, onClose, title, url }: FilePreviewMod
             <a 
               href={url} 
               download 
+              data-no-preview="true"
               target="_blank" 
               rel="noreferrer"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 font-medium transition-colors"

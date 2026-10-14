@@ -1,12 +1,14 @@
-﻿'use client';
+'use client';
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { FilePreviewModal } from '@/components/shared/FilePreviewModal';
 
 type ModalContextType = {
   confirm: (message: string, title?: string, confirmText?: string, cancelText?: string) => Promise<boolean>;
   alert: (message: string, title?: string) => Promise<void>;
+  preview: (url: string, title?: string) => void;
 };
 
 const ModalContext = createContext<ModalContextType | undefined>(undefined);
@@ -28,6 +30,16 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     confirmText: 'OK',
     cancelText: 'Batal',
     resolve: null,
+  });
+
+  const [previewState, setPreviewState] = useState<{
+    isOpen: boolean;
+    url: string;
+    title: string;
+  }>({
+    isOpen: false,
+    url: '',
+    title: 'Pratinjau Berkas',
   });
 
   const confirm = (message: string, title = 'Konfirmasi', confirmText = 'Ya, Lanjutkan', cancelText = 'Batal'): Promise<boolean> => {
@@ -58,6 +70,15 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const preview = (url: string, title = 'Pratinjau Berkas') => {
+    if (!url) return;
+    setPreviewState({
+      isOpen: true,
+      url,
+      title,
+    });
+  };
+
   const handleClose = (value: boolean) => {
     setModalState((prev) => ({ ...prev, isOpen: false }));
     if (modalState.resolve) {
@@ -65,8 +86,69 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const handleClosePreview = () => {
+    setPreviewState((prev) => ({ ...prev, isOpen: false }));
+  };
+
+  // Intercept global clicks on uploaded file links to display them in a modal popup
+  useEffect(() => {
+    const handleGlobalClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      const anchor = target?.closest('a') as HTMLAnchorElement | null;
+      if (!anchor) return;
+
+      const href = anchor.getAttribute('href');
+      if (!href) return;
+
+      // Do not intercept if inside FilePreviewModal, has download attribute, or data-no-preview
+      if (
+        anchor.closest('.file-preview-modal') ||
+        anchor.hasAttribute('download') ||
+        anchor.getAttribute('data-no-preview') === 'true'
+      ) {
+        return;
+      }
+
+      // Check if it's an uploaded file (Supabase storage, /uploads/, or ends with image/pdf extension)
+      const isStorage = 
+        href.includes('/storage/v1/object/public/') ||
+        href.includes('/attachments/') ||
+        href.includes('/receipts/') ||
+        href.startsWith('/uploads/') ||
+        href.includes('supabase.co');
+
+      const isDocument = /\.(pdf|png|jpe?g|webp|gif|svg|bmp)(\?.*)?$/i.test(href);
+      const isBlobOrData = href.startsWith('blob:') || href.startsWith('data:image/') || href.startsWith('data:application/pdf');
+
+      // Do not intercept internal routes like /portal/rekap/[id]/pdf
+      const isInternalPrintRoute = href.includes('/rekap/') && href.includes('/pdf');
+
+      if ((isStorage || isDocument || isBlobOrData) && !isInternalPrintRoute && !href.startsWith('/portal/') && !href.startsWith('/fasilitator/')) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        let title = 
+          anchor.getAttribute('data-preview-title') || 
+          anchor.getAttribute('title') || 
+          anchor.innerText?.trim() || 
+          'Pratinjau Berkas';
+
+        if (!title || title.length > 60 || title.includes('\n')) {
+          title = 'Pratinjau Berkas';
+        }
+
+        preview(href, title);
+      }
+    };
+
+    document.addEventListener('click', handleGlobalClick, true);
+    return () => {
+      document.removeEventListener('click', handleGlobalClick, true);
+    };
+  }, []);
+
   return (
-    <ModalContext.Provider value={{ confirm, alert }}>
+    <ModalContext.Provider value={{ confirm, alert, preview }}>
       {children}
       <Dialog open={modalState.isOpen} onOpenChange={(open) => {
         if (!open) handleClose(false);
@@ -88,6 +170,12 @@ export function ModalProvider({ children }: { children: ReactNode }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <FilePreviewModal
+        isOpen={previewState.isOpen}
+        onClose={handleClosePreview}
+        title={previewState.title}
+        url={previewState.url}
+      />
     </ModalContext.Provider>
   );
 }

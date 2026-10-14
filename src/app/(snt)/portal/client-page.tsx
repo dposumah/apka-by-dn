@@ -1,18 +1,35 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { FileText, CheckCircle2, Wallet, Car, BookOpen, Clock, ExternalLink, Eye } from 'lucide-react'
+import { FileText, CheckCircle2, Wallet, Car, BookOpen, Clock, ExternalLink, Eye, AlertCircle } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import Link from 'next/link'
 import { deleteLaporanKegiatan } from '@/app/actions/rab'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useToast } from '@/components/ui/toast'
 import { UploadLaporanFisikButton } from './upload-fisik-btn'
 import { useModal } from '@/components/modal-provider'
 import { hitungTotalTransportRekap } from '@/lib/transport'
 import { FilePreviewModal } from '@/components/shared/FilePreviewModal'
 
 export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilitator: any, isIncomplete: boolean, userName: string }) {
-  const { confirm, alert } = useModal();
+  const { confirm, alert, preview } = useModal();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (!fasilitator.ktpUrl) {
+      const shown = sessionStorage.getItem('ktp_notif_shown');
+      if (!shown) {
+        toast({
+          title: 'Dokumen KTP Belum Diunggah',
+          description: 'Mohon segera unggah dokumen KTP Anda pada menu Profil Fasilitator.',
+          type: 'warning',
+          duration: 6000
+        });
+        sessionStorage.setItem('ktp_notif_shown', 'true');
+      }
+    }
+  }, [fasilitator.ktpUrl, toast]);
 
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [previewModal, setPreviewModal] = useState<{
@@ -119,6 +136,26 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
             Anda harus melengkapi profil dan informasi Rekening Pembayaran Anda sebelum dapat mengirim laporan kegiatan mingguan.
             <br/><br/>
             <Link href="/portal/profil?edit=true" className="underline font-medium">Lengkapi Profil Sekarang &rarr;</Link>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {!fasilitator.ktpUrl && (
+        <Alert className="border-amber-300 bg-amber-50 text-amber-900 shadow-sm">
+          <AlertCircle className="w-5 h-5 text-amber-600" />
+          <AlertTitle className="text-amber-900 font-bold flex items-center gap-2">
+            Dokumen KTP Belum Diunggah
+          </AlertTitle>
+          <AlertDescription className="text-amber-800 mt-1">
+            Anda belum mengunggah dokumen KTP. Dokumen KTP wajib dilengkapi untuk kelengkapan administrasi dan verifikasi honorarium.
+            <div className="mt-2.5">
+              <Link 
+                href="/portal/profil?edit=true" 
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-md shadow-sm transition-colors"
+              >
+                Unggah Dokumen KTP Sekarang &rarr;
+              </Link>
+            </div>
           </AlertDescription>
         </Alert>
       )}
@@ -287,11 +324,7 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
                       {lap.fileLaporanFisik ? (
                         <button 
                           type="button"
-                          onClick={() => setPreviewModal({
-                            isOpen: true,
-                            title: `Laporan Fisik - ${lap.topic || 'Kegiatan'}`,
-                            url: lap.fileLaporanFisik
-                          })}
+                          onClick={() => preview(lap.fileLaporanFisik, `Laporan Fisik - ${lap.topic || 'Kegiatan'}`)}
                           className="text-xs text-emerald-600 hover:text-emerald-800 hover:underline mt-1 inline-flex items-center gap-1 mr-3 cursor-pointer"
                         >
                           <Eye className="w-3 h-3" /> Laporan Fisik
@@ -302,11 +335,7 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
                       {lap.foto1 && (
                         <button 
                           type="button"
-                          onClick={() => setPreviewModal({
-                            isOpen: true,
-                            title: `Dokumentasi Foto 1 - ${lap.topic || 'Kegiatan'}`,
-                            url: lap.foto1
-                          })}
+                          onClick={() => preview(lap.foto1, `Dokumentasi Foto 1 - ${lap.topic || 'Kegiatan'}`)}
                           className="text-xs text-indigo-600 hover:text-indigo-800 hover:underline mt-1 inline-flex items-center gap-1 mr-3 cursor-pointer"
                         >
                           <Eye className="w-3 h-3" /> Foto 1
@@ -315,14 +344,28 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
                       {lap.foto2 && (
                         <button 
                           type="button"
-                          onClick={() => setPreviewModal({
-                            isOpen: true,
-                            title: `Dokumentasi Foto 2 - ${lap.topic || 'Kegiatan'}`,
-                            url: lap.foto2
-                          })}
-                          className="text-xs text-indigo-600 hover:text-indigo-800 hover:underline mt-1 inline-flex items-center gap-1 cursor-pointer"
+                          onClick={() => preview(lap.foto2, `Dokumentasi Foto 2 - ${lap.topic || 'Kegiatan'}`)}
+                          className="text-xs text-indigo-600 hover:text-indigo-800 hover:underline mt-1 inline-flex items-center gap-1 mr-3 cursor-pointer"
                         >
                           <Eye className="w-3 h-3" /> Foto 2
+                        </button>
+                      )}
+                      {lap.buktiTransportDarat && (
+                        <button 
+                          type="button"
+                          onClick={() => preview(lap.buktiTransportDarat, `Bukti Transport Darat - ${lap.topic || 'Kegiatan'}`)}
+                          className="text-xs text-blue-600 hover:text-blue-800 hover:underline mt-1 inline-flex items-center gap-1 mr-3 cursor-pointer"
+                        >
+                          <Eye className="w-3 h-3" /> Bukti Darat
+                        </button>
+                      )}
+                      {lap.buktiTiketTransport && (
+                        <button 
+                          type="button"
+                          onClick={() => preview(lap.buktiTiketTransport, `Bukti Tiket Laut - ${lap.topic || 'Kegiatan'}`)}
+                          className="text-xs text-teal-600 hover:text-teal-800 hover:underline mt-1 inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          <Eye className="w-3 h-3" /> Bukti Laut
                         </button>
                       )}
                     </div>
@@ -345,11 +388,7 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
                             {lap.rekapHonorarium?.buktiPembayaranTransport ? (
                               <button 
                                 type="button"
-                                onClick={() => setPreviewModal({
-                                  isOpen: true,
-                                  title: `Bukti Transfer Transportasi - ${lap.topic || 'Kegiatan'}`,
-                                  url: lap.rekapHonorarium.buktiPembayaranTransport
-                                })}
+                                onClick={() => preview(lap.rekapHonorarium.buktiPembayaranTransport, `Bukti Transfer Transportasi - ${lap.topic || 'Kegiatan'}`)}
                                 className="ml-2 text-emerald-700 hover:text-emerald-900 font-medium hover:underline inline-flex items-center gap-1 bg-emerald-100 hover:bg-emerald-200/80 px-2 py-0.5 rounded cursor-pointer transition-colors"
                               >
                                 <Eye className="w-3 h-3" /> Lunas (Lihat Bukti)
@@ -357,11 +396,7 @@ export function PortalClient({ fasilitator, isIncomplete, userName }: { fasilita
                             ) : (lap.statusTransport === 'PAID' && lap.buktiTransferTransport) ? (
                               <button 
                                 type="button"
-                                onClick={() => setPreviewModal({
-                                  isOpen: true,
-                                  title: `Bukti Transfer Transportasi - ${lap.topic || 'Kegiatan'}`,
-                                  url: lap.buktiTransferTransport
-                                })}
+                                onClick={() => preview(lap.buktiTransferTransport, `Bukti Transfer Transportasi - ${lap.topic || 'Kegiatan'}`)}
                                 className="ml-2 text-emerald-700 hover:text-emerald-900 font-medium hover:underline inline-flex items-center gap-1 bg-emerald-100 hover:bg-emerald-200/80 px-2 py-0.5 rounded cursor-pointer transition-colors"
                               >
                                 <Eye className="w-3 h-3" /> Lunas (Lihat Bukti)
