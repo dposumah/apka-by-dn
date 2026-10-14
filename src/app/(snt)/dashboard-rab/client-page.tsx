@@ -21,7 +21,11 @@ import {
   ChevronDown, 
   ChevronUp, 
   FolderPlus, 
-  Loader2 
+  Loader2,
+  FileText,
+  Printer,
+  ExternalLink,
+  X
 } from 'lucide-react'
 
 export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor }: any) {
@@ -62,6 +66,7 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
   const [showCatModal, setShowCatModal] = useState(false)
   const [newCatName, setNewCatName] = useState('')
   const [isSavingCat, setIsSavingCat] = useState(false)
+  const [reportCategory, setReportCategory] = useState<any>(null)
 
   const openEditModal = (expense: any) => {
     setEditData({
@@ -462,6 +467,201 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
     }
   }
 
+
+  const handlePrintCategoryReport = (cat: any) => {
+    if (!cat) return;
+    const items = cat.items || [];
+    const allExpenses = items.flatMap((item: any) => 
+      (item.expenses || []).map((exp: any) => ({ ...exp, rabItem: item }))
+    ).sort((a: any, b: any) => new Date(b.date || b.createdAt).getTime() - new Date(a.date || a.createdAt).getTime());
+
+    const totalBudget = cat.budget || items.reduce((s: number, i: any) => s + (i.totalBudget || 0), 0);
+    const totalRealized = cat.realized || items.reduce((s: number, i: any) => s + (i.realized || 0), 0);
+    const remaining = totalBudget - totalRealized;
+    const persen = totalBudget > 0 ? ((totalRealized / totalBudget) * 100).toFixed(1) : '0';
+    const tanggalStr = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Laporan Kategori - ${cat.name}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 0; padding: 25px; color: #1e293b; font-size: 13px; line-height: 1.4; }
+          .kop { width: 100%; border-bottom: 3px solid #0f172a; padding-bottom: 12px; margin-bottom: 20px; text-align: center; }
+          .kop img { height: 75px; object-fit: contain; }
+          .title-block { text-align: center; margin-bottom: 24px; }
+          .title-block h1 { font-size: 17px; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; }
+          .title-block h2 { font-size: 14px; margin: 4px 0 0 0; color: #2563eb; font-weight: bold; }
+          .title-block p { font-size: 12px; margin: 4px 0 0 0; color: #64748b; }
+          
+          .metrics-grid { display: flex; gap: 12px; margin-bottom: 24px; }
+          .metric-card { flex: 1; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; background: #f8fafc; }
+          .metric-label { font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: bold; margin-bottom: 4px; }
+          .metric-value { font-size: 15px; font-weight: bold; color: #0f172a; }
+          .metric-sub { font-size: 11px; color: #64748b; margin-top: 2px; }
+
+          .section-title { font-size: 13px; font-weight: bold; margin: 18px 0 8px 0; color: #0f172a; text-transform: uppercase; border-left: 3px solid #2563eb; padding-left: 8px; }
+
+          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }
+          th { background: #f1f5f9; border: 1px solid #cbd5e1; padding: 7px 8px; font-weight: bold; text-align: left; }
+          td { border: 1px solid #cbd5e1; padding: 6px 8px; vertical-align: top; }
+          .text-right { text-align: right; }
+          .text-center { text-align: center; }
+          tfoot td { font-weight: bold; background: #f8fafc; border-top: 2px solid #94a3b8; }
+
+          .signature-block { display: flex; justify-content: space-between; margin-top: 40px; page-break-inside: avoid; }
+          .signature-col { text-align: center; width: 220px; }
+          .signature-space { height: 60px; }
+
+          @media print {
+            body { padding: 15px; }
+            .no-print { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="kop">
+          <img src="/kop-maleo.png" alt="Kop Maleo" onerror="this.style.display='none'" />
+        </div>
+
+        <div class="title-block">
+          <h1>Laporan Realisasi Anggaran & Pengeluaran Kategori</h1>
+          <h2>${cat.name}</h2>
+          <p>Program KKA Sekolah Nasional Terintegrasi (SNT) Tahun 2026 &bull; Dicetak pada: ${tanggalStr}</p>
+        </div>
+
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-label">Pagu / Dana Masuk (Alokasi)</div>
+            <div class="metric-value">Rp ${formatCurrency(totalBudget)}</div>
+            <div class="metric-sub">Total Anggaran Kategori</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Total Pengeluaran (Realisasi)</div>
+            <div class="metric-value" style="color: #dc2626;">Rp ${formatCurrency(totalRealized)}</div>
+            <div class="metric-sub">${allExpenses.length} Transaksi Disetujui</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Sisa Saldo Anggaran</div>
+            <div class="metric-value" style="color: #16a34a;">Rp ${formatCurrency(remaining)}</div>
+            <div class="metric-sub">Tersedia untuk kegiatan</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Persentase Penyerapan</div>
+            <div class="metric-value" style="color: #2563eb;">${persen}%</div>
+            <div class="metric-sub">Dari Total Pagu</div>
+          </div>
+        </div>
+
+        <div class="section-title">1. Rincian Pos Item Anggaran (RAB)</div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 70px;">Kode</th>
+              <th>Uraian Item Anggaran</th>
+              <th class="text-right" style="width: 120px;">Pagu (Rp)</th>
+              <th class="text-right" style="width: 120px;">Realisasi (Rp)</th>
+              <th class="text-center" style="width: 70px;">% Pakai</th>
+              <th class="text-right" style="width: 120px;">Sisa Saldo (Rp)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map((it: any) => {
+              const itBudget = it.totalBudget || 0;
+              const itRealized = it.realized || 0;
+              const itRem = itBudget - itRealized;
+              const itP = itBudget > 0 ? ((itRealized / itBudget) * 100).toFixed(1) : '0';
+              return `
+                <tr>
+                  <td style="font-family: monospace; font-weight: bold;">${it.code || '-'}</td>
+                  <td><strong>${it.name}</strong>${it.volume ? `<br/><small style="color:#64748b;">Volume: ${it.volume}</small>` : ''}</td>
+                  <td class="text-right">${formatCurrency(itBudget)}</td>
+                  <td class="text-right" style="color: #dc2626;">${formatCurrency(itRealized)}</td>
+                  <td class="text-center">${itP}%</td>
+                  <td class="text-right" style="color: #16a34a; font-weight: bold;">${formatCurrency(itRem)}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="2" class="text-right">TOTAL KATEGORI:</td>
+              <td class="text-right">${formatCurrency(totalBudget)}</td>
+              <td class="text-right" style="color: #dc2626;">${formatCurrency(totalRealized)}</td>
+              <td class="text-center">${persen}%</td>
+              <td class="text-right" style="color: #16a34a;">${formatCurrency(remaining)}</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <div class="section-title">2. Daftar Transaksi Realisasi Pengeluaran Lapangan</div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 30px;" class="text-center">No</th>
+              <th style="width: 80px;">Tanggal</th>
+              <th style="width: 140px;">Item RAB</th>
+              <th>Uraian / Keterangan Transaksi</th>
+              <th style="width: 130px;">Penerima / Pemohon</th>
+              <th class="text-right" style="width: 110px;">Nominal (Rp)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${allExpenses.length === 0 ? `
+              <tr>
+                <td colspan="6" class="text-center" style="padding: 16px; color: #64748b;">
+                  Belum ada transaksi realisasi pengeluaran untuk kategori ini.
+                </td>
+              </tr>
+            ` : allExpenses.map((exp: any, idx: number) => `
+              <tr>
+                <td class="text-center">${idx + 1}</td>
+                <td style="white-space: nowrap;">${new Date(exp.date || exp.createdAt).toLocaleDateString('id-ID')}</td>
+                <td>${exp.rabItem?.name || '-'}</td>
+                <td>${exp.description || '-'}</td>
+                <td>${exp.fasilitator ? exp.fasilitator.namaLengkap : (exp.createdBy?.name || 'Staf Lapangan')}</td>
+                <td class="text-right" style="font-weight: bold;">${formatCurrency(exp.amount)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="5" class="text-right">TOTAL PENGELUARAN TEREALISASI:</td>
+              <td class="text-right" style="color: #dc2626; font-size: 13px;">Rp ${formatCurrency(totalRealized)}</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <div class="signature-block">
+          <div class="signature-col">
+            <p style="margin: 0;">Mengetahui / Menyetujui,</p>
+            <p style="margin: 2px 0 0 0; font-weight: bold;">Yayasan Maleo Talenta Cendekia</p>
+            <div class="signature-space"></div>
+            <p style="margin: 0; font-weight: bold; text-decoration: underline;">( __________________________ )</p>
+          </div>
+          <div class="signature-col">
+            <p style="margin: 0;">Jakarta, ${tanggalStr}</p>
+            <p style="margin: 2px 0 0 0; font-weight: bold;">Penanggung Jawab Program</p>
+            <div class="signature-space"></div>
+            <p style="margin: 0; font-weight: bold; text-decoration: underline;">( __________________________ )</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const win = window.open('', '_blank');
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+      setTimeout(() => {
+        win.print();
+      }, 800);
+    }
+  };
+
   if (!data) return <div className="p-8">No RAB data found. Please seed the database.</div>
 
   return (
@@ -552,14 +752,24 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
                 <CardHeader className="bg-slate-50/70 border-b border-slate-100 pb-3">
                   <div className="flex items-center justify-between gap-2">
                     <CardTitle className="text-base font-bold text-slate-900">{cat.name}</CardTitle>
-                    <button
-                      onClick={() => openCreateItemModal(cat.id)}
-                      className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 rounded hover:bg-blue-50 transition-colors"
-                      title="Tambah item di kategori ini"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Tambah Item</span>
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => setReportCategory(cat)}
+                        className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 font-semibold px-2.5 py-1 rounded transition-colors"
+                        title="Lihat Rekap Pemasukan & Pengeluaran Kategori Ini"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>Rekap & Pengeluaran</span>
+                      </button>
+                      <button
+                        onClick={() => openCreateItemModal(cat.id)}
+                        className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+                        title="Tambah item di kategori ini"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Tambah Item</span>
+                      </button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="pt-4">
@@ -1101,6 +1311,245 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
           </div>
         </div>
       )}
+    
+      {/* Modal Rekap & Pengeluaran Per Kategori */}
+      {reportCategory && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden">
+            {/* Modal Top Header */}
+            <div className="p-5 border-b bg-slate-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                    Laporan Kategori Terpisah
+                  </span>
+                  <span className="text-xs text-slate-500">
+                    {(reportCategory.items || []).length} Item RAB
+                  </span>
+                </div>
+                <h2 className="text-xl font-bold text-slate-900 mt-1">
+                  {reportCategory.name}
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Rekapitulasi alokasi dana masuk (pagu anggaran) dan seluruh realisasi pengeluaran lapangan.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handlePrintCategoryReport(reportCategory)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold shadow-sm transition-colors"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Cetak PDF Laporan</span>
+                </button>
+                <Link
+                  href={`/laporan-pengeluaran?categoryId=${reportCategory.id}`}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold transition-colors"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  <span>Filter Transaksi</span>
+                </Link>
+                <button
+                  onClick={() => setReportCategory(null)}
+                  className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200 transition-colors"
+                  title="Tutup"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Scrollable Body */}
+            <div className="p-6 overflow-y-auto space-y-6">
+              {(() => {
+                const catItems = reportCategory.items || [];
+                const catExpenses = catItems.flatMap((item: any) => 
+                  (item.expenses || []).map((exp: any) => ({ ...exp, rabItem: item }))
+                ).sort((a: any, b: any) => new Date(b.date || b.createdAt).getTime() - new Date(a.date || a.createdAt).getTime());
+
+                const catBudget = reportCategory.budget || catItems.reduce((s: number, i: any) => s + (i.totalBudget || 0), 0);
+                const catRealized = reportCategory.realized || catItems.reduce((s: number, i: any) => s + (i.realized || 0), 0);
+                const catRemaining = catBudget - catRealized;
+                const catPersen = catBudget > 0 ? (catRealized / catBudget) * 100 : 0;
+
+                return (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                        <span className="text-xs font-semibold uppercase text-slate-500">Pagu Anggaran (Alokasi)</span>
+                        <div className="text-xl font-bold text-slate-900 mt-1">{formatCurrency(catBudget)}</div>
+                        <span className="text-[11px] text-slate-500">Total alokasi dana kategori</span>
+                      </div>
+                      <div className="bg-red-50/60 border border-red-200 rounded-lg p-4">
+                        <span className="text-xs font-semibold uppercase text-red-600">Total Realisasi Pengeluaran</span>
+                        <div className="text-xl font-bold text-red-600 mt-1">{formatCurrency(catRealized)}</div>
+                        <span className="text-[11px] text-red-700">{catExpenses.length} transaksi disetujui</span>
+                      </div>
+                      <div className="bg-green-50/60 border border-green-200 rounded-lg p-4">
+                        <span className="text-xs font-semibold uppercase text-green-700">Sisa Saldo Anggaran</span>
+                        <div className="text-xl font-bold text-green-600 mt-1">{formatCurrency(catRemaining)}</div>
+                        <span className="text-[11px] text-green-700">Tersedia untuk pengeluaran</span>
+                      </div>
+                      <div className="bg-blue-50/60 border border-blue-200 rounded-lg p-4">
+                        <span className="text-xs font-semibold uppercase text-blue-700">Tingkat Penyerapan</span>
+                        <div className="text-xl font-bold text-blue-700 mt-1">{catPersen.toFixed(1)}%</div>
+                        <span className="text-[11px] text-blue-600">
+                          {catPersen > 100 ? 'Melebihi Anggaran' : catPersen > 80 ? 'Mendekati Pagu' : 'Status Aman'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Section 1: Item RAB Breakdown */}
+                    <div className="border rounded-lg overflow-hidden">
+                      <div className="bg-slate-100 px-4 py-2.5 border-b font-bold text-sm text-slate-800 flex justify-between items-center">
+                        <span>1. Pos Item Anggaran ({catItems.length} Item)</span>
+                        <span className="text-xs font-normal text-slate-500">Pagu vs Realisasi per Item</span>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs text-left">
+                          <thead className="bg-slate-50 text-slate-600 uppercase border-b">
+                            <tr>
+                              <th className="px-3 py-2">Kode</th>
+                              <th className="px-3 py-2">Uraian Item</th>
+                              <th className="px-3 py-2 text-right">Pagu Anggaran</th>
+                              <th className="px-3 py-2 text-right">Realisasi</th>
+                              <th className="px-3 py-2 text-center">% Pakai</th>
+                              <th className="px-3 py-2 text-right">Sisa Anggaran</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y">
+                            {catItems.map((item: any) => {
+                              const itRem = item.totalBudget - item.realized;
+                              const itP = item.totalBudget > 0 ? (item.realized / item.totalBudget) * 100 : 0;
+                              return (
+                                <tr key={item.id} className="hover:bg-slate-50">
+                                  <td className="px-3 py-2 font-mono font-medium text-slate-500 whitespace-nowrap">{item.code}</td>
+                                  <td className="px-3 py-2 font-medium text-slate-800">
+                                    {item.name}
+                                    {item.volume && <span className="block text-[10px] text-slate-400 font-normal">Vol: {item.volume}</span>}
+                                  </td>
+                                  <td className="px-3 py-2 text-right font-medium">{formatCurrency(item.totalBudget)}</td>
+                                  <td className="px-3 py-2 text-right text-red-600 font-medium">{formatCurrency(item.realized)}</td>
+                                  <td className="px-3 py-2 text-center">
+                                    <Badge variant={itP > 100 ? "destructive" : itP > 80 ? "default" : "secondary"} className="text-[10px]">
+                                      {itP.toFixed(1)}%
+                                    </Badge>
+                                  </td>
+                                  <td className="px-3 py-2 text-right text-green-600 font-medium">{formatCurrency(itRem)}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          <tfoot className="bg-slate-100 font-bold border-t">
+                            <tr>
+                              <td colSpan={2} className="px-3 py-2 text-right">TOTAL:</td>
+                              <td className="px-3 py-2 text-right">{formatCurrency(catBudget)}</td>
+                              <td className="px-3 py-2 text-right text-red-600">{formatCurrency(catRealized)}</td>
+                              <td className="px-3 py-2 text-center">{catPersen.toFixed(1)}%</td>
+                              <td className="px-3 py-2 text-right text-green-600">{formatCurrency(catRemaining)}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Section 2: Expense Transactions */}
+                    <div className="border rounded-lg overflow-hidden">
+                      <div className="bg-slate-100 px-4 py-2.5 border-b font-bold text-sm text-slate-800 flex justify-between items-center">
+                        <span>2. Rincian Pengeluaran Lapangan Terverifikasi ({catExpenses.length} Transaksi)</span>
+                        <span className="text-xs font-normal text-slate-500">Klik 'Lihat Nota' untuk pratinjau bukti</span>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs text-left">
+                          <thead className="bg-slate-50 text-slate-600 uppercase border-b">
+                            <tr>
+                              <th className="px-3 py-2">Tanggal</th>
+                              <th className="px-3 py-2">Item RAB</th>
+                              <th className="px-3 py-2">Deskripsi / Uraian</th>
+                              <th className="px-3 py-2">Penerima</th>
+                              <th className="px-3 py-2 text-right">Nominal</th>
+                              <th className="px-3 py-2 text-center">Bukti Nota</th>
+                              <th className="px-3 py-2 text-center">Aksi Dokumen</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y">
+                            {catExpenses.length === 0 ? (
+                              <tr>
+                                <td colSpan={7} className="px-4 py-8 text-center text-slate-500 text-xs">
+                                  Belum ada riwayat pengeluaran lapangan untuk kategori ini.
+                                </td>
+                              </tr>
+                            ) : (
+                              catExpenses.map((exp: any) => (
+                                <tr key={exp.id} className="hover:bg-slate-50">
+                                  <td className="px-3 py-2 whitespace-nowrap text-slate-600">
+                                    {new Date(exp.date || exp.createdAt).toLocaleDateString('id-ID')}
+                                  </td>
+                                  <td className="px-3 py-2 font-medium text-slate-800">{exp.rabItem?.name || '-'}</td>
+                                  <td className="px-3 py-2 text-slate-600 max-w-xs">{exp.description || '-'}</td>
+                                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
+                                    {exp.fasilitator ? exp.fasilitator.namaLengkap : (exp.createdBy?.name || 'Staf Lapangan')}
+                                  </td>
+                                  <td className="px-3 py-2 text-right font-semibold text-slate-900 whitespace-nowrap">
+                                    {formatCurrency(exp.amount)}
+                                  </td>
+                                  <td className="px-3 py-2 text-center whitespace-nowrap">
+                                    {(exp.receiptUrl || exp.paymentReceiptUrl) ? (
+                                      <a
+                                        href={exp.receiptUrl || exp.paymentReceiptUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        data-preview-title={`Bukti Pengeluaran - ${exp.rabItem?.name || exp.description}`}
+                                        className="text-blue-600 hover:underline font-medium"
+                                      >
+                                        📎 Lihat Nota
+                                      </a>
+                                    ) : (
+                                      <span className="text-slate-400">-</span>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-2 text-center whitespace-nowrap">
+                                    <button
+                                      onClick={() => openPrintModal(exp)}
+                                      className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded border text-[11px]"
+                                    >
+                                      Cetak
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                          {catExpenses.length > 0 && (
+                            <tfoot className="bg-slate-50 border-t font-bold">
+                              <tr>
+                                <td colSpan={4} className="px-3 py-2 text-right">Total Transaksi:</td>
+                                <td className="px-3 py-2 text-right text-red-600">{formatCurrency(catRealized)}</td>
+                                <td colSpan={2}></td>
+                              </tr>
+                            </tfoot>
+                          )}
+                        </table>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t bg-slate-50 flex justify-end">
+              <button
+                onClick={() => setReportCategory(null)}
+                className="px-4 py-2 border rounded-md text-sm text-slate-700 hover:bg-slate-100"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }

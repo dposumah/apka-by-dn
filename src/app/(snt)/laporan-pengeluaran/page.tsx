@@ -6,10 +6,10 @@ export const dynamic = 'force-dynamic'
 export default async function LaporanPengeluaranPage({
   searchParams,
 }: {
-  searchParams: { startDate?: string; endDate?: string }
+  searchParams: { startDate?: string; endDate?: string; categoryId?: string }
 }) {
-  const expenses = await getLaporanPengeluaran(searchParams.startDate, searchParams.endDate)
+  const expenses = await getLaporanPengeluaran(searchParams.startDate, searchParams.endDate, searchParams.categoryId)
   const rabData = await getRabDashboardData()
 
-  return <LaporanClientPage initialData={expenses} rabData={rabData} />
+  return <LaporanClientPage initialData={expenses} rabData={rabData} initialCategoryId={searchParams.categoryId} />
 }

@@ -9,16 +9,27 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { updateExpense } from '@/app/actions/rab'
 
-export function LaporanClientPage({ initialData, rabData }: { initialData: any[], rabData: any }) {
+export function LaporanClientPage({ 
+  initialData, 
+  rabData,
+  initialCategoryId
+}: { 
+  initialData: any[]
+  rabData: any
+  initialCategoryId?: string 
+}) {
   const router = useRouter()
   const searchParams = useSearchParams()
   
   const [startDate, setStartDate] = useState(searchParams.get('startDate') || '')
   const [endDate, setEndDate] = useState(searchParams.get('endDate') || '')
+  const [selectedCategory, setSelectedCategory] = useState(initialCategoryId || searchParams.get('categoryId') || '')
 
   const [showEditModal, setShowEditModal] = useState(false)
   const [editData, setEditData] = useState<any>(null)
   const [isSaving, setIsSaving] = useState(false)
+
+  const activeCategoryObj = rabData?.categories?.find((c: any) => c.id === selectedCategory)
 
   const openEditModal = (expense: any) => {
     setEditData({
@@ -41,23 +52,21 @@ export function LaporanClientPage({ initialData, rabData }: { initialData: any[]
         amount: parseFloat(editData.amount),
         rabItemId: editData.rabItemId
       });
-      if (res.error) throw new Error(res.error);
+      if (res?.error) throw new Error(res.error);
       setShowEditModal(false);
       window.location.reload();
-    } catch (err) {
-      alert("Gagal mengedit: " + err);
+    } catch (err: any) {
+      alert("Gagal mengedit: " + (err.message || err));
     } finally {
       setIsSaving(false);
     }
   }
 
-  
-  
-
   const handleFilter = () => {
     const params = new URLSearchParams()
     if (startDate) params.set('startDate', startDate)
     if (endDate) params.set('endDate', endDate)
+    if (selectedCategory) params.set('categoryId', selectedCategory)
     router.push(`/laporan-pengeluaran?${params.toString()}`)
   }
 
@@ -79,11 +88,12 @@ export function LaporanClientPage({ initialData, rabData }: { initialData: any[]
       return [date, cat, item, desc, amount, penerima, status, bukti].join(',');
     });
     
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows].join("\\n");
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows].join("\n");
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Laporan_Pengeluaran_${startDate || 'All'}_${endDate || 'All'}.csv`);
+    const catLabel = activeCategoryObj ? activeCategoryObj.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Semua';
+    link.setAttribute("download", `Laporan_Pengeluaran_${catLabel}_${startDate || 'All'}_${endDate || 'All'}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -93,7 +103,6 @@ export function LaporanClientPage({ initialData, rabData }: { initialData: any[]
     window.print();
   }
 
-  
   const totalAmount = initialData.reduce((acc, curr) => acc + curr.amount, 0);
 
   const generateAutoNarasi = () => {
@@ -101,7 +110,8 @@ export function LaporanClientPage({ initialData, rabData }: { initialData: any[]
     const highestItem = initialData.reduce((acc, curr) => {
       return curr.amount > acc.amount ? curr : acc;
     }, initialData[0]);
-    return `Pada periode laporan ini, terdapat total pengeluaran sebesar ${formatCurrency(totalAmount)} yang berasal dari ${initialData.length} transaksi. Pengeluaran tertinggi dialokasikan untuk item RAB "${highestItem?.rabItem?.name || '-'}" sebesar ${formatCurrency(highestItem.amount)}. Realisasi penggunaan dana sejauh ini telah dicatat dan dilampirkan sesuai dengan bukti transaksi yang sah.`;
+    const catPrefix = activeCategoryObj ? `untuk kategori "${activeCategoryObj.name}" ` : "";
+    return `Pada periode laporan ini, terdapat total pengeluaran ${catPrefix}sebesar ${formatCurrency(totalAmount)} yang berasal dari ${initialData.length} transaksi. Pengeluaran tertinggi dialokasikan untuk item RAB "${highestItem?.rabItem?.name || '-'}" sebesar ${formatCurrency(highestItem.amount)}. Realisasi penggunaan dana sejauh ini telah dicatat dan dilampirkan sesuai dengan bukti transaksi yang sah.`;
   };
 
   const generateAutoUpcoming = () => {
@@ -134,13 +144,29 @@ export function LaporanClientPage({ initialData, rabData }: { initialData: any[]
   const [narasi, setNarasi] = useState(generateAutoNarasi());
   const [upcoming, setUpcoming] = useState(generateAutoUpcoming());
 
+  // Filtered categories for Section 1 Ringkasan Realisasi
+  const displayCategories = selectedCategory 
+    ? rabData?.categories?.filter((c: any) => c.id === selectedCategory) 
+    : rabData?.categories;
+
+  const totalDisplayBudget = displayCategories?.reduce((acc: number, c: any) => {
+    return acc + (c.items || []).reduce((sum: number, it: any) => sum + (it.totalBudget || 0), 0);
+  }, 0) || 0;
+
+  const totalDisplayRealized = displayCategories?.reduce((acc: number, c: any) => {
+    return acc + (c.items || []).reduce((sum: number, it: any) => sum + (it.realized || 0), 0);
+  }, 0) || 0;
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">
       <div className="flex justify-between items-end print:hidden">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Laporan Pengeluaran</h1>
-          <p className="text-slate-500 mt-1">Laporan arus kas pengeluaran kegiatan berdasarkan item RAB.</p>
+          <p className="text-slate-500 mt-1">
+            {activeCategoryObj 
+              ? `Laporan arus kas pengeluaran khusus kategori: ${activeCategoryObj.name}`
+              : 'Laporan arus kas pengeluaran kegiatan berdasarkan item RAB.'}
+          </p>
         </div>
         <div className="flex gap-2">
           <Button onClick={exportCSV} variant="outline" className="bg-white">
@@ -154,7 +180,20 @@ export function LaporanClientPage({ initialData, rabData }: { initialData: any[]
 
       <Card className="print:hidden">
         <CardHeader className="bg-slate-50 border-b">
-          <div className="flex gap-4 items-end">
+          <div className="flex flex-wrap gap-4 items-end">
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Kategori RAB</label>
+              <select
+                value={selectedCategory}
+                onChange={e => setSelectedCategory(e.target.value)}
+                className="h-10 px-3 py-2 rounded-md border border-slate-200 bg-white text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-400 max-w-xs"
+              >
+                <option value="">Semua Kategori</option>
+                {rabData?.categories?.map((cat: any) => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">Dari Tanggal</label>
               <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
@@ -164,8 +203,18 @@ export function LaporanClientPage({ initialData, rabData }: { initialData: any[]
               <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
             </div>
             <Button onClick={handleFilter}>Filter Transaksi</Button>
-            {(startDate || endDate) && (
-              <Button variant="ghost" onClick={() => { setStartDate(''); setEndDate(''); router.push('/laporan-pengeluaran'); }}>Reset</Button>
+            {(startDate || endDate || selectedCategory) && (
+              <Button 
+                variant="ghost" 
+                onClick={() => { 
+                  setStartDate(''); 
+                  setEndDate(''); 
+                  setSelectedCategory(''); 
+                  router.push('/laporan-pengeluaran'); 
+                }}
+              >
+                Reset
+              </Button>
             )}
           </div>
         </CardHeader>
@@ -207,7 +256,14 @@ export function LaporanClientPage({ initialData, rabData }: { initialData: any[]
         {/* Header for PDF only */}
         <div className="hidden print:block mb-6">
           <img src="/kop-maleo.png" alt="Kop Yayasan Maleo" className="w-full object-contain mb-4 border-b-4 border-slate-800 pb-2" />
-          <h2 className="text-xl font-bold text-center uppercase mt-4">Laporan Pelaksanaan Anggaran (RAB) & Pengeluaran</h2>
+          <h2 className="text-xl font-bold text-center uppercase mt-4">
+            Laporan Pelaksanaan Anggaran (RAB) & Pengeluaran
+          </h2>
+          {activeCategoryObj && (
+            <h3 className="text-base font-bold text-center text-slate-800 mt-1 uppercase">
+              Kategori: {activeCategoryObj.name}
+            </h3>
+          )}
           <p className="text-center text-sm mt-1">{rabData?.project?.name === 'Proyek SNT' || !rabData?.project?.name ? 'Program KKA Sekolah Nasional Terintegrasi (SNT) Tahun 2026' : rabData.project.name}</p>
           {(startDate || endDate) ? <p className="text-center text-sm mt-1">Periode: {startDate || 'Awal'} s/d {endDate || 'Akhir'}</p> : <p className="text-center text-sm mt-1">Periode: Keseluruhan</p>}
           
@@ -219,7 +275,9 @@ export function LaporanClientPage({ initialData, rabData }: { initialData: any[]
         {/* SECTION 1: RAB Realisasi */}
         <Card className="shadow-sm print:shadow-none print:border-none">
           <CardHeader className="print:py-2">
-            <CardTitle className="text-xl">A. Ringkasan Realisasi RAB</CardTitle>
+            <CardTitle className="text-xl">
+              A. Ringkasan Realisasi {activeCategoryObj ? `Kategori (${activeCategoryObj.name})` : 'RAB'}
+            </CardTitle>
           </CardHeader>
           <CardContent className="p-0 print:p-0">
             <div className="overflow-x-auto">
@@ -234,7 +292,7 @@ export function LaporanClientPage({ initialData, rabData }: { initialData: any[]
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {rabData?.categories?.map((cat: any) => (
+                  {displayCategories?.map((cat: any) => (
                     <React.Fragment key={cat.id}>
                       <tr className="bg-slate-50 print:bg-slate-50 font-bold">
                         <td colSpan={5} className="py-2 px-4">{cat.name}</td>
@@ -261,14 +319,14 @@ export function LaporanClientPage({ initialData, rabData }: { initialData: any[]
                 </tbody>
                 <tfoot className="bg-slate-100 font-bold border-t-2 border-slate-300 print:bg-slate-200">
                   <tr>
-                    <td className="py-3 px-4 text-right">TOTAL KESELURUHAN:</td>
-                    <td className="py-3 px-4 text-right">{formatCurrency(rabData?.totalBudget || 0)}</td>
-                    <td className="py-3 px-4 text-right text-blue-600">{formatCurrency(rabData?.totalRealized || 0)}</td>
+                    <td className="py-3 px-4 text-right">TOTAL {selectedCategory ? 'KATEGORI' : 'KESELURUHAN'}:</td>
+                    <td className="py-3 px-4 text-right">{formatCurrency(totalDisplayBudget)}</td>
+                    <td className="py-3 px-4 text-right text-blue-600">{formatCurrency(totalDisplayRealized)}</td>
                     <td className="py-3 px-4 text-center">
-                      {rabData?.totalBudget > 0 ? ((rabData.totalRealized / rabData.totalBudget) * 100).toFixed(1) : 0}%
+                      {totalDisplayBudget > 0 ? ((totalDisplayRealized / totalDisplayBudget) * 100).toFixed(1) : 0}%
                     </td>
                     <td className="py-3 px-4 text-right text-green-600">
-                      {formatCurrency((rabData?.totalBudget || 0) - (rabData?.totalRealized || 0))}
+                      {formatCurrency(totalDisplayBudget - totalDisplayRealized)}
                     </td>
                   </tr>
                 </tfoot>
@@ -280,7 +338,9 @@ export function LaporanClientPage({ initialData, rabData }: { initialData: any[]
         {/* SECTION 2: Transaksi Pengeluaran */}
         <Card className="shadow-sm print:shadow-none print:border-none print:mt-8 print:break-before-page">
           <CardHeader className="print:py-2">
-            <CardTitle className="text-xl">B. Rincian Transaksi Pengeluaran</CardTitle>
+            <CardTitle className="text-xl">
+              B. Rincian Transaksi Pengeluaran {activeCategoryObj ? `(${activeCategoryObj.name})` : ''}
+            </CardTitle>
           </CardHeader>
           <CardContent className="p-0 print:p-0">
             <div className="overflow-x-auto">
@@ -300,8 +360,8 @@ export function LaporanClientPage({ initialData, rabData }: { initialData: any[]
                 <tbody className="divide-y">
                   {initialData.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-slate-500">
-                        Tidak ada pengeluaran pada periode ini.
+                      <td colSpan={8} className="py-8 text-center text-slate-500">
+                        Tidak ada pengeluaran pada periode / filter ini.
                       </td>
                     </tr>
                   ) : (
@@ -321,8 +381,14 @@ export function LaporanClientPage({ initialData, rabData }: { initialData: any[]
                         <td className="py-2 px-4 text-right font-medium">{formatCurrency(exp.amount)}</td>
                         <td className="py-2 px-4 text-center print:hidden">
                           {(exp.paymentReceiptUrl || exp.receiptUrl) ? (
-                            <a href={exp.paymentReceiptUrl || exp.receiptUrl} target="_blank" className="text-blue-600 text-xs hover:underline">
-                              Lihat
+                            <a 
+                              href={exp.paymentReceiptUrl || exp.receiptUrl} 
+                              target="_blank" 
+                              rel="noreferrer"
+                              data-preview-title={`Bukti Pengeluaran - ${exp.rabItem?.name || exp.description || 'Nota'}`}
+                              className="text-blue-600 text-xs hover:underline inline-flex items-center gap-1 font-medium"
+                            >
+                              📎 Lihat
                             </a>
                           ) : '-'}
                         </td>
@@ -358,71 +424,71 @@ export function LaporanClientPage({ initialData, rabData }: { initialData: any[]
         </div>
       </div>
 
-        {showEditModal && editData && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-            <div className="bg-white p-6 rounded-lg shadow-xl w-[500px]">
-              <h3 className="text-lg font-bold mb-4">Edit Pengeluaran</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Tanggal</label>
-                  <input 
-                    type="date" 
-                    value={editData.date}
-                    onChange={e => setEditData({...editData, date: e.target.value})}
-                    className="w-full border rounded px-3 py-2"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Deskripsi</label>
-                  <textarea 
-                    value={editData.description}
-                    onChange={e => setEditData({...editData, description: e.target.value})}
-                    className="w-full border rounded px-3 py-2 h-20"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Nominal</label>
-                  <input 
-                    type="number" 
-                    value={editData.amount}
-                    onChange={e => setEditData({...editData, amount: e.target.value})}
-                    className="w-full border rounded px-3 py-2"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Pilih Item RAB</label>
-                  <select 
-                    value={editData.rabItemId}
-                    onChange={e => setEditData({...editData, rabItemId: e.target.value})}
-                    className="w-full border rounded px-3 py-2"
-                  >
-                    {rabData?.categories?.flatMap((cat: any) => 
-                      cat.items.map((item: any) => (
-                        <option key={item.id} value={item.id}>{cat.name} - {item.name}</option>
-                      ))
-                    )}
-                  </select>
-                </div>
+      {showEditModal && editData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white p-6 rounded-lg shadow-xl w-[500px]">
+            <h3 className="text-lg font-bold mb-4">Edit Pengeluaran</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Tanggal</label>
+                <input 
+                  type="date" 
+                  value={editData.date}
+                  onChange={e => setEditData({...editData, date: e.target.value})}
+                  className="w-full border rounded px-3 py-2"
+                />
               </div>
-              <div className="mt-6 flex justify-end space-x-2">
-                <button 
-                  onClick={() => setShowEditModal(false)}
-                  className="px-4 py-2 border rounded hover:bg-slate-50"
-                  disabled={isSaving}
+              <div>
+                <label className="block text-sm font-medium mb-1">Deskripsi</label>
+                <textarea 
+                  value={editData.description}
+                  onChange={e => setEditData({...editData, description: e.target.value})}
+                  className="w-full border rounded px-3 py-2 h-20"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Nominal</label>
+                <input 
+                  type="number" 
+                  value={editData.amount}
+                  onChange={e => setEditData({...editData, amount: e.target.value})}
+                  className="w-full border rounded px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Pilih Item RAB</label>
+                <select 
+                  value={editData.rabItemId}
+                  onChange={e => setEditData({...editData, rabItemId: e.target.value})}
+                  className="w-full border rounded px-3 py-2"
                 >
-                  Batal
-                </button>
-                <button 
-                  onClick={handleSaveEdit}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                  disabled={isSaving}
-                >
-                  {isSaving ? 'Menyimpan...' : 'Simpan'}
-                </button>
+                  {rabData?.categories?.flatMap((cat: any) => 
+                    cat.items.map((item: any) => (
+                      <option key={item.id} value={item.id}>{cat.name} - {item.name}</option>
+                    ))
+                  )}
+                </select>
               </div>
             </div>
+            <div className="mt-6 flex justify-end space-x-2">
+              <button 
+                onClick={() => setShowEditModal(false)}
+                className="px-4 py-2 border rounded hover:bg-slate-50"
+                disabled={isSaving}
+              >
+                Batal
+              </button>
+              <button 
+                onClick={handleSaveEdit}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                disabled={isSaving}
+              >
+                {isSaving ? 'Menyimpan...' : 'Simpan'}
+              </button>
+            </div>
           </div>
-        )}
+        </div>
+      )}
 
     </div>
   )

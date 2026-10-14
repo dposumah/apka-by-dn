@@ -20,7 +20,12 @@ export async function getRabDashboardData() {
           items: {
             include: {
               expenses: {
-                where: { status: 'APPROVED' }
+                where: { status: 'APPROVED' },
+                include: {
+                  fasilitator: true,
+                  rabItem: true
+                },
+                orderBy: { date: 'desc' }
               }
             }
           }
@@ -669,11 +674,15 @@ export async function uploadLaporanFisik(laporanId: string, fileUrl: string) {
 }
 
 
-export async function getLaporanPengeluaran(startDate?: string, endDate?: string) {
+export async function getLaporanPengeluaran(startDate?: string, endDate?: string, categoryId?: string) {
   const where: any = {
     status: 'APPROVED'
   };
   
+  if (categoryId) {
+    where.rabItem = { categoryId };
+  }
+
   if (startDate && endDate) {
     where.date = {
       gte: new Date(startDate),
