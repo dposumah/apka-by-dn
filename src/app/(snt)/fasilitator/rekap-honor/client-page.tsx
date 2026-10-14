@@ -350,7 +350,7 @@ Atas Nama: ${namaLengkap}`;
   }
 
   return (
-    <div className="p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="p-6 md:p-8 space-y-6 max-w-[1440px] mx-auto">
       
       <div className="flex justify-between items-center">
         <div>
@@ -514,15 +514,14 @@ Atas Nama: ${namaLengkap}`;
                   <th className="py-3.5 px-4 text-right whitespace-nowrap">Total Honor</th>
                   <th className="py-3.5 px-4 text-center whitespace-nowrap">Status</th>
                   <th className="py-3.5 px-4 text-right whitespace-nowrap">Total Transport</th>
-                  <th className="py-3.5 px-4 text-center whitespace-nowrap">Bukti Bayar</th>
-                  <th className="py-3.5 px-4 text-center whitespace-nowrap">Dokumen PDF</th>
-                  <th className="py-3.5 px-4 text-center whitespace-nowrap w-40">Aksi</th>
+                  <th className="py-3 px-3 text-center whitespace-nowrap">Bukti Bayar</th>
+                  <th className="py-3 px-3 text-center whitespace-nowrap w-36">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200/70">
                 {sortedData.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="py-12 text-center text-slate-500">
+                    <td colSpan={9} className="py-12 text-center text-slate-500">
                       Tidak ada data rekapitulasi honorarium.
                     </td>
                   </tr>
@@ -530,7 +529,7 @@ Atas Nama: ${namaLengkap}`;
                   sortedData.map((rekap) => (
                     <tr key={rekap.id} className="hover:bg-slate-50/80 transition-colors">
                       {/* 1. Fasilitator */}
-                      <td className="py-3.5 px-4 align-top">
+                      <td className="py-3 px-3 align-top">
                         <div className="font-semibold text-slate-900 leading-snug">{rekap.fasilitator.namaLengkap}</div>
                         {(rekap.fasilitator.bankName || rekap.fasilitator.bankAccount) ? (
                           <div className="text-[11px] text-slate-400 mt-1 font-mono">
@@ -540,7 +539,7 @@ Atas Nama: ${namaLengkap}`;
                       </td>
 
                       {/* 2. Lokasi SNT (Kolom Tersendiri) */}
-                      <td className="py-3.5 px-4 align-top">
+                      <td className="py-3 px-3 align-top">
                         {rekap.fasilitator.lokasiSNT ? (
                           <div className="text-xs">
                             <span className="font-semibold text-slate-800 block">
@@ -558,27 +557,27 @@ Atas Nama: ${namaLengkap}`;
                       </td>
 
                       {/* 3. Bulan */}
-                      <td className="py-3.5 px-4 align-top whitespace-nowrap">
-                        <span className="inline-block px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 text-xs font-mono font-medium border border-slate-200">
+                      <td className="py-3 px-2.5 align-top text-center whitespace-nowrap">
+                        <span className="inline-block px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-mono font-medium border border-slate-200">
                           {rekap.bulan}
                         </span>
                       </td>
 
                       {/* 4. Total JP */}
-                      <td className="py-3.5 px-4 align-top text-center whitespace-nowrap">
+                      <td className="py-3 px-2 align-top text-center whitespace-nowrap">
                         <span className="font-bold text-slate-800 text-sm">{rekap.totalJP}</span>
-                        <span className="text-[11px] text-slate-400 block font-medium">JP</span>
+                        <span className="text-[10px] text-slate-400 block font-medium">JP</span>
                       </td>
 
                       {/* 5. Total Honor */}
-                      <td className="py-3.5 px-4 align-top text-right whitespace-nowrap">
+                      <td className="py-3 px-3 align-top text-right whitespace-nowrap">
                         <div className="font-bold text-slate-900 text-sm">
                           {formatCurrency(rekap.totalHonor)}
                         </div>
                       </td>
 
                       {/* 6. Status */}
-                      <td className="py-3.5 px-4 align-top text-center whitespace-nowrap">
+                      <td className="py-3 px-2 align-top text-center whitespace-nowrap">
                         <Badge 
                           variant={rekap.status === 'SUBMITTED' ? 'default' : 'secondary'}
                           className={rekap.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100 font-semibold text-[11px]' : 'text-[11px]'}
@@ -588,7 +587,7 @@ Atas Nama: ${namaLengkap}`;
                       </td>
 
                       {/* 7. Total Transport */}
-                      <td className="py-3.5 px-4 align-top text-right whitespace-nowrap">
+                      <td className="py-3 px-3 align-top text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
                           <span className="font-medium text-slate-900">{formatCurrency(hitungTotalTransportRekap(rekap))}</span>
                           <button 
@@ -605,9 +604,9 @@ Atas Nama: ${namaLengkap}`;
                         )}
                       </td>
 
-                      {/* 8. Bukti Bayar */}
-                      <td className="py-3.5 px-4 align-top text-center">
-                        <div className="flex flex-col items-center gap-1.5">
+                      {/* 8. Bukti Bayar & Dokumen Lampiran */}
+                      <td className="py-3 px-3 align-top text-center">
+                        <div className="flex flex-col items-center gap-1.5 min-w-[95px]">
                           {rekap.buktiPembayaranHonor ? (
                             <button 
                               type="button"
@@ -616,7 +615,7 @@ Atas Nama: ${namaLengkap}`;
                                 title: `Bukti Transfer Honor - ${rekap.fasilitator?.namaLengkap || 'Fasilitator'} (${rekap.bulan})`,
                                 url: rekap.buktiPembayaranHonor
                               })}
-                              className="text-xs text-emerald-700 hover:text-emerald-900 font-medium hover:underline inline-flex items-center gap-1 cursor-pointer bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200 w-full justify-center transition-colors"
+                              className="text-xs text-emerald-700 hover:text-emerald-900 font-medium hover:underline inline-flex items-center gap-1 cursor-pointer bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 w-full justify-center transition-colors"
                             >
                               ✓ Honor
                             </button>
@@ -629,15 +628,29 @@ Atas Nama: ${namaLengkap}`;
                                 title: `Bukti Transfer Transport - ${rekap.fasilitator?.namaLengkap || 'Fasilitator'} (${rekap.bulan})`,
                                 url: rekap.buktiPembayaranTransport
                               })}
-                              className="text-xs text-purple-700 hover:text-purple-900 font-medium hover:underline inline-flex items-center gap-1 cursor-pointer bg-purple-50 px-2.5 py-0.5 rounded border border-purple-200 w-full justify-center transition-colors"
+                              className="text-xs text-purple-700 hover:text-purple-900 font-medium hover:underline inline-flex items-center gap-1 cursor-pointer bg-purple-50 px-2 py-0.5 rounded border border-purple-200 w-full justify-center transition-colors"
                             >
                               ✓ Transport
+                            </button>
+                          ) : null}
+                          {rekap.filePdf ? (
+                            <button 
+                              type="button"
+                              onClick={() => setPreviewModal({
+                                isOpen: true,
+                                title: `Dokumen PDF TTD - ${rekap.fasilitator?.namaLengkap || 'Fasilitator'} (${rekap.bulan})`,
+                                url: rekap.filePdf
+                              })}
+                              className="text-xs text-blue-700 hover:text-blue-900 font-medium hover:underline inline-flex items-center gap-1 cursor-pointer bg-blue-50 px-2 py-0.5 rounded border border-blue-200 w-full justify-center transition-colors"
+                            >
+                              <FileText className="w-3 h-3 text-blue-600" />
+                              <span>PDF TTD</span>
                             </button>
                           ) : null}
                           {(rekap.status === 'SUBMITTED' || rekap.status === 'APPROVED') && (
                             <button 
                               onClick={() => { setUploadingRekap(rekap); setHonorFile(null); setTransportFile(null); setShowUploadModal(true); }}
-                              className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 px-2.5 py-1 rounded transition-colors font-medium cursor-pointer w-full mt-0.5"
+                              className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 px-2 py-0.5 rounded transition-colors font-medium cursor-pointer w-full mt-0.5"
                             >
                               {rekap.buktiPembayaranHonor && rekap.buktiPembayaranTransport ? 'Ganti Bukti' : 'Upload Bukti'}
                             </button>
@@ -645,36 +658,16 @@ Atas Nama: ${namaLengkap}`;
                         </div>
                       </td>
 
-                      {/* 9. Dokumen PDF */}
-                      <td className="py-3.5 px-4 align-top text-center whitespace-nowrap">
-                        {rekap.filePdf ? (
-                          <button 
-                            type="button"
-                            onClick={() => setPreviewModal({
-                              isOpen: true,
-                              title: `Dokumen PDF TTD - ${rekap.fasilitator?.namaLengkap || 'Fasilitator'} (${rekap.bulan})`,
-                              url: rekap.filePdf
-                            })}
-                            className="text-xs text-blue-700 hover:text-blue-900 font-medium hover:underline inline-flex items-center gap-1 cursor-pointer bg-blue-50 px-2.5 py-1 rounded border border-blue-200 transition-colors shadow-sm"
-                          >
-                            <FileText className="w-3.5 h-3.5 text-blue-600" />
-                            <span>Lihat PDF</span>
-                          </button>
-                        ) : (
-                          <span className="text-slate-400 text-xs italic">-</span>
-                        )}
-                      </td>
-
-                      {/* 10. Aksi (Menu Tersusun Secara Vertikal) */}
-                      <td className="py-3.5 px-4 align-top text-right">
+                      {/* 9. Aksi (Menu Tersusun Secara Vertikal) */}
+                      <td className="py-3 px-3 align-top text-right">
                         {(rekap.status === 'SUBMITTED' || rekap.status === 'APPROVED') && (
-                          <div className="flex flex-col gap-1.5 w-36 ml-auto">
+                          <div className="flex flex-col gap-1.5 w-32 ml-auto">
                             {/* Tombol Utama: Cetak / Invoice */}
                             <button 
                               type="button"
                               onClick={() => openKopModal(rekap)}
                               disabled={loadingId === rekap.id}
-                              className="w-full inline-flex items-center justify-center gap-1.5 text-xs bg-slate-900 text-white hover:bg-slate-800 rounded-md px-2.5 py-1.5 font-medium transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+                              className="w-full inline-flex items-center justify-center gap-1.5 text-xs bg-slate-900 text-white hover:bg-slate-800 rounded-md px-2 py-1.5 font-medium transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
                               title="Buat invoice dan cetak dokumen rekap honorarium"
                             >
                               <Printer className="w-3.5 h-3.5" />
@@ -685,7 +678,7 @@ Atas Nama: ${namaLengkap}`;
                             <button 
                               type="button"
                               onClick={() => openEditTransportModal(rekap)} 
-                              className="w-full inline-flex items-center justify-center gap-1.5 text-xs bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer" 
+                              className="w-full inline-flex items-center justify-center gap-1.5 text-xs bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 rounded-md px-2 py-1 font-medium transition-colors cursor-pointer" 
                               title="Edit Biaya Transport Rekap"
                             >
                               <Edit className="w-3.5 h-3.5" />
@@ -696,7 +689,7 @@ Atas Nama: ${namaLengkap}`;
                             <button 
                               type="button"
                               onClick={() => handleCopyText(rekap)} 
-                              className="w-full inline-flex items-center justify-center gap-1.5 text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer" 
+                              className="w-full inline-flex items-center justify-center gap-1.5 text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-md px-2 py-1 font-medium transition-colors cursor-pointer" 
                               title="Salin rincian data pembayaran ke clipboard"
                             >
                               <Copy className="w-3.5 h-3.5" />
@@ -707,7 +700,7 @@ Atas Nama: ${namaLengkap}`;
                             <button 
                               type="button"
                               onClick={() => handleSync(rekap.id)} 
-                              className="w-full inline-flex items-center justify-center gap-1.5 text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer" 
+                              className="w-full inline-flex items-center justify-center gap-1.5 text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-md px-2 py-1 font-medium transition-colors cursor-pointer" 
                               title="Tautkan laporan mingguan fasilitator yang telat ke rekap ini (Tidak merubah honor)"
                             >
                               <LinkIcon className="w-3.5 h-3.5" />
@@ -718,7 +711,7 @@ Atas Nama: ${namaLengkap}`;
                             <button 
                               type="button"
                               onClick={() => handleDelete(rekap.id)} 
-                              className="w-full inline-flex items-center justify-center gap-1.5 text-xs bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer"
+                              className="w-full inline-flex items-center justify-center gap-1.5 text-xs bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded-md px-2 py-1 font-medium transition-colors cursor-pointer"
                               title="Hapus Rekapitulasi Ini"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
