@@ -43,8 +43,9 @@ export function LaporanClientForm({
   const [tiketName, setTiketName] = useState('')
   const [uploadingField, setUploadingField] = useState<string | null>(null)
 
-  // Hitung batas wajar rumus jarak (minimal besaranTransport / 120.000)
-  const batasWajarDarat = hitungBatasWajarTransport({ besaranTransport, jarakPPKm }, hargaPertamax)
+  // Batas maksimal per sesi yang diatur admin dan batas tanpa nota berdasarkan rumus jarak
+  const maxPlafon = besaranTransport > 0 ? besaranTransport : 120000
+  const batasTanpaNota = jarakPPKm > 0 ? Math.round((jarakPPKm / 10) * hargaPertamax) : 0
 
   const initialJenisPembelajaran = jenisTugas === 'EKSTRAKURIKULER' ? 'EKSTRAKURIKULER' : 'INTRAKURIKULER'
   const initialJam = (initialJenisPembelajaran === 'EKSTRAKURIKULER' ? defaultJPEkstra : defaultJPIntra).toString()
@@ -58,7 +59,7 @@ export function LaporanClientForm({
     metodePelaksanaan: 'LURING',
     jenisPembelajaran: initialJenisPembelajaran,
     jumlahJam: initialJam,
-    biayaTransport: batasWajarDarat.toString(),
+    biayaTransport: '',
     biayaTransportLaut: '',
   })
 
@@ -115,11 +116,17 @@ export function LaporanClientForm({
     }
 
     const nominalDarat = parseFloat(formData.biayaTransport) || 0
-    const isDaratWajib = formData.metodePelaksanaan === 'LURING' && nominalDarat > batasWajarDarat
+
+    if (formData.metodePelaksanaan === 'LURING' && nominalDarat > maxPlafon) {
+      setFileError(`Biaya transport darat tidak boleh melebihi batas maksimal yang diatur admin (Rp ${maxPlafon.toLocaleString('id-ID')} / sesi).`)
+      return
+    }
+
+    const isDaratWajib = formData.metodePelaksanaan === 'LURING' && nominalDarat > batasTanpaNota
     
-    // Transport darat: upload nota wajib jika melebihi batas rumus jarak
+    // Transport darat: upload nota wajib jika melebihi batas tanpa nota
     if (isDaratWajib && !buktiDaratUrl) {
-      setFileError(`Bukti Transport Darat (nota/kwitansi) wajib diunggah karena nominal klaim (Rp ${nominalDarat.toLocaleString('id-ID')}) melebihi batas wajar rumus jarak (Rp ${batasWajarDarat.toLocaleString('id-ID')}).`)
+      setFileError(`Bukti Transport Darat (struk BBM / receipt transportasi online) wajib diunggah karena nominal klaim (Rp ${nominalDarat.toLocaleString('id-ID')}) melebihi batas tanpa nota${batasTanpaNota > 0 ? ` (Rp ${batasTanpaNota.toLocaleString('id-ID')})` : ''}.`)
       return
     }
 
@@ -168,7 +175,7 @@ export function LaporanClientForm({
 
   // Derive whether transport darat upload is mandatory
   const nominalDaratCurrent = parseFloat(formData.biayaTransport) || 0
-  const isDaratWajib = formData.metodePelaksanaan === 'LURING' && nominalDaratCurrent > batasWajarDarat
+  const isDaratWajib = formData.metodePelaksanaan === 'LURING' && nominalDaratCurrent > batasTanpaNota
 
   return (
     <div className="p-8 space-y-6 max-w-3xl mx-auto">
@@ -195,7 +202,7 @@ export function LaporanClientForm({
                     onChange={e => setFormData({
                       ...formData, 
                       metodePelaksanaan: e.target.value,
-                      biayaTransport: batasWajarDarat.toString()
+                      biayaTransport: formData.biayaTransport
                     })} 
                     className="w-4 h-4 text-emerald-600" 
                   />
@@ -290,13 +297,14 @@ export function LaporanClientForm({
                 <Input 
                   type="number" 
                   min="0" 
+                  max={maxPlafon}
                   value={formData.biayaTransport} 
                   onChange={e => setFormData({...formData, biayaTransport: e.target.value})} 
                   disabled={formData.metodePelaksanaan === 'DARING'}
                   placeholder="0" 
                 />
-                <p className="text-xs text-slate-500">
-                  Batas wajar rumus jarak: <strong>Rp {batasWajarDarat.toLocaleString('id-ID')}</strong> {jarakPPKm > 0 ? `(${jarakPPKm} km PP)` : ''}
+                <p className="text-xs text-slate-400">
+                  Maksimal Rp {maxPlafon.toLocaleString('id-ID')} / sesi
                 </p>
               </div>
               <div className="space-y-2">
@@ -318,9 +326,9 @@ export function LaporanClientForm({
               <div className={`space-y-2 col-span-2 p-4 rounded-md mt-2 border ${isDaratWajib ? 'border-red-200 bg-red-50' : 'border-emerald-100 bg-emerald-50'}`}>
                 <Label>
                   Bukti Transport Darat {isDaratWajib ? (
-                    <span className="text-red-600 font-bold">(Wajib — melebihi batas rumus jarak Rp {batasWajarDarat.toLocaleString('id-ID')})</span>
+                    <span className="text-red-600 font-bold">(Wajib — lampirkan struk BBM / receipt transportasi online)</span>
                   ) : (
-                    <span className="text-emerald-600 font-medium">(Opsional — sesuai batas wajar)</span>
+                    <span className="text-emerald-600 font-medium">(Opsional)</span>
                   )}
                 </Label>
                 <Input 
@@ -337,8 +345,8 @@ export function LaporanClientForm({
                 )}
                 <p className={`text-xs ${isDaratWajib ? 'text-red-600 font-medium' : 'text-emerald-600'}`}>
                   {isDaratWajib 
-                    ? `⚠️ Nominal Rp ${nominalDaratCurrent.toLocaleString('id-ID')} melebihi batas wajar rumus jarak (Rp ${batasWajarDarat.toLocaleString('id-ID')}). Anda wajib melampirkan foto struk/nota BBM atau kwitansi transport.`
-                    : `✓ Nominal sesuai nilai wajar jarak. Unggah bukti bersifat opsional.`
+                    ? `⚠️ Nominal Rp ${nominalDaratCurrent.toLocaleString('id-ID')} melebihi batas tanpa nota${batasTanpaNota > 0 ? ` (Rp ${batasTanpaNota.toLocaleString('id-ID')})` : ''}. Anda wajib melampirkan foto struk BBM atau receipt transportasi online.`
+                    : `✓ Nominal sesuai ketentuan tanpa nota. Unggah bukti bersifat opsional.`
                   }
                 </p>
               </div>

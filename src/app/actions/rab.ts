@@ -396,13 +396,28 @@ export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
       finalReqTransportDarat = 0;
     }
 
-    const rumusJarak = Math.round(((fasil?.jarakPPKm || 0) / 10) * 13900);
-    const batasWajar = Math.max(fasil?.besaranTransport ?? 120000, rumusJarak);
+    const maxPlafon = fasil?.besaranTransport ?? 120000;
+    const batasTanpaNota = (fasil?.jarakPPKm && fasil.jarakPPKm > 0) ? Math.round((fasil.jarakPPKm / 10) * 13900) : 0;
+
+    if (finalReqTransportDarat > maxPlafon) {
+      return {
+        error: `Biaya transport darat (Rp ${Math.round(finalReqTransportDarat).toLocaleString('id-ID')}) melebihi batas maksimal yang diatur admin (Rp ${maxPlafon.toLocaleString('id-ID')}/sesi).`
+      };
+    }
+
+    if (finalReqTransportDarat > batasTanpaNota && !data.buktiTransportDarat) {
+      return {
+        error: `Bukti struk BBM atau receipt transportasi online wajib dilampirkan karena biaya transport darat (Rp ${Math.round(finalReqTransportDarat).toLocaleString('id-ID')}) melebihi batas tanpa nota${batasTanpaNota > 0 ? ` (Rp ${batasTanpaNota.toLocaleString('id-ID')})` : ''}.`
+      };
+    }
 
     let grantedTransportDarat = finalReqTransportDarat;
     if (!data.buktiTransportDarat) {
-      // Jika tanpa bukti nota, dibatasi oleh batas wajar
-      grantedTransportDarat = Math.min(finalReqTransportDarat, batasWajar);
+      // Jika tanpa bukti nota, dibatasi oleh batas tanpa nota
+      grantedTransportDarat = Math.min(finalReqTransportDarat, batasTanpaNota);
+    } else {
+      // Jika ada bukti nota, dibatasi oleh plafon maksimal
+      grantedTransportDarat = Math.min(finalReqTransportDarat, maxPlafon);
     }
 
     const hasTransportLautToday = sameDayReports.some(lap => (lap.biayaTransportLaut || 0) > 0);
