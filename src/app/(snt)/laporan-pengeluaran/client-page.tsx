@@ -4,10 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatCurrency } from '@/lib/format'
-import React, { useState } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
-import { updateExpense } from '@/app/actions/rab'
+import { updateExpense, deleteExpense } from '@/app/actions/rab'
+import { Search, Trash2, X, AlertCircle, Loader2 } from 'lucide-react'
 
 export function LaporanClientPage({ 
   initialData, 
@@ -21,6 +22,8 @@ export function LaporanClientPage({
   const router = useRouter()
   const searchParams = useSearchParams()
   
+  const [expensesList, setExpensesList] = useState<any[]>(initialData || [])
+  const [searchQuery, setSearchQuery] = useState('')
   const [startDate, setStartDate] = useState(searchParams.get('startDate') || '')
   const [endDate, setEndDate] = useState(searchParams.get('endDate') || '')
   const [selectedCategory, setSelectedCategory] = useState(initialCategoryId || searchParams.get('categoryId') || '')
@@ -29,7 +32,41 @@ export function LaporanClientPage({
   const [editData, setEditData] = useState<any>(null)
   const [isSaving, setIsSaving] = useState(false)
 
+  // Delete modal state
+  const [deleteTarget, setDeleteTarget] = useState<any>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  // Keep expensesList in sync with initialData from server
+  useEffect(() => {
+    setExpensesList(initialData || [])
+  }, [initialData])
+
   const activeCategoryObj = rabData?.categories?.find((c: any) => c.id === selectedCategory)
+
+  // Real-time filtering based on search query
+  const filteredExpenses = useMemo(() => {
+    if (!searchQuery.trim()) return expensesList;
+    const q = searchQuery.toLowerCase().trim();
+    return expensesList.filter((exp) => {
+      const catName = exp.rabItem?.category?.name?.toLowerCase() || '';
+      const itemName = exp.rabItem?.name?.toLowerCase() || '';
+      const itemCode = exp.rabItem?.code?.toLowerCase() || '';
+      const desc = exp.description?.toLowerCase() || '';
+      const penerima = (exp.fasilitator ? exp.fasilitator.namaLengkap : (exp.createdBy?.name || 'Lainnya')).toLowerCase();
+      const nominal = exp.amount?.toString() || '';
+      const dateStr = new Date(exp.date).toLocaleDateString('id-ID').toLowerCase();
+
+      return (
+        desc.includes(q) ||
+        itemName.includes(q) ||
+        itemCode.includes(q) ||
+        catName.includes(q) ||
+        penerima.includes(q) ||
+        nominal.includes(q) ||
+        dateStr.includes(q)
+      );
+    });
+  }, [expensesList, searchQuery]);
 
   const openEditModal = (expense: any) => {
     setEditData({
@@ -62,6 +99,24 @@ export function LaporanClientPage({
     }
   }
 
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    try {
+      const res = await deleteExpense(deleteTarget.id);
+      if (res?.error) throw new Error(res.error);
+
+      // Optimistic delete from state
+      setExpensesList(prev => prev.filter(e => e.id !== deleteTarget.id));
+      setDeleteTarget(null);
+      router.refresh();
+    } catch (err: any) {
+      alert("Gagal menghapus pengeluaran: " + (err.message || err));
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleFilter = () => {
     const params = new URLSearchParams()
     if (startDate) params.set('startDate', startDate)
@@ -71,17 +126,18 @@ export function LaporanClientPage({
   }
 
   const exportCSV = () => {
-    if (!initialData.length) return alert('Tidak ada data untuk diexport');
+    const dataToExport = searchQuery ? filteredExpenses : expensesList;
+    if (!dataToExport.length) return alert('Tidak ada data untuk diexport');
     
     const headers = ['Tanggal', 'Kategori RAB', 'Item RAB', 'Deskripsi', 'Nominal', 'Penerima', 'Status', 'Bukti Transfer'];
     
-    const rows = initialData.map(exp => {
+    const rows = dataToExport.map(exp => {
       const date = new Date(exp.date).toLocaleDateString('id-ID');
       const cat = exp.rabItem?.category?.name || '-';
       const item = exp.rabItem?.name || '-';
       const desc = (exp.description || '').replace(/,/g, ' ');
       const amount = exp.amount;
-      const penerima = exp.fasilitator ? exp.fasilitator.namaLengkap : 'Lainnya';
+      const penerima = exp.fasilitator ? exp.fasilitator.namaLengkap : (exp.createdBy?.name || 'Lainnya');
       const status = exp.status;
       const bukti = exp.paymentReceiptUrl || exp.receiptUrl || '';
       
@@ -103,15 +159,16 @@ export function LaporanClientPage({
     window.print();
   }
 
-  const totalAmount = initialData.reduce((acc, curr) => acc + curr.amount, 0);
+  const totalAmount = expensesList.reduce((acc, curr) => acc + curr.amount, 0);
+  const filteredTotalAmount = filteredExpenses.reduce((acc, curr) => acc + curr.amount, 0);
 
   const generateAutoNarasi = () => {
-    if (initialData.length === 0) return "Belum ada pengeluaran pada periode ini.";
-    const highestItem = initialData.reduce((acc, curr) => {
+    if (expensesList.length === 0) return "Belum ada pengeluaran pada periode ini.";
+    const highestItem = expensesList.reduce((acc, curr) => {
       return curr.amount > acc.amount ? curr : acc;
-    }, initialData[0]);
+    }, expensesList[0]);
     const catPrefix = activeCategoryObj ? `untuk kategori "${activeCategoryObj.name}" ` : "";
-    return `Pada periode laporan ini, terdapat total pengeluaran ${catPrefix}sebesar ${formatCurrency(totalAmount)} yang berasal dari ${initialData.length} transaksi. Pengeluaran tertinggi dialokasikan untuk item RAB "${highestItem?.rabItem?.name || '-'}" sebesar ${formatCurrency(highestItem.amount)}. Realisasi penggunaan dana sejauh ini telah dicatat dan dilampirkan sesuai dengan bukti transaksi yang sah.`;
+    return `Pada periode laporan ini, terdapat total pengeluaran ${catPrefix}sebesar ${formatCurrency(totalAmount)} yang berasal dari ${expensesList.length} transaksi. Pengeluaran tertinggi dialokasikan untuk item RAB "${highestItem?.rabItem?.name || '-'}" sebesar ${formatCurrency(highestItem.amount)}. Realisasi penggunaan dana sejauh ini telah dicatat dan dilampirkan sesuai dengan bukti transaksi yang sah.`;
   };
 
   const generateAutoUpcoming = () => {
@@ -338,9 +395,37 @@ export function LaporanClientPage({
         {/* SECTION 2: Transaksi Pengeluaran */}
         <Card className="shadow-sm print:shadow-none print:border-none print:mt-8 print:break-before-page">
           <CardHeader className="print:py-2">
-            <CardTitle className="text-xl">
-              B. Rincian Transaksi Pengeluaran {activeCategoryObj ? `(${activeCategoryObj.name})` : ''}
-            </CardTitle>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <CardTitle className="text-xl">
+                  B. Rincian Transaksi Pengeluaran {activeCategoryObj ? `(${activeCategoryObj.name})` : ''}
+                </CardTitle>
+                <p className="text-xs text-slate-500 mt-1 print:hidden">
+                  {searchQuery 
+                    ? `Menampilkan ${filteredExpenses.length} dari ${expensesList.length} transaksi` 
+                    : `Total ${expensesList.length} transaksi terdaftar`}
+                </p>
+              </div>
+              <div className="relative w-full sm:w-80 print:hidden">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input
+                  type="text"
+                  placeholder="Cari transaksi, deskripsi, penerima..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 pr-8 h-9 text-sm bg-white"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                    title="Hapus pencarian"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="p-0 print:p-0">
             <div className="overflow-x-auto">
@@ -354,20 +439,22 @@ export function LaporanClientPage({
                     <th className="py-3 px-4">Penerima</th>
                     <th className="py-3 px-4 text-right">Nominal</th>
                     <th className="py-3 px-4 text-center print:hidden">Bukti</th>
-                    <th className="py-3 px-4 text-center print:hidden">Aksi</th>
+                    <th className="py-3 px-4 text-center print:hidden w-36">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {initialData.length === 0 ? (
+                  {filteredExpenses.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="py-8 text-center text-slate-500">
-                        Tidak ada pengeluaran pada periode / filter ini.
+                        {searchQuery 
+                          ? `Tidak ditemukan transaksi yang cocok dengan pencarian "${searchQuery}".`
+                          : 'Tidak ada pengeluaran pada periode / filter ini.'}
                       </td>
                     </tr>
                   ) : (
-                    initialData.map((exp) => (
+                    filteredExpenses.map((exp) => (
                       <tr key={exp.id} className="hover:bg-slate-50">
-                        <td className="py-2 px-4">{new Date(exp.date).toLocaleDateString('id-ID')}</td>
+                        <td className="py-2 px-4 whitespace-nowrap">{new Date(exp.date).toLocaleDateString('id-ID')}</td>
                         <td className="py-2 px-4">
                           <span className="text-[11px] font-semibold px-2 py-1 bg-slate-200 rounded-md whitespace-nowrap">
                             {exp.rabItem?.category?.name || '-'}
@@ -377,9 +464,9 @@ export function LaporanClientPage({
                         <td className="py-2 px-4 text-slate-600" title={exp.description}>
                           {exp.description}
                         </td>
-                        <td className="py-2 px-4">{exp.fasilitator ? exp.fasilitator.namaLengkap : 'Lainnya'}</td>
-                        <td className="py-2 px-4 text-right font-medium">{formatCurrency(exp.amount)}</td>
-                        <td className="py-2 px-4 text-center print:hidden">
+                        <td className="py-2 px-4 whitespace-nowrap">{exp.fasilitator ? exp.fasilitator.namaLengkap : (exp.createdBy?.name || 'Lainnya')}</td>
+                        <td className="py-2 px-4 text-right font-medium whitespace-nowrap">{formatCurrency(exp.amount)}</td>
+                        <td className="py-2 px-4 text-center print:hidden whitespace-nowrap">
                           {(exp.paymentReceiptUrl || exp.receiptUrl) ? (
                             <a 
                               href={exp.paymentReceiptUrl || exp.receiptUrl} 
@@ -392,20 +479,36 @@ export function LaporanClientPage({
                             </a>
                           ) : '-'}
                         </td>
-                        <td className="py-2 px-4 text-center print:hidden">
-                          <button onClick={() => openEditModal(exp)} className="text-xs bg-amber-500 text-white px-2 py-1 rounded hover:bg-amber-600">
-                            Edit
-                          </button>
+                        <td className="py-2 px-4 text-center print:hidden whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button 
+                              onClick={() => openEditModal(exp)} 
+                              className="text-xs bg-amber-500 hover:bg-amber-600 text-white px-2.5 py-1 rounded transition-colors"
+                              title="Edit transaksi pengeluaran"
+                            >
+                              Edit
+                            </button>
+                            <button 
+                              onClick={() => setDeleteTarget(exp)} 
+                              className="text-xs bg-red-600 hover:bg-red-700 text-white px-2.5 py-1 rounded transition-colors inline-flex items-center gap-1"
+                              title="Hapus transaksi pengeluaran"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Hapus</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
                   )}
                 </tbody>
-                {initialData.length > 0 && (
+                {filteredExpenses.length > 0 && (
                   <tfoot className="bg-slate-50 border-t-2 border-slate-200 font-bold print:bg-slate-100">
                     <tr>
-                      <td colSpan={5} className="py-4 px-4 text-right text-base">Total Rincian Transaksi:</td>
-                      <td className="py-4 px-4 text-right text-base text-red-600">{formatCurrency(totalAmount)}</td>
+                      <td colSpan={5} className="py-4 px-4 text-right text-base">
+                        {searchQuery ? `Total (${filteredExpenses.length} Transaksi Ditemukan):` : 'Total Rincian Transaksi:'}
+                      </td>
+                      <td className="py-4 px-4 text-right text-base text-red-600">{formatCurrency(filteredTotalAmount)}</td>
                       <td className="print:hidden"></td>
                       <td className="print:hidden"></td>
                     </tr>
@@ -424,9 +527,10 @@ export function LaporanClientPage({
         </div>
       </div>
 
+      {/* Modal Edit Pengeluaran */}
       {showEditModal && editData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white p-6 rounded-lg shadow-xl w-[500px]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="bg-white p-6 rounded-lg shadow-xl w-[500px] max-w-full">
             <h3 className="text-lg font-bold mb-4">Edit Pengeluaran</h3>
             <div className="space-y-4">
               <div>
@@ -435,7 +539,7 @@ export function LaporanClientPage({
                   type="date" 
                   value={editData.date}
                   onChange={e => setEditData({...editData, date: e.target.value})}
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border rounded px-3 py-2 text-sm"
                 />
               </div>
               <div>
@@ -443,7 +547,7 @@ export function LaporanClientPage({
                 <textarea 
                   value={editData.description}
                   onChange={e => setEditData({...editData, description: e.target.value})}
-                  className="w-full border rounded px-3 py-2 h-20"
+                  className="w-full border rounded px-3 py-2 text-sm h-20"
                 />
               </div>
               <div>
@@ -452,7 +556,7 @@ export function LaporanClientPage({
                   type="number" 
                   value={editData.amount}
                   onChange={e => setEditData({...editData, amount: e.target.value})}
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border rounded px-3 py-2 text-sm"
                 />
               </div>
               <div>
@@ -460,7 +564,7 @@ export function LaporanClientPage({
                 <select 
                   value={editData.rabItemId}
                   onChange={e => setEditData({...editData, rabItemId: e.target.value})}
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border rounded px-3 py-2 text-sm bg-white"
                 >
                   {rabData?.categories?.flatMap((cat: any) => 
                     cat.items.map((item: any) => (
@@ -473,17 +577,87 @@ export function LaporanClientPage({
             <div className="mt-6 flex justify-end space-x-2">
               <button 
                 onClick={() => setShowEditModal(false)}
-                className="px-4 py-2 border rounded hover:bg-slate-50"
+                className="px-4 py-2 border rounded hover:bg-slate-50 text-sm"
                 disabled={isSaving}
               >
                 Batal
               </button>
               <button 
                 onClick={handleSaveEdit}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 text-sm"
                 disabled={isSaving}
               >
                 {isSaving ? 'Menyimpan...' : 'Simpan'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Konfirmasi Hapus Pengeluaran */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
+            <div className="flex items-center gap-3 text-red-600 mb-3">
+              <div className="p-2.5 bg-red-100 rounded-full">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Hapus Pengeluaran</h3>
+                <p className="text-xs text-slate-500">Tindakan ini tidak dapat dibatalkan.</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 my-4 text-xs space-y-2">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Tanggal:</span>
+                <span className="font-semibold text-slate-800">
+                  {new Date(deleteTarget.date || deleteTarget.createdAt).toLocaleDateString('id-ID')}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Item RAB:</span>
+                <span className="font-semibold text-slate-800 text-right max-w-[220px]">
+                  {deleteTarget.rabItem?.name || '-'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Deskripsi:</span>
+                <span className="font-semibold text-slate-800 text-right max-w-[220px] truncate" title={deleteTarget.description}>
+                  {deleteTarget.description || '-'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Penerima:</span>
+                <span className="font-semibold text-slate-800">
+                  {deleteTarget.fasilitator ? deleteTarget.fasilitator.namaLengkap : (deleteTarget.createdBy?.name || 'Lainnya')}
+                </span>
+              </div>
+              <div className="flex justify-between border-t border-slate-200 pt-2 text-sm">
+                <span className="font-bold text-slate-700">Nominal:</span>
+                <span className="font-bold text-red-600">{formatCurrency(deleteTarget.amount)}</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 mb-5">
+              Apakah Anda yakin ingin menghapus data pengeluaran ini dari sistem?
+            </p>
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 border border-slate-300 rounded-md text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm font-semibold transition-colors disabled:opacity-50 inline-flex items-center gap-1.5"
+              >
+                {isDeleting && <Loader2 className="w-4 h-4 animate-spin" />}
+                <span>{isDeleting ? 'Menghapus...' : 'Ya, Hapus'}</span>
               </button>
             </div>
           </div>
