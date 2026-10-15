@@ -1,4 +1,4 @@
-﻿import { prisma } from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 import { RekapHonorClient } from './client-page'
 
 export const dynamic = 'force-dynamic'
@@ -6,7 +6,12 @@ export const dynamic = 'force-dynamic'
 export default async function AdminRekapHonorPage() {
   const fasilitators = await prisma.fasilitator.findMany({ orderBy: { namaLengkap: 'asc' } });
   const rekapList = await prisma.rekapHonorarium.findMany({
-    include: { fasilitator: true, laporan: true },
+    include: { 
+      fasilitator: true, 
+      laporan: true,
+      kwitansiRecord: true,
+      invoiceRecord: true
+    },
     orderBy: { createdAt: 'desc' }
   })
 

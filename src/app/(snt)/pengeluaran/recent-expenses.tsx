@@ -69,6 +69,8 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
   const [inputInvoiceNoUrut, setInputInvoiceNoUrut] = useState('')
   const [inputInvoiceTanggal, setInputInvoiceTanggal] = useState('')
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
+  const [isUnlockedKwitansi, setIsUnlockedKwitansi] = useState(false)
+  const [isUnlockedInvoice, setIsUnlockedInvoice] = useState(false)
 
   // Reset current page when filters or page size change
   useEffect(() => {
@@ -283,6 +285,8 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
     setPrintInvoice(false)
     setInputNoUrut('')
     setInputInvoiceNoUrut('')
+    setIsUnlockedKwitansi(false)
+    setIsUnlockedInvoice(false)
 
     const tzoffset = (new Date()).getTimezoneOffset() * 60000
     const localISOTime = (new Date(Date.now() - tzoffset)).toISOString().slice(0, 10)
@@ -463,9 +467,15 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
       let htmlString = ''
 
       if (printInvoice) {
-        const invRecord = await generateInvoiceExpense(selectedExpense.id, inputInvoiceNoUrut, inputInvoiceTanggal)
+        const forceNewInv = isUnlockedInvoice
+        const invRecord = await generateInvoiceExpense(
+          selectedExpense.id, 
+          isUnlockedInvoice ? inputInvoiceNoUrut : undefined, 
+          isUnlockedInvoice ? inputInvoiceTanggal : undefined, 
+          forceNewInv
+        )
         if (invRecord?.error) {
-          alert('Gagal membuat invoice: ' + invRecord.error)
+          alert('Gagal memproses invoice: ' + invRecord.error)
           setIsGeneratingPdf(false)
           return
         }
@@ -473,7 +483,13 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
       }
 
       if (printKwitansi) {
-        const record = await generateKwitansiExpense(selectedExpense.id, inputNoUrut, inputTanggal)
+        const forceNewKw = isUnlockedKwitansi
+        const record = await generateKwitansiExpense(
+          selectedExpense.id, 
+          isUnlockedKwitansi ? inputNoUrut : undefined, 
+          isUnlockedKwitansi ? inputTanggal : undefined, 
+          forceNewKw
+        )
         if (record?.error) {
           alert('Gagal mengambil nomor kwitansi dari Google Sheets: ' + record.error)
           setIsGeneratingPdf(false)
@@ -1045,156 +1061,315 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
               </div>
             </div>
 
-            {/* Pilihan Dokumen */}
-            <div className="mt-4 space-y-3">
-              <div className="p-3 bg-blue-50/50 border border-blue-200 rounded-lg space-y-2">
-                <label className="text-xs font-bold text-blue-900 block">Pilih Dokumen yang Ingin Dicetak:</label>
-                <label className="flex items-center space-x-2 text-xs text-slate-800 font-medium cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={printKwitansi}
-                    onChange={(e) => setPrintKwitansi(e.target.checked)}
-                    className="w-4 h-4 text-blue-600 rounded"
-                  />
-                  <span>Kwitansi Resmi (Terhubung ke Sheet Kwitansi)</span>
-                </label>
-                <label className="flex items-center space-x-2 text-xs text-slate-800 font-medium cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={printInvoice}
-                    onChange={(e) => setPrintInvoice(e.target.checked)}
-                    className="w-4 h-4 text-blue-600 rounded"
-                  />
-                  <span>Invoice Pengeluaran Lapangan</span>
-                </label>
-              </div>
+            {/* Rincian Ringkas Pengeluaran */}
+            {(() => {
+              const existingKw = selectedExpense ? getKwitansi(selectedExpense) : null
+              const hasExistingKw = Boolean(existingKw && existingKw.noKwitansi && !existingKw.noKwitansi.includes('TEMP'))
+              const existingInv = selectedExpense ? getInvoice(selectedExpense) : null
+              const hasExistingInv = Boolean(existingInv && existingInv.noInvoice && !existingInv.noInvoice.includes('TEMP'))
+              const isAllLocked = 
+                (!printKwitansi || (hasExistingKw && !isUnlockedKwitansi)) &&
+                (!printInvoice || (hasExistingInv && !isUnlockedInvoice))
 
-              {/* Form Input Kwitansi */}
-              {printKwitansi && (
-                <div className="p-3.5 border rounded-lg bg-white space-y-3">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                    <FileCheck2 className="w-4 h-4 text-emerald-600" />
-                    <span>Konfigurasi Kwitansi</span>
-                  </div>
+              return (
+                <>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Nomor Urut Kwitansi <span className="text-slate-400 font-normal">(Kosongkan untuk penomoran otomatis Sheets)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={inputNoUrut}
-                      onChange={(e) => setInputNoUrut(e.target.value)}
-                      placeholder="Contoh: 001, 042 (atau biarkan kosong)"
-                      className="w-full border rounded-md px-3 py-1.5 text-xs bg-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Tanggal Kwitansi <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      value={inputTanggal}
-                      onChange={(e) => setInputTanggal(e.target.value)}
-                      className="w-full border rounded-md px-3 py-1.5 text-xs bg-white"
-                      required
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Form Input Invoice */}
-              {printInvoice && (
-                <div className="p-3.5 border rounded-lg bg-white space-y-3">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                    <FileText className="w-4 h-4 text-blue-600" />
-                    <span>Konfigurasi Invoice</span>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Nomor Urut Invoice <span className="text-slate-400 font-normal">(Opsional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={inputInvoiceNoUrut}
-                      onChange={(e) => setInputInvoiceNoUrut(e.target.value)}
-                      placeholder="Contoh: 001, 002..."
-                      className="w-full border rounded-md px-3 py-1.5 text-xs bg-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Tanggal Invoice
-                    </label>
-                    <input
-                      type="date"
-                      value={inputInvoiceTanggal}
-                      onChange={(e) => setInputInvoiceTanggal(e.target.value)}
-                      className="w-full border rounded-md px-3 py-1.5 text-xs bg-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Pilih Kop Surat:
-                    </label>
-                    <div className="flex gap-4">
-                      <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                  {/* Pilihan Dokumen */}
+                  <div className="mt-4 space-y-3">
+                    <div className="p-3 bg-blue-50/50 border border-blue-200 rounded-lg space-y-2">
+                      <label className="text-xs font-bold text-blue-900 block">Pilih Dokumen yang Ingin Dicetak:</label>
+                      <label className="flex items-center space-x-2 text-xs text-slate-800 font-medium cursor-pointer">
                         <input
-                          type="radio"
-                          name="kopType"
-                          checked={selectedKop === 'maleo'}
-                          onChange={() => setSelectedKop('maleo')}
+                          type="checkbox"
+                          checked={printKwitansi}
+                          onChange={(e) => setPrintKwitansi(e.target.checked)}
+                          className="w-4 h-4 text-blue-600 rounded"
                         />
-                        <span>Yayasan Maleo</span>
+                        <span>Kwitansi Resmi (Terhubung ke Sheet Kwitansi)</span>
                       </label>
-                      <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                      <label className="flex items-center space-x-2 text-xs text-slate-800 font-medium cursor-pointer">
                         <input
-                          type="radio"
-                          name="kopType"
-                          checked={selectedKop === 'robotic'}
-                          onChange={() => setSelectedKop('robotic')}
+                          type="checkbox"
+                          checked={printInvoice}
+                          onChange={(e) => setPrintInvoice(e.target.checked)}
+                          className="w-4 h-4 text-blue-600 rounded"
                         />
-                        <span>Robotic Explorer</span>
+                        <span>Invoice Pengeluaran Lapangan</span>
                       </label>
                     </div>
-                  </div>
-                </div>
-              )}
-            </div>
 
-            <div className="mt-6 flex justify-end gap-2 pt-3 border-t">
-              <button
-                type="button"
-                onClick={() => setShowPrintModal(false)}
-                className="px-4 py-2 border rounded-md text-xs text-slate-700 hover:bg-slate-50 transition-colors"
-                disabled={isGeneratingPdf}
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={handlePrintDokumen}
-                disabled={isGeneratingPdf || (!printKwitansi && !printInvoice)}
-                className="px-4 py-2 bg-slate-900 text-white rounded-md text-xs font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors flex items-center gap-2 cursor-pointer shadow-sm"
-              >
-                {isGeneratingPdf ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Menghubungkan ke Sheets...</span>
-                  </>
-                ) : (
-                  <>
-                    <Printer className="w-3.5 h-3.5" />
-                    <span>Cetak Dokumen Sekarang</span>
-                  </>
-                )}
-              </button>
-            </div>
+                    {/* Status / Form Input Kwitansi */}
+                    {printKwitansi && (
+                      hasExistingKw && !isUnlockedKwitansi ? (
+                        <div className="p-3.5 border border-emerald-200 bg-emerald-50/60 rounded-lg space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-900">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                              <span>Kwitansi Resmi (Nomor Ter-booking)</span>
+                            </div>
+                            <Badge className="bg-emerald-600 text-white text-[10px] font-semibold">Terkunci</Badge>
+                          </div>
+
+                          <div className="bg-white p-2.5 rounded border border-emerald-200 text-xs space-y-1">
+                            <div className="flex justify-between items-center font-mono">
+                              <span className="text-slate-500 font-sans">No. Kwitansi:</span>
+                              <span className="font-bold text-emerald-800 text-sm">{existingKw.noKwitansi}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="text-slate-500">Tanggal Terdaftar:</span>
+                              <span className="text-slate-800 font-medium">
+                                {new Date(existingKw.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                              </span>
+                            </div>
+                          </div>
+
+                          <p className="text-[11px] text-emerald-800/80 leading-relaxed">
+                            Nomor kwitansi ini telah dibooking permanen. Cetak ulang akan menggunakan nomor ini tanpa menghubungi Google Sheets.
+                          </p>
+
+                          <div className="pt-1 flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (confirm("Peringatan: Membuat nomor baru akan menghubungi webhook Google Sheets dan menambah baris baru di sheet. Apakah Anda yakin ingin membuka kunci?")) {
+                                  setIsUnlockedKwitansi(true)
+                                }
+                              }}
+                              className="text-[11px] font-medium text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2.5 py-1 rounded transition-colors cursor-pointer"
+                            >
+                              Buka Kunci / Generate Nomor Baru
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-3.5 border rounded-lg bg-white space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                              <FileCheck2 className="w-4 h-4 text-emerald-600" />
+                              <span>Konfigurasi Kwitansi {isUnlockedKwitansi && <span className="text-amber-600">(Mode Generate Baru)</span>}</span>
+                            </div>
+                            {isUnlockedKwitansi && (
+                              <button
+                                type="button"
+                                onClick={() => setIsUnlockedKwitansi(false)}
+                                className="text-[11px] text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                              >
+                                Batalkan & Kunci Kembali
+                              </button>
+                            )}
+                          </div>
+
+                          {isUnlockedKwitansi && (
+                            <div className="p-2 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-800">
+                              ⚠️ Anda sedang membuka kunci nomor kwitansi. Saat dicetak, sistem akan memanggil Google Sheets untuk mengambil nomor seri baru.
+                            </div>
+                          )}
+
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">
+                              Nomor Urut Kwitansi <span className="text-slate-400 font-normal">(Kosongkan untuk penomoran otomatis Sheets)</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={inputNoUrut}
+                              onChange={(e) => setInputNoUrut(e.target.value)}
+                              placeholder="Contoh: 001, 042 (atau biarkan kosong)"
+                              className="w-full border rounded-md px-3 py-1.5 text-xs bg-white"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">
+                              Tanggal Kwitansi <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="date"
+                              value={inputTanggal}
+                              onChange={(e) => setInputTanggal(e.target.value)}
+                              className="w-full border rounded-md px-3 py-1.5 text-xs bg-white"
+                              required
+                            />
+                          </div>
+                        </div>
+                      )
+                    )}
+
+                    {/* Status / Form Input Invoice */}
+                    {printInvoice && (
+                      hasExistingInv && !isUnlockedInvoice ? (
+                        <div className="p-3.5 border border-blue-200 bg-blue-50/60 rounded-lg space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-blue-900">
+                              <FileText className="w-4 h-4 text-blue-600" />
+                              <span>Invoice Pengeluaran (Nomor Ter-booking)</span>
+                            </div>
+                            <Badge className="bg-blue-600 text-white text-[10px] font-semibold">Terkunci</Badge>
+                          </div>
+
+                          <div className="bg-white p-2.5 rounded border border-blue-200 text-xs space-y-1">
+                            <div className="flex justify-between items-center font-mono">
+                              <span className="text-slate-500 font-sans">No. Invoice:</span>
+                              <span className="font-bold text-blue-800 text-sm">{existingInv.noInvoice}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="text-slate-500">Tanggal Terdaftar:</span>
+                              <span className="text-slate-800 font-medium">
+                                {new Date(existingInv.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                              </span>
+                            </div>
+                          </div>
+
+                          <p className="text-[11px] text-blue-800/80 leading-relaxed">
+                            Nomor invoice ini telah dibooking permanen. Cetak ulang akan menggunakan nomor ini.
+                          </p>
+
+                          <div className="flex items-center justify-between pt-1">
+                            <div>
+                              <span className="text-xs font-semibold text-slate-700 block mb-1">Pilih Kop Surat:</span>
+                              <div className="flex gap-4">
+                                <label className="flex items-center gap-1 text-xs cursor-pointer">
+                                  <input
+                                    type="radio"
+                                    name="kopType"
+                                    checked={selectedKop === 'maleo'}
+                                    onChange={() => setSelectedKop('maleo')}
+                                  />
+                                  <span>Yayasan Maleo</span>
+                                </label>
+                                <label className="flex items-center gap-1 text-xs cursor-pointer">
+                                  <input
+                                    type="radio"
+                                    name="kopType"
+                                    checked={selectedKop === 'robotic'}
+                                    onChange={() => setSelectedKop('robotic')}
+                                  />
+                                  <span>Robotic</span>
+                                </label>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (confirm("Peringatan: Membuat nomor baru akan menghubungi webhook Google Sheets dan menambah baris baru di sheet. Apakah Anda yakin ingin membuka kunci?")) {
+                                  setIsUnlockedInvoice(true)
+                                }
+                              }}
+                              className="text-[11px] font-medium text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2.5 py-1 rounded transition-colors cursor-pointer"
+                            >
+                              Buka Kunci / Generate Baru
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-3.5 border rounded-lg bg-white space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                              <FileText className="w-4 h-4 text-blue-600" />
+                              <span>Konfigurasi Invoice {isUnlockedInvoice && <span className="text-amber-600">(Mode Generate Baru)</span>}</span>
+                            </div>
+                            {isUnlockedInvoice && (
+                              <button
+                                type="button"
+                                onClick={() => setIsUnlockedInvoice(false)}
+                                className="text-[11px] text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                              >
+                                Batalkan & Kunci Kembali
+                              </button>
+                            )}
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">
+                              Nomor Urut Invoice <span className="text-slate-400 font-normal">(Opsional)</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={inputInvoiceNoUrut}
+                              onChange={(e) => setInputInvoiceNoUrut(e.target.value)}
+                              placeholder="Contoh: 001, 002..."
+                              className="w-full border rounded-md px-3 py-1.5 text-xs bg-white"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">
+                              Tanggal Invoice
+                            </label>
+                            <input
+                              type="date"
+                              value={inputInvoiceTanggal}
+                              onChange={(e) => setInputInvoiceTanggal(e.target.value)}
+                              className="w-full border rounded-md px-3 py-1.5 text-xs bg-white"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">
+                              Pilih Kop Surat:
+                            </label>
+                            <div className="flex gap-4">
+                              <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name="kopType"
+                                  checked={selectedKop === 'maleo'}
+                                  onChange={() => setSelectedKop('maleo')}
+                                />
+                                <span>Yayasan Maleo</span>
+                              </label>
+                              <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name="kopType"
+                                  checked={selectedKop === 'robotic'}
+                                  onChange={() => setSelectedKop('robotic')}
+                                />
+                                <span>Robotic Explorer</span>
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    )}
+                  </div>
+
+                  <div className="mt-6 flex justify-end gap-2 pt-3 border-t">
+                    <button
+                      type="button"
+                      onClick={() => setShowPrintModal(false)}
+                      className="px-4 py-2 border rounded-md text-xs text-slate-700 hover:bg-slate-50 transition-colors"
+                      disabled={isGeneratingPdf}
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handlePrintDokumen}
+                      disabled={isGeneratingPdf || (!printKwitansi && !printInvoice)}
+                      className="px-4 py-2 bg-slate-900 text-white rounded-md text-xs font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors flex items-center gap-2 cursor-pointer shadow-sm"
+                    >
+                      {isGeneratingPdf ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Menghubungkan ke Sheets...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Printer className="w-3.5 h-3.5" />
+                          <span>
+                            {isAllLocked 
+                              ? 'Cetak Dokumen (Gunakan No. Tersimpan)' 
+                              : 'Generate Nomor & Cetak Sekarang'
+                            }
+                          </span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </>
+              )
+            })()}
           </div>
         </div>
       )}

@@ -329,7 +329,7 @@ export async function deleteRekap(id: string) {
 
 
 
-export async function generateKwitansiHonor(rekapId: string, inputNoUrut?: string, inputTanggal?: string) {
+export async function generateKwitansiHonor(rekapId: string, inputNoUrut?: string, inputTanggal?: string, forceNew: boolean = false) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return { error: "Unauthorized: Anda harus login untuk melakukan aksi ini." };
@@ -337,6 +337,11 @@ export async function generateKwitansiHonor(rekapId: string, inputNoUrut?: strin
   // Check if it already exists locally
   const existing = await prisma.kwitansiRecord.findFirst({ where: { rekapId, tipeKwitansi: 'HONOR' } });
   
+  // BOOKING GUARD: Jika nomor resmi sudah ada dan bukan permintaan paksa (forceNew), kunci dan pakai nomor tersebut!
+  if (existing && !existing.noKwitansi.includes('TEMP') && existing.noKwitansi !== "" && !forceNew) {
+    return JSON.parse(JSON.stringify(existing));
+  }
+
   // Get the rekap
   const rekap = await prisma.rekapHonorarium.findUnique({
     where: { id: rekapId },
@@ -347,10 +352,6 @@ export async function generateKwitansiHonor(rekapId: string, inputNoUrut?: strin
   
   const perihal = `Honorarium Fasilitator ${rekap.fasilitator.namaLengkap} - Bulan ${rekap.bulan}`;
   
-  // If we already have a record and the user is NOT providing new inputs to overwrite, return existing.
-  // But wait, the user wants to input it. If they input it, they expect a new number!
-  // So if inputNoUrut is provided, we should probably ignore 'existing' check and fetch a new one?
-  // Let's just always call webhook if they provide inputs, or return existing if not.
   let finalNoUrut = inputNoUrut || "";
   if (!inputNoUrut) {
     if (existing) {
@@ -452,12 +453,17 @@ export async function generateKwitansiHonor(rekapId: string, inputNoUrut?: strin
   }
 }
 
-export async function generateKwitansiExpense(expenseId: string, inputNoUrut?: string, inputTanggal?: string) {
+export async function generateKwitansiExpense(expenseId: string, inputNoUrut?: string, inputTanggal?: string, forceNew: boolean = false) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return { error: "Unauthorized: Anda harus login untuk melakukan aksi ini." };
 
     const existing = await prisma.kwitansiRecord.findFirst({ where: { expenseId } });
+
+    // BOOKING GUARD: Jika nomor resmi sudah ada dan bukan permintaan paksa (forceNew), kunci dan pakai nomor tersebut!
+    if (existing && !existing.noKwitansi.includes('TEMP') && existing.noKwitansi !== "" && !forceNew) {
+      return JSON.parse(JSON.stringify(existing));
+    }
 
     const expense = await prisma.expenseRequest.findUnique({
       where: { id: expenseId },
@@ -565,7 +571,7 @@ export async function generateKwitansiExpense(expenseId: string, inputNoUrut?: s
 }
 
 
-export async function generateKwitansiTransportBulanan(rekapId: string, inputNoUrut?: string, inputTanggal?: string) {
+export async function generateKwitansiTransportBulanan(rekapId: string, inputNoUrut?: string, inputTanggal?: string, forceNew: boolean = false) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return { error: "Unauthorized: Anda harus login untuk melakukan aksi ini." };
@@ -574,6 +580,11 @@ export async function generateKwitansiTransportBulanan(rekapId: string, inputNoU
     where: { rekapId, tipeKwitansi: 'TRANSPORT' }
   });
   
+  // BOOKING GUARD: Jika nomor resmi sudah ada dan bukan permintaan paksa (forceNew), kunci dan pakai nomor tersebut!
+  if (existing && !existing.noKwitansi.includes('TEMP') && existing.noKwitansi !== "" && !forceNew) {
+    return JSON.parse(JSON.stringify(existing));
+  }
+
   const rekap = await prisma.rekapHonorarium.findUnique({
     where: { id: rekapId },
     include: { fasilitator: true, laporan: true }
@@ -674,13 +685,18 @@ export async function generateKwitansiTransportBulanan(rekapId: string, inputNoU
   }
 }
 
-export async function generateInvoiceExpense(expenseId: string, inputNoUrut?: string, inputTanggal?: string) {
+export async function generateInvoiceExpense(expenseId: string, inputNoUrut?: string, inputTanggal?: string, forceNew: boolean = false) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return { error: "Unauthorized: Anda harus login untuk melakukan aksi ini." };
 
     const existing = await prisma.invoiceRecord.findFirst({ where: { expenseId } });
     
+    // BOOKING GUARD: Jika nomor resmi sudah ada dan bukan permintaan paksa (forceNew), kunci dan pakai nomor tersebut!
+    if (existing && !existing.noInvoice.includes('TEMP') && existing.noInvoice !== "" && !forceNew) {
+      return JSON.parse(JSON.stringify(existing));
+    }
+
     const expense = await prisma.expenseRequest.findUnique({
       where: { id: expenseId },
       include: { rabItem: true, fasilitator: true }
@@ -1135,13 +1151,18 @@ export async function syncLaporanToRekap(rekapId: string) {
   return reports.length;
 }
 
-export async function generateInvoiceHonorRecord(rekapId: string, inputNoUrut?: string, inputTanggal?: string) {
+export async function generateInvoiceHonorRecord(rekapId: string, inputNoUrut?: string, inputTanggal?: string, forceNew: boolean = false) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return { error: "Unauthorized: Anda harus login untuk melakukan aksi ini." };
 
     const existing = await prisma.invoiceRecord.findFirst({ where: { rekapId } });
     
+    // BOOKING GUARD: Jika nomor resmi sudah ada dan bukan permintaan paksa (forceNew), kunci dan pakai nomor tersebut!
+    if (existing && !existing.noInvoice.includes('TEMP') && existing.noInvoice !== "" && !forceNew) {
+      return JSON.parse(JSON.stringify(existing));
+    }
+
     const rekap = await prisma.rekapHonorarium.findUnique({
       where: { id: rekapId },
       include: { fasilitator: true, laporan: true }

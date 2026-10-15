@@ -23,6 +23,7 @@ import {
   FolderPlus, 
   Loader2,
   FileText,
+  FileCheck2,
   Printer,
   ExternalLink,
   X
@@ -40,6 +41,24 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
   const [inputInvoiceNoUrut, setInputInvoiceNoUrut] = useState("")
   const [inputInvoiceTanggal, setInputInvoiceTanggal] = useState("")
   const [inputTanggal, setInputTanggal] = useState("")
+  const [isUnlockedKwitansi, setIsUnlockedKwitansi] = useState(false)
+  const [isUnlockedInvoice, setIsUnlockedInvoice] = useState(false)
+
+  const getKwitansi = (expense: any) => {
+    if (!expense?.kwitansiRecord) return null;
+    if (Array.isArray(expense.kwitansiRecord)) {
+      return expense.kwitansiRecord.find((k: any) => !k.noKwitansi?.includes('TEMP')) || expense.kwitansiRecord[0] || null;
+    }
+    return expense.kwitansiRecord;
+  };
+
+  const getInvoice = (expense: any) => {
+    if (!expense?.invoiceRecord) return null;
+    if (Array.isArray(expense.invoiceRecord)) {
+      return expense.invoiceRecord.find((inv: any) => !inv.noInvoice?.includes('TEMP')) || expense.invoiceRecord[0] || null;
+    }
+    return expense.invoiceRecord;
+  };
 
   // Edit Expense State
   const [showEditModal, setShowEditModal] = useState(false)
@@ -223,15 +242,36 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
 
   const openPrintModal = (expense: any) => {
     setSelectedExpense(expense)
-    setPrintInvoice(false)
-    setPrintKwitansi(false)
-    setInputNoUrut("")
+    setIsUnlockedKwitansi(false)
+    setIsUnlockedInvoice(false)
     
     const tzoffset = (new Date()).getTimezoneOffset() * 60000;
     const localISOTime = (new Date(Date.now() - tzoffset)).toISOString().slice(0, 10);
-    setInputTanggal(localISOTime)
-    setInputInvoiceTanggal(localISOTime)
+    
+    const kw = getKwitansi(expense)
+    const inv = getInvoice(expense)
+    
+    const hasKw = !!(kw?.noKwitansi && !kw.noKwitansi.includes('TEMP'))
+    const hasInv = !!(inv?.noInvoice && !inv.noInvoice.includes('TEMP'))
+    
+    setPrintKwitansi(hasKw || (!hasKw && !hasInv))
+    setPrintInvoice(hasInv || (!hasKw && !hasInv))
+
+    setInputNoUrut("")
+    if (kw?.tanggal) {
+      setInputTanggal(new Date(kw.tanggal).toISOString().slice(0, 10))
+    } else {
+      setInputTanggal(localISOTime)
+    }
+
     setInputInvoiceNoUrut("")
+    if (inv?.tanggal) {
+      setInputInvoiceTanggal(new Date(inv.tanggal).toISOString().slice(0, 10))
+    } else {
+      setInputInvoiceTanggal(localISOTime)
+    }
+
+    setSelectedKop('maleo')
     setShowPrintModal(true)
   }
 
@@ -386,11 +426,28 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
     try {
       let htmlString = "";
       if (printInvoice) {
-        const invRecord = await generateInvoiceExpense(selectedExpense.id, inputInvoiceNoUrut, inputInvoiceTanggal);
+        const forceNewInv = isUnlockedInvoice;
+        const invRecord = await generateInvoiceExpense(
+          selectedExpense.id,
+          isUnlockedInvoice ? inputInvoiceNoUrut : undefined,
+          isUnlockedInvoice ? inputInvoiceTanggal : undefined,
+          forceNewInv
+        );
+        if (invRecord?.error) {
+          alert('Gagal memproses invoice: ' + invRecord.error);
+          setIsGeneratingPdf(false);
+          return;
+        }
         htmlString += getInvoiceHtml(selectedExpense, invRecord, selectedKop);
       }
       if (printKwitansi) {
-        const record = await generateKwitansiExpense(selectedExpense.id, inputNoUrut, inputTanggal);
+        const forceNewKw = isUnlockedKwitansi;
+        const record = await generateKwitansiExpense(
+          selectedExpense.id,
+          isUnlockedKwitansi ? inputNoUrut : undefined,
+          isUnlockedKwitansi ? inputTanggal : undefined,
+          forceNewKw
+        );
         if (record?.error) {
           alert('Gagal generate kwitansi: ' + record.error);
           setIsGeneratingPdf(false);
@@ -410,48 +467,24 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
       
       const win = window.open('', '_blank');
       if (win) {
-        win.document.write(htmlString);
-        win.document.close();
-        setTimeout(() => {
-          win.print();
-        }, 1000);
-      }
-    } catch (err: any) {
-      console.error('GENERATE PDF ERROR', err);
-      alert("Gagal print: " + err.message);
-    } finally {
-      setIsGeneratingPdf(false);
-    }
-  };
-
-  const handlePrint = async () => {
-    if (!selectedExpense) return;
-    setIsGeneratingPdf(true);
-    try {
-      let htmlString = "";
-      if (printInvoice) {
-        const invRecord = await generateInvoiceExpense(selectedExpense.id, inputInvoiceNoUrut, inputInvoiceTanggal);
-        htmlString += getInvoiceHtml(selectedExpense, invRecord, selectedKop);
-      }
-      if (printKwitansi) {
-        const record = await generateKwitansiExpense(selectedExpense.id, inputNoUrut, inputTanggal);
-        if (record?.error) {
-          alert('Gagal generate kwitansi: ' + record.error);
-          setIsGeneratingPdf(false);
-          return;
-        }
-        htmlString += getKwitansiHtml(selectedExpense, record);
-      }
-      
-      if (!htmlString) {
-        setIsGeneratingPdf(false);
-        setShowPrintModal(false);
-        return;
-      }
-      
-      const win = window.open('', '_blank');
-      if (win) {
-        win.document.write(htmlString);
+        win.document.write(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8" />
+            <title>Dokumen Pengeluaran - ${selectedExpense.rabItem?.name || selectedExpense.description}</title>
+            <style>
+              @media print {
+                body { margin: 0; padding: 0; }
+                @page { margin: 1cm; }
+              }
+            </style>
+          </head>
+          <body>
+            ${htmlString}
+          </body>
+          </html>
+        `);
         win.document.close();
         setTimeout(() => {
           win.print();
@@ -460,12 +493,14 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
 
       setShowPrintModal(false);
     } catch (err: any) {
-      console.error('GENERATE PDF ERROR', err, err.stack);
-      alert("Gagal generate PDF: " + err.message);
+      console.error('GENERATE PRINT ERROR', err);
+      alert("Gagal print: " + err.message);
     } finally {
       setIsGeneratingPdf(false);
     }
-  }
+  };
+
+  const handlePrint = handlePrintDokumen;
 
 
   const handlePrintCategoryReport = (cat: any) => {
@@ -1186,133 +1221,333 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
       )}
 
       {/* Modal Print Dokumen */}
-      {showPrintModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-          <div className="bg-white p-6 rounded-lg shadow-xl w-96 max-w-full">
-            <h3 className="text-lg font-bold mb-4">Cetak Dokumen Pengeluaran</h3>
-            <div className="space-y-4">
-              <label className="flex items-center space-x-2">
-                <input 
-                  type="checkbox" 
-                  checked={printInvoice}
-                  onChange={(e) => setPrintInvoice(e.target.checked)}
-                />
-                <span>Invoice Pengeluaran (Standar)</span>
-              </label>
+      {showPrintModal && selectedExpense && (() => {
+        const existingKw = getKwitansi(selectedExpense);
+        const existingInv = getInvoice(selectedExpense);
+        const hasExistingKw = !!(existingKw?.noKwitansi && !existingKw.noKwitansi.includes('TEMP'));
+        const hasExistingInv = !!(existingInv?.noInvoice && !existingInv.noInvoice.includes('TEMP'));
+        const isAllLocked = 
+          (!printKwitansi || (hasExistingKw && !isUnlockedKwitansi)) &&
+          (!printInvoice || (hasExistingInv && !isUnlockedInvoice));
 
-              {printInvoice && (
-                <div className="pl-6 space-y-3 border-l-2 border-blue-200 ml-1">
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium text-gray-700">Pilih Kop Surat:</p>
-                    <label className="flex items-center space-x-2 cursor-pointer">
-                      <input 
-                        type="radio" 
-                        name="kopType"
-                        value="maleo"
-                        checked={selectedKop === 'maleo'}
-                        onChange={() => setSelectedKop('maleo')}
-                        className="w-4 h-4 text-blue-600"
-                      />
-                      <span className="text-sm">Kop Yayasan Maleo</span>
-                    </label>
-                    <label className="flex items-center space-x-2 cursor-pointer">
-                      <input 
-                        type="radio" 
-                        name="kopType"
-                        value="robotic"
-                        checked={selectedKop === 'robotic'}
-                        onChange={() => setSelectedKop('robotic')}
-                        className="w-4 h-4 text-blue-600"
-                      />
-                      <span className="text-sm">Kop Robotic Explorer</span>
-                    </label>
-                  </div>
-                  <div className="space-y-2 pt-2 border-t border-gray-100">
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Nomor Urut Invoice</label>
-                      <input 
-                        type="text" 
-                        value={inputInvoiceNoUrut}
-                        onChange={(e) => setInputInvoiceNoUrut(e.target.value)}
-                        placeholder="Kosongkan untuk nomor otomatis"
-                        className="w-full border rounded p-2 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Tanggal Invoice</label>
-                      <input 
-                        type="date" 
-                        value={inputInvoiceTanggal}
-                        onChange={(e) => setInputInvoiceTanggal(e.target.value)}
-                        className="w-full border rounded p-2 text-sm"
-                      />
-                    </div>
-                  </div>
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+            <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-4 pb-2 border-b">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">Cetak Dokumen Pengeluaran</h3>
+                  <p className="text-xs text-slate-500">{selectedExpense.rabItem?.name || selectedExpense.description}</p>
                 </div>
-              )}
-              <label className="flex items-center space-x-2">
-                <input 
-                  type="checkbox" 
-                  checked={printKwitansi}
-                  onChange={(e) => setPrintKwitansi(e.target.checked)}
-                />
-                <span>Kwitansi (Format Yayasan Maleo)</span>
-              </label>
-              
-              {printKwitansi && (
-                <div className="pl-6 space-y-2 border-l-2 border-blue-200 ml-1">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Nomor Urut Kwitansi</label>
-                    <input 
-                      type="text" 
-                      value={inputNoUrut}
-                      onChange={(e) => setInputNoUrut(e.target.value)}
-                      placeholder="Contoh: 001, 002..."
-                      className="w-full border rounded p-2 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Tanggal Kwitansi</label>
-                    <input 
-                      type="date" 
-                      value={inputTanggal}
-                      onChange={(e) => setInputTanggal(e.target.value)}
-                      className="w-full border rounded p-2 text-sm"
-                    />
-                  </div>
-                </div>
-              )}
-              
-              <div className="flex gap-2 mt-4">
-                <button 
-                  onClick={handlePrint}
-                  disabled={!printInvoice && !printKwitansi || isGeneratingPdf}
-                  className="flex-1 py-2 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium rounded-md transition-colors text-sm"
+                <button
+                  type="button"
+                  onClick={() => setShowPrintModal(false)}
+                  className="text-slate-400 hover:text-slate-600 font-bold p-1"
                 >
-                  {isGeneratingPdf ? 'Memproses...' : 'Export PDF'}
-                </button>
-                <button 
-                  onClick={handlePrintDokumen}
-                  disabled={!printInvoice && !printKwitansi || isGeneratingPdf}
-                  className="flex-1 py-2 px-4 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-medium rounded-md transition-colors text-sm"
-                >
-                  {isGeneratingPdf ? 'Memproses...' : 'Print Dokumen'}
+                  <X className="w-5 h-5" />
                 </button>
               </div>
-            </div>
-            
-            <div className="mt-4 flex justify-end">
-              <button 
-                onClick={() => setShowPrintModal(false)} 
-                className="text-sm text-slate-500 hover:text-slate-800"
-              >
-                Batal
-              </button>
+
+              <div className="space-y-4">
+                {/* Pilihan Dokumen */}
+                <div className="p-3 bg-slate-50 border rounded-lg space-y-2">
+                  <span className="text-xs font-semibold text-slate-700 block">Pilih Dokumen yang Dicetak:</span>
+                  <div className="flex flex-col gap-2">
+                    <label className="flex items-center space-x-2 text-sm cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={printInvoice}
+                        onChange={(e) => setPrintInvoice(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 rounded"
+                      />
+                      <span>Invoice Pengeluaran</span>
+                    </label>
+
+                    <label className="flex items-center space-x-2 text-sm cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={printKwitansi}
+                        onChange={(e) => setPrintKwitansi(e.target.checked)}
+                        className="w-4 h-4 text-emerald-600 rounded"
+                      />
+                      <span>Kwitansi Resmi (Yayasan Maleo)</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Status / Form Kwitansi */}
+                {printKwitansi && (
+                  hasExistingKw && !isUnlockedKwitansi ? (
+                    <div className="p-3.5 border border-emerald-200 bg-emerald-50/60 rounded-lg space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-900">
+                          <FileCheck2 className="w-4 h-4 text-emerald-600" />
+                          <span>Kwitansi Resmi (Nomor Ter-booking)</span>
+                        </div>
+                        <Badge className="bg-emerald-600 text-white text-[10px] font-semibold">Terkunci</Badge>
+                      </div>
+
+                      <div className="bg-white p-2.5 rounded border border-emerald-200 text-xs space-y-1">
+                        <div className="flex justify-between items-center font-mono">
+                          <span className="text-slate-500 font-sans">No. Kwitansi:</span>
+                          <span className="font-bold text-emerald-800 text-sm">{existingKw.noKwitansi}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-slate-500">Tanggal Terdaftar:</span>
+                          <span className="text-slate-800 font-medium">
+                            {new Date(existingKw.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="text-[11px] text-emerald-800/80 leading-relaxed">
+                        Nomor kwitansi ini telah dibooking permanen. Cetak ulang akan menggunakan nomor ini tanpa menghubungi Google Sheets.
+                      </p>
+
+                      <div className="pt-1 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm("Peringatan: Membuat nomor baru akan menghubungi webhook Google Sheets dan menambah baris baru di sheet. Apakah Anda yakin ingin membuka kunci?")) {
+                              setIsUnlockedKwitansi(true)
+                            }
+                          }}
+                          className="text-[11px] font-medium text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2.5 py-1 rounded transition-colors cursor-pointer"
+                        >
+                          Buka Kunci / Generate Nomor Baru
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3.5 border rounded-lg bg-white space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                          <FileCheck2 className="w-4 h-4 text-emerald-600" />
+                          <span>Konfigurasi Kwitansi {isUnlockedKwitansi && <span className="text-amber-600">(Mode Generate Baru)</span>}</span>
+                        </div>
+                        {isUnlockedKwitansi && (
+                          <button
+                            type="button"
+                            onClick={() => setIsUnlockedKwitansi(false)}
+                            className="text-[11px] text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                          >
+                            Batalkan & Kunci Kembali
+                          </button>
+                        )}
+                      </div>
+
+                      {isUnlockedKwitansi && (
+                        <div className="p-2 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-800">
+                          ⚠️ Anda sedang membuka kunci nomor kwitansi. Saat dicetak, sistem akan memanggil Google Sheets untuk mengambil nomor seri baru.
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Nomor Urut Kwitansi <span className="text-slate-400 font-normal">(Kosongkan untuk penomoran otomatis Sheets)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={inputNoUrut}
+                          onChange={(e) => setInputNoUrut(e.target.value)}
+                          placeholder="Contoh: 001, 042 (atau biarkan kosong)"
+                          className="w-full border rounded-md px-3 py-1.5 text-xs bg-white"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Tanggal Kwitansi <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="date"
+                          value={inputTanggal}
+                          onChange={(e) => setInputTanggal(e.target.value)}
+                          className="w-full border rounded-md px-3 py-1.5 text-xs bg-white"
+                          required
+                        />
+                      </div>
+                    </div>
+                  )
+                )}
+
+                {/* Status / Form Invoice */}
+                {printInvoice && (
+                  hasExistingInv && !isUnlockedInvoice ? (
+                    <div className="p-3.5 border border-blue-200 bg-blue-50/60 rounded-lg space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-blue-900">
+                          <FileText className="w-4 h-4 text-blue-600" />
+                          <span>Invoice Pengeluaran (Nomor Ter-booking)</span>
+                        </div>
+                        <Badge className="bg-blue-600 text-white text-[10px] font-semibold">Terkunci</Badge>
+                      </div>
+
+                      <div className="bg-white p-2.5 rounded border border-blue-200 text-xs space-y-1">
+                        <div className="flex justify-between items-center font-mono">
+                          <span className="text-slate-500 font-sans">No. Invoice:</span>
+                          <span className="font-bold text-blue-800 text-sm">{existingInv.noInvoice}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-slate-500">Tanggal Terdaftar:</span>
+                          <span className="text-slate-800 font-medium">
+                            {new Date(existingInv.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="text-[11px] text-blue-800/80 leading-relaxed">
+                        Nomor invoice ini telah dibooking permanen. Cetak ulang akan menggunakan nomor ini.
+                      </p>
+
+                      <div className="flex items-center justify-between pt-1">
+                        <div>
+                          <span className="text-xs font-semibold text-slate-700 block mb-1">Pilih Kop Surat:</span>
+                          <div className="flex gap-4">
+                            <label className="flex items-center gap-1 text-xs cursor-pointer">
+                              <input
+                                type="radio"
+                                name="kopTypeRab"
+                                checked={selectedKop === 'maleo'}
+                                onChange={() => setSelectedKop('maleo')}
+                              />
+                              <span>Yayasan Maleo</span>
+                            </label>
+                            <label className="flex items-center gap-1 text-xs cursor-pointer">
+                              <input
+                                type="radio"
+                                name="kopTypeRab"
+                                checked={selectedKop === 'robotic'}
+                                onChange={() => setSelectedKop('robotic')}
+                              />
+                              <span>Robotic</span>
+                            </label>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm("Peringatan: Membuat nomor baru akan menghubungi webhook Google Sheets dan menambah baris baru di sheet. Apakah Anda yakin ingin membuka kunci?")) {
+                              setIsUnlockedInvoice(true)
+                            }
+                          }}
+                          className="text-[11px] font-medium text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2.5 py-1 rounded transition-colors cursor-pointer"
+                        >
+                          Buka Kunci / Generate Baru
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3.5 border rounded-lg bg-white space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                          <FileText className="w-4 h-4 text-blue-600" />
+                          <span>Konfigurasi Invoice {isUnlockedInvoice && <span className="text-amber-600">(Mode Generate Baru)</span>}</span>
+                        </div>
+                        {isUnlockedInvoice && (
+                          <button
+                            type="button"
+                            onClick={() => setIsUnlockedInvoice(false)}
+                            className="text-[11px] text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                          >
+                            Batalkan & Kunci Kembali
+                          </button>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Nomor Urut Invoice <span className="text-slate-400 font-normal">(Opsional)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={inputInvoiceNoUrut}
+                          onChange={(e) => setInputInvoiceNoUrut(e.target.value)}
+                          placeholder="Contoh: 001, 002..."
+                          className="w-full border rounded-md px-3 py-1.5 text-xs bg-white"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Tanggal Invoice
+                        </label>
+                        <input
+                          type="date"
+                          value={inputInvoiceTanggal}
+                          onChange={(e) => setInputInvoiceTanggal(e.target.value)}
+                          className="w-full border rounded-md px-3 py-1.5 text-xs bg-white"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Pilih Kop Surat:
+                        </label>
+                        <div className="flex gap-4">
+                          <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                            <input
+                              type="radio"
+                              name="kopTypeRab"
+                              checked={selectedKop === 'maleo'}
+                              onChange={() => setSelectedKop('maleo')}
+                            />
+                            <span>Yayasan Maleo</span>
+                          </label>
+                          <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                            <input
+                              type="radio"
+                              name="kopTypeRab"
+                              checked={selectedKop === 'robotic'}
+                              onChange={() => setSelectedKop('robotic')}
+                            />
+                            <span>Robotic Explorer</span>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                )}
+
+                <div className="mt-6 flex justify-end gap-2 pt-3 border-t">
+                  <button
+                    type="button"
+                    onClick={() => setShowPrintModal(false)}
+                    className="px-4 py-2 border rounded-md text-xs text-slate-700 hover:bg-slate-50 transition-colors"
+                    disabled={isGeneratingPdf}
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handlePrintDokumen}
+                    disabled={isGeneratingPdf || (!printKwitansi && !printInvoice)}
+                    className="px-4 py-2 bg-slate-900 text-white rounded-md text-xs font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors flex items-center gap-2 cursor-pointer shadow-sm"
+                  >
+                    {isGeneratingPdf ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Menghubungkan ke Sheets...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>
+                          {isAllLocked 
+                            ? 'Cetak Dokumen (Gunakan No. Tersimpan)' 
+                            : 'Generate Nomor & Cetak Sekarang'
+                          }
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    
+        );
+      })()}
+
       {/* Modal Rekap & Pengeluaran Per Kategori */}
       {reportCategory && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">

@@ -23,7 +23,9 @@ export async function getRabDashboardData() {
                 where: { status: 'APPROVED' },
                 include: {
                   fasilitator: true,
-                  rabItem: true
+                  rabItem: true,
+                  kwitansiRecord: true,
+                  invoiceRecord: true
                 },
                 orderBy: { date: 'desc' }
               }

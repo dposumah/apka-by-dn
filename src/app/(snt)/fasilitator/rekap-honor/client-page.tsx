@@ -1,6 +1,6 @@
 "use client"
 
-import { Edit, Printer, Copy, Trash2, Link as LinkIcon, FileText } from 'lucide-react'
+import { Edit, Printer, Copy, Trash2, Link as LinkIcon, FileText, FileCheck2, Loader2, X } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -232,6 +232,33 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
 
   const [inputNoUrut, setInputNoUrut] = useState("")
   const [inputTanggal, setInputTanggal] = useState("")
+  const [isUnlockedHonor, setIsUnlockedHonor] = useState(false)
+  const [isUnlockedTransport, setIsUnlockedTransport] = useState(false)
+  const [isUnlockedInvoice, setIsUnlockedInvoice] = useState(false)
+
+  const getKwHonor = (rekap: any) => {
+    if (!rekap?.kwitansiRecord) return null;
+    if (Array.isArray(rekap.kwitansiRecord)) {
+      return rekap.kwitansiRecord.find((k: any) => k.tipeKwitansi === 'HONOR' || (!k.tipeKwitansi && Math.abs(k.nominal - (rekap.totalHonor || 0)) < 1)) || null;
+    }
+    return rekap.kwitansiRecord;
+  };
+
+  const getKwTransport = (rekap: any) => {
+    if (!rekap?.kwitansiRecord) return null;
+    if (Array.isArray(rekap.kwitansiRecord)) {
+      return rekap.kwitansiRecord.find((k: any) => k.tipeKwitansi === 'TRANSPORT') || null;
+    }
+    return null;
+  };
+
+  const getInvHonor = (rekap: any) => {
+    if (!rekap?.invoiceRecord) return null;
+    if (Array.isArray(rekap.invoiceRecord)) {
+      return rekap.invoiceRecord[0] || null;
+    }
+    return rekap.invoiceRecord;
+  };
 
     const [showTextModal, setShowTextModal] = useState(false)
     const [textToCopy, setTextToCopy] = useState("")
@@ -271,9 +298,28 @@ Atas Nama: ${namaLengkap}`;
 
   const openKopModal = (rekap: any) => {
     setSelectedRekap(rekap)
-    setPrintCheckInvoice(true)
-    setPrintCheckHonor(false)
-    setPrintCheckTransport(false)
+    setIsUnlockedHonor(false)
+    setIsUnlockedTransport(false)
+    setIsUnlockedInvoice(false)
+
+    const inv = getInvHonor(rekap)
+    const kwH = getKwHonor(rekap)
+    const kwT = getKwTransport(rekap)
+
+    const hasInv = !!(inv?.noInvoice && !inv.noInvoice.includes('TEMP'))
+    const hasKwH = !!(kwH?.noKwitansi && !kwH.noKwitansi.includes('TEMP'))
+    const hasKwT = !!(kwT?.noKwitansi && !kwT.noKwitansi.includes('TEMP'))
+
+    if (hasInv || hasKwH || hasKwT) {
+      setPrintCheckInvoice(hasInv)
+      setPrintCheckHonor(hasKwH)
+      setPrintCheckTransport(hasKwT)
+    } else {
+      setPrintCheckInvoice(true)
+      setPrintCheckHonor(false)
+      setPrintCheckTransport(false)
+    }
+
     setPrintKopType('maleo')
     setInputNoUrut("")
     const tzoffset = (new Date()).getTimezoneOffset() * 60000;
@@ -291,29 +337,47 @@ Atas Nama: ${namaLengkap}`;
       
       // 1. Invoice
       if (printCheckInvoice) {
-                          const invRecord = await generateInvoiceHonorRecord(selectedRekap.id, inputNoUrut, inputTanggal);
-                          if (invRecord?.error) throw new Error(invRecord.error);
-                          htmlString += getInvoiceHtml(selectedRekap, printKopType, invRecord);
-                        }
+        const forceNewInv = isUnlockedInvoice;
+        const invRecord = await generateInvoiceHonorRecord(
+          selectedRekap.id, 
+          isUnlockedInvoice ? inputNoUrut : undefined, 
+          isUnlockedInvoice ? inputTanggal : undefined, 
+          forceNewInv
+        );
+        if (invRecord?.error) throw new Error(invRecord.error);
+        htmlString += getInvoiceHtml(selectedRekap, printKopType, invRecord);
+      }
       
       // 2. Kwitansi Honor
       if (printCheckHonor) {
-        const record = await generateKwitansiHonor(selectedRekap.id, inputNoUrut, inputTanggal);
-          if (record.error) throw new Error(record.error);
-          htmlString += getKwitansiHtml(selectedRekap, record, 'HONOR', terbilangRupiah);
+        const forceNewKw = isUnlockedHonor;
+        const record = await generateKwitansiHonor(
+          selectedRekap.id, 
+          isUnlockedHonor ? inputNoUrut : undefined, 
+          isUnlockedHonor ? inputTanggal : undefined, 
+          forceNewKw
+        );
+        if (record.error) throw new Error(record.error);
+        htmlString += getKwitansiHtml(selectedRekap, record, 'HONOR', terbilangRupiah);
       }
       
       // 3. Kwitansi Transport
       if (printCheckTransport) {
-        let transportNoUrut = inputNoUrut;
-          if (printCheckHonor && printCheckTransport && inputNoUrut) {
-            const num = parseInt(inputNoUrut, 10);
-            if (!isNaN(num)) transportNoUrut = (num + 1).toString();
-            else transportNoUrut = inputNoUrut + "-T";
-          }
-          const record = await generateKwitansiTransportBulanan(selectedRekap.id, transportNoUrut, inputTanggal);
-          if (record.error) throw new Error(record.error);
-          htmlString += getKwitansiHtml(selectedRekap, record, 'TRANSPORT', terbilangRupiah);
+        let transportNoUrut = isUnlockedTransport ? inputNoUrut : undefined;
+        if (isUnlockedTransport && printCheckHonor && inputNoUrut) {
+          const num = parseInt(inputNoUrut, 10);
+          if (!isNaN(num)) transportNoUrut = (num + 1).toString();
+          else transportNoUrut = inputNoUrut + "-T";
+        }
+        const forceNewTrans = isUnlockedTransport;
+        const record = await generateKwitansiTransportBulanan(
+          selectedRekap.id, 
+          transportNoUrut, 
+          isUnlockedTransport ? inputTanggal : undefined, 
+          forceNewTrans
+        );
+        if (record.error) throw new Error(record.error);
+        htmlString += getKwitansiHtml(selectedRekap, record, 'TRANSPORT', terbilangRupiah);
       }
       
       if (!htmlString) {
@@ -324,23 +388,24 @@ Atas Nama: ${namaLengkap}`;
       
       // Put html in hidden div
       const wrapper = document.createElement('div');
-        wrapper.innerHTML = htmlString;
-        wrapper.style.width = '794px';
-        wrapper.style.backgroundColor = '#ffffff';
+      wrapper.innerHTML = htmlString;
+      wrapper.style.width = '794px';
+      wrapper.style.backgroundColor = '#ffffff';
       
       // Create PDF
       let html2pdf: any; try { html2pdf = require('html2pdf.js'); } catch (e) { html2pdf = (window as any).html2pdf; }
       const opt = {
-          margin: 0,
-          filename: `Rekap_Honor_${selectedRekap.fasilitator?.namaLengkap}_${selectedRekap.bulan}.pdf`,
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true, windowWidth: 794 },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-          pagebreak: { mode: 'css' }
-        };
+        margin: 0,
+        filename: `Rekap_Honor_${selectedRekap.fasilitator?.namaLengkap}_${selectedRekap.bulan}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, windowWidth: 794 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: 'css' }
+      };
       
       await html2pdf().set(opt).from(wrapper).save();
       setShowKopModal(false);
+      router.refresh();
     } catch (err: any) {
       console.error('GENERATE PDF ERROR', err, err.stack);
       alert("Gagal generate PDF: " + err.message + "\n\nStack: " + (err.stack ? err.stack.substring(0, 200) : ''));
@@ -817,85 +882,335 @@ Atas Nama: ${namaLengkap}`;
         </div>
       )}
 
-      {showKopModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white p-6 rounded-lg shadow-xl w-[450px]">
-            <h3 className="text-lg font-bold mb-4">Export Dokumen (PDF)</h3>
-            
-            <div className="space-y-4">
-              <div className="p-3 bg-slate-50 border rounded-md space-y-2">
-                <label className="font-semibold block">Dokumen yang akan digenerate:</label>
-                <label className="flex items-center space-x-2">
-                  <input type="checkbox" checked={printCheckInvoice} onChange={e => setPrintCheckInvoice(e.target.checked)} className="w-4 h-4 text-blue-600" />
-                  <span>Invoice Honorarium</span>
-                </label>
-                <label className="flex items-center space-x-2">
-                  <input type="checkbox" checked={printCheckHonor} onChange={e => setPrintCheckHonor(e.target.checked)} className="w-4 h-4 text-blue-600" />
-                  <span>Kwitansi Honorarium</span>
-                </label>
-                <label className="flex items-center space-x-2">
-                  <input type="checkbox" checked={printCheckTransport} onChange={e => setPrintCheckTransport(e.target.checked)} className="w-4 h-4 text-blue-600" />
-                  <span>Kwitansi Transport (Bulanan)</span>
-                </label>
-              </div>
+      {showKopModal && selectedRekap && (() => {
+        const existingInv = getInvHonor(selectedRekap);
+        const existingKwH = getKwHonor(selectedRekap);
+        const existingKwT = getKwTransport(selectedRekap);
 
-              <div className="space-y-2">
-                <label className="font-semibold block">Pilih Kop Surat (Khusus Invoice):</label>
-                <div className="flex space-x-4">
-                  <label className="flex items-center space-x-2">
-                    <input type="radio" name="kopType" checked={printKopType === 'maleo'} onChange={() => setPrintKopType('maleo')} className="w-4 h-4 text-blue-600" />
-                    <span>Yayasan Maleo</span>
-                  </label>
-                  <label className="flex items-center space-x-2">
-                    <input type="radio" name="kopType" checked={printKopType === 'robotic'} onChange={() => setPrintKopType('robotic')} className="w-4 h-4 text-blue-600" />
-                    <span>Robotic Explorer</span>
-                  </label>
-                </div>
-              </div>
+        const hasExistingInv = !!(existingInv?.noInvoice && !existingInv.noInvoice.includes('TEMP'));
+        const hasExistingKwH = !!(existingKwH?.noKwitansi && !existingKwH.noKwitansi.includes('TEMP'));
+        const hasExistingKwT = !!(existingKwT?.noKwitansi && !existingKwT.noKwitansi.includes('TEMP'));
 
-              {(printCheckHonor || printCheckTransport) && (
-                <div className="space-y-3 pt-3 border-t">
-                  <label className="font-semibold block text-blue-800">Detail Kwitansi</label>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Nomor Urut Kwitansi <span className="text-slate-500 font-normal">(Kosongkan untuk nomor otomatis)</span></label>
-                    <input 
-                      type="text" 
-                      value={inputNoUrut}
-                      onChange={(e) => setInputNoUrut(e.target.value)}
-                      placeholder="Contoh: 001, 002..."
-                      className="w-full border rounded p-2"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Tanggal Kwitansi</label>
-                    <input 
-                      type="date" 
-                      value={inputTanggal}
-                      onChange={(e) => setInputTanggal(e.target.value)}
-                      className="w-full border rounded p-2"
-                      required
-                    />
-                  </div>
+        const needsInput = 
+          (printCheckInvoice && (!hasExistingInv || isUnlockedInvoice)) ||
+          (printCheckHonor && (!hasExistingKwH || isUnlockedHonor)) ||
+          (printCheckTransport && (!hasExistingKwT || isUnlockedTransport));
+
+        const isAllLocked = 
+          (!printCheckInvoice || (hasExistingInv && !isUnlockedInvoice)) &&
+          (!printCheckHonor || (hasExistingKwH && !isUnlockedHonor)) &&
+          (!printCheckTransport || (hasExistingKwT && !isUnlockedTransport));
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+            <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-lg max-h-[92vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-4 pb-2 border-b">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">Export Dokumen Rekap Honorarium</h3>
+                  <p className="text-xs text-slate-500">
+                    {selectedRekap.fasilitator?.namaLengkap} &bull; Periode {selectedRekap.bulan}
+                  </p>
                 </div>
-              )}
-            </div>
-            
-            <div className="mt-6 flex justify-end space-x-3">
-              <button 
-                onClick={() => setShowKopModal(false)} 
-                className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-md hover:bg-slate-50"
-                disabled={isGeneratingPdf}
-              >
-                Batal
-              </button>
-              <button 
-                  onClick={generatePdfDirect}
-                  disabled={isGeneratingPdf || (!printCheckInvoice && !printCheckHonor && !printCheckTransport)}
-                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                <button
+                  type="button"
+                  onClick={() => setShowKopModal(false)}
+                  className="text-slate-400 hover:text-slate-600 font-bold p-1"
                 >
-                  {isGeneratingPdf ? 'Memproses...' : 'Export PDF'}
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                {/* Checkboxes Dokumen */}
+                <div className="p-3 bg-slate-50 border rounded-lg space-y-2">
+                  <label className="text-xs font-semibold text-slate-700 block">Pilih Dokumen yang Dicetak:</label>
+                  <div className="flex flex-col gap-2">
+                    <label className="flex items-center space-x-2 text-sm cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={printCheckInvoice} 
+                        onChange={e => setPrintCheckInvoice(e.target.checked)} 
+                        className="w-4 h-4 text-blue-600 rounded" 
+                      />
+                      <span>Invoice Honorarium</span>
+                    </label>
+                    <label className="flex items-center space-x-2 text-sm cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={printCheckHonor} 
+                        onChange={e => setPrintCheckHonor(e.target.checked)} 
+                        className="w-4 h-4 text-emerald-600 rounded" 
+                      />
+                      <span>Kwitansi Honorarium (Sesi Mengajar)</span>
+                    </label>
+                    <label className="flex items-center space-x-2 text-sm cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={printCheckTransport} 
+                        onChange={e => setPrintCheckTransport(e.target.checked)} 
+                        className="w-4 h-4 text-emerald-600 rounded" 
+                      />
+                      <span>Kwitansi Transport (Bulanan)</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Status Booking: Invoice */}
+                {printCheckInvoice && (
+                  hasExistingInv && !isUnlockedInvoice ? (
+                    <div className="p-3 border border-blue-200 bg-blue-50/60 rounded-lg space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-blue-900">
+                          <FileText className="w-4 h-4 text-blue-600" />
+                          <span>Invoice Honorarium (Nomor Ter-booking)</span>
+                        </div>
+                        <Badge className="bg-blue-600 text-white text-[10px] font-semibold">Terkunci</Badge>
+                      </div>
+                      <div className="bg-white p-2.5 rounded border border-blue-200 text-xs space-y-1">
+                        <div className="flex justify-between font-mono">
+                          <span className="text-slate-500 font-sans">No. Invoice:</span>
+                          <span className="font-bold text-blue-800">{existingInv.noInvoice}</span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-500">Tanggal Terdaftar:</span>
+                          <span className="text-slate-800 font-medium">
+                            {new Date(existingInv.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-[11px] text-blue-800/80">Nomor ini telah dibooking permanen.</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm("Peringatan: Membuat nomor baru akan menghubungi webhook Google Sheets dan menambah baris baru di sheet. Apakah Anda yakin ingin membuka kunci?")) {
+                              setIsUnlockedInvoice(true);
+                            }
+                          }}
+                          className="text-[11px] font-medium text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2.5 py-1 rounded transition-colors cursor-pointer"
+                        >
+                          Buka Kunci / Generate Baru
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    isUnlockedInvoice && (
+                      <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between text-xs text-amber-800">
+                        <span>⚠️ Nomor Invoice sedang dibuka kuncinya untuk generate nomor baru.</span>
+                        <button
+                          type="button"
+                          onClick={() => setIsUnlockedInvoice(false)}
+                          className="underline hover:text-amber-950 font-medium ml-2 cursor-pointer"
+                        >
+                          Batal
+                        </button>
+                      </div>
+                    )
+                  )
+                )}
+
+                {/* Status Booking: Kwitansi Honor */}
+                {printCheckHonor && (
+                  hasExistingKwH && !isUnlockedHonor ? (
+                    <div className="p-3 border border-emerald-200 bg-emerald-50/60 rounded-lg space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-900">
+                          <FileCheck2 className="w-4 h-4 text-emerald-600" />
+                          <span>Kwitansi Honorarium (Nomor Ter-booking)</span>
+                        </div>
+                        <Badge className="bg-emerald-600 text-white text-[10px] font-semibold">Terkunci</Badge>
+                      </div>
+                      <div className="bg-white p-2.5 rounded border border-emerald-200 text-xs space-y-1">
+                        <div className="flex justify-between font-mono">
+                          <span className="text-slate-500 font-sans">No. Kwitansi:</span>
+                          <span className="font-bold text-emerald-800">{existingKwH.noKwitansi}</span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-500">Tanggal Terdaftar:</span>
+                          <span className="text-slate-800 font-medium">
+                            {new Date(existingKwH.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-[11px] text-emerald-800/80">Nomor ini telah dibooking permanen.</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm("Peringatan: Membuat nomor baru akan menghubungi webhook Google Sheets dan menambah baris baru di sheet. Apakah Anda yakin ingin membuka kunci?")) {
+                              setIsUnlockedHonor(true);
+                            }
+                          }}
+                          className="text-[11px] font-medium text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2.5 py-1 rounded transition-colors cursor-pointer"
+                        >
+                          Buka Kunci / Generate Baru
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    isUnlockedHonor && (
+                      <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between text-xs text-amber-800">
+                        <span>⚠️ Nomor Kwitansi Honor sedang dibuka kuncinya untuk generate baru.</span>
+                        <button
+                          type="button"
+                          onClick={() => setIsUnlockedHonor(false)}
+                          className="underline hover:text-amber-950 font-medium ml-2 cursor-pointer"
+                        >
+                          Batal
+                        </button>
+                      </div>
+                    )
+                  )
+                )}
+
+                {/* Status Booking: Kwitansi Transport */}
+                {printCheckTransport && (
+                  hasExistingKwT && !isUnlockedTransport ? (
+                    <div className="p-3 border border-emerald-200 bg-emerald-50/60 rounded-lg space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-900">
+                          <FileCheck2 className="w-4 h-4 text-emerald-600" />
+                          <span>Kwitansi Transport (Nomor Ter-booking)</span>
+                        </div>
+                        <Badge className="bg-emerald-600 text-white text-[10px] font-semibold">Terkunci</Badge>
+                      </div>
+                      <div className="bg-white p-2.5 rounded border border-emerald-200 text-xs space-y-1">
+                        <div className="flex justify-between font-mono">
+                          <span className="text-slate-500 font-sans">No. Kwitansi:</span>
+                          <span className="font-bold text-emerald-800">{existingKwT.noKwitansi}</span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-500">Tanggal Terdaftar:</span>
+                          <span className="text-slate-800 font-medium">
+                            {new Date(existingKwT.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-[11px] text-emerald-800/80">Nomor ini telah dibooking permanen.</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm("Peringatan: Membuat nomor baru akan menghubungi webhook Google Sheets dan menambah baris baru di sheet. Apakah Anda yakin ingin membuka kunci?")) {
+                              setIsUnlockedTransport(true);
+                            }
+                          }}
+                          className="text-[11px] font-medium text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2.5 py-1 rounded transition-colors cursor-pointer"
+                        >
+                          Buka Kunci / Generate Baru
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    isUnlockedTransport && (
+                      <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between text-xs text-amber-800">
+                        <span>⚠️ Nomor Kwitansi Transport sedang dibuka kuncinya untuk generate baru.</span>
+                        <button
+                          type="button"
+                          onClick={() => setIsUnlockedTransport(false)}
+                          className="underline hover:text-amber-950 font-medium ml-2 cursor-pointer"
+                        >
+                          Batal
+                        </button>
+                      </div>
+                    )
+                  )
+                )}
+
+                {/* Pilih Kop Surat (Khusus Invoice) */}
+                {printCheckInvoice && (
+                  <div className="space-y-2 pt-2 border-t">
+                    <label className="text-xs font-semibold text-slate-700 block">Pilih Kop Surat (Khusus Invoice):</label>
+                    <div className="flex space-x-4">
+                      <label className="flex items-center space-x-1.5 text-xs cursor-pointer">
+                        <input 
+                          type="radio" 
+                          name="kopTypeRekap" 
+                          checked={printKopType === 'maleo'} 
+                          onChange={() => setPrintKopType('maleo')} 
+                          className="w-3.5 h-3.5 text-blue-600" 
+                        />
+                        <span>Yayasan Maleo</span>
+                      </label>
+                      <label className="flex items-center space-x-1.5 text-xs cursor-pointer">
+                        <input 
+                          type="radio" 
+                          name="kopTypeRekap" 
+                          checked={printKopType === 'robotic'} 
+                          onChange={() => setPrintKopType('robotic')} 
+                          className="w-3.5 h-3.5 text-blue-600" 
+                        />
+                        <span>Robotic Explorer</span>
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                {/* Form Input jika ada dokumen yang belum terbooking atau sedang dibuka kunci */}
+                {needsInput && (
+                  <div className="space-y-3 pt-3 border-t">
+                    <label className="text-xs font-semibold text-slate-800 block">
+                      Konfigurasi Generate Nomor Baru
+                    </label>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">
+                        Nomor Urut <span className="text-slate-400 font-normal">(Kosongkan untuk nomor otomatis Sheets)</span>
+                      </label>
+                      <input 
+                        type="text" 
+                        value={inputNoUrut}
+                        onChange={(e) => setInputNoUrut(e.target.value)}
+                        placeholder="Contoh: 001, 002... (atau kosongkan)"
+                        className="w-full border rounded-md px-3 py-1.5 text-xs bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">
+                        Tanggal Dokumen <span className="text-red-500">*</span>
+                      </label>
+                      <input 
+                        type="date" 
+                        value={inputTanggal}
+                        onChange={(e) => setInputTanggal(e.target.value)}
+                        className="w-full border rounded-md px-3 py-1.5 text-xs bg-white"
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              <div className="mt-6 flex justify-end items-center gap-2 pt-3 border-t">
+                <button 
+                  type="button"
+                  onClick={() => setShowKopModal(false)} 
+                  className="px-4 py-2 text-xs text-slate-600 border border-slate-200 rounded-md hover:bg-slate-50 transition-colors"
+                  disabled={isGeneratingPdf}
+                >
+                  Batal
                 </button>
                 <button 
+                  type="button"
+                  onClick={generatePdfDirect}
+                  disabled={isGeneratingPdf || (!printCheckInvoice && !printCheckHonor && !printCheckTransport)}
+                  className="px-4 py-2 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors font-medium flex items-center gap-1.5 cursor-pointer shadow-sm"
+                >
+                  {isGeneratingPdf ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Memproses...</span>
+                    </>
+                  ) : (
+                    <span>
+                      {isAllLocked 
+                        ? 'Export PDF (No. Tersimpan)' 
+                        : 'Export PDF (Generate Baru)'
+                      }
+                    </span>
+                  )}
+                </button>
+                <button 
+                  type="button"
                   onClick={async () => {
                     if (!selectedRekap) return;
                     setIsGeneratingPdf(true);
@@ -903,26 +1218,44 @@ Atas Nama: ${namaLengkap}`;
                       let htmlString = "";
                       
                       if (printCheckInvoice) {
-                          const invRecord = await generateInvoiceHonorRecord(selectedRekap.id, inputNoUrut, inputTanggal);
-                          if (invRecord?.error) throw new Error(invRecord.error);
-                          htmlString += getInvoiceHtml(selectedRekap, printKopType, invRecord);
-                        }
+                        const forceNewInv = isUnlockedInvoice;
+                        const invRecord = await generateInvoiceHonorRecord(
+                          selectedRekap.id, 
+                          isUnlockedInvoice ? inputNoUrut : undefined, 
+                          isUnlockedInvoice ? inputTanggal : undefined, 
+                          forceNewInv
+                        );
+                        if (invRecord?.error) throw new Error(invRecord.error);
+                        htmlString += getInvoiceHtml(selectedRekap, printKopType, invRecord);
+                      }
                       
                       if (printCheckHonor) {
-                        const record = await generateKwitansiHonor(selectedRekap.id, inputNoUrut, inputTanggal);
+                        const forceNewKw = isUnlockedHonor;
+                        const record = await generateKwitansiHonor(
+                          selectedRekap.id, 
+                          isUnlockedHonor ? inputNoUrut : undefined, 
+                          isUnlockedHonor ? inputTanggal : undefined, 
+                          forceNewKw
+                        );
                         if (record.error) throw new Error(record.error);
                         htmlString += getKwitansiHtml(selectedRekap, record, 'HONOR', terbilangRupiah);
                       }
                       
-                      let transportNoUrut = inputNoUrut;
-                      if (printCheckHonor && printCheckTransport && inputNoUrut) {
+                      let transportNoUrut = isUnlockedTransport ? inputNoUrut : undefined;
+                      if (isUnlockedTransport && printCheckHonor && inputNoUrut) {
                         const num = parseInt(inputNoUrut, 10);
                         if (!isNaN(num)) transportNoUrut = (num + 1).toString();
                         else transportNoUrut = inputNoUrut + "-T";
                       }
                       
                       if (printCheckTransport) {
-                        const record = await generateKwitansiTransportBulanan(selectedRekap.id, transportNoUrut, inputTanggal);
+                        const forceNewTrans = isUnlockedTransport;
+                        const record = await generateKwitansiTransportBulanan(
+                          selectedRekap.id, 
+                          transportNoUrut, 
+                          isUnlockedTransport ? inputTanggal : undefined, 
+                          forceNewTrans
+                        );
                         if (record.error) throw new Error(record.error);
                         htmlString += getKwitansiHtml(selectedRekap, record, 'TRANSPORT', terbilangRupiah);
                       }
@@ -943,7 +1276,7 @@ Atas Nama: ${namaLengkap}`;
                       printWindow.document.write(`
                         <html>
                           <head>
-                            <title>Print Dokumen</title>
+                            <title>Print Dokumen - ${selectedRekap.fasilitator?.namaLengkap} - ${selectedRekap.bulan}</title>
                             <style>
                               @media print {
                                 body { margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -956,7 +1289,6 @@ Atas Nama: ${namaLengkap}`;
                               window.onload = () => {
                                 setTimeout(() => {
                                   window.print();
-                                  // window.close(); // Optional: close after print
                                 }, 500);
                               };
                             </script>
@@ -965,6 +1297,7 @@ Atas Nama: ${namaLengkap}`;
                       `);
                       printWindow.document.close();
                       setShowKopModal(false);
+                      router.refresh();
                     } catch (err: any) {
                       console.error('GENERATE PRINT ERROR', err, err.stack);
                       alert("Gagal print: " + err.message);
@@ -973,15 +1306,32 @@ Atas Nama: ${namaLengkap}`;
                     }
                   }}
                   disabled={isGeneratingPdf || (!printCheckInvoice && !printCheckHonor && !printCheckTransport)}
-                  className="px-4 py-2 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 ml-2"
+                  className="px-4 py-2 text-xs bg-slate-900 text-white rounded-md hover:bg-slate-800 disabled:opacity-50 transition-colors font-medium flex items-center gap-1.5 cursor-pointer shadow-sm"
                 >
-                  {isGeneratingPdf ? 'Memproses...' : 'Print Dokumen'}
+                  {isGeneratingPdf ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Menghubungkan ke Sheets...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>
+                        {isAllLocked 
+                          ? 'Cetak Dokumen (Gunakan No. Tersimpan)' 
+                          : 'Generate Nomor & Cetak Sekarang'
+                        }
+                      </span>
+                    </>
+                  )}
                 </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-          {showTextModal && (
+        );
+      })()}
+
+      {showTextModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
             <div className="bg-white p-6 rounded-lg shadow-xl w-[450px]">
               <h3 className="text-lg font-bold mb-4">Detail Data Pembayaran</h3>

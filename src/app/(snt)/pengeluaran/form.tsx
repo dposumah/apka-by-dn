@@ -5,6 +5,7 @@ import { submitExpense } from '@/app/actions/rab'
 import { generateKwitansiExpense, generateInvoiceExpense } from '@/app/actions/rekap'
 import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatCurrency, terbilangRupiah } from '@/lib/format'
@@ -23,6 +24,24 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
   const [submittedExpense, setSubmittedExpense] = useState<any>(null)
   const [printInvoice, setPrintInvoice] = useState(false)
   const [printKwitansi, setPrintKwitansi] = useState(false)
+  const [isUnlockedKwitansi, setIsUnlockedKwitansi] = useState(false)
+  const [isUnlockedInvoice, setIsUnlockedInvoice] = useState(false)
+
+  const getKwitansi = (expense: any) => {
+    if (!expense?.kwitansiRecord) return null;
+    if (Array.isArray(expense.kwitansiRecord)) {
+      return expense.kwitansiRecord.find((k: any) => !k.noKwitansi?.includes('TEMP')) || expense.kwitansiRecord[0] || null;
+    }
+    return expense.kwitansiRecord;
+  };
+
+  const getInvoice = (expense: any) => {
+    if (!expense?.invoiceRecord) return null;
+    if (Array.isArray(expense.invoiceRecord)) {
+      return expense.invoiceRecord.find((inv: any) => !inv.noInvoice?.includes('TEMP')) || expense.invoiceRecord[0] || null;
+    }
+    return expense.invoiceRecord;
+  };
   const [selectedKop, setSelectedKop] = useState<'maleo' | 'robotic'>('maleo')
   
   const [inputNoUrut, setInputNoUrut] = useState("")
@@ -81,6 +100,8 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
         setPrintInvoice(false)
         setPrintKwitansi(false)
         setSelectedKop('maleo')
+        setIsUnlockedKwitansi(false)
+        setIsUnlockedInvoice(false)
       }
     } catch (err: any) {
       toast({ title: 'Gagal', description: err.message || 'Gagal mengirim data', type: 'error' })
@@ -201,38 +222,86 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
     setIsGeneratingPdf(true);
     try {
       let htmlString = "";
+      let updatedExpense = { ...submittedExpense };
+
       if (printInvoice) {
-        const invRecord = await generateInvoiceExpense(submittedExpense.id, inputInvoiceNoUrut, inputInvoiceTanggal);
+        const forceNewInv = isUnlockedInvoice;
+        const invRecord = await generateInvoiceExpense(
+          submittedExpense.id, 
+          isUnlockedInvoice ? inputInvoiceNoUrut : undefined, 
+          isUnlockedInvoice ? inputInvoiceTanggal : undefined, 
+          forceNewInv
+        );
+        if (invRecord?.error) {
+          alert('Gagal generate invoice: ' + invRecord.error);
+          setIsGeneratingPdf(false);
+          return;
+        }
+        if (invRecord) {
+          updatedExpense.invoiceRecord = invRecord;
+        }
         htmlString += getInvoiceHtml(submittedExpense, invRecord, selectedKop);
       }
+
       if (printKwitansi) {
-        const record = await generateKwitansiExpense(submittedExpense.id, inputNoUrut, inputTanggal);
-          if (record?.error) {
-            alert('Gagal generate kwitansi: ' + record.error);
-            setIsGeneratingPdf(false);
-            return;
-          }
-          htmlString += getKwitansiHtml(submittedExpense, record);
+        const forceNewKw = isUnlockedKwitansi;
+        const record = await generateKwitansiExpense(
+          submittedExpense.id, 
+          isUnlockedKwitansi ? inputNoUrut : undefined, 
+          isUnlockedKwitansi ? inputTanggal : undefined, 
+          forceNewKw
+        );
+        if (record?.error) {
+          alert('Gagal generate kwitansi: ' + record.error);
+          setIsGeneratingPdf(false);
+          return;
+        }
+        if (record) {
+          updatedExpense.kwitansiRecord = [record];
+        }
+        if (htmlString) {
+          htmlString += '<div style="page-break-before: always;"></div>';
+        }
+        htmlString += getKwitansiHtml(submittedExpense, record);
       }
       
+      setSubmittedExpense(updatedExpense);
+      setIsUnlockedKwitansi(false);
+      setIsUnlockedInvoice(false);
+
       if (!htmlString) {
         setIsGeneratingPdf(false);
         return;
       }
       
-      
-        const win = window.open('', '_blank');
-        if (win) {
-          win.document.write(htmlString);
-          win.document.close();
-          setTimeout(() => {
-            win.print();
-          }, 1000);
-        }
-
+      const win = window.open('', '_blank');
+      if (win) {
+        win.document.write(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8" />
+            <title>Dokumen Pengeluaran - ${submittedExpense.rabItem?.name || submittedExpense.description}</title>
+            <style>
+              @media print {
+                body { margin: 0; padding: 0; }
+                @page { margin: 1cm; }
+              }
+            </style>
+          </head>
+          <body>
+            ${htmlString}
+          </body>
+          </html>
+        `);
+        win.document.close();
+        setTimeout(() => {
+          win.print();
+        }, 1000);
+      }
     } catch (err: any) {
       console.error('GENERATE PDF ERROR', err, err.stack);
-      alert("Gagal generate PDF: " + err.message + "\n\nStack: " + (err.stack ? err.stack.substring(0, 200) : ''));
+      alert("Gagal generate PDF: " + err.message);
     } finally {
       setIsGeneratingPdf(false);
     }
@@ -324,132 +393,226 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
         </Button>
       </form>
       
-      {submittedExpense && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <Card className="w-full max-w-md max-h-[90vh] overflow-y-auto shadow-xl border-green-200">
-            <CardHeader className="bg-green-50 border-b border-green-100 relative">
-              <button 
-                onClick={() => setSubmittedExpense(null)}
-                className="absolute right-4 top-4 text-gray-500 hover:text-gray-700"
-                type="button"
-              >
-                âœ•
-              </button>
-              <CardTitle className="text-green-800 text-lg flex items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Pengeluaran berhasil dicatat!
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 p-6">
-            <div className="space-y-2">
-              <label className="flex items-center space-x-2">
-                <input 
-                  type="checkbox" 
-                  checked={printInvoice}
-                  onChange={(e) => setPrintInvoice(e.target.checked)}
-                />
-                <span>Cetak Invoice</span>
-              </label>
-              
-              {printInvoice && (
-                <div className="pl-6 space-y-4 border-l-2 border-green-200 ml-1">
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium text-gray-700">Pilih Kop Surat:</p>
+      {submittedExpense && (() => {
+        const existingKw = getKwitansi(submittedExpense);
+        const existingInv = getInvoice(submittedExpense);
+        const hasExistingKw = !!(existingKw?.noKwitansi && !existingKw.noKwitansi.includes('TEMP'));
+        const hasExistingInv = !!(existingInv?.noInvoice && !existingInv.noInvoice.includes('TEMP'));
+        const isAllLocked = 
+          (!printKwitansi || (hasExistingKw && !isUnlockedKwitansi)) &&
+          (!printInvoice || (hasExistingInv && !isUnlockedInvoice));
 
-                  <label className="flex items-center space-x-2 cursor-pointer">
-                    <input 
-                      type="radio" 
-                      name="kopTypeForm"
-                      value="maleo"
-                      checked={selectedKop === 'maleo'}
-                      onChange={() => setSelectedKop('maleo')}
-                      className="w-4 h-4 text-blue-600"
-                    />
-                    <span className="text-sm">Kop Yayasan Maleo</span>
-                  </label>
-                  <label className="flex items-center space-x-2 cursor-pointer">
-                    <input 
-                      type="radio" 
-                      name="kopTypeForm"
-                      value="robotic"
-                      checked={selectedKop === 'robotic'}
-                      onChange={() => setSelectedKop('robotic')}
-                      className="w-4 h-4 text-blue-600"
-                    />
-                    <span className="text-sm">Kop Robotic Explorer</span>
-                  </label>
-                                  </div>
-                  <div className="space-y-2 pt-2 border-t border-gray-100">
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Nomor Urut Invoice</label>
-                      <input 
-                        type="text" 
-                        value={inputInvoiceNoUrut}
-                        onChange={(e) => setInputInvoiceNoUrut(e.target.value)}
-                        placeholder="Kosongkan untuk otomatis"
-                        className="w-full border rounded p-2 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Tanggal Invoice</label>
-                      <input 
-                        type="date" 
-                        value={inputInvoiceTanggal}
-                        onChange={(e) => setInputInvoiceTanggal(e.target.value)}
-                        className="w-full border rounded p-2 text-sm"
-                      />
+        return (
+          <div className="pt-6 border-t">
+            <Card className="border-green-200 bg-green-50/20">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-green-800 text-lg flex items-center gap-2">
+                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Pengeluaran berhasil dicatat!
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 p-6">
+                <div className="space-y-3">
+                  <div className="p-3 bg-white border border-slate-200 rounded-lg space-y-2">
+                    <label className="text-xs font-semibold text-slate-700 block">Pilih Dokumen yang Dicetak:</label>
+                    <div className="flex flex-col gap-2">
+                      <label className="flex items-center space-x-2 text-sm cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={printInvoice}
+                          onChange={(e) => setPrintInvoice(e.target.checked)}
+                          className="w-4 h-4 text-blue-600 rounded"
+                        />
+                        <span>Cetak Invoice</span>
+                      </label>
+                      <label className="flex items-center space-x-2 text-sm cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={printKwitansi}
+                          onChange={(e) => setPrintKwitansi(e.target.checked)}
+                          className="w-4 h-4 text-emerald-600 rounded"
+                        />
+                        <span>Cetak Kwitansi (Yayasan Maleo)</span>
+                      </label>
                     </div>
                   </div>
+                  
+                  {/* Status / Form Invoice */}
+                  {printInvoice && (
+                    hasExistingInv && !isUnlockedInvoice ? (
+                      <div className="p-3.5 border border-blue-200 bg-blue-50/60 rounded-lg space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-blue-900">Invoice Pengeluaran (Nomor Ter-booking)</span>
+                          <Badge className="bg-blue-600 text-white text-[10px]">Terkunci</Badge>
+                        </div>
+                        <div className="bg-white p-2 rounded border border-blue-200 text-xs flex justify-between font-mono">
+                          <span className="text-slate-500 font-sans">No. Invoice:</span>
+                          <span className="font-bold text-blue-800">{existingInv.noInvoice}</span>
+                        </div>
+                        <div className="flex justify-between items-center pt-1">
+                          <span className="text-[11px] text-blue-800/80">Nomor tersimpan secara permanen.</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm("Peringatan: Membuat nomor baru akan menghubungi webhook Google Sheets dan menambah baris baru di sheet. Apakah Anda yakin ingin membuka kunci?")) {
+                                setIsUnlockedInvoice(true);
+                              }
+                            }}
+                            className="text-[11px] font-medium text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2 py-0.5 rounded cursor-pointer"
+                          >
+                            Buka Kunci
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-3.5 border rounded-lg bg-white space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-800">
+                            Konfigurasi Invoice {isUnlockedInvoice && <span className="text-amber-600">(Mode Generate Baru)</span>}
+                          </span>
+                          {isUnlockedInvoice && (
+                            <button
+                              type="button"
+                              onClick={() => setIsUnlockedInvoice(false)}
+                              className="text-[11px] text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                            >
+                              Batalkan
+                            </button>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">Pilih Kop Surat:</label>
+                          <div className="flex gap-4">
+                            <label className="flex items-center space-x-1.5 text-xs cursor-pointer">
+                              <input 
+                                type="radio" 
+                                name="kopTypeForm"
+                                value="maleo"
+                                checked={selectedKop === 'maleo'}
+                                onChange={() => setSelectedKop('maleo')}
+                              />
+                              <span>Yayasan Maleo</span>
+                            </label>
+                            <label className="flex items-center space-x-1.5 text-xs cursor-pointer">
+                              <input 
+                                type="radio" 
+                                name="kopTypeForm"
+                                value="robotic"
+                                checked={selectedKop === 'robotic'}
+                                onChange={() => setSelectedKop('robotic')}
+                              />
+                              <span>Robotic Explorer</span>
+                            </label>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">Nomor Urut Invoice</label>
+                          <input 
+                            type="text" 
+                            value={inputInvoiceNoUrut}
+                            onChange={(e) => setInputInvoiceNoUrut(e.target.value)}
+                            placeholder="Kosongkan untuk nomor otomatis"
+                            className="w-full border rounded-md px-3 py-1.5 text-xs bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">Tanggal Invoice</label>
+                          <input 
+                            type="date" 
+                            value={inputInvoiceTanggal}
+                            onChange={(e) => setInputInvoiceTanggal(e.target.value)}
+                            className="w-full border rounded-md px-3 py-1.5 text-xs bg-white"
+                          />
+                        </div>
+                      </div>
+                    )
+                  )}
+
+                  {/* Status / Form Kwitansi */}
+                  {printKwitansi && (
+                    hasExistingKw && !isUnlockedKwitansi ? (
+                      <div className="p-3.5 border border-emerald-200 bg-emerald-50/60 rounded-lg space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-emerald-900">Kwitansi Resmi (Nomor Ter-booking)</span>
+                          <Badge className="bg-emerald-600 text-white text-[10px]">Terkunci</Badge>
+                        </div>
+                        <div className="bg-white p-2 rounded border border-emerald-200 text-xs flex justify-between font-mono">
+                          <span className="text-slate-500 font-sans">No. Kwitansi:</span>
+                          <span className="font-bold text-emerald-800">{existingKw.noKwitansi}</span>
+                        </div>
+                        <div className="flex justify-between items-center pt-1">
+                          <span className="text-[11px] text-emerald-800/80">Nomor tersimpan secara permanen.</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm("Peringatan: Membuat nomor baru akan menghubungi webhook Google Sheets dan menambah baris baru di sheet. Apakah Anda yakin ingin membuka kunci?")) {
+                                setIsUnlockedKwitansi(true);
+                              }
+                            }}
+                            className="text-[11px] font-medium text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2 py-0.5 rounded cursor-pointer"
+                          >
+                            Buka Kunci
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-3.5 border rounded-lg bg-white space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-800">
+                            Konfigurasi Kwitansi {isUnlockedKwitansi && <span className="text-amber-600">(Mode Generate Baru)</span>}
+                          </span>
+                          {isUnlockedKwitansi && (
+                            <button
+                              type="button"
+                              onClick={() => setIsUnlockedKwitansi(false)}
+                              className="text-[11px] text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                            >
+                              Batalkan
+                            </button>
+                          )}
+                        </div>
+                        <div>
+                          <Label className="block text-xs font-semibold text-slate-700 mb-1">Nomor Urut Kwitansi</Label>
+                          <Input 
+                            type="text" 
+                            value={inputNoUrut}
+                            onChange={(e) => setInputNoUrut(e.target.value)}
+                            placeholder="Contoh: 001, 002... (atau kosongkan)"
+                            className="w-full text-xs"
+                          />
+                        </div>
+                        <div>
+                          <Label className="block text-xs font-semibold text-slate-700 mb-1">Tanggal Kwitansi</Label>
+                          <Input 
+                            type="date" 
+                            value={inputTanggal}
+                            onChange={(e) => setInputTanggal(e.target.value)}
+                            className="w-full text-xs"
+                          />
+                        </div>
+                      </div>
+                    )
+                  )}
+                  
+                  <Button 
+                    type="button"
+                    onClick={handlePrint}
+                    disabled={(!printInvoice && !printKwitansi) || isGeneratingPdf}
+                    className="w-full mt-4 bg-slate-900 hover:bg-slate-800 text-white disabled:opacity-50 text-xs font-medium"
+                  >
+                    {isGeneratingPdf 
+                      ? 'Menghubungkan ke Sheets...' 
+                      : (isAllLocked ? 'Cetak Dokumen (Gunakan No. Tersimpan)' : 'Generate Nomor & Cetak Sekarang')
+                    }
+                  </Button>
                 </div>
-              )}
-              <label className="flex items-center space-x-2">
-                <input 
-                  type="checkbox" 
-                  checked={printKwitansi}
-                  onChange={(e) => setPrintKwitansi(e.target.checked)}
-                />
-                <span>Cetak Kwitansi</span>
-              </label>
-              
-              {printKwitansi && (
-                <div className="pl-6 space-y-2 border-l-2 border-green-200 ml-1">
-                  <div>
-                    <Label className="block text-sm font-medium mb-1">Nomor Urut Kwitansi</Label>
-                    <Input 
-                      type="text" 
-                      value={inputNoUrut}
-                      onChange={(e) => setInputNoUrut(e.target.value)}
-                      placeholder="Contoh: 001, 002..."
-                      className="w-full"
-                    />
-                  </div>
-                  <div>
-                    <Label className="block text-sm font-medium mb-1">Tanggal Kwitansi</Label>
-                    <Input 
-                      type="date" 
-                      value={inputTanggal}
-                      onChange={(e) => setInputTanggal(e.target.value)}
-                      className="w-full"
-                    />
-                  </div>
-                </div>
-              )}
-              
-              <Button 
-                type="button"
-                onClick={handlePrint}
-                disabled={(!printInvoice && !printKwitansi) || isGeneratingPdf}
-                className="w-full mt-4 bg-green-600 hover:bg-green-700 disabled:opacity-50"
-              >
-                {isGeneratingPdf ? 'Memproses Dokumen...' : 'Cetak Dokumen'}
-              </Button>
-            </div>
-          </CardContent>
-          </Card>
-        </div>
-      )}
+              </CardContent>
+            </Card>
+          </div>
+        );
+      })()}
     </div>
   )
 }
