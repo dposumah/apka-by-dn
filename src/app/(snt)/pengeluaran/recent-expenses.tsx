@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -22,7 +22,11 @@ import {
   CheckCircle2, 
   AlertCircle,
   X,
-  FileCheck2
+  FileCheck2,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from 'lucide-react'
 import { uploadFileClient } from '@/lib/upload-client'
 
@@ -43,6 +47,10 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
   const [filterKwitansi, setFilterKwitansi] = useState('ALL') // 'ALL' | 'HAS_KWITANSI' | 'NO_KWITANSI'
   const [filterStatus, setFilterStatus] = useState('ALL') // 'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED'
 
+  // Pagination states (default: 5 transaksi per halaman)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(5)
+
   // Edit Expense State
   const [showEditModal, setShowEditModal] = useState(false)
   const [editData, setEditData] = useState<any>(null)
@@ -61,6 +69,11 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
   const [inputInvoiceNoUrut, setInputInvoiceNoUrut] = useState('')
   const [inputInvoiceTanggal, setInputInvoiceTanggal] = useState('')
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
+
+  // Reset current page when filters or page size change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, filterCategory, filterFasilitator, filterKwitansi, filterStatus, pageSize])
 
   // Memoized category options
   const categoryOptions = useMemo(() => {
@@ -164,6 +177,17 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
     return filteredExpenses.reduce((sum: number, exp: any) => sum + (exp.amount || 0), 0)
   }, [filteredExpenses])
 
+  // Pagination calculations
+  const totalItems = filteredExpenses.length
+  const totalPages = Math.ceil(totalItems / pageSize) || 1
+  const validCurrentPage = Math.min(Math.max(currentPage, 1), totalPages)
+  const startIndex = (validCurrentPage - 1) * pageSize
+  const endIndex = Math.min(startIndex + pageSize, totalItems)
+
+  const paginatedExpenses = useMemo(() => {
+    return filteredExpenses.slice(startIndex, endIndex)
+  }, [filteredExpenses, startIndex, endIndex])
+
   const hasActiveFilters = 
     searchQuery.trim() !== '' || 
     filterCategory !== 'ALL' || 
@@ -177,6 +201,7 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
     setFilterFasilitator('ALL')
     setFilterKwitansi('ALL')
     setFilterStatus('ALL')
+    setCurrentPage(1)
   }
 
   // Edit Expense Actions
@@ -637,7 +662,7 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-700 font-semibold">
-                  <th className="py-3 px-3 text-center w-10">No</th>
+                  <th className="py-3 px-3 text-center w-12">No</th>
                   <th className="py-3 px-3 whitespace-nowrap w-28">Tanggal</th>
                   <th className="py-3 px-3 min-w-[200px]">Item & Kategori RAB</th>
                   <th className="py-3 px-3 min-w-[220px]">Deskripsi / Keperluan</th>
@@ -645,12 +670,12 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
                   <th className="py-3 px-3 text-right whitespace-nowrap min-w-[120px]">Nominal</th>
                   <th className="py-3 px-3 text-center whitespace-nowrap w-24">Status</th>
                   <th className="py-3 px-3 text-center whitespace-nowrap w-24">Bukti Nota</th>
-                  <th className="py-3 px-3 text-center whitespace-nowrap min-w-[140px]">Kwitansi</th>
+                  <th className="py-3 px-3 text-center whitespace-nowrap min-w-[140px]">Status Kwitansi</th>
                   <th className="py-3 px-3 text-center whitespace-nowrap w-36">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {filteredExpenses.length === 0 ? (
+                {paginatedExpenses.length === 0 ? (
                   <tr>
                     <td colSpan={10} className="py-12 text-center text-slate-500">
                       <div className="flex flex-col items-center justify-center gap-2">
@@ -668,7 +693,7 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
                     </td>
                   </tr>
                 ) : (
-                  filteredExpenses.map((expense: any, idx: number) => {
+                  paginatedExpenses.map((expense: any, idx: number) => {
                     const receipt = expense.receiptUrl || expense.paymentReceiptUrl
                     const kw = getKwitansi(expense)
                     const inv = getInvoice(expense)
@@ -676,9 +701,9 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
 
                     return (
                       <tr key={expense.id} className="hover:bg-slate-50/80 transition-colors">
-                        {/* 1. No */}
+                        {/* 1. No (Paginated index) */}
                         <td className="py-3 px-3 text-center text-slate-500 font-mono">
-                          {idx + 1}
+                          {startIndex + idx + 1}
                         </td>
 
                         {/* 2. Tanggal */}
@@ -780,7 +805,7 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
                           )}
                         </td>
 
-                        {/* 9. Status Kwitansi */}
+                        {/* 9. Status Kwitansi (Status Murni: Tidak menduplikasi tombol aksi) */}
                         <td className="py-3 px-3 align-top text-center">
                           {hasValidKwitansi ? (
                             <div className="flex flex-col items-center gap-1">
@@ -799,26 +824,21 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
                               )}
                             </div>
                           ) : (
-                            <button
-                              type="button"
-                              onClick={() => openPrintModal(expense)}
-                              className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded transition-colors cursor-pointer"
-                              title="Buat nomor kwitansi ke Google Sheets"
-                            >
-                              <span>+ Buat Kwitansi</span>
-                            </button>
+                            <span className="inline-block text-[10px] font-medium text-slate-400 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
+                              Belum Dibuat
+                            </span>
                           )}
                         </td>
 
-                        {/* 10. Aksi (Menu Vertikal) */}
+                        {/* 10. Aksi (Menu Vertikal Terpusat) */}
                         <td className="py-3 px-3 align-top text-center">
                           <div className="flex flex-col gap-1 w-28 mx-auto">
-                            {/* Tombol Cetak Dokumen / Kwitansi */}
+                            {/* Tombol Buat / Cetak Kwitansi */}
                             <button
                               type="button"
                               onClick={() => openPrintModal(expense)}
                               className="inline-flex items-center justify-center gap-1 px-2 py-1 text-xs font-medium text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded transition-colors cursor-pointer"
-                              title="Buat kwitansi resmi & cetak invoice/kwitansi"
+                              title={hasValidKwitansi ? "Cetak dokumen kwitansi/invoice" : "Buat nomor kwitansi ke Google Sheets & cetak"}
                             >
                               <Printer className="w-3.5 h-3.5 text-slate-600" />
                               <span>{hasValidKwitansi ? 'Cetak Kwitansi' : 'Buat Kwitansi'}</span>
@@ -859,6 +879,125 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
               </tbody>
             </table>
           </div>
+
+          {/* PAGINATION CONTROLS (5 Transaksi Per Halaman) */}
+          {totalItems > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-slate-200 bg-slate-50/70">
+              {/* Info text & page size selector */}
+              <div className="flex items-center gap-3 text-xs text-slate-600">
+                <span>
+                  Menampilkan <strong className="font-semibold text-slate-900">{startIndex + 1}</strong> - <strong className="font-semibold text-slate-900">{endIndex}</strong> dari <strong className="font-semibold text-slate-900">{totalItems}</strong> transaksi
+                </span>
+                <div className="flex items-center gap-1.5 pl-3 border-l border-slate-300">
+                  <span className="text-slate-500">Baris:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value))
+                      setCurrentPage(1)
+                    }}
+                    className="bg-white border border-slate-300 text-xs rounded px-2 py-1 font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                  >
+                    <option value={5}>5 per hal</option>
+                    <option value={10}>10 per hal</option>
+                    <option value={20}>20 per hal</option>
+                    <option value={50}>50 per hal</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Page navigation controls */}
+              <div className="flex items-center gap-1">
+                {/* First Page */}
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={validCurrentPage <= 1}
+                  className="p-1.5 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white transition-colors cursor-pointer disabled:cursor-not-allowed"
+                  title="Halaman Pertama"
+                >
+                  <ChevronsLeft className="w-3.5 h-3.5" />
+                </button>
+
+                {/* Previous Page */}
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  disabled={validCurrentPage <= 1}
+                  className="p-1.5 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white transition-colors cursor-pointer disabled:cursor-not-allowed"
+                  title="Halaman Sebelumnya"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+
+                {/* Page Number Buttons */}
+                <div className="flex items-center gap-1 px-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter(page => {
+                      return (
+                        page === 1 || 
+                        page === totalPages || 
+                        Math.abs(page - validCurrentPage) <= 1
+                      )
+                    })
+                    .reduce((acc: (number | string)[], page, index, arr) => {
+                      if (index > 0 && page - (arr[index - 1] as number) > 1) {
+                        acc.push('...')
+                      }
+                      acc.push(page)
+                      return acc
+                    }, [])
+                    .map((item, idx) => {
+                      if (item === '...') {
+                        return (
+                          <span key={`dots-${idx}`} className="px-1.5 py-0.5 text-xs text-slate-400">
+                            ...
+                          </span>
+                        )
+                      }
+                      const pageNum = item as number
+                      const isActive = pageNum === validCurrentPage
+                      return (
+                        <button
+                          key={pageNum}
+                          type="button"
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={`min-w-[26px] h-6 px-1.5 text-xs font-semibold rounded border transition-colors cursor-pointer ${
+                            isActive 
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-xs' 
+                              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      )
+                    })}
+                </div>
+
+                {/* Next Page */}
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                  disabled={validCurrentPage >= totalPages}
+                  className="p-1.5 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white transition-colors cursor-pointer disabled:cursor-not-allowed"
+                  title="Halaman Berikutnya"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+
+                {/* Last Page */}
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={validCurrentPage >= totalPages}
+                  className="p-1.5 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white transition-colors cursor-pointer disabled:cursor-not-allowed"
+                  title="Halaman Terakhir"
+                >
+                  <ChevronsRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
