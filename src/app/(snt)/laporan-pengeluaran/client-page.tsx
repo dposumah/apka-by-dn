@@ -7,8 +7,8 @@ import { formatCurrency } from '@/lib/format'
 import React, { useState, useEffect, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
-import { updateExpense, deleteExpense } from '@/app/actions/rab'
-import { Search, Trash2, X, AlertCircle, Loader2 } from 'lucide-react'
+import { updateExpense, deleteExpense, updateRabItem } from '@/app/actions/rab'
+import { Search, Trash2, X, AlertCircle, Loader2, Pencil } from 'lucide-react'
 
 export function LaporanClientPage({ 
   initialData, 
@@ -35,6 +35,44 @@ export function LaporanClientPage({
   // Delete modal state
   const [deleteTarget, setDeleteTarget] = useState<any>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  // Edit RAB Item modal state
+  const [showEditItemModal, setShowEditItemModal] = useState(false)
+  const [editItemData, setEditItemData] = useState<any>(null)
+  const [isSavingItem, setIsSavingItem] = useState(false)
+
+  const openEditItemModal = (item: any, categoryId?: string) => {
+    setEditItemData({
+      id: item.id,
+      code: item.code || '',
+      name: item.name || '',
+      volume: item.volume || '',
+      totalBudget: item.totalBudget || 0,
+      categoryId: item.categoryId || categoryId || ''
+    })
+    setShowEditItemModal(true)
+  }
+
+  const handleSaveItemEdit = async () => {
+    if (!editItemData) return;
+    if (!editItemData.name.trim()) return alert('Nama item tidak boleh kosong');
+    setIsSavingItem(true);
+    try {
+      const res = await updateRabItem(editItemData.id, {
+        code: editItemData.code,
+        name: editItemData.name.trim(),
+        volume: editItemData.volume || undefined,
+        totalBudget: Number(editItemData.totalBudget) || 0,
+      });
+      if (res?.error) throw new Error(res.error);
+      setShowEditItemModal(false);
+      window.location.reload();
+    } catch (err: any) {
+      alert("Gagal memperbarui item: " + (err.message || err));
+    } finally {
+      setIsSavingItem(false);
+    }
+  }
 
   // Keep expensesList in sync with initialData from server
   useEffect(() => {
@@ -359,7 +397,19 @@ export function LaporanClientPage({
                         const persen = item.totalBudget > 0 ? (item.realized / item.totalBudget) * 100 : 0;
                         return (
                           <tr key={item.id} className="hover:bg-slate-50/50">
-                            <td className="py-2 px-4 pl-8 text-slate-700">{item.code} - {item.name}</td>
+                            <td className="py-2 px-4 pl-8 text-slate-700">
+                              <div className="flex items-center justify-between gap-2">
+                                <span>{item.code} - {item.name}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => openEditItemModal(item, cat.id)}
+                                  className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors print:hidden"
+                                  title="Edit Nama / Anggaran Item RAB"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
                             <td className="py-2 px-4 text-right">{formatCurrency(item.totalBudget)}</td>
                             <td className="py-2 px-4 text-right text-blue-600">{formatCurrency(item.realized)}</td>
                             <td className="py-2 px-4 text-center">
@@ -658,6 +708,92 @@ export function LaporanClientPage({
               >
                 {isDeleting && <Loader2 className="w-4 h-4 animate-spin" />}
                 <span>{isDeleting ? 'Menghapus...' : 'Ya, Hapus'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    
+      {/* Modal Edit Item RAB */}
+      {showEditItemModal && editItemData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="p-2 bg-blue-100 rounded-lg text-blue-600">
+                <Pencil className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Edit Item RAB</h3>
+                <p className="text-xs text-slate-500">Ubah nama/uraian, kode, volume, atau pagu anggaran item ini.</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-1">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Kode Item</label>
+                  <input 
+                    type="text" 
+                    value={editItemData.code}
+                    onChange={e => setEditItemData({...editItemData, code: e.target.value})}
+                    className="w-full border rounded px-3 py-2 text-sm bg-white"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Volume (Opsional)</label>
+                  <input 
+                    type="text" 
+                    placeholder="Contoh: 1 Paket, 6 Bulan"
+                    value={editItemData.volume}
+                    onChange={e => setEditItemData({...editItemData, volume: e.target.value})}
+                    className="w-full border rounded px-3 py-2 text-sm bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Nama / Uraian Item RAB <span className="text-red-500">*</span>
+                </label>
+                <input 
+                  type="text" 
+                  value={editItemData.name}
+                  onChange={e => setEditItemData({...editItemData, name: e.target.value})}
+                  className="w-full border rounded px-3 py-2 text-sm bg-white font-medium"
+                  placeholder="Nama item RAB..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Pagu Anggaran RAB (Rp)
+                </label>
+                <input 
+                  type="number" 
+                  min="0"
+                  value={editItemData.totalBudget}
+                  onChange={e => setEditItemData({...editItemData, totalBudget: e.target.value})}
+                  className="w-full border rounded px-3 py-2 text-sm bg-white font-semibold"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button 
+                onClick={() => setShowEditItemModal(false)}
+                className="px-4 py-2 border rounded hover:bg-slate-50 text-sm text-slate-700 transition-colors"
+                disabled={isSavingItem}
+              >
+                Batal
+              </button>
+              <button 
+                onClick={handleSaveItemEdit}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 text-sm font-semibold transition-colors inline-flex items-center gap-1.5"
+                disabled={isSavingItem}
+              >
+                {isSavingItem && <Loader2 className="w-4 h-4 animate-spin" />}
+                <span>{isSavingItem ? 'Menyimpan...' : 'Simpan Perubahan'}</span>
               </button>
             </div>
           </div>

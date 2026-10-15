@@ -877,7 +877,7 @@ export async function updateRabItem(
     categoryId?: string
   }
 ) {
-  const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN']);
+  const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN', 'ACCOUNTANT', 'KORWIL']);
   if (authError) return { error: authError };
 
   try {

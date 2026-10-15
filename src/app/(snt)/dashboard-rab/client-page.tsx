@@ -1426,8 +1426,20 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
                                 <tr key={item.id} className="hover:bg-slate-50">
                                   <td className="px-3 py-2 font-mono font-medium text-slate-500 whitespace-nowrap">{item.code}</td>
                                   <td className="px-3 py-2 font-medium text-slate-800">
-                                    {item.name}
-                                    {item.volume && <span className="block text-[10px] text-slate-400 font-normal">Vol: {item.volume}</span>}
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div>
+                                        <span>{item.name}</span>
+                                        {item.volume && <span className="block text-[10px] text-slate-400 font-normal">Vol: {item.volume}</span>}
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => openEditItemModal(item, reportCategory.id)}
+                                        className="p-1 text-slate-400 hover:text-amber-700 hover:bg-amber-50 rounded border border-transparent hover:border-amber-200 transition-colors"
+                                        title="Edit Item & Anggaran"
+                                      >
+                                        <Pencil className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
                                   </td>
                                   <td className="px-3 py-2 text-right font-medium">{formatCurrency(item.totalBudget)}</td>
                                   <td className="px-3 py-2 text-right text-red-600 font-medium">{formatCurrency(item.realized)}</td>
