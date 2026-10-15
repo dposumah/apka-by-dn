@@ -78,12 +78,12 @@ export async function getRabDashboardData() {
   }
 }
 
-export async function getRecentExpenses(limit = 10) {
+export async function getRecentExpenses(limit = 100) {
   const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN', 'ACCOUNTANT', 'KORWIL']);
   if (authError) return [];
   /* getRecentExpenses_auth */
   return await prisma.expenseRequest.findMany({
-    orderBy: { createdAt: 'desc' },
+    orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
     take: limit,
     include: {
       rabItem: {
@@ -94,7 +94,9 @@ export async function getRecentExpenses(limit = 10) {
       fasilitator: true,
       createdBy: {
         select: { name: true }
-      }
+      },
+      kwitansiRecord: true,
+      invoiceRecord: true
     }
   })
 }
