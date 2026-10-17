@@ -92,7 +92,7 @@ export default function NeracaSaldoPage() {
   }, []); // Initial load
 
   const handleExport = async (type: "pdf" | "excel") => {
-    await alert(`Fitur export ke ${type.toUpperCase()} akan segera tersedia.`);
+    if (type === "pdf") { window.print(); } else { await alert(`Fitur export ke ${type.toUpperCase()} akan segera tersedia.`); }
   };
 
   return (

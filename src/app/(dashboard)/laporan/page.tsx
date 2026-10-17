@@ -9,7 +9,7 @@ export default function LaporanPage() {
     { title: 'Laporan Posisi Keuangan (Neraca)', desc: 'Aset, liabilitas, dan ekuitas perusahaan', icon: FileText, link: '/laporan/neraca' },
     { title: 'Laporan Arus Kas', desc: 'Penerimaan dan pengeluaran kas', icon: Banknote, link: '/laporan/arus-kas' },
     { title: 'Neraca Saldo', desc: 'Saldo akhir seluruh akun', icon: List, link: '/laporan/neraca-saldo' },
-    { title: 'Buku Besar', desc: 'Rincian transaksi per akun', icon: BookOpen, link: '/laporan/buku-besar' },
+    { title: 'Buku Besar', desc: 'Rincian mutasi debit & kredit per akun', icon: BookOpen, link: '/buku-besar' },
     { title: 'Catatan Atas Laporan Keuangan', desc: 'Penjelasan rinci pos laporan', icon: PenTool, link: '/laporan/catatan-atas-laporan' },
   ];
 
