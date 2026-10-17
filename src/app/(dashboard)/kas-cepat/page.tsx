@@ -15,11 +15,56 @@ import { uploadFileClient } from '@/lib/upload-client';
 
 type Account = { id: string; code: string; name: string; type: string };
 
+const friendlyLabels: Record<string, string> = {
+  // PENGELUARAN (OUT)
+  '600.10.001': '💰 Gaji & Honor Karyawan',
+  '600.10.003': '🍽️ Konsumsi / Uang Makan Staf',
+  '600.10.004': '🚗 Bensin, Transportasi & E-toll',
+  '600.10.005': '🎁 THR Karyawan',
+  '600.10.008': '📝 Biaya Operasional Kantor',
+  '600.10.009': '🏛️ Tunjangan Pajak PPh 21',
+  '600.10.010': '✏️ Alat Tulis Kantor (ATK)',
+  '600.10.011': '🖨️ Percetakan / Cetak Banner',
+  '600.10.012': '🔧 Perbaikan / Pemeliharaan Kantor',
+  '600.10.013': '🛠️ Pemeliharaan Inventaris & Robot',
+  '600.10.015': '💡 Biaya Listrik',
+  '600.10.018': '📦 Pengiriman Paket & Kurir',
+  '600.10.019': '🏢 Sewa Kantor / Tempat',
+  '600.10.020': '📢 Iklan, Promo & Domain Web',
+  '600.10.021': '⚖️ Konsultan / Notaris / Legal',
+  '600.10.022': '☕ Makan & Minum Harian',
+  '600.10.023': '🤝 Biaya Jamuan / Entertain',
+  '600.10.024': '🧹 Iuran Kebersihan & Keamanan',
+  '600.10.026': '✈️ Perjalanan Dinas & Tiket',
+  '600.10.027': '🎪 Biaya Event & Acara',
+  '600.10.028': '👔 Biaya Seragam & Kaos',
+  '600.10.029': '🎀 Souvenir, Bunga & Hamper',
+  '600.10.030': '↩️ Pengembalian Dana',
+  '600.10.031': '⚡ PLN, PAM, Wifi & Token Listrik',
+  '600.10.032': '🧳 Paket Perjalanan Lengkap (Transport/Hotel/Honor)',
+  '600.10.034': '📚 Pelatihan & Kegiatan KKA',
+  '600.10.035': '📑 Pembuatan Proposal & Hak Paten',
+  '600.10.038': '🏠 Biaya IPL / Properti',
+  '600.10.099': '🔍 Biaya Lainnya',
+  '500.10.102': '🤖 Pembelian Bahan / Sample Robot',
+  '204.10.101': '💳 Pembayaran Kartu Kredit / Ibu Jully',
+  '117.10.101': '🖥️ Pembelian Inventaris / Aset Kantor',
+  '700.10.101': '🏦 Biaya Administrasi Bank',
+
+  // PEMASUKAN (IN)
+  '400.10.101': '🎓 Uang Kursus / Ekstrakulikuler Sekolah',
+  '400.10.102': '🤖 Penjualan Unit Robot',
+  '400.10.104': '🎯 Jasa Penyelenggaraan Acara',
+  '300.10.101': '💵 Setoran Modal Pemilik',
+  '113.12.101': '🔄 Pengembalian Piutang Karyawan',
+  '113.13.101': '🔄 Pengembalian Piutang Lainnya',
+};
+
 export default function KasCepatPage() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [allAccounts, setAllAccounts] = useState<Account[]>([]);
   const [bankAccounts, setBankAccounts] = useState<Account[]>([]);
   
   const [type, setType] = useState<'IN' | 'OUT'>('OUT');
@@ -40,20 +85,31 @@ export default function KasCepatPage() {
       const res = await fetch('/api/accounts');
       if (res.ok) {
         const data = await res.json();
-        const accs = data.accounts || data;
+        const accs: Account[] = data.accounts || data;
+        setAllAccounts(accs);
         
-        // Filter kas/bank for source/destination
-        const banks = accs.filter((a: Account) => a.type === 'ASSET' && a.code.startsWith('11'));
+        // Filter kas/bank for source/destination (BCA 111.11.101)
+        const banks = accs.filter(a => a.code.startsWith('111'));
         setBankAccounts(banks);
         
-        // Exclude bank accounts from the category list
-        const categories = accs.filter((a: Account) => !a.code.startsWith('11'));
-        setAccounts(categories);
+        // Auto-select first bank account (BCA) by default
+        if (banks.length > 0) {
+          setBankAccountId(banks[0].id);
+        }
       }
     } catch (error) {
       console.error(error);
     }
   };
+
+  // Filter categories based on transaction type (IN vs OUT)
+  const categoryAccounts = allAccounts.filter(a => {
+    if (type === 'IN') {
+      return a.type === 'REVENUE' || a.type === 'EQUITY' || a.code.startsWith('113');
+    } else {
+      return a.type === 'EXPENSE' || a.code === '204.10.101' || a.code === '117.10.101';
+    }
+  });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -83,7 +139,7 @@ export default function KasCepatPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bankAccountId || !accountId || amount <= 0 || !description) {
-      toast({ title: "Validasi", description: "Harap isi semua kolom wajib (Nominal tidak boleh 0)", type: "error" });
+      toast({ title: "Validasi", description: "Harap lengkapi semua kolom wajib (Nominal tidak boleh 0)", type: "error" });
       return;
     }
 
@@ -95,7 +151,7 @@ export default function KasCepatPage() {
       const url = await handleUpload();
       if (!url) {
         setLoading(false);
-        return; // stop if upload failed
+        return;
       }
       uploadedUrl = url;
       setAttachmentUrl(url);
@@ -119,12 +175,13 @@ export default function KasCepatPage() {
       });
       
       if (res.ok) {
-        toast({ title: "Sukses", description: "Transaksi berhasil dicatat", type: "success" });
+        toast({ title: "Sukses", description: "Transaksi berhasil dicatat ke sistem akuntansi", type: "success" });
         // Reset form
         setAmount(0);
         setDescription('');
         setFile(null);
         setAttachmentUrl('');
+        setAccountId('');
       } else {
         const err = await res.json();
         throw new Error(err.error);
@@ -137,110 +194,119 @@ export default function KasCepatPage() {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
         <Zap className="h-8 w-8 text-yellow-500 fill-yellow-500" />
         <div>
-          <h1 className="text-3xl font-bold">Pencatatan Cepat</h1>
-          <p className="text-muted-foreground">Catat pemasukan atau pengeluaran kas dengan bukti lampiran.</p>
+          <h1 className="text-2xl md:text-3xl font-bold">Pencatatan Kas Cepat</h1>
+          <p className="text-muted-foreground text-sm">Catat uang masuk atau keluar dengan mudah tanpa perlu memahami debit/kredit.</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-2 gap-4">
         <button 
-          onClick={() => setType('IN')}
-          className={`flex flex-col items-center justify-center p-6 rounded-xl border-2 transition-all ${type === 'IN' ? 'border-green-500 bg-green-50 text-green-700' : 'border-slate-200 bg-white hover:border-green-300'}`}
+          type="button"
+          onClick={() => { setType('IN'); setAccountId(''); }}
+          className={`flex flex-col items-center justify-center p-4 md:p-6 rounded-xl border-2 transition-all ${type === 'IN' ? 'border-green-500 bg-green-50 text-green-700 shadow-sm' : 'border-slate-200 bg-white hover:border-green-300'}`}
         >
-          <ArrowDownRight className="h-10 w-10 mb-2" />
-          <span className="font-semibold text-lg">Uang Masuk</span>
-          <span className="text-sm opacity-70">Pendapatan, Modal, dll</span>
+          <ArrowDownRight className="h-8 w-8 md:h-10 md:w-10 mb-2 text-green-600" />
+          <span className="font-semibold text-base md:text-lg">Uang Masuk</span>
+          <span className="text-xs md:text-sm opacity-70">Uang Kursus, Event, Modal</span>
         </button>
         <button 
-          onClick={() => setType('OUT')}
-          className={`flex flex-col items-center justify-center p-6 rounded-xl border-2 transition-all ${type === 'OUT' ? 'border-red-500 bg-red-50 text-red-700' : 'border-slate-200 bg-white hover:border-red-300'}`}
+          type="button"
+          onClick={() => { setType('OUT'); setAccountId(''); }}
+          className={`flex flex-col items-center justify-center p-4 md:p-6 rounded-xl border-2 transition-all ${type === 'OUT' ? 'border-red-500 bg-red-50 text-red-700 shadow-sm' : 'border-slate-200 bg-white hover:border-red-300'}`}
         >
-          <ArrowUpRight className="h-10 w-10 mb-2" />
-          <span className="font-semibold text-lg">Uang Keluar</span>
-          <span className="text-sm opacity-70">Biaya, Belanja, dll</span>
+          <ArrowUpRight className="h-8 w-8 md:h-10 md:w-10 mb-2 text-red-600" />
+          <span className="font-semibold text-base md:text-lg">Uang Keluar</span>
+          <span className="text-xs md:text-sm opacity-70">Gaji, Bensin, Operasional</span>
         </button>
       </div>
 
-      <Card>
+      <Card className="border shadow-sm">
         <CardContent className="pt-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-5">
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Tanggal Transaksi</Label>
                 <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
               </div>
               
               <div className="space-y-2">
-                <Label>Rekening {type === 'IN' ? 'Penerima' : 'Pengirim'}</Label>
+                <Label>Rekening {type === 'IN' ? 'Tujuan (Masuk)' : 'Sumber Dana (Keluar)'}</Label>
                 <Select value={bankAccountId} onValueChange={setBankAccountId}>
-                  <SelectTrigger><SelectValue placeholder="Pilih Kas/Bank" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Pilih Rekening Kas/Bank" /></SelectTrigger>
                   <SelectContent>
                     {bankAccounts.map(b => (
-                      <SelectItem key={b.id} value={b.id}>{b.code} - {b.name}</SelectItem>
+                      <SelectItem key={b.id} value={b.id}>
+                        {b.name} ({b.code})
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Nominal (Rp)</Label>
+                <Label>Jumlah Nominal (Rp)</Label>
                 <CurrencyInput value={amount} onChange={setAmount} placeholder="0" />
               </div>
 
               <div className="space-y-2">
                 <Label>Kategori {type === 'IN' ? 'Pemasukan' : 'Pengeluaran'}</Label>
                 <Select value={accountId} onValueChange={setAccountId}>
-                  <SelectTrigger><SelectValue placeholder="Pilih Kategori" /></SelectTrigger>
-                  <SelectContent>
-                    {accounts.map(a => (
-                      <SelectItem key={a.id} value={a.id}>{a.code} - {a.name}</SelectItem>
-                    ))}
+                  <SelectTrigger><SelectValue placeholder="-- Pilih Kategori Pengeluaran/Pemasukan --" /></SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    {categoryAccounts.map(a => {
+                      const friendly = friendlyLabels[a.code] || `${a.name}`;
+                      return (
+                        <SelectItem key={a.id} value={a.id}>
+                          {friendly} <span className="text-xs text-muted-foreground ml-1">({a.code})</span>
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label>Keterangan Lengkap</Label>
+              <Label>Keterangan Transaksi</Label>
               <Textarea 
                 value={description} 
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Contoh: Beli token listrik bulan September" 
+                placeholder={type === 'OUT' ? "Contoh: Beli bensin mobil Grand Max kantor & e-toll" : "Contoh: Pembayaran kursus robotic dari Sekolah Harapan Bangsa"} 
                 rows={3} 
                 required 
               />
             </div>
 
             <div className="space-y-2 p-4 border border-dashed rounded-lg bg-slate-50">
-              <Label className="flex items-center gap-2 mb-2">
-                <FileText className="h-4 w-4" /> Bukti Transaksi (Opsional)
+              <Label className="flex items-center gap-2 mb-2 font-medium">
+                <FileText className="h-4 w-4 text-blue-600" /> Bukti Transaksi / Nota (Opsional)
               </Label>
               
               {attachmentUrl ? (
                 <div className="flex items-center gap-3 p-3 bg-green-50 text-green-700 rounded border border-green-200">
                   <CheckCircle2 className="h-5 w-5" />
                   <span className="text-sm font-medium flex-1">File berhasil diunggah</span>
-                  <a href={attachmentUrl} target="_blank" rel="noreferrer" className="text-sm underline">Lihat File</a>
+                  <a href={attachmentUrl} target="_blank" rel="noreferrer" className="text-sm underline font-medium">Lihat File</a>
                   <Button type="button" variant="outline" size="sm" onClick={() => {setAttachmentUrl(''); setFile(null)}}>Ganti</Button>
                 </div>
               ) : (
-                <div className="flex items-center gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                   <Input type="file" accept="image/*,.pdf" onChange={handleFileChange} className="bg-white" />
-                  <span className="text-xs text-muted-foreground">Maks 5MB. Format JPG, PNG, PDF.</span>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">Foto struk, nota, atau bukti transfer (JPG, PNG, PDF).</span>
                 </div>
               )}
             </div>
 
-            <div className="pt-4 flex justify-end">
-              <Button type="submit" disabled={loading || uploading} size="lg" className="w-full sm:w-auto">
-                {loading || uploading ? 'Memproses...' : 'Simpan Transaksi'}
+            <div className="pt-2 flex justify-end">
+              <Button type="submit" disabled={loading || uploading} size="lg" className="w-full sm:w-auto font-semibold">
+                {loading || uploading ? 'Menyimpan...' : 'Simpan Transaksi'}
               </Button>
             </div>
 
