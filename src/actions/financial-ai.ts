@@ -217,6 +217,56 @@ export async function getFinancialAIData() {
   }
 }
 
+async function callGeminiWithFallback(ai: GoogleGenAI, prompt: string): Promise<string> {
+  // Model prioritisation: gemini-flash-lite-latest (fast & stable against 503) -> gemini-flash-latest
+  const modelCandidates = ["gemini-flash-lite-latest", "gemini-flash-latest"];
+  let lastError: any = null;
+
+  for (const model of modelCandidates) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const response = await ai.models.generateContent({
+          model,
+          contents: prompt,
+        });
+        if (response && response.text) {
+          return response.text;
+        }
+      } catch (err: any) {
+        lastError = err;
+        const errMsg = err?.message || "";
+        const is503 = errMsg.includes("503") || errMsg.includes("high demand") || errMsg.includes("UNAVAILABLE");
+        const is429 = errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED");
+
+        console.warn(`[Gemini AI] Model ${model} attempt ${attempt} failed:`, errMsg);
+
+        if (is503 || is429) {
+          // Wait briefly before retrying due to temporary server spike
+          await new Promise((resolve) => setTimeout(resolve, 800 * attempt));
+        } else {
+          // Switch to next candidate immediately on other errors
+          break;
+        }
+      }
+    }
+  }
+
+  // Parse error message into clean Indonesian text
+  let friendlyMsg = "Server Google AI sedang mengalami lonjakan trafik antrean sementara. Silakan tanyakan kembali dalam beberapa detik.";
+  try {
+    if (typeof lastError?.message === "string") {
+      const parsed = JSON.parse(lastError.message);
+      if (parsed?.error?.message) {
+        friendlyMsg = `Google AI (${parsed.error.code || 503}): ${parsed.error.message}`;
+      }
+    }
+  } catch {
+    if (lastError?.message) friendlyMsg = lastError.message;
+  }
+
+  throw new Error(friendlyMsg);
+}
+
 export async function generateFinancialAIAnalysis(): Promise<AIAnalysisResult> {
   try {
     let apiKey = process.env.GEMINI_API_KEY || "";
@@ -291,12 +341,7 @@ Berikan 3 instruksi prioritas nomor 1, 2, 3 yang paling mendesak dan harus seger
 Gunakan bahasa Indonesia yang profesional, ramah, meyakinkan, dan memberi semangat kepada pimpinan perusahaan!
 `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-flash-latest",
-      contents: prompt
-    });
-
-    const rawText = response.text || "";
+    const rawText = await callGeminiWithFallback(ai, prompt);
 
     // Extract score if possible
     let healthScore = 90;
@@ -352,14 +397,11 @@ Instruksi:
 Jawablah secara lugas, jelas, berbasis data di atas, dan berikan rekomendasi bisnis praktis. Gunakan bahasa Indonesia profesional dan format Markdown.
 `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-flash-latest",
-      contents: prompt
-    });
+    const rawText = await callGeminiWithFallback(ai, prompt);
 
     return {
       success: true,
-      answer: response.text || "Tidak ada jawaban yang dihasilkan."
+      answer: rawText || "Tidak ada jawaban yang dihasilkan."
     };
   } catch (error: any) {
     console.error("Chat AI error:", error);

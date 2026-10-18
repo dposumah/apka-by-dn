@@ -100,10 +100,27 @@ export default function AnalisisAIPage() {
         ]);
         if (!customQ) setQuestion('');
       } else {
-        alert(res.error || 'Gagal mendapatkan tanggapan dari AI');
+        const errorText = res.error || 'Server AI sedang sibuk sementara. Silakan coba tanyakan kembali.';
+        setChatHistory((prev) => [
+          ...prev,
+          {
+            id: newQId,
+            question: q,
+            answer: `⚠️ **Pemberitahuan**: ${errorText}\n\n*Silakan klik tombol kirim kembali untuk mengulang.*`,
+            timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+          },
+        ]);
       }
     } catch (err: any) {
-      alert('Error: ' + err.message);
+      setChatHistory((prev) => [
+        ...prev,
+        {
+          id: newQId,
+          question: q,
+          answer: `⚠️ **Gagal terhubung**: ${err.message || 'Terjadi gangguan jaringan'}. Silakan coba sesaat lagi.`,
+          timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+        },
+      ]);
     } finally {
       setAsking(false);
     }
