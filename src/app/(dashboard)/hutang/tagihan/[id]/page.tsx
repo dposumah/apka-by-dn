@@ -1,21 +1,27 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 
-export default function BillDetailPage({ params }: { params: { id: string } }) {
+export default function BillDetailPage() {
   const router = useRouter();
+  const routeParams = useParams();
+  const id = (routeParams?.id as string) || '';
+
   const [bill, setBill] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchBill();
-  }, [params.id]);
+    if (id) {
+      fetchBill();
+    }
+  }, [id]);
 
   const fetchBill = async () => {
+    if (!id) return;
     try {
-      const res = await fetch(`/api/bills/${params.id}`);
+      const res = await fetch(`/api/bills/${id}`);
       if (res.ok) {
         const data = await res.json();
         setBill(data);

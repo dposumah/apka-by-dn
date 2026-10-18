@@ -8,8 +8,10 @@ export async function GET(
   try {
     const { id } = await Promise.resolve(params);
 
-    const journal = await prisma.journalEntry.findUnique({
-      where: { id },
+    const journal = await prisma.journalEntry.findFirst({
+      where: {
+        OR: [{ id }, { entryNumber: id }],
+      },
       include: {
         lines: {
           include: {
@@ -43,10 +45,12 @@ export async function PUT(
   try {
     const { id } = await Promise.resolve(params);
     const body = await request.json();
-    const { date, description, reference, lines } = body;
+    const { date, description, reference, lines, status } = body;
 
-    const existing = await prisma.journalEntry.findUnique({
-      where: { id },
+    const existing = await prisma.journalEntry.findFirst({
+      where: {
+        OR: [{ id }, { entryNumber: id }],
+      },
     });
 
     if (!existing) {
@@ -82,23 +86,24 @@ export async function PUT(
 
     // Delete existing lines
     await prisma.journalEntryLine.deleteMany({
-      where: { journalEntryId: id },
+      where: { journalEntryId: existing.id },
     });
 
     const updated = await prisma.journalEntry.update({
-      where: { id },
+      where: { id: existing.id },
       data: {
         date: new Date(date),
         description,
-        reference,
+        reference: reference || null,
         totalDebit,
         totalCredit,
+        ...(status && ["DRAFT", "POSTED"].includes(status) ? { status } : {}),
         lines: {
           create: lines.map((line: any) => ({
             accountId: line.accountId,
-            description: line.description,
-            debit: line.debit,
-            credit: line.credit,
+            description: line.description || "",
+            debit: Number(line.debit) || 0,
+            credit: Number(line.credit) || 0,
           })),
         },
       },
@@ -122,11 +127,20 @@ export async function DELETE(
   try {
     const { id } = await Promise.resolve(params);
 
-    const existing = await prisma.journalEntry.findUnique({
-      where: { id },
+    const existing = await prisma.journalEntry.findFirst({
+      where: {
+        OR: [{ id }, { entryNumber: id }],
+      },
     });
 
-    if (!existing || existing.status !== "DRAFT") {
+    if (!existing) {
+      return NextResponse.json(
+        { error: "Jurnal tidak ditemukan" },
+        { status: 404 }
+      );
+    }
+
+    if (existing.status !== "DRAFT") {
       return NextResponse.json(
         { error: "Hanya jurnal berstatus DRAFT yang dapat dihapus" },
         { status: 400 }
@@ -134,7 +148,7 @@ export async function DELETE(
     }
 
     await prisma.journalEntry.delete({
-      where: { id },
+      where: { id: existing.id },
     });
 
     return NextResponse.json({ success: true });

@@ -9,8 +9,10 @@ export async function POST(
     const resolvedParams = await Promise.resolve(params);
     const id = resolvedParams.id;
 
-    const journal = await prisma.journalEntry.findUnique({
-      where: { id },
+    const journal = await prisma.journalEntry.findFirst({
+      where: {
+        OR: [{ id }, { entryNumber: id }],
+      },
       include: { lines: true },
     });
 
@@ -41,7 +43,7 @@ export async function POST(
     const result = await prisma.$transaction(async (tx) => {
       // 1. Mark original as VOID
       await tx.journalEntry.update({
-        where: { id },
+        where: { id: journal.id },
         data: { status: "VOID" },
       });
 

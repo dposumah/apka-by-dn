@@ -9,8 +9,10 @@ export async function POST(
     const resolvedParams = await Promise.resolve(params);
     const id = resolvedParams.id;
 
-    const journal = await prisma.journalEntry.findUnique({
-      where: { id },
+    const journal = await prisma.journalEntry.findFirst({
+      where: {
+        OR: [{ id }, { entryNumber: id }],
+      },
       include: { lines: true },
     });
 
@@ -22,12 +24,12 @@ export async function POST(
       return NextResponse.json({ error: "Hanya jurnal DRAFT yang dapat diposting" }, { status: 400 });
     }
 
-    if (journal.totalDebit !== journal.totalCredit) {
+    if (Math.abs(journal.totalDebit - journal.totalCredit) > 0.01) {
       return NextResponse.json({ error: "Debit dan Kredit tidak seimbang" }, { status: 400 });
     }
 
     const updated = await prisma.journalEntry.update({
-      where: { id },
+      where: { id: journal.id },
       data: {
         status: "POSTED",
       },

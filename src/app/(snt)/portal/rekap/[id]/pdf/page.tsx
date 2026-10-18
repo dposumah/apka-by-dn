@@ -3,9 +3,10 @@ import { notFound } from "next/navigation"
 import { PrintButton } from "./print-button"
 import { hitungTotalTransportRekap } from "@/lib/transport"
 
-export default async function RekapPdfPage({ params }: { params: { id: string } }) {
+export default async function RekapPdfPage({ params }: { params: Promise<{ id: string }> | { id: string } }) {
+  const { id } = await Promise.resolve(params);
   const rekap = await prisma.rekapHonorarium.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       fasilitator: true,
       laporan: {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,10 +50,12 @@ const formatRupiah = (amount: number) => {
   }).format(amount);
 };
 
-export default function JurnalDetailPage({ params }: { params: { id: string } }) {
+export default function JurnalDetailPage({ params }: { params?: Promise<{ id: string }> | { id: string } }) {
   const { confirm, alert } = useModal();
-
   const router = useRouter();
+  const routeParams = useParams();
+  const id = (routeParams?.id as string) || "";
+
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("DRAFT");
   const [entryNumber, setEntryNumber] = useState("");
@@ -76,15 +78,18 @@ export default function JurnalDetailPage({ params }: { params: { id: string } })
   }, []);
 
   useEffect(() => {
-    fetchData();
-  }, [params.id]);
+    if (id) {
+      fetchData();
+    }
+  }, [id]);
 
   const fetchData = async () => {
+    if (!id) return;
     try {
       setLoading(true);
       const [accountsRes, journalRes] = await Promise.all([
         fetch("/api/accounts?isActive=true"),
-        fetch(`/api/journals/${params.id}`),
+        fetch(`/api/journals/${id}`),
       ]);
 
       if (accountsRes.ok) {
@@ -130,20 +135,20 @@ export default function JurnalDetailPage({ params }: { params: { id: string } })
     ]);
   };
 
-  const removeLine = async (id: string) => {
+  const removeLine = async (lineId: string) => {
     if (!isEditable) return;
     if (lines.length <= 2) {
       await alert("Jurnal harus memiliki minimal 2 baris");
       return;
     }
-    setLines(lines.filter((line) => line.id !== id));
+    setLines(lines.filter((line) => line.id !== lineId));
   };
 
-  const updateLine = (id: string, field: keyof JournalLine, value: any) => {
+  const updateLine = (lineId: string, field: keyof JournalLine, value: any) => {
     if (!isEditable) return;
     setLines(
       lines.map((line) => {
-        if (line.id === id) {
+        if (line.id === lineId) {
           const newLine = { ...line, [field]: value };
           if (field === "debit" && value > 0) {
             newLine.credit = 0;
@@ -181,7 +186,7 @@ export default function JurnalDetailPage({ params }: { params: { id: string } })
 
     try {
       setIsSubmitting(true);
-      const res = await fetch(`/api/journals/${params.id}`, {
+      const res = await fetch(`/api/journals/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -223,7 +228,7 @@ export default function JurnalDetailPage({ params }: { params: { id: string } })
 
     try {
       setIsSubmitting(true);
-      const res = await fetch(`/api/journals/${params.id}/unpost`, {
+      const res = await fetch(`/api/journals/${id}/unpost`, {
         method: "POST",
       });
       if (res.ok) {
@@ -252,7 +257,7 @@ export default function JurnalDetailPage({ params }: { params: { id: string } })
 
     try {
       setIsSubmitting(true);
-      const response = await fetch(`/api/journals/${params.id}/post`, {
+      const response = await fetch(`/api/journals/${id}/post`, {
         method: "POST",
       });
       if (response.ok) {
@@ -279,7 +284,7 @@ export default function JurnalDetailPage({ params }: { params: { id: string } })
 
     try {
       setIsSubmitting(true);
-      const response = await fetch(`/api/journals/${params.id}/void`, {
+      const response = await fetch(`/api/journals/${id}/void`, {
         method: "POST",
       });
       if (response.ok) {

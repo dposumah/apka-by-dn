@@ -1,21 +1,27 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 
-export default function InvoiceDetailPage({ params }: { params: { id: string } }) {
+export default function InvoiceDetailPage() {
   const router = useRouter();
+  const routeParams = useParams();
+  const id = (routeParams?.id as string) || '';
+
   const [invoice, setInvoice] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchInvoice();
-  }, [params.id]);
+    if (id) {
+      fetchInvoice();
+    }
+  }, [id]);
 
   const fetchInvoice = async () => {
+    if (!id) return;
     try {
-      const res = await fetch(`/api/invoices/${params.id}`);
+      const res = await fetch(`/api/invoices/${id}`);
       if (res.ok) {
         const data = await res.json();
         setInvoice(data);
