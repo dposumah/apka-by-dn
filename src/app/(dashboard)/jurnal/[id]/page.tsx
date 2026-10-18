@@ -24,8 +24,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, CheckCircle, XCircle, ArrowLeft } from "lucide-react";
-import { useModal } from '@/components/modal-provider';
+import { Plus, Trash2, CheckCircle, XCircle, ArrowLeft, Edit, RotateCcw, Save, X } from "lucide-react";
+import { useModal } from "@/components/modal-provider";
 
 type Account = {
   id: string;
@@ -57,13 +57,23 @@ export default function JurnalDetailPage({ params }: { params: { id: string } })
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("DRAFT");
   const [entryNumber, setEntryNumber] = useState("");
-  
+  const [isEditing, setIsEditing] = useState(false);
+
   const [date, setDate] = useState("");
   const [description, setDescription] = useState("");
   const [reference, setReference] = useState("");
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [lines, setLines] = useState<JournalLine[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      if (sp.get("edit") === "true") {
+        setIsEditing(true);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     fetchData();
@@ -110,7 +120,7 @@ export default function JurnalDetailPage({ params }: { params: { id: string } })
     }
   };
 
-  const isEditable = status === "DRAFT";
+  const isEditable = status === "DRAFT" || isEditing;
 
   const addLine = () => {
     if (!isEditable) return;
@@ -150,7 +160,7 @@ export default function JurnalDetailPage({ params }: { params: { id: string } })
   const totalDebit = lines.reduce((sum, line) => sum + (Number(line.debit) || 0), 0);
   const totalCredit = lines.reduce((sum, line) => sum + (Number(line.credit) || 0), 0);
   const selisih = Math.abs(totalDebit - totalCredit);
-  const isBalanced = totalDebit === totalCredit && totalDebit > 0;
+  const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01 && totalDebit > 0;
 
   const handleUpdate = async () => {
     if (lines.length < 2) {
@@ -161,6 +171,11 @@ export default function JurnalDetailPage({ params }: { params: { id: string } })
     const hasEmptyAccounts = lines.some((line) => !line.accountId);
     if (hasEmptyAccounts) {
       await alert("Silakan pilih akun untuk semua baris");
+      return;
+    }
+
+    if (!isBalanced) {
+      await alert("Debit dan Kredit harus seimbang (Selisih = 0) untuk menyimpan jurnal");
       return;
     }
 
@@ -184,14 +199,44 @@ export default function JurnalDetailPage({ params }: { params: { id: string } })
 
       if (res.ok) {
         await alert("Jurnal berhasil diperbarui");
+        setIsEditing(false);
         fetchData();
       } else {
         const error = await res.json();
-        await alert(`Gagal memperbarui jurnal: ${error.message || 'Unknown error'}`);
+        await alert(`Gagal memperbarui jurnal: ${error.error || error.message || "Unknown error"}`);
       }
     } catch (error) {
       console.error(error);
       await alert("Terjadi kesalahan saat memperbarui jurnal");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUnpost = async () => {
+    if (
+      !(await confirm(
+        "Kembalikan jurnal ini ke status Draft? Anda dapat mengedit semua data dan mempostingnya kembali."
+      ))
+    )
+      return;
+
+    try {
+      setIsSubmitting(true);
+      const res = await fetch(`/api/journals/${params.id}/unpost`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        await alert("Jurnal berhasil dikembalikan ke status Draft. Silakan edit data sesuai kebutuhan.");
+        setIsEditing(true);
+        fetchData();
+      } else {
+        const error = await res.json();
+        await alert(`Gagal: ${error.error || "Terjadi kesalahan"}`);
+      }
+    } catch (error) {
+      console.error(error);
+      await alert("Terjadi kesalahan saat mengembalikan status jurnal");
     } finally {
       setIsSubmitting(false);
     }
@@ -202,9 +247,9 @@ export default function JurnalDetailPage({ params }: { params: { id: string } })
       await alert("Debit dan Kredit harus seimbang (Selisih = 0) untuk memposting jurnal");
       return;
     }
-    
+
     if (!(await confirm("Apakah Anda yakin ingin memposting jurnal ini?"))) return;
-    
+
     try {
       setIsSubmitting(true);
       const response = await fetch(`/api/journals/${params.id}/post`, {
@@ -212,6 +257,7 @@ export default function JurnalDetailPage({ params }: { params: { id: string } })
       });
       if (response.ok) {
         await alert("Jurnal berhasil diposting");
+        setIsEditing(false);
         fetchData();
       } else {
         await alert("Gagal memposting jurnal");
@@ -224,8 +270,13 @@ export default function JurnalDetailPage({ params }: { params: { id: string } })
   };
 
   const handleVoid = async () => {
-    if (!(await confirm("Apakah Anda yakin ingin membatalkan (void) jurnal ini? Ini akan membuat jurnal pembalik."))) return;
-    
+    if (
+      !(await confirm(
+        "Apakah Anda yakin ingin membatalkan (void) jurnal ini? Ini akan membuat jurnal pembalik."
+      ))
+    )
+      return;
+
     try {
       setIsSubmitting(true);
       const response = await fetch(`/api/journals/${params.id}/void`, {
@@ -233,6 +284,7 @@ export default function JurnalDetailPage({ params }: { params: { id: string } })
       });
       if (response.ok) {
         await alert("Jurnal berhasil dibatalkan");
+        setIsEditing(false);
         fetchData();
       } else {
         await alert("Gagal membatalkan jurnal");
@@ -250,18 +302,74 @@ export default function JurnalDetailPage({ params }: { params: { id: string } })
 
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
-      <div className="flex items-center space-x-4">
-        <Button variant="outline" onClick={() => router.push("/jurnal")}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Kembali
-        </Button>
-        <h2 className="text-3xl font-bold tracking-tight">
-          Detail Jurnal: {entryNumber}
-        </h2>
-        {status === "POSTED" && <Badge className="bg-green-500">Posted</Badge>}
-        {status === "DRAFT" && <Badge className="bg-yellow-500">Draft</Badge>}
-        {status === "VOID" && <Badge variant="destructive">Void</Badge>}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center space-x-4">
+          <Button variant="outline" onClick={() => router.push("/jurnal")}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Kembali
+          </Button>
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">
+            Detail Jurnal: {entryNumber}
+          </h2>
+          {status === "POSTED" && <Badge className="bg-green-500">Posted</Badge>}
+          {status === "DRAFT" && <Badge className="bg-yellow-500">Draft</Badge>}
+          {status === "VOID" && <Badge variant="destructive">Void</Badge>}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {status === "POSTED" && (
+            <>
+              {!isEditing ? (
+                <Button
+                  variant="outline"
+                  onClick={() => setIsEditing(true)}
+                  className="border-blue-400 text-blue-600 hover:bg-blue-50"
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit Jurnal
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setIsEditing(false);
+                    fetchData();
+                  }}
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Batal Edit
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                onClick={handleUnpost}
+                disabled={isSubmitting}
+                className="border-amber-400 text-amber-700 hover:bg-amber-50"
+              >
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Kembalikan ke Draft
+              </Button>
+            </>
+          )}
+        </div>
       </div>
+
+      {isEditing && status === "POSTED" && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-sm">
+          <div>
+            <strong>Mode Edit Jurnal Aktif:</strong> Anda sedang mengubah jurnal yang telah berstatus POSTED. Pastikan posisi Debit dan Kredit tetap seimbang (Selisih = 0) sebelum menyimpan.
+          </div>
+          <Button
+            size="sm"
+            onClick={handleUpdate}
+            disabled={isSubmitting || !isBalanced}
+            className="bg-blue-600 hover:bg-blue-700 text-white shrink-0"
+          >
+            <Save className="h-4 w-4 mr-1" />
+            Simpan Perubahan
+          </Button>
+        </div>
+      )}
 
       <Card>
         <CardHeader>
@@ -430,32 +538,67 @@ export default function JurnalDetailPage({ params }: { params: { id: string } })
               </div>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {isEditable && (
+              <Button
+                variant={status === "POSTED" ? "default" : "outline"}
+                className={status === "POSTED" ? "bg-blue-600 hover:bg-blue-700 text-white" : ""}
+                onClick={handleUpdate}
+                disabled={isSubmitting || !isBalanced}
+              >
+                <Save className="h-4 w-4 mr-2" />
+                Simpan Perubahan
+              </Button>
+            )}
             {status === "DRAFT" && (
+              <Button
+                className="bg-green-600 hover:bg-green-700"
+                onClick={handlePost}
+                disabled={isSubmitting || !isBalanced}
+              >
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Posting Jurnal
+              </Button>
+            )}
+            {status === "POSTED" && !isEditing && (
               <>
                 <Button
                   variant="outline"
-                  onClick={handleUpdate}
-                  disabled={isSubmitting}
+                  onClick={() => setIsEditing(true)}
+                  className="border-blue-400 text-blue-600 hover:bg-blue-50"
                 >
-                  Simpan Perubahan
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit Jurnal
                 </Button>
                 <Button
-                  className="bg-green-600 hover:bg-green-700"
-                  onClick={handlePost}
-                  disabled={isSubmitting || !isBalanced}
+                  variant="outline"
+                  onClick={handleUnpost}
+                  disabled={isSubmitting}
+                  className="border-amber-400 text-amber-700 hover:bg-amber-50"
                 >
-                  Posting Jurnal
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Kembalikan ke Draft
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleVoid}
+                  disabled={isSubmitting}
+                >
+                  <XCircle className="h-4 w-4 mr-2" />
+                  Batalkan (Void)
                 </Button>
               </>
             )}
-            {status === "POSTED" && (
+            {status === "POSTED" && isEditing && (
               <Button
-                variant="destructive"
-                onClick={handleVoid}
-                disabled={isSubmitting}
+                variant="ghost"
+                onClick={() => {
+                  setIsEditing(false);
+                  fetchData();
+                }}
               >
-                Batalkan (Void)
+                <X className="h-4 w-4 mr-2" />
+                Batal Edit
               </Button>
             )}
           </div>

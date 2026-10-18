@@ -15,7 +15,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 import {
   Card,
   CardContent,
@@ -23,8 +22,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Eye, Edit, Trash, Plus, Search } from "lucide-react";
-import { useModal } from '@/components/modal-provider';
+import { Eye, Edit, Plus, Search, RotateCcw } from "lucide-react";
+import { useModal } from "@/components/modal-provider";
 
 type JournalEntry = {
   id: string;
@@ -64,7 +63,7 @@ export default function JurnalPage() {
       const query = new URLSearchParams();
       if (statusFilter !== "ALL") query.append("status", statusFilter);
       if (searchTerm) query.append("search", searchTerm);
-      
+
       const response = await fetch(`/api/journals?${query.toString()}`);
       if (!response.ok) throw new Error("Gagal mengambil data jurnal");
       const data = await response.json();
@@ -86,6 +85,30 @@ export default function JurnalPage() {
       else await alert("Gagal memposting jurnal");
     } catch (error) {
       console.error(error);
+    }
+  };
+
+  const handleUnpost = async (id: string) => {
+    if (
+      !(await confirm(
+        "Kembalikan jurnal ini ke status Draft? Anda dapat mengedit semua data dan mempostingnya kembali."
+      ))
+    )
+      return;
+    try {
+      const response = await fetch(`/api/journals/${id}/unpost`, {
+        method: "POST",
+      });
+      if (response.ok) {
+        await alert("Jurnal berhasil dikembalikan ke status Draft.");
+        fetchJournals();
+      } else {
+        const data = await response.json();
+        await alert(data.error || "Gagal mengembalikan jurnal ke status Draft");
+      }
+    } catch (error) {
+      console.error(error);
+      await alert("Terjadi kesalahan saat mengembalikan status jurnal");
     }
   };
 
@@ -211,13 +234,18 @@ export default function JurnalPage() {
                       </TableCell>
                       <TableCell>{getStatusBadge(journal.status)}</TableCell>
                       <TableCell className="text-center">
-                        <div className="flex justify-center gap-2">
-                          <Link href={`/jurnal/${journal.id}`}>
-                            <Button variant="outline" size="sm" title="Lihat/Edit">
-                              {journal.status === "DRAFT" ? (
-                                <Edit className="h-4 w-4" />
-                              ) : (
+                        <div className="flex justify-center items-center gap-1.5">
+                          <Link href={`/jurnal/${journal.id}?edit=true`}>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              title={journal.status === "VOID" ? "Lihat Detail" : "Edit / Buka"}
+                              className={journal.status !== "VOID" ? "hover:border-blue-500 hover:text-blue-600" : ""}
+                            >
+                              {journal.status === "VOID" ? (
                                 <Eye className="h-4 w-4" />
+                              ) : (
+                                <Edit className="h-4 w-4" />
                               )}
                             </Button>
                           </Link>
@@ -227,20 +255,31 @@ export default function JurnalPage() {
                               size="sm"
                               className="bg-green-600 hover:bg-green-700"
                               onClick={() => handlePost(journal.id)}
-                              title="Posting"
+                              title="Posting Jurnal"
                             >
                               Post
                             </Button>
                           )}
                           {journal.status === "POSTED" && (
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => handleVoid(journal.id)}
-                              title="Void"
-                            >
-                              Void
-                            </Button>
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleUnpost(journal.id)}
+                                title="Kembalikan ke Draft (Unpost)"
+                                className="text-amber-600 border-amber-300 hover:bg-amber-50"
+                              >
+                                <RotateCcw className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => handleVoid(journal.id)}
+                                title="Batalkan (Void)"
+                              >
+                                Void
+                              </Button>
+                            </>
                           )}
                         </div>
                       </TableCell>

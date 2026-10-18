@@ -49,15 +49,36 @@ export async function PUT(
       where: { id },
     });
 
-    if (!existing || existing.status !== "DRAFT") {
+    if (!existing) {
       return NextResponse.json(
-        { error: "Hanya jurnal berstatus DRAFT yang dapat diedit" },
+        { error: "Jurnal tidak ditemukan" },
+        { status: 404 }
+      );
+    }
+
+    if (existing.status === "VOID") {
+      return NextResponse.json(
+        { error: "Jurnal berstatus VOID tidak dapat diedit" },
         { status: 400 }
       );
     }
 
-    const totalDebit = lines.reduce((sum: number, line: any) => sum + (line.debit || 0), 0);
-    const totalCredit = lines.reduce((sum: number, line: any) => sum + (line.credit || 0), 0);
+    if (!lines || lines.length < 2) {
+      return NextResponse.json(
+        { error: "Jurnal harus memiliki minimal 2 baris akun" },
+        { status: 400 }
+      );
+    }
+
+    const totalDebit = lines.reduce((sum: number, line: any) => sum + (Number(line.debit) || 0), 0);
+    const totalCredit = lines.reduce((sum: number, line: any) => sum + (Number(line.credit) || 0), 0);
+
+    if (Math.abs(totalDebit - totalCredit) > 0.01) {
+      return NextResponse.json(
+        { error: "Total Debit dan Kredit harus seimbang (balance)" },
+        { status: 400 }
+      );
+    }
 
     // Delete existing lines
     await prisma.journalEntryLine.deleteMany({
