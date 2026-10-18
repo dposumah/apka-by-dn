@@ -24,6 +24,7 @@ import {
   ArrowLeftRight,
   Building2,
   FileSpreadsheet,
+  Sparkles,
 } from "lucide-react"
 
 interface MenuItem {
@@ -59,6 +60,7 @@ const menuItems: MenuItem[] = [
     icon: FileSpreadsheet,
     adminOnly: true,
     submenu: [
+      { title: "✨ Analisis AI Finansial", href: "/analisis-ai" },
       { title: "Laporan Proyek SNT", href: "/laporan/kka-snt" },
       { title: "Ringkasan Laporan", href: "/laporan" },
       { title: "Laba Rugi", href: "/laporan/laba-rugi" },
@@ -66,6 +68,7 @@ const menuItems: MenuItem[] = [
       { title: "Neraca Keuangan", href: "/laporan/neraca" },
     ],
   },
+  { title: "✨ Analisis AI", href: "/analisis-ai", icon: Sparkles, adminOnly: true },
   { title: "Pengaturan Akun", href: "/snt-akun", icon: Settings, adminOnly: true },
   { title: "Dashboard", href: "/portal", icon: Home, fasilOnly: true },
   { title: "Profil Fasilitator", href: "/portal/profil", icon: UserCircle, fasilOnly: true },

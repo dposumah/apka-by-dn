@@ -14,6 +14,7 @@ interface MenuItem {
 
 const menuItems: MenuItem[] = [
   { title: "Dashboard", href: "/dashboard", icon: "📊" },
+  { title: "✨ Analisis AI", href: "/analisis-ai", icon: "✨" },
   { title: "⚡ Kas Cepat", href: "/kas-cepat", icon: "⚡" },
   { title: "Bagan Akun", href: "/akun", icon: "📋" },
   { title: "Jurnal Umum", href: "/jurnal", icon: "📝" },
@@ -68,6 +69,7 @@ const menuItems: MenuItem[] = [
     icon: "📑",
     submenu: [
       { title: "Semua Laporan", href: "/laporan" },
+      { title: "✨ Analisis AI Keuangan", href: "/analisis-ai" },
       { title: "Laporan Proyek SNT", href: "/laporan/kka-snt" },
       { title: "Laba Rugi", href: "/laporan/laba-rugi" },
       { title: "Neraca", href: "/laporan/neraca" },

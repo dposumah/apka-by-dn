@@ -51,6 +51,13 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
           <span className="hidden sm:inline">Laporan Keuangan</span>
         </Link>
         <Link 
+          href="/analisis-ai" 
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-md transition-colors"
+        >
+          <span>✨</span>
+          <span className="hidden sm:inline">Analisis AI</span>
+        </Link>
+        <Link 
           href="/dashboard-rab" 
           className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-md transition-colors"
         >

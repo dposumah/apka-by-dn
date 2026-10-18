@@ -1,10 +1,11 @@
 'use client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart, FileText, Banknote, List, BookOpen, PenTool, FolderKanban } from 'lucide-react';
+import { BarChart, FileText, Banknote, List, BookOpen, PenTool, FolderKanban, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 
 export default function LaporanPage() {
   const reports = [
+    { title: '✨ Analisis & Rekomendasi Finansial AI', desc: 'Evaluasi kesehatan profit, peluang omset, dan efisiensi biaya via Gemini AI', icon: Sparkles, link: '/analisis-ai' },
     { title: 'Laporan Laba Rugi', desc: 'Pendapatan, beban, dan laba perusahaan', icon: BarChart, link: '/laporan/laba-rugi' },
     { title: 'Laporan Posisi Keuangan (Neraca)', desc: 'Aset, liabilitas, dan ekuitas perusahaan', icon: FileText, link: '/laporan/neraca' },
     { title: 'Laporan Arus Kas', desc: 'Penerimaan dan pengeluaran kas', icon: Banknote, link: '/laporan/arus-kas' },

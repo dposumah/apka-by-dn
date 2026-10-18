@@ -210,13 +210,19 @@ export default function DashboardPage() {
 
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-slate-900">Dashboard</h2>
           <p className="text-xs sm:text-sm text-slate-500">
             Klik pada setiap kartu ringkasan untuk melihat rincian akun dan riwayat transaksi.
           </p>
         </div>
+        <Link href="/analisis-ai">
+          <Button className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-semibold shadow-md gap-2">
+            <Sparkles size={16} className="text-amber-300" />
+            <span>✨ Buka Analisis AI Keuangan</span>
+          </Button>
+        </Link>
       </div>
 
       {/* Interactive Stat Cards */}
@@ -404,6 +410,32 @@ export default function DashboardPage() {
             )}
           </CardContent>
         </Card>
+      </div>
+
+      {/* AI Advisory Quick Bar */}
+      <div className="p-4 rounded-xl bg-gradient-to-r from-indigo-950 via-indigo-900 to-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md border border-indigo-800/60">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-indigo-500/20 text-amber-300 border border-indigo-400/20 shrink-0">
+            <Sparkles size={22} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h4 className="font-bold text-sm text-white">Konsultan Finansial AI (Google Gemini)</h4>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                Surplus Bersih 93.1%
+              </span>
+            </div>
+            <p className="text-xs text-indigo-200 mt-0.5">
+              Dapatkan rekomendasi strategis pemangkasan beban operasional, pengelolaan likuiditas kas, dan peluang peningkatan profit untuk PT. JT Robotic Explorer.
+            </p>
+          </div>
+        </div>
+        <Link href="/analisis-ai" className="shrink-0">
+          <Button size="sm" className="bg-amber-400 hover:bg-amber-500 text-slate-950 font-bold gap-1.5 w-full sm:w-auto shadow">
+            <span>Buka Rekomendasi AI</span>
+            <ChevronRight size={14} />
+          </Button>
+        </Link>
       </div>
 
       {/* Main Charts */}

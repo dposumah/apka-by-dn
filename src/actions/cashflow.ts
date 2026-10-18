@@ -124,7 +124,8 @@ export async function deleteCashflowTransaction(id: string) {
 
 export async function generateCashflowInsights(transactions: any[]) {
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
+    let apiKey = process.env.GEMINI_API_KEY || '';
+    if (apiKey.startsWith('"') && apiKey.endsWith('"')) apiKey = apiKey.slice(1, -1);
     if (!apiKey) {
       return { success: false, error: "GEMINI_API_KEY is not configured in .env" };
     }
@@ -154,7 +155,7 @@ export async function generateCashflowInsights(transactions: any[]) {
     `;
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-flash-latest",
       contents: prompt
     });
 
