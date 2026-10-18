@@ -5,8 +5,18 @@ import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Building2, Presentation, Layers, Sparkles } from 'lucide-react';
 
+export const dynamic = 'force-dynamic';
+
 export default async function Home() {
-  const session = await getServerSession(authOptions);
+  let session = null;
+  try {
+    session = await getServerSession(authOptions);
+  } catch (err: any) {
+    if (err?.digest === 'DYNAMIC_SERVER_USAGE' || err?.message?.includes('Dynamic server usage')) {
+      throw err;
+    }
+    console.error("Home page auth session error:", err);
+  }
   
   if (!session) {
     redirect('/login');
