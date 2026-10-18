@@ -3,11 +3,14 @@ import { prisma } from "@/lib/prisma";
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
+    const resolvedParams = await Promise.resolve(params);
+    const id = resolvedParams.id;
+
     const journal = await prisma.journalEntry.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: { lines: true },
     });
 
@@ -23,15 +26,10 @@ export async function POST(
       return NextResponse.json({ error: "Debit dan Kredit tidak seimbang" }, { status: 400 });
     }
 
-    // In a real application, you would get the user ID from the session here
-    // const session = await getServerSession(authOptions);
-    // const userId = session?.user?.id;
-
     const updated = await prisma.journalEntry.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         status: "POSTED",
-        // approvedById: userId
       },
     });
 

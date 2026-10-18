@@ -154,9 +154,60 @@ export async function submitExpense(data: {
       }
     });
 
+    // Auto-sync journal entry for accounting
+    try {
+      const kkaAccount = await prisma.account.findUnique({ where: { code: '600.10.034' } });
+      const kasAccount = await prisma.account.findUnique({ where: { code: '111.10.101' } });
+      const period = await prisma.fiscalPeriod.findFirst({ where: { name: '2026' } });
+      if (kkaAccount && kasAccount) {
+        const lastEntry = await prisma.journalEntry.findFirst({
+          where: { entryNumber: { startsWith: 'JU-2026-' } },
+          orderBy: { entryNumber: 'desc' }
+        });
+        let nextSeq = 850;
+        if (lastEntry) {
+          const num = parseInt(lastEntry.entryNumber.split('-')[2] || '0', 10);
+          if (!isNaN(num)) nextSeq = num + 1;
+        }
+        await prisma.journalEntry.create({
+          data: {
+            entryNumber: `JU-2026-${String(nextSeq).padStart(4, '0')}`,
+            date: expense.date,
+            description: `[KKA SNT] ${expense.description}`,
+            reference: `SNT-EXP-${expense.id.slice(-8)}`,
+            status: 'POSTED',
+            totalDebit: expense.amount,
+            totalCredit: expense.amount,
+            fiscalPeriodId: period?.id || null,
+            createdById,
+            lines: {
+              create: [
+                {
+                  accountId: kkaAccount.id,
+                  debit: expense.amount,
+                  credit: 0,
+                  description: `[KKA SNT] ${expense.description}`
+                },
+                {
+                  accountId: kasAccount.id,
+                  debit: 0,
+                  credit: expense.amount,
+                  description: `Kas Keluar Proyek SNT: ${expense.description}`
+                }
+              ]
+            }
+          }
+        });
+      }
+    } catch (jErr) {
+      console.error('Non-blocking journal auto-sync error:', jErr);
+    }
+
     revalidatePath('/dashboard-rab');
     revalidatePath('/pengeluaran');
     revalidatePath('/laporan-pengeluaran');
+    revalidatePath('/laporan/kka-snt');
+    revalidatePath('/jurnal');
     return { ...expense, success: true, expense };
   } catch (err: any) {
     console.error('Error in submitExpense:', err);
@@ -647,10 +698,25 @@ export async function deleteExpense(id: string) {
   if (authError) return { error: authError };
   /* deleteExpense_auth */
   try {
+    // Delete corresponding journal entry if exists
+    try {
+      const ref = `SNT-EXP-${id.slice(-8)}`;
+      await prisma.journalEntryLine.deleteMany({
+        where: { journalEntry: { reference: ref } }
+      });
+      await prisma.journalEntry.deleteMany({
+        where: { reference: ref }
+      });
+    } catch (jErr) {
+      console.error('Non-blocking journal deletion error:', jErr);
+    }
+
     await prisma.expenseRequest.delete({ where: { id } });
     revalidatePath('/dashboard-rab');
     revalidatePath('/pengeluaran');
     revalidatePath('/laporan-pengeluaran');
+    revalidatePath('/laporan/kka-snt');
+    revalidatePath('/jurnal');
     return { success: true };
   } catch (err: any) {
     return { error: err.message || 'Gagal menghapus pengeluaran' };

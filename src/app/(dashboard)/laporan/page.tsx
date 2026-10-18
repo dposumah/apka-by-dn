@@ -1,6 +1,6 @@
 'use client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart, FileText, Banknote, List, BookOpen, PenTool } from 'lucide-react';
+import { BarChart, FileText, Banknote, List, BookOpen, PenTool, FolderKanban } from 'lucide-react';
 import Link from 'next/link';
 
 export default function LaporanPage() {
@@ -8,6 +8,7 @@ export default function LaporanPage() {
     { title: 'Laporan Laba Rugi', desc: 'Pendapatan, beban, dan laba perusahaan', icon: BarChart, link: '/laporan/laba-rugi' },
     { title: 'Laporan Posisi Keuangan (Neraca)', desc: 'Aset, liabilitas, dan ekuitas perusahaan', icon: FileText, link: '/laporan/neraca' },
     { title: 'Laporan Arus Kas', desc: 'Penerimaan dan pengeluaran kas', icon: Banknote, link: '/laporan/arus-kas' },
+    { title: 'Laporan Proyek KKA SNT 2026', desc: 'Realisasi pendapatan termin vs pengeluaran riil lapangan proyek SNT', icon: FolderKanban, link: '/laporan/kka-snt' },
     { title: 'Neraca Saldo', desc: 'Saldo akhir seluruh akun', icon: List, link: '/laporan/neraca-saldo' },
     { title: 'Buku Besar', desc: 'Rincian mutasi debit & kredit per akun', icon: BookOpen, link: '/buku-besar' },
     { title: 'Catatan Atas Laporan Keuangan', desc: 'Penjelasan rinci pos laporan', icon: PenTool, link: '/laporan/catatan-atas-laporan' },

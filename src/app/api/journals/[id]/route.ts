@@ -3,11 +3,13 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
+    const { id } = await Promise.resolve(params);
+
     const journal = await prisma.journalEntry.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         lines: {
           include: {
@@ -36,14 +38,15 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
+    const { id } = await Promise.resolve(params);
     const body = await request.json();
     const { date, description, reference, lines } = body;
 
     const existing = await prisma.journalEntry.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!existing || existing.status !== "DRAFT") {
@@ -58,11 +61,11 @@ export async function PUT(
 
     // Delete existing lines
     await prisma.journalEntryLine.deleteMany({
-      where: { journalEntryId: params.id },
+      where: { journalEntryId: id },
     });
 
     const updated = await prisma.journalEntry.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         date: new Date(date),
         description,
@@ -93,11 +96,13 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
+    const { id } = await Promise.resolve(params);
+
     const existing = await prisma.journalEntry.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!existing || existing.status !== "DRAFT") {
@@ -108,7 +113,7 @@ export async function DELETE(
     }
 
     await prisma.journalEntry.delete({
-      where: { id: params.id },
+      where: { id },
     });
 
     return NextResponse.json({ success: true });
