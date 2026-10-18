@@ -21,8 +21,6 @@ export async function GET() {
       }
     });
 
-    const totalBudget = rabProject?.totalBudget || 899839362;
-
     // 2. Fetch all SNT revenue journals (account 400.10.105)
     const revAccount = await prisma.account.findUnique({
       where: { code: '400.10.105' },
@@ -64,13 +62,31 @@ export async function GET() {
 
     const totalExpense = approvedExpenses.reduce((sum, e) => sum + e.amount, 0);
 
-    // Group expenses by category
-    const categorySummary: Record<string, { name: string; budget: number; realized: number }> = {};
+    // Group expenses by category and calculate total budget per category from its items
+    const categorySummary: Record<
+      string,
+      {
+        id: string;
+        name: string;
+        budget: number;
+        realized: number;
+        items: { code: string; name: string; budget: number; realized: number }[];
+      }
+    > = {};
+
     rabProject?.categories.forEach(cat => {
+      const catBudget = cat.items.reduce((sum, it) => sum + (it.totalBudget || 0), 0);
       categorySummary[cat.id] = {
+        id: cat.id,
         name: cat.name,
-        budget: cat.totalBudget,
-        realized: 0
+        budget: catBudget,
+        realized: 0,
+        items: cat.items.map(it => ({
+          code: it.code,
+          name: it.name,
+          budget: it.totalBudget || 0,
+          realized: 0,
+        })),
       };
     });
 
@@ -78,8 +94,20 @@ export async function GET() {
       const catId = exp.rabItem?.categoryId;
       if (catId && categorySummary[catId]) {
         categorySummary[catId].realized += exp.amount;
+        const it = categorySummary[catId].items.find(i => i.code === exp.rabItem?.code);
+        if (it) {
+          it.realized += exp.amount;
+        }
       }
     });
+
+    const totalBudget =
+      rabProject?.categories.reduce(
+        (sum, cat) => sum + cat.items.reduce((s, it) => s + (it.totalBudget || 0), 0),
+        0
+      ) ||
+      rabProject?.totalBudget ||
+      899839362;
 
     // 4. Calculate Net Profit & Remaining Cash
     const netProfit = totalRevenue - totalExpense;

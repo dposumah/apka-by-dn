@@ -3,13 +3,14 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Printer, RefreshCw, ArrowUpRight, ArrowDownRight, Wallet, CheckCircle2 } from 'lucide-react';
+import { Printer, RefreshCw, ArrowUpRight, ArrowDownRight, Wallet, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 
 export default function LaporanKkaSntPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
 
   const fetchReport = async () => {
     setLoading(true);
@@ -29,6 +30,10 @@ export default function LaporanKkaSntPage() {
   useEffect(() => {
     fetchReport();
   }, []);
+
+  const toggleCategory = (catId: string) => {
+    setExpandedCategories(prev => ({ ...prev, [catId]: !prev[catId] }));
+  };
 
   const formatIDR = (val: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -137,30 +142,120 @@ export default function LaporanKkaSntPage() {
 
       {/* Rincian Realisasi per Kategori RAB */}
       <Card>
-        <CardHeader className="border-b bg-slate-50/60 pb-3">
-          <CardTitle className="text-base font-bold">Rincian Realisasi per Kategori RAB</CardTitle>
+        <CardHeader className="border-b bg-slate-50/60 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <CardTitle className="text-base font-bold">Rincian Realisasi per Kategori RAB</CardTitle>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Klik pada baris kategori untuk melihat rincian item anggaran RAB
+            </p>
+          </div>
+          <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 rounded-full text-slate-700">
+            Total Pagu: {formatIDR(data?.totalBudget || 0)}
+          </span>
         </CardHeader>
         <CardContent className="p-0">
           <div className="divide-y text-sm">
             {data?.categories?.map((cat: any, idx: number) => {
-              const pct = cat.budget > 0 ? Math.round((cat.realized / cat.budget) * 100) : 0;
+              const isExpanded = !!expandedCategories[cat.id || idx];
+              const isUnbudgeted = !cat.budget || cat.budget === 0;
+              const pct = !isUnbudgeted ? Math.round((cat.realized / cat.budget) * 100) : 0;
+              const hasItems = cat.items && cat.items.length > 0;
+
               return (
-                <div key={idx} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="space-y-1">
-                    <div className="font-semibold text-slate-900">{cat.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      Pagu RAB: {formatIDR(cat.budget)}
+                <div key={cat.id || idx} className="divide-y divide-slate-100">
+                  <div
+                    onClick={() => hasItems && toggleCategory(cat.id || idx)}
+                    className={`p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                      hasItems ? 'cursor-pointer hover:bg-slate-50/70 transition-colors' : ''
+                    }`}
+                  >
+                    <div className="space-y-1">
+                      <div className="font-semibold text-slate-900 flex items-center gap-2">
+                        {cat.name}
+                        {hasItems && (
+                          <span className="text-xs text-muted-foreground font-normal flex items-center gap-1">
+                            ({cat.items.length} item {isExpanded ? <ChevronUp className="w-3.5 h-3.5 inline" /> : <ChevronDown className="w-3.5 h-3.5 inline" />})
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Pagu RAB:{' '}
+                        <span className="font-medium text-slate-700">
+                          {isUnbudgeted ? 'Non-Pagu (Di Luar RAB)' : formatIDR(cat.budget)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-6">
+                      <div className="text-right">
+                        <div className="font-bold text-slate-800">{formatIDR(cat.realized)}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {isUnbudgeted ? (
+                            <span className="text-amber-600 font-medium">Unbudgeted</span>
+                          ) : (
+                            <span>
+                              Terserap:{' '}
+                              <strong className={pct > 100 ? 'text-rose-600' : 'text-slate-700'}>
+                                {pct}%
+                              </strong>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {!isUnbudgeted && (
+                        <div className="w-24 bg-slate-100 rounded-full h-2 overflow-hidden hidden sm:block">
+                          <div
+                            className={`h-2 rounded-full ${
+                              pct > 100 ? 'bg-rose-500' : pct > 80 ? 'bg-amber-500' : 'bg-blue-500'
+                            }`}
+                            style={{ width: `${Math.min(100, pct)}%` }}
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-6">
-                    <div className="text-right">
-                      <div className="font-bold text-slate-800">{formatIDR(cat.realized)}</div>
-                      <div className="text-xs text-muted-foreground">Terserap: {pct}%</div>
+
+                  {/* Sub-items accordion */}
+                  {isExpanded && hasItems && (
+                    <div className="bg-slate-50/60 p-4 pl-6 text-xs space-y-2 border-t border-slate-100">
+                      <div className="font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                        Rincian Item {cat.name}
+                      </div>
+                      <div className="space-y-1.5">
+                        {cat.items.map((it: any, iIdx: number) => {
+                          const itPct = it.budget > 0 ? Math.round((it.realized / it.budget) * 100) : 0;
+                          return (
+                            <div
+                              key={iIdx}
+                              className="flex justify-between items-center py-1.5 border-b border-slate-200/50 last:border-0"
+                            >
+                              <div>
+                                <span className="font-medium text-slate-800">
+                                  {it.code}. {it.name}
+                                </span>
+                                <span className="text-muted-foreground ml-2">
+                                  (Pagu: {formatIDR(it.budget)})
+                                </span>
+                              </div>
+                              <div className="text-right">
+                                <span
+                                  className={`font-semibold ${
+                                    it.realized > 0 ? 'text-slate-900' : 'text-muted-foreground'
+                                  }`}
+                                >
+                                  {formatIDR(it.realized)}
+                                </span>
+                                {it.budget > 0 && (
+                                  <span className="text-muted-foreground ml-2 font-mono">
+                                    ({itPct}%)
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <div className="w-24 bg-slate-100 rounded-full h-2 overflow-hidden hidden sm:block">
-                      <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${Math.min(100, pct)}%` }} />
-                    </div>
-                  </div>
+                  )}
                 </div>
               );
             })}
