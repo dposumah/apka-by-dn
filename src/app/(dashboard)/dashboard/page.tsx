@@ -32,6 +32,7 @@ import {
   BookOpen,
   FolderKanban,
   FileSpreadsheet,
+  Sparkles,
 } from 'lucide-react';
 import {
   Table,
