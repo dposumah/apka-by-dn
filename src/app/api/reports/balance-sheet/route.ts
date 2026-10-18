@@ -55,8 +55,19 @@ export async function GET(request: Request) {
       } else if (acc.type === 'LIABILITY') {
         const net = credit - debit;
         if (net !== 0) {
-          liabilitasLancarList.push({ code: acc.code, name: acc.name, amount: net });
-          totalLiabilitas += net;
+          // If 204.10.101 (Jully Tjindrawan / CC pribadi) has a net debit (net < 0):
+          // In SAK EMKM, personal withdrawals / payments for owner are Prive (reduces equity)
+          if (acc.code === '204.10.101' && net < 0) {
+            ekuitasList.push({
+              code: acc.code,
+              name: 'Prive / Pengeluaran Pribadi Pemilik (Jully Tjindrawan)',
+              amount: net // negative in equity reduces total equity
+            });
+            totalEkuitasModal += net;
+          } else {
+            liabilitasLancarList.push({ code: acc.code, name: acc.name, amount: net });
+            totalLiabilitas += net;
+          }
         }
       } else if (acc.type === 'EQUITY') {
         const net = credit - debit;
