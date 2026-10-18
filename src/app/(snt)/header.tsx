@@ -1,4 +1,4 @@
-﻿import { getServerSession } from "next-auth"
+import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { Bell } from "lucide-react"
@@ -25,9 +25,34 @@ export async function SntHeader() {
         <MobileSidebar />
         <h1 className="text-lg font-bold tracking-tight">KKA SNT</h1>
       </div>
-      <div className="hidden md:block"></div>
+      <div className="hidden md:flex items-center gap-2">
+        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">KKA SNT 2026</span>
+        <span className="text-slate-300">|</span>
+        <Link 
+          href="/laporan/kka-snt" 
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-md transition-colors"
+        >
+          <span>📑</span>
+          <span>Laporan Keuangan SNT</span>
+        </Link>
+        <Link 
+          href="/laporan" 
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors"
+        >
+          <span>Semua Laporan</span>
+        </Link>
+      </div>
       
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
+        {isAdmin && (
+          <Link
+            href="/dashboard"
+            className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-blue-700 hover:text-blue-900 bg-blue-50 border border-blue-200 rounded-md transition-colors"
+          >
+            <span>🏛️</span>
+            <span>Akuntansi Utama</span>
+          </Link>
+        )}
         {isAdmin && (
           <div className="relative group cursor-pointer">
             <Link href="/dashboard-rab" className="p-2 rounded-full hover:bg-slate-100 flex items-center justify-center transition-colors">

@@ -22,6 +22,8 @@ import {
   ChevronDown,
   ChevronRight,
   ArrowLeftRight,
+  Building2,
+  FileSpreadsheet,
 } from "lucide-react"
 
 interface MenuItem {
@@ -51,6 +53,19 @@ const menuItems: MenuItem[] = [
       { title: "Tagihan Transport", href: "/fasilitator/transport" },
     ],
   },
+  {
+    title: "Laporan Keuangan",
+    href: "/laporan",
+    icon: FileSpreadsheet,
+    adminOnly: true,
+    submenu: [
+      { title: "Laporan Proyek SNT", href: "/laporan/kka-snt" },
+      { title: "Ringkasan Laporan", href: "/laporan" },
+      { title: "Laba Rugi", href: "/laporan/laba-rugi" },
+      { title: "Arus Kas", href: "/laporan/arus-kas" },
+      { title: "Neraca Keuangan", href: "/laporan/neraca" },
+    ],
+  },
   { title: "Pengaturan Akun", href: "/snt-akun", icon: Settings, adminOnly: true },
   { title: "Dashboard", href: "/portal", icon: Home, fasilOnly: true },
   { title: "Profil Fasilitator", href: "/portal/profil", icon: UserCircle, fasilOnly: true },
@@ -64,7 +79,7 @@ export function SntSidebar({ isCollapsed = false, onToggleCollapse }: { isCollap
   const userRole = session?.user?.role
   const [isLoggingOut, setIsLoggingOut] = React.useState(false);
   const handleLogout = async (e: any) => { e.preventDefault(); if (isLoggingOut) return; if (await confirm('Apakah Anda yakin ingin keluar dari akun?')) { setIsLoggingOut(true); signOut({ callbackUrl: '/login' }); } };
-  const [openMenus, setOpenMenus] = React.useState<Record<string, boolean>>({ "Manajemen Fasilitator": true })
+  const [openMenus, setOpenMenus] = React.useState<Record<string, boolean>>({ "Manajemen Fasilitator": true, "Laporan Keuangan": true })
 
   const toggleMenu = (title: string) => {
     setOpenMenus(prev => ({ ...prev, [title]: !prev[title] }))
@@ -220,12 +235,16 @@ export function SntSidebar({ isCollapsed = false, onToggleCollapse }: { isCollap
             </div>
             
             <div className="flex flex-col gap-2">
-              {userRole !== "FASILITATOR" && (
+              {userRole !== "FASILITATOR" && (<>
+                <Link href="/dashboard" className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-blue-200 bg-blue-900/50 hover:bg-blue-800/70 border border-blue-700/60 rounded-lg transition-colors shadow-sm mb-1.5">
+                  <Building2 size={15} />
+                  Ke Akuntansi Utama (APKA)
+                </Link>
                 <Link href="/" className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-emerald-400 bg-emerald-400/10 hover:bg-emerald-400/20 rounded-lg transition-colors">
                   <ArrowLeftRight size={16} />
                   Ganti Aplikasi
                 </Link>
-              )}
+              </>)}
               <button
                 onClick={handleLogout} onTouchEnd={handleLogout}
                 disabled={isLoggingOut}
@@ -243,6 +262,15 @@ export function SntSidebar({ isCollapsed = false, onToggleCollapse }: { isCollap
                 {session?.user?.name?.[0] || "U"}
               </span>
             </div>
+            {userRole !== "FASILITATOR" && (
+              <Link
+                href="/dashboard"
+                className="p-2 rounded-lg text-blue-400 hover:text-blue-300 hover:bg-blue-400/10 transition-colors"
+                title="Ke Akuntansi Utama (APKA)"
+              >
+                <Building2 size={18} />
+              </Link>
+            )}
             {userRole !== "FASILITATOR" && (
               <Link
                 href="/"
