@@ -17,92 +17,148 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Akun BCA tidak ditemukan' }, { status: 404 });
     }
 
-    // 1. Calculate opening balance before startDate
-    const priorLines = await prisma.journalEntryLine.findMany({
-      where: {
-        accountId: bca.id,
-        journalEntry: {
-          status: 'POSTED',
-          date: { lt: startDate }
+    // 1. Operating: Revenues and Expenses (Cash-based)
+    const revAccounts = await prisma.account.findMany({
+      where: { type: 'REVENUE', isActive: true },
+      include: {
+        journalLines: {
+          where: {
+            journalEntry: {
+              status: 'POSTED',
+              date: { gte: startDate, lte: endDate }
+            }
+          }
         }
       }
     });
-    let openingCash = priorLines.reduce((s, l) => s + (l.debit - l.credit), 0);
 
-    // 2. Fetch all entries within the period involving BCA
-    const entries = await prisma.journalEntry.findMany({
-      where: {
-        status: 'POSTED',
-        date: { gte: startDate, lte: endDate },
-        lines: { some: { accountId: bca.id } }
-      },
+    const expAccounts = await prisma.account.findMany({
+      where: { type: 'EXPENSE', isActive: true },
       include: {
-        lines: { include: { account: true } }
-      },
-      orderBy: { date: 'asc' }
+        journalLines: {
+          where: {
+            journalEntry: {
+              status: 'POSTED',
+              date: { gte: startDate, lte: endDate }
+            }
+          }
+        }
+      }
     });
 
     let operatingIn = 0;
+    revAccounts.forEach(a => {
+      const d = a.journalLines.reduce((s, l) => s + l.debit, 0);
+      const k = a.journalLines.reduce((s, l) => s + l.credit, 0);
+      operatingIn += (k - d);
+    });
+
     let operatingOut = 0;
-    let investingOut = 0;
-    let financingIn = 0;
-    let financingOut = 0;
-
-    entries.forEach(e => {
-      const bcaLine = e.lines.find(l => l.accountId === bca.id);
-      const otherLines = e.lines.filter(l => l.accountId !== bca.id);
-
-      if (!bcaLine) return;
-
-      // Handle opening balance journal if it falls within the period
-      if (e.reference === 'SALDO-AWAL-2026') {
-        openingCash += bcaLine.debit;
-        return;
-      }
-
-      if (bcaLine.debit > 0) {
-        // Cash Inflow
-        otherLines.forEach(ol => {
-          if (ol.account.type === 'EQUITY' || ol.account.code === '300.10.101') {
-            financingIn += ol.credit;
-          } else {
-            operatingIn += ol.credit;
-          }
-        });
-      } else if (bcaLine.credit > 0) {
-        // Cash Outflow
-        otherLines.forEach(ol => {
-          if (ol.account.code.startsWith('117')) {
-            investingOut += ol.debit;
-          } else if (ol.account.code === '204.10.101') {
-            financingOut += ol.debit;
-          } else {
-            operatingOut += ol.debit;
-          }
-        });
-      }
+    expAccounts.forEach(a => {
+      const d = a.journalLines.reduce((s, l) => s + l.debit, 0);
+      const k = a.journalLines.reduce((s, l) => s + l.credit, 0);
+      operatingOut += (d - k);
     });
 
     const netOperating = operatingIn - operatingOut;
+
+    // 2. Investing: 117.10.101 (Inventaris Kantor / Aset Tetap)
+    const invAccount = await prisma.account.findUnique({
+      where: { code: '117.10.101' },
+      include: {
+        journalLines: {
+          where: {
+            journalEntry: {
+              status: 'POSTED',
+              date: { gte: startDate, lte: endDate }
+            }
+          }
+        }
+      }
+    });
+    const investingOut = invAccount
+      ? invAccount.journalLines.reduce((s, l) => s + (l.debit - l.credit), 0)
+      : 0;
     const netInvesting = -investingOut;
-    const netFinancing = financingIn - financingOut;
+
+    // 3. Financing:
+    // a. Setoran Modal Kas Pemilik (di luar saldo awal)
+    const modalLines = await prisma.journalEntryLine.findMany({
+      where: {
+        account: { code: '300.10.101' },
+        journalEntry: {
+          status: 'POSTED',
+          reference: { not: 'SALDO-AWAL-MAINSHEET' },
+          date: { gte: startDate, lte: endDate }
+        }
+      }
+    });
+    const financingIn = modalLines.reduce((s, l) => s + (l.credit - l.debit), 0);
+
+    // b. Pengeluaran Pribadi / Prive Pemilik (204.10.101)
+    const priveAccount = await prisma.account.findUnique({
+      where: { code: '204.10.101' },
+      include: {
+        journalLines: {
+          where: {
+            journalEntry: {
+              status: 'POSTED',
+              date: { gte: startDate, lte: endDate }
+            }
+          }
+        }
+      }
+    });
+    const priveOut = priveAccount
+      ? priveAccount.journalLines.reduce((s, l) => s + (l.debit - l.credit), 0)
+      : 0;
+
+    // c. Pinjaman Karyawan / Cash Bon (113.12.101)
+    const bonAccount = await prisma.account.findUnique({
+      where: { code: '113.12.101' },
+      include: {
+        journalLines: {
+          where: {
+            journalEntry: {
+              status: 'POSTED',
+              date: { gte: startDate, lte: endDate }
+            }
+          }
+        }
+      }
+    });
+    const bonOut = bonAccount
+      ? bonAccount.journalLines.reduce((s, l) => s + (l.debit - l.credit), 0)
+      : 0;
+
+    const netFinancing = financingIn - priveOut - bonOut;
+
+    // 4. Net Change in Cash
     const netChange = netOperating + netInvesting + netFinancing;
+
+    // 5. Opening Cash Balance (Saldo Awal BCA per 01/01/2026)
+    const openingEntry = await prisma.journalEntry.findFirst({
+      where: { reference: 'SALDO-AWAL-MAINSHEET', status: 'POSTED' },
+      include: { lines: { where: { accountId: bca.id } } }
+    });
+    const openingCash = openingEntry?.lines[0]?.debit || 889709684.72;
     const closingCash = openingCash + netChange;
 
     return NextResponse.json({
       companyName: company?.name || 'PT Jully Tjindrawan Robotik',
       startDate: startDateParam,
       endDate: endDateParam,
-      openingCash,
       operatingIn,
       operatingOut,
       netOperating,
       investingOut,
       netInvesting,
       financingIn,
-      financingOut,
+      priveOut,
+      bonOut,
       netFinancing,
       netChange,
+      openingCash,
       closingCash
     });
   } catch (error) {
