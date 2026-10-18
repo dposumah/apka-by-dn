@@ -19,17 +19,26 @@ export async function GET() {
       topExpensesRaw,
       recentJournalsRaw,
       overdueInvoicesRaw,
-      allGoods
+      allGoods,
+      currentMonthRevenueLines,
+      currentMonthExpenseLines,
+      unpaidInvoices,
+      unpaidBills
     ] = await Promise.all([
       // 1. Kas & Bank from Chart of Accounts (111.%)
       prisma.account.findMany({
         where: { code: { startsWith: '111.' }, isActive: true },
         select: {
+          id: true,
+          code: true,
+          name: true,
+          subType: true,
           journalLines: {
             where: { journalEntry: { status: 'POSTED' } },
             select: { debit: true, credit: true }
           }
-        }
+        },
+        orderBy: { code: 'asc' }
       }),
       // Bank accounts table fallback
       prisma.bankAccount.aggregate({
@@ -87,16 +96,76 @@ export async function GET() {
       prisma.product.findMany({
         where: { type: 'GOODS' },
         select: { id: true, name: true, stockQuantity: true, minStock: true }
+      }),
+      // 9. Current Month Revenue Lines for Drill-down
+      prisma.journalEntryLine.findMany({
+        where: {
+          account: { type: 'REVENUE' },
+          journalEntry: {
+            status: 'POSTED',
+            date: { gte: currentMonthStart, lte: currentMonthEnd }
+          }
+        },
+        select: {
+          debit: true,
+          credit: true,
+          description: true,
+          account: { select: { code: true, name: true } },
+          journalEntry: { select: { id: true, entryNumber: true, date: true, description: true } }
+        },
+        orderBy: { journalEntry: { date: 'desc' } }
+      }),
+      // 10. Current Month Expense Lines for Drill-down
+      prisma.journalEntryLine.findMany({
+        where: {
+          account: { type: 'EXPENSE' },
+          journalEntry: {
+            status: 'POSTED',
+            date: { gte: currentMonthStart, lte: currentMonthEnd }
+          }
+        },
+        select: {
+          debit: true,
+          credit: true,
+          description: true,
+          account: { select: { code: true, name: true } },
+          journalEntry: { select: { id: true, entryNumber: true, date: true, description: true } }
+        },
+        orderBy: { journalEntry: { date: 'desc' } }
+      }),
+      // 11. Unpaid Invoices for Piutang Drill-down
+      prisma.invoice.findMany({
+        where: { status: { notIn: ['DRAFT', 'PAID', 'VOID'] } },
+        include: { customer: { select: { name: true } } },
+        orderBy: { dueDate: 'asc' },
+        take: 20
+      }),
+      // 12. Unpaid Bills for Hutang Drill-down
+      prisma.bill.findMany({
+        where: { status: { notIn: ['DRAFT', 'PAID', 'VOID'] } },
+        include: { supplier: { select: { name: true } } },
+        orderBy: { dueDate: 'asc' },
+        take: 20
       })
     ]);
 
     // Calculate real Cash & Bank
     let cashAndBank = 0;
-    cashAccounts.forEach(acc => {
+    const cashBankBreakdown = cashAccounts.map(acc => {
+      let balance = 0;
       acc.journalLines.forEach(l => {
-        cashAndBank += (l.debit - l.credit);
+        balance += (l.debit - l.credit);
       });
+      cashAndBank += balance;
+      return {
+        id: acc.id,
+        code: acc.code,
+        name: acc.name,
+        subType: acc.subType || 'Kas & Bank',
+        balance
+      };
     });
+
     if (cashAndBank === 0 && bankAccountsAgg._sum.balance) {
       cashAndBank = bankAccountsAgg._sum.balance;
     }
@@ -199,6 +268,117 @@ export async function GET() {
         minStock: p.minStock
       }));
 
+    // Aggregate Details for Interactive Drill-downs
+    // Revenue Breakdown
+    const revAccountMap = new Map<string, { code: string; name: string; amount: number }>();
+    currentMonthRevenueLines.forEach(line => {
+      const net = (line.credit || 0) - (line.debit || 0);
+      const key = line.account.code;
+      if (!revAccountMap.has(key)) {
+        revAccountMap.set(key, { code: line.account.code, name: line.account.name, amount: 0 });
+      }
+      revAccountMap.get(key)!.amount += net;
+    });
+
+    const revenueByAccount = Array.from(revAccountMap.values())
+      .filter(a => a.amount !== 0)
+      .sort((a, b) => b.amount - a.amount)
+      .map(a => ({
+        ...a,
+        percentage: currentMonthRevenue > 0 ? Math.round((a.amount / currentMonthRevenue) * 1000) / 10 : 0
+      }));
+
+    const revenueTransactions = currentMonthRevenueLines.slice(0, 30).map(line => ({
+      id: line.journalEntry.id,
+      date: format(new Date(line.journalEntry.date), 'dd MMM yyyy', { locale: localeId }),
+      entryNumber: line.journalEntry.entryNumber,
+      description: line.description || line.journalEntry.description,
+      accountName: `${line.account.code} - ${line.account.name}`,
+      amount: (line.credit || 0) - (line.debit || 0)
+    }));
+
+    // Expense Breakdown
+    const expAccountMap = new Map<string, { code: string; name: string; amount: number }>();
+    currentMonthExpenseLines.forEach(line => {
+      const net = (line.debit || 0) - (line.credit || 0);
+      const key = line.account.code;
+      if (!expAccountMap.has(key)) {
+        expAccountMap.set(key, { code: line.account.code, name: line.account.name, amount: 0 });
+      }
+      expAccountMap.get(key)!.amount += net;
+    });
+
+    const expenseByAccount = Array.from(expAccountMap.values())
+      .filter(a => a.amount !== 0)
+      .sort((a, b) => b.amount - a.amount)
+      .map(a => ({
+        ...a,
+        percentage: currentMonthExpense > 0 ? Math.round((a.amount / currentMonthExpense) * 1000) / 10 : 0
+      }));
+
+    const expenseTransactions = currentMonthExpenseLines.slice(0, 30).map(line => ({
+      id: line.journalEntry.id,
+      date: format(new Date(line.journalEntry.date), 'dd MMM yyyy', { locale: localeId }),
+      entryNumber: line.journalEntry.entryNumber,
+      description: line.description || line.journalEntry.description,
+      accountName: `${line.account.code} - ${line.account.name}`,
+      amount: (line.debit || 0) - (line.credit || 0)
+    }));
+
+    // Receivables List
+    const receivableInvoices = unpaidInvoices.map(inv => ({
+      id: inv.id,
+      number: inv.invoiceNumber,
+      customer: inv.customer?.name || 'Pelanggan Umum',
+      dueDate: format(new Date(inv.dueDate), 'dd MMM yyyy', { locale: localeId }),
+      total: inv.totalAmount,
+      remaining: inv.totalAmount - inv.paidAmount,
+      status: inv.status
+    }));
+
+    // Payables List
+    const payableBills = unpaidBills.map(b => ({
+      id: b.id,
+      number: b.billNumber,
+      supplier: b.supplier?.name || 'Supplier Umum',
+      dueDate: format(new Date(b.dueDate), 'dd MMM yyyy', { locale: localeId }),
+      total: b.totalAmount,
+      remaining: b.totalAmount - b.paidAmount,
+      status: b.status
+    }));
+
+    const details = {
+      revenue: {
+        total: currentMonthRevenue,
+        byAccount: revenueByAccount,
+        transactions: revenueTransactions
+      },
+      expense: {
+        total: currentMonthExpense,
+        byAccount: expenseByAccount,
+        transactions: expenseTransactions
+      },
+      profit: {
+        revenue: currentMonthRevenue,
+        expense: currentMonthExpense,
+        netProfit,
+        profitMargin: currentMonthRevenue > 0 ? Math.round((netProfit / currentMonthRevenue) * 1000) / 10 : 0,
+        status: netProfit >= 0 ? 'SURPLUS' : 'DEFISIT'
+      },
+      receivable: {
+        total: totalAccountsReceivable,
+        invoices: receivableInvoices
+      },
+      payable: {
+        total: totalAccountsPayable,
+        bills: payableBills
+      },
+      cashAndBank: {
+        total: cashAndBank,
+        accounts: cashBankBreakdown.sort((a, b) => b.balance - a.balance)
+      }
+    };
+
     return NextResponse.json({
       summary,
       monthlyData,
@@ -206,6 +386,7 @@ export async function GET() {
       recentJournals,
       overdueInvoices,
       lowStockAlerts,
+      details,
     });
   } catch (error) {
     console.error('Error fetching dashboard data:', error);
