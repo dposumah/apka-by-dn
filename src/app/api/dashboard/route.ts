@@ -3,11 +3,37 @@ import { prisma } from '@/lib/prisma';
 import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
     const today = new Date();
-    const currentMonthStart = startOfMonth(today);
-    const currentMonthEnd = endOfMonth(today);
+
+    const periodType = (searchParams.get('periodType') || 'MONTH').toUpperCase();
+    const startDateParam = searchParams.get('startDate');
+    const endDateParam = searchParams.get('endDate');
+    const labelParam = searchParams.get('label');
+
+    let periodStart: Date;
+    let periodEnd: Date;
+    let periodLabel: string;
+
+    if (startDateParam && endDateParam) {
+      periodStart = new Date(startDateParam.includes('T') ? startDateParam : `${startDateParam}T00:00:00`);
+      periodStart.setHours(0, 0, 0, 0);
+
+      periodEnd = new Date(endDateParam.includes('T') ? endDateParam : `${endDateParam}T23:59:59.999`);
+      periodEnd.setHours(23, 59, 59, 999);
+
+      periodLabel = labelParam || format(periodStart, 'MMMM yyyy', { locale: localeId });
+    } else {
+      periodStart = startOfMonth(today);
+      periodStart.setHours(0, 0, 0, 0);
+
+      periodEnd = endOfMonth(today);
+      periodEnd.setHours(23, 59, 59, 999);
+
+      periodLabel = format(today, 'MMMM yyyy', { locale: localeId });
+    }
 
     // Parallel fetch of all independent metrics for maximum speed
     const [
@@ -20,8 +46,8 @@ export async function GET() {
       recentJournalsRaw,
       overdueInvoicesRaw,
       allGoods,
-      currentMonthRevenueLines,
-      currentMonthExpenseLines,
+      periodRevenueLines,
+      periodExpenseLines,
       unpaidInvoices,
       unpaidBills
     ] = await Promise.all([
@@ -68,13 +94,19 @@ export async function GET() {
         GROUP BY 1, 2
         ORDER BY 1
       `,
-      // 5. Top 5 Expense accounts overall / year-to-date
+      // 5. Top 6 Expense accounts in the selected period
       prisma.journalEntryLine.groupBy({
         by: ['accountId'],
         _sum: { debit: true, credit: true },
-        where: { account: { type: 'EXPENSE' }, journalEntry: { status: 'POSTED' } },
+        where: {
+          account: { type: 'EXPENSE' },
+          journalEntry: {
+            status: 'POSTED',
+            date: { gte: periodStart, lte: periodEnd }
+          }
+        },
         orderBy: { _sum: { debit: 'desc' } },
-        take: 5
+        take: 6
       }),
       // 6. Recent Journals
       prisma.journalEntry.findMany({
@@ -97,13 +129,13 @@ export async function GET() {
         where: { type: 'GOODS' },
         select: { id: true, name: true, stockQuantity: true, minStock: true }
       }),
-      // 9. Current Month Revenue Lines for Drill-down
+      // 9. Period Revenue Lines for Drill-down
       prisma.journalEntryLine.findMany({
         where: {
           account: { type: 'REVENUE' },
           journalEntry: {
             status: 'POSTED',
-            date: { gte: currentMonthStart, lte: currentMonthEnd }
+            date: { gte: periodStart, lte: periodEnd }
           }
         },
         select: {
@@ -115,13 +147,13 @@ export async function GET() {
         },
         orderBy: { journalEntry: { date: 'desc' } }
       }),
-      // 10. Current Month Expense Lines for Drill-down
+      // 10. Period Expense Lines for Drill-down
       prisma.journalEntryLine.findMany({
         where: {
           account: { type: 'EXPENSE' },
           journalEntry: {
             status: 'POSTED',
-            date: { gte: currentMonthStart, lte: currentMonthEnd }
+            date: { gte: periodStart, lte: periodEnd }
           }
         },
         select: {
@@ -173,11 +205,20 @@ export async function GET() {
     const totalAccountsReceivable = (receivables._sum.totalAmount || 0) - (receivables._sum.paidAmount || 0);
     const totalAccountsPayable = (payables._sum.totalAmount || 0) - (payables._sum.paidAmount || 0);
 
-    // Compute monthly chart data (Last 6 Months) from pre-aggregated SQL rows
-    const currentYyyymm = format(today, 'yyyy-MM');
-    let currentMonthRevenue = 0;
-    let currentMonthExpense = 0;
+    // Compute period revenues & expenses directly from fetched lines
+    let periodRevenue = 0;
+    periodRevenueLines.forEach(l => {
+      periodRevenue += ((l.credit || 0) - (l.debit || 0));
+    });
 
+    let periodExpense = 0;
+    periodExpenseLines.forEach(l => {
+      periodExpense += ((l.debit || 0) - (l.credit || 0));
+    });
+
+    const netProfit = periodRevenue - periodExpense;
+
+    // Monthly chart data from monthlyRows
     const monthlyMap: Record<string, { rev: number; exp: number }> = {};
     monthlyRows.forEach(row => {
       if (!monthlyMap[row.yyyymm]) {
@@ -190,36 +231,49 @@ export async function GET() {
       }
     });
 
-    if (monthlyMap[currentYyyymm]) {
-      currentMonthRevenue = monthlyMap[currentYyyymm].rev;
-      currentMonthExpense = monthlyMap[currentYyyymm].exp;
-    }
-
-    // Build last 6 months for chart
+    // Build monthlyData dynamically according to periodType
     const monthlyData = [];
-    for (let i = 5; i >= 0; i--) {
-      const monthDate = subMonths(today, i);
-      const ym = format(monthDate, 'yyyy-MM');
-      const val = monthlyMap[ym] || { rev: 0, exp: 0 };
-      monthlyData.push({
-        name: format(monthDate, 'MMM', { locale: localeId }),
-        pendapatan: val.rev,
-        beban: val.exp,
-      });
+    if (periodType === 'MONTH') {
+      // 6 months ending at selected month
+      for (let i = 5; i >= 0; i--) {
+        const monthDate = subMonths(periodEnd, i);
+        const ym = format(monthDate, 'yyyy-MM');
+        const val = monthlyMap[ym] || { rev: 0, exp: 0 };
+        monthlyData.push({
+          name: format(monthDate, 'MMM', { locale: localeId }),
+          pendapatan: Math.max(0, val.rev),
+          beban: Math.max(0, val.exp),
+        });
+      }
+    } else {
+      // For QUARTER, SEMESTER, or YEAR: show each month within the range
+      const cursor = new Date(periodStart);
+      while (cursor <= periodEnd) {
+        const ym = format(cursor, 'yyyy-MM');
+        const val = monthlyMap[ym] || { rev: 0, exp: 0 };
+        monthlyData.push({
+          name: format(cursor, 'MMM', { locale: localeId }),
+          pendapatan: Math.max(0, val.rev),
+          beban: Math.max(0, val.exp),
+        });
+        cursor.setMonth(cursor.getMonth() + 1);
+      }
     }
-
-    const netProfit = currentMonthRevenue - currentMonthExpense;
 
     const summary = {
-      totalRevenue: currentMonthRevenue,
-      totalExpense: currentMonthExpense,
+      totalRevenue: periodRevenue,
+      totalExpense: periodExpense,
       netProfit,
       totalAccountsReceivable,
       totalAccountsPayable,
       cashAndBank,
+      periodLabel,
+      periodType,
+      startDate: format(periodStart, 'yyyy-MM-dd'),
+      endDate: format(periodEnd, 'yyyy-MM-dd')
     };
 
-    // Category names in single query
+    // Category names for Top Expenses in period
     const categoryAccountIds = topExpensesRaw.map(e => e.accountId);
     const categoryAccounts = await prisma.account.findMany({
       where: { id: { in: categoryAccountIds } },
@@ -238,7 +292,7 @@ export async function GET() {
       .filter(c => c.value > 0);
 
     if (expenseCategories.length === 0) {
-      expenseCategories.push({ name: 'Belum ada beban', value: 0 });
+      expenseCategories.push({ name: 'Belum ada beban pada periode ini', value: 0 });
     }
 
     const recentJournals = recentJournalsRaw.map(j => ({
@@ -268,10 +322,10 @@ export async function GET() {
         minStock: p.minStock
       }));
 
-    // Aggregate Details for Interactive Drill-downs
+    // Aggregate Details for Interactive Drill-downs in period
     // Revenue Breakdown
     const revAccountMap = new Map<string, { code: string; name: string; amount: number }>();
-    currentMonthRevenueLines.forEach(line => {
+    periodRevenueLines.forEach(line => {
       const net = (line.credit || 0) - (line.debit || 0);
       const key = line.account.code;
       if (!revAccountMap.has(key)) {
@@ -285,10 +339,10 @@ export async function GET() {
       .sort((a, b) => b.amount - a.amount)
       .map(a => ({
         ...a,
-        percentage: currentMonthRevenue > 0 ? Math.round((a.amount / currentMonthRevenue) * 1000) / 10 : 0
+        percentage: periodRevenue > 0 ? Math.round((a.amount / periodRevenue) * 1000) / 10 : 0
       }));
 
-    const revenueTransactions = currentMonthRevenueLines.slice(0, 30).map(line => ({
+    const revenueTransactions = periodRevenueLines.slice(0, 50).map(line => ({
       id: line.journalEntry.id,
       date: format(new Date(line.journalEntry.date), 'dd MMM yyyy', { locale: localeId }),
       entryNumber: line.journalEntry.entryNumber,
@@ -299,7 +353,7 @@ export async function GET() {
 
     // Expense Breakdown
     const expAccountMap = new Map<string, { code: string; name: string; amount: number }>();
-    currentMonthExpenseLines.forEach(line => {
+    periodExpenseLines.forEach(line => {
       const net = (line.debit || 0) - (line.credit || 0);
       const key = line.account.code;
       if (!expAccountMap.has(key)) {
@@ -313,10 +367,10 @@ export async function GET() {
       .sort((a, b) => b.amount - a.amount)
       .map(a => ({
         ...a,
-        percentage: currentMonthExpense > 0 ? Math.round((a.amount / currentMonthExpense) * 1000) / 10 : 0
+        percentage: periodExpense > 0 ? Math.round((a.amount / periodExpense) * 1000) / 10 : 0
       }));
 
-    const expenseTransactions = currentMonthExpenseLines.slice(0, 30).map(line => ({
+    const expenseTransactions = periodExpenseLines.slice(0, 50).map(line => ({
       id: line.journalEntry.id,
       date: format(new Date(line.journalEntry.date), 'dd MMM yyyy', { locale: localeId }),
       entryNumber: line.journalEntry.entryNumber,
@@ -349,20 +403,20 @@ export async function GET() {
 
     const details = {
       revenue: {
-        total: currentMonthRevenue,
+        total: periodRevenue,
         byAccount: revenueByAccount,
         transactions: revenueTransactions
       },
       expense: {
-        total: currentMonthExpense,
+        total: periodExpense,
         byAccount: expenseByAccount,
         transactions: expenseTransactions
       },
       profit: {
-        revenue: currentMonthRevenue,
-        expense: currentMonthExpense,
+        revenue: periodRevenue,
+        expense: periodExpense,
         netProfit,
-        profitMargin: currentMonthRevenue > 0 ? Math.round((netProfit / currentMonthRevenue) * 1000) / 10 : 0,
+        profitMargin: periodRevenue > 0 ? Math.round((netProfit / periodRevenue) * 1000) / 10 : 0,
         status: netProfit >= 0 ? 'SURPLUS' : 'DEFISIT'
       },
       receivable: {

@@ -33,6 +33,9 @@ import {
   FolderKanban,
   FileSpreadsheet,
   Sparkles,
+  Calendar,
+  RefreshCw,
+  SlidersHorizontal,
 } from 'lucide-react';
 import {
   Table,
@@ -44,6 +47,13 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -63,6 +73,10 @@ interface DashboardData {
     totalAccountsReceivable: number;
     totalAccountsPayable: number;
     cashAndBank: number;
+    periodLabel?: string;
+    periodType?: string;
+    startDate?: string;
+    endDate?: string;
   };
   monthlyData: {
     name: string;
@@ -164,7 +178,91 @@ interface DashboardData {
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
+const MONTHS = [
+  { value: 1, label: 'Januari' },
+  { value: 2, label: 'Februari' },
+  { value: 3, label: 'Maret' },
+  { value: 4, label: 'April' },
+  { value: 5, label: 'Mei' },
+  { value: 6, label: 'Juni' },
+  { value: 7, label: 'Juli' },
+  { value: 8, label: 'Agustus' },
+  { value: 9, label: 'September' },
+  { value: 10, label: 'Oktober' },
+  { value: 11, label: 'November' },
+  { value: 12, label: 'Desember' },
+];
+
+const QUARTERS = [
+  { value: 1, label: 'Triwulan 1 (Jan - Mar)' },
+  { value: 2, label: 'Triwulan 2 (Apr - Jun)' },
+  { value: 3, label: 'Triwulan 3 (Jul - Sep)' },
+  { value: 4, label: 'Triwulan 4 (Okt - Des)' },
+];
+
+const SEMESTERS = [
+  { value: 1, label: 'Semester 1 (Jan - Jun)' },
+  { value: 2, label: 'Semester 2 (Jul - Des)' },
+];
+
+const YEARS = [2024, 2025, 2026, 2027];
+
+const computePeriodRange = (
+  type: 'MONTH' | 'QUARTER' | 'SEMESTER' | 'YEAR',
+  year: number,
+  month: number,
+  quarter: number,
+  semester: number
+) => {
+  let startDate = '';
+  let endDate = '';
+  let label = '';
+
+  if (type === 'MONTH') {
+    const startM = String(month).padStart(2, '0');
+    const lastDay = new Date(year, month, 0).getDate();
+    startDate = `${year}-${startM}-01`;
+    endDate = `${year}-${startM}-${String(lastDay).padStart(2, '0')}`;
+    const monthName = MONTHS.find((m) => m.value === month)?.label || '';
+    label = `${monthName} ${year}`;
+  } else if (type === 'QUARTER') {
+    const startM = (quarter - 1) * 3 + 1;
+    const endM = quarter * 3;
+    const lastDay = new Date(year, endM, 0).getDate();
+    startDate = `${year}-${String(startM).padStart(2, '0')}-01`;
+    endDate = `${year}-${String(endM).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    label = `Triwulan ${quarter} ${year}`;
+  } else if (type === 'SEMESTER') {
+    const startM = semester === 1 ? 1 : 7;
+    const endM = semester === 1 ? 6 : 12;
+    const lastDay = new Date(year, endM, 0).getDate();
+    startDate = `${year}-${String(startM).padStart(2, '0')}-01`;
+    endDate = `${year}-${String(endM).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    label = `Semester ${semester} ${year}`;
+  } else {
+    startDate = `${year}-01-01`;
+    endDate = `${year}-12-31`;
+    label = `Tahun ${year}`;
+  }
+
+  return { startDate, endDate, label };
+};
+
+
 export default function DashboardPage() {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1; // 1-12
+  const currentQuarter = Math.floor(now.getMonth() / 3) + 1; // 1-4
+  const currentSemester = now.getMonth() < 6 ? 1 : 2; // 1-2
+
+  const [periodType, setPeriodType] = useState<'MONTH' | 'QUARTER' | 'SEMESTER' | 'YEAR'>('MONTH');
+  const [selectedYear, setSelectedYear] = useState<number>(currentYear);
+  const [selectedMonth, setSelectedMonth] = useState<number>(currentMonth);
+  const [selectedQuarter, setSelectedQuarter] = useState<number>(currentQuarter);
+  const [selectedSemester, setSelectedSemester] = useState<number>(currentSemester);
+  const [refreshing, setRefreshing] = useState(false);
+
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -172,24 +270,57 @@ export default function DashboardPage() {
     'REVENUE' | 'EXPENSE' | 'PROFIT' | 'RECEIVABLE' | 'PAYABLE' | 'CASH' | null
   >(null);
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const response = await fetch('/api/dashboard');
-        if (!response.ok) {
-          throw new Error('Gagal mengambil data dashboard');
-        }
-        const result = await response.json();
-        setData(result);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Terjadi kesalahan');
-      } finally {
-        setLoading(false);
+  const loadData = async (
+    type = periodType,
+    yr = selectedYear,
+    mo = selectedMonth,
+    q = selectedQuarter,
+    sem = selectedSemester
+  ) => {
+    try {
+      setRefreshing(true);
+      const { startDate, endDate, label } = computePeriodRange(type, yr, mo, q, sem);
+      const params = new URLSearchParams({
+        periodType: type,
+        startDate,
+        endDate,
+        label,
+        year: yr.toString(),
+      });
+      const response = await fetch(`/api/dashboard?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error('Gagal mengambil data dashboard');
       }
-    };
+      const result = await response.json();
+      setData(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Terjadi kesalahan');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
-    fetchDashboardData();
-  }, []);
+  useEffect(() => {
+    loadData(periodType, selectedYear, selectedMonth, selectedQuarter, selectedSemester);
+  }, [periodType, selectedYear, selectedMonth, selectedQuarter, selectedSemester]);
+
+  const handleResetToCurrentMonth = () => {
+    const today = new Date();
+    setPeriodType('MONTH');
+    setSelectedYear(today.getFullYear());
+    setSelectedMonth(today.getMonth() + 1);
+  };
+
+  const currentLabel =
+    data?.summary?.periodLabel ||
+    computePeriodRange(periodType, selectedYear, selectedMonth, selectedQuarter, selectedSemester).label;
+
+  const profitMarginVal =
+    data?.summary?.totalRevenue && data.summary.totalRevenue > 0
+      ? ((data.summary.netProfit / data.summary.totalRevenue) * 100).toFixed(1)
+      : '0';
+  const isSurplus = (data?.summary?.netProfit || 0) >= 0;
 
   if (error) {
     return (
@@ -226,6 +357,134 @@ export default function DashboardPage() {
         </Link>
       </div>
 
+      {/* Dynamic Period Filter Toolbar */}
+      <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200/90 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-slate-700 mr-1">
+            <SlidersHorizontal className="w-4 h-4 text-indigo-600" />
+            <span>Filter Periode:</span>
+          </div>
+
+          {/* Mode Selector */}
+          <Select
+            value={periodType}
+            onValueChange={(val: 'MONTH' | 'QUARTER' | 'SEMESTER' | 'YEAR') => setPeriodType(val)}
+          >
+            <SelectTrigger className="w-[130px] sm:w-[145px] h-9 text-xs sm:text-sm font-medium bg-slate-50 border-slate-200">
+              <SelectValue placeholder="Pilih Jenis" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="MONTH">📅 Bulanan</SelectItem>
+              <SelectItem value="QUARTER">📊 Triwulan</SelectItem>
+              <SelectItem value="SEMESTER">🗓️ Semester</SelectItem>
+              <SelectItem value="YEAR">📈 1 Tahun</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Conditional Month Selector */}
+          {periodType === 'MONTH' && (
+            <Select
+              value={selectedMonth.toString()}
+              onValueChange={(val) => setSelectedMonth(parseInt(val))}
+            >
+              <SelectTrigger className="w-[140px] sm:w-[160px] h-9 text-xs sm:text-sm font-medium bg-slate-50 border-slate-200">
+                <SelectValue placeholder="Pilih Bulan" />
+              </SelectTrigger>
+              <SelectContent>
+                {MONTHS.map((m) => (
+                  <SelectItem key={m.value} value={m.value.toString()}>
+                    {m.label} {m.value === currentMonth && selectedYear === currentYear ? '(Berjalan)' : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {/* Conditional Quarter Selector */}
+          {periodType === 'QUARTER' && (
+            <Select
+              value={selectedQuarter.toString()}
+              onValueChange={(val) => setSelectedQuarter(parseInt(val))}
+            >
+              <SelectTrigger className="w-[185px] sm:w-[205px] h-9 text-xs sm:text-sm font-medium bg-slate-50 border-slate-200">
+                <SelectValue placeholder="Pilih Triwulan" />
+              </SelectTrigger>
+              <SelectContent>
+                {QUARTERS.map((q) => (
+                  <SelectItem key={q.value} value={q.value.toString()}>
+                    {q.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {/* Conditional Semester Selector */}
+          {periodType === 'SEMESTER' && (
+            <Select
+              value={selectedSemester.toString()}
+              onValueChange={(val) => setSelectedSemester(parseInt(val))}
+            >
+              <SelectTrigger className="w-[185px] sm:w-[205px] h-9 text-xs sm:text-sm font-medium bg-slate-50 border-slate-200">
+                <SelectValue placeholder="Pilih Semester" />
+              </SelectTrigger>
+              <SelectContent>
+                {SEMESTERS.map((s) => (
+                  <SelectItem key={s.value} value={s.value.toString()}>
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {/* Year Selector */}
+          <Select
+            value={selectedYear.toString()}
+            onValueChange={(val) => setSelectedYear(parseInt(val))}
+          >
+            <SelectTrigger className="w-[95px] sm:w-[105px] h-9 text-xs sm:text-sm font-medium bg-slate-50 border-slate-200">
+              <SelectValue placeholder="Tahun" />
+            </SelectTrigger>
+            <SelectContent>
+              {YEARS.map((y) => (
+                <SelectItem key={y} value={y.toString()}>
+                  {y}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Active Period Badge + Quick Reset Button */}
+        <div className="flex items-center gap-2 self-start md:self-auto">
+          <Badge
+            variant="outline"
+            className="bg-indigo-50/70 border-indigo-200 text-indigo-700 font-medium px-3 py-1.5 text-xs flex items-center gap-1.5"
+          >
+            {refreshing ? (
+              <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-600" />
+            ) : (
+              <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+            )}
+            <span>{currentLabel}</span>
+          </Badge>
+
+          {(periodType !== 'MONTH' || selectedMonth !== currentMonth || selectedYear !== currentYear) && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleResetToCurrentMonth}
+              className="h-8 text-xs text-indigo-700 border-indigo-200 hover:bg-indigo-50 gap-1 px-2.5 font-medium"
+              title="Kembali ke Bulan Berjalan"
+            >
+              <RefreshCw className="w-3 h-3" />
+              <span>Bulan Berjalan</span>
+            </Button>
+          )}
+        </div>
+      </div>
+
       {/* Interactive Stat Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {/* 1. Total Pendapatan */}
@@ -234,7 +493,7 @@ export default function DashboardPage() {
           className="cursor-pointer transition-all duration-200 hover:shadow-lg hover:border-emerald-400 hover:-translate-y-0.5 active:scale-[0.99] group relative overflow-hidden"
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Pendapatan (Bulan Ini)</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Pendapatan ({currentLabel})</CardTitle>
             <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors shadow-sm">
               <ArrowUpRight className="h-4 w-4" />
             </div>
@@ -264,7 +523,7 @@ export default function DashboardPage() {
           className="cursor-pointer transition-all duration-200 hover:shadow-lg hover:border-rose-400 hover:-translate-y-0.5 active:scale-[0.99] group relative overflow-hidden"
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Beban (Bulan Ini)</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Beban ({currentLabel})</CardTitle>
             <div className="p-1.5 rounded-lg bg-rose-50 text-rose-600 group-hover:bg-rose-600 group-hover:text-white transition-colors shadow-sm">
               <ArrowDownRight className="h-4 w-4" />
             </div>
@@ -294,7 +553,7 @@ export default function DashboardPage() {
           className="cursor-pointer transition-all duration-200 hover:shadow-lg hover:border-blue-400 hover:-translate-y-0.5 active:scale-[0.99] group relative overflow-hidden"
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Laba/Rugi Bersih (Bulan Ini)</CardTitle>
+            <CardTitle className="text-sm font-medium">Laba/Rugi Bersih ({currentLabel})</CardTitle>
             <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors shadow-sm">
               <Landmark className="h-4 w-4" />
             </div>
@@ -422,12 +681,12 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h4 className="font-bold text-sm text-white">Konsultan Finansial AI (Google Gemini)</h4>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                Surplus Bersih 93.1%
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isSurplus ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'}`}>
+                {isSurplus ? `Surplus Bersih ${profitMarginVal}%` : `Defisit Bersih ${profitMarginVal}%`}
               </span>
             </div>
             <p className="text-xs text-indigo-200 mt-0.5">
-              Dapatkan rekomendasi strategis pemangkasan beban operasional, pengelolaan likuiditas kas, dan peluang peningkatan profit untuk PT. JT Robotic Explorer.
+              Dapatkan rekomendasi strategis pemangkasan beban operasional, pengelolaan kas, dan optimalisasi profit periode {currentLabel}.
             </p>
           </div>
         </div>
@@ -444,7 +703,7 @@ export default function DashboardPage() {
         {/* Chart Pendapatan vs Beban */}
         <Card className="col-span-1 md:col-span-2 lg:col-span-4">
           <CardHeader>
-            <CardTitle>Pendapatan vs Beban (6 Bulan Terakhir)</CardTitle>
+            <CardTitle>{periodType === 'MONTH' ? `Pendapatan vs Beban (Tren 6 Bulan s/d ${currentLabel})` : `Pendapatan vs Beban (${currentLabel})`}</CardTitle>
           </CardHeader>
           <CardContent className="pl-2">
             {loading ? (
@@ -468,7 +727,7 @@ export default function DashboardPage() {
         {/* Chart Kategori Beban */}
         <Card className="col-span-1 md:col-span-2 lg:col-span-3">
           <CardHeader>
-            <CardTitle>Rincian Beban</CardTitle>
+            <CardTitle>Rincian Beban ({currentLabel})</CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -650,7 +909,7 @@ export default function DashboardPage() {
                   <div>
                     <DialogTitle className="text-xl">Rincian Total Pendapatan</DialogTitle>
                     <DialogDescription>
-                      Realisasi seluruh pendapatan operasional & proyek periode bulan ini.
+                      Realisasi seluruh pendapatan operasional & proyek periode {currentLabel}.
                     </DialogDescription>
                   </div>
                 </div>
@@ -722,7 +981,7 @@ export default function DashboardPage() {
                         ) : (
                           <TableRow>
                             <TableCell colSpan={3} className="text-center text-muted-foreground py-6">
-                              Belum ada pendapatan yang tercatat pada bulan ini.
+                              Belum ada pendapatan yang tercatat pada periode {currentLabel}.
                             </TableCell>
                           </TableRow>
                         )}
@@ -767,7 +1026,7 @@ export default function DashboardPage() {
                         ) : (
                           <TableRow>
                             <TableCell colSpan={4} className="text-center text-muted-foreground py-6">
-                              Tidak ada riwayat transaksi pendapatan bulan ini.
+                              Tidak ada riwayat transaksi pendapatan periode {currentLabel}.
                             </TableCell>
                           </TableRow>
                         )}
@@ -808,7 +1067,7 @@ export default function DashboardPage() {
                   <div>
                     <DialogTitle className="text-xl">Rincian Total Beban</DialogTitle>
                     <DialogDescription>
-                      Rincian seluruh beban operasional dan biaya kegiatan bulan ini.
+                      Rincian seluruh beban operasional dan biaya kegiatan periode {currentLabel}.
                     </DialogDescription>
                   </div>
                 </div>
@@ -880,7 +1139,7 @@ export default function DashboardPage() {
                         ) : (
                           <TableRow>
                             <TableCell colSpan={3} className="text-center text-muted-foreground py-6">
-                              Belum ada beban yang tercatat pada bulan ini.
+                              Belum ada beban yang tercatat pada periode {currentLabel}.
                             </TableCell>
                           </TableRow>
                         )}
@@ -925,7 +1184,7 @@ export default function DashboardPage() {
                         ) : (
                           <TableRow>
                             <TableCell colSpan={4} className="text-center text-muted-foreground py-6">
-                              Tidak ada riwayat transaksi beban bulan ini.
+                              Tidak ada riwayat transaksi beban periode {currentLabel}.
                             </TableCell>
                           </TableRow>
                         )}
@@ -966,7 +1225,7 @@ export default function DashboardPage() {
                   <div>
                     <DialogTitle className="text-xl">Analisis Laba / Rugi Bersih</DialogTitle>
                     <DialogDescription>
-                      Kalkulasi kinerja keuangan murni antara pendapatan dan seluruh beban.
+                      Kalkulasi kinerja keuangan murni antara pendapatan dan seluruh beban periode {currentLabel}.
                     </DialogDescription>
                   </div>
                 </div>
@@ -975,13 +1234,13 @@ export default function DashboardPage() {
               {/* Formula Card */}
               <div className="p-5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-600 font-medium">Total Pendapatan (Bulan Ini)</span>
+                  <span className="text-slate-600 font-medium">Total Pendapatan ({currentLabel})</span>
                   <span className="font-bold text-emerald-600">
                     + {formatCurrency(data?.summary.totalRevenue || 0)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-600 font-medium">Total Beban Operasional & Proyek</span>
+                  <span className="text-slate-600 font-medium">Total Beban Operasional & Proyek ({currentLabel})</span>
                   <span className="font-bold text-rose-600">
                     - {formatCurrency(data?.summary.totalExpense || 0)}
                   </span>
