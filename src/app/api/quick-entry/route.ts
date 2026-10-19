@@ -11,7 +11,12 @@ export async function POST(req: Request) {
     }
 
     const data = await req.json();
-    const { date, type, accountId, amount, description, attachmentUrl, bankAccountId } = data;
+    let { date, type, accountId, amount, description, attachmentUrl, bankAccountId } = data;
+
+    if (!bankAccountId) {
+      const defaultBca = await prisma.account.findUnique({ where: { code: '111.11.101' } });
+      if (defaultBca) bankAccountId = defaultBca.id;
+    }
 
     if (!date || !type || !accountId || !amount || !bankAccountId) {
       return NextResponse.json({ error: 'Data tidak lengkap' }, { status: 400 });

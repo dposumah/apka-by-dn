@@ -88,12 +88,15 @@ export default function KasCepatPage() {
         const accs: Account[] = data.accounts || data;
         setAllAccounts(accs);
         
-        // Filter kas/bank for source/destination (BCA 111.11.101)
-        const banks = accs.filter(a => a.code.startsWith('111'));
+        // Filter kas/bank for source/destination (exclude header 111.00.000)
+        const banks = accs.filter(a => a.code.startsWith('111') && a.code !== '111.00.000');
         setBankAccounts(banks);
         
-        // Auto-select first bank account (BCA) by default
-        if (banks.length > 0) {
+        // Auto-select BCA (111.11.101) by default
+        const bca = banks.find(b => b.code === '111.11.101');
+        if (bca) {
+          setBankAccountId(bca.id);
+        } else if (banks.length > 0) {
           setBankAccountId(banks[0].id);
         }
       }
