@@ -1,6 +1,8 @@
 import { getCashflowProjects, getCashflowTransactions } from "@/actions/cashflow";
 import TransactionListClient from "./TransactionListClient";
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: "Kelola Transaksi Cashflow",
 };

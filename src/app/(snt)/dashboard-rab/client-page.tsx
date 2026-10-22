@@ -26,7 +26,8 @@ import {
   FileCheck2,
   Printer,
   ExternalLink,
-  X
+  X,
+  Cpu
 } from 'lucide-react'
 
 export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor }: any) {
@@ -788,7 +789,17 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
                 <CardHeader className="bg-slate-50/70 border-b border-slate-100 pb-3">
                   <div className="flex items-center justify-between gap-2">
                     <CardTitle className="text-base font-bold text-slate-900">{cat.name}</CardTitle>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                      {(cat.name.includes("IoT") || cat.name.includes("Robotic")) && (
+                        <Link
+                          href="/alat-bahan-iot"
+                          className="inline-flex items-center gap-1 text-xs text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 font-semibold px-2.5 py-1 rounded transition-colors"
+                          title="Kelola Paket Alat & Bahan IoT per SNT"
+                        >
+                          <Cpu className="w-3.5 h-3.5" />
+                          <span>Kelola Alat & Bahan IoT</span>
+                        </Link>
+                      )}
                       <button
                         onClick={() => setReportCategory(cat)}
                         className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 font-semibold px-2.5 py-1 rounded transition-colors"

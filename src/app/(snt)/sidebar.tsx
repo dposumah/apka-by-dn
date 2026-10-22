@@ -25,6 +25,7 @@ import {
   Building2,
   FileSpreadsheet,
   Sparkles,
+  Cpu,
 } from "lucide-react"
 
 interface MenuItem {
@@ -40,6 +41,7 @@ const menuItems: MenuItem[] = [
   { title: "Dashboard Proyek", href: "/dashboard-rab", icon: LayoutDashboard, adminOnly: true },
   { title: "Pengeluaran Lapangan", href: "/pengeluaran", icon: Wallet, adminOnly: true },
   { title: "Laporan Pengeluaran", href: "/laporan-pengeluaran", icon: ClipboardList, adminOnly: true },
+  { title: "Alat & Bahan IoT", href: "/alat-bahan-iot", icon: Cpu, adminOnly: true },
   {
     title: "Manajemen Fasilitator",
     href: "/fasilitator",

@@ -3,6 +3,8 @@ import CashflowDashboardClient from "./CashflowDashboardClient";
 import Link from "next/link";
 import { PlusCircle, FileText } from "lucide-react";
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: "Dashboard Cashflow 3 Proyek",
 };

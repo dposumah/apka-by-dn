@@ -1,6 +1,8 @@
 import { getCashflowProjects, getCashflowTransactions } from "@/actions/cashflow";
 import CashflowLaporanClient from "./client-page";
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: "Laporan Arus Kas 3 Proyek",
 };

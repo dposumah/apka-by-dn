@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import LaporanBulananClient from "./client-page";
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: "Laporan Bulanan",
 };

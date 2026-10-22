@@ -534,6 +534,7 @@ model RabItem {
   unitPrice   Float            @default(0)
   totalBudget Float            @default(0)
   expenses    ExpenseRequest[]
+  paketIoT    PaketPengadaanIoT?
 
   @@map("rab_items")
 }
@@ -566,6 +567,7 @@ model ExpenseRequest {
 
   kwitansiRecord KwitansiRecord[]
   invoiceRecord  InvoiceRecord?
+  paketIoT       PaketPengadaanIoT?
 
   @@map("expense_requests")
 }
@@ -613,6 +615,7 @@ model Fasilitator {
   laporan         LaporanKegiatan[]
   rekapHonorarium RekapHonorarium[]
   akomodasi       FasilitatorAkomodasi[]
+  paketIoT        PaketPengadaanIoT[]
 
   @@map("fasilitator")
 }
@@ -810,4 +813,87 @@ model CashflowTransaction {
   updatedAt     DateTime          @updatedAt
 
   @@map("cashflow_transactions")
+}
+
+// ==================== PENGADAAN ALAT & BAHAN IOT / ROBOTIK ====================
+
+model PaketPengadaanIoT {
+  id              String   @id @default(cuid())
+  lokasiSNT       String   // e.g. "SNT 5 Kupang", "SNT 5 Tidore Kepulauan"
+  namaPaket       String   // e.g. "Pengadaan Alat dan Bahan Robotika - SNT 5 Kupang"
+  lingkupProyek   String?  @default("Rover (Smart Trash IoT), Smart Lamp IoT, dan Smart Garden IoT")
+  nomorSurat      String?  // e.g. "01/RE/SNT-K2/X/2026"
+  tanggalSurat    DateTime? @default(now())
+  
+  // Pihak Pertama (Yang Menyerahkan)
+  pihakPertamaNama     String @default("Jully Tjindrawan, MBA")
+  pihakPertamaJabatan  String @default("Koordinator Wilayah 2, Program SNT")
+  pihakPertamaInstansi String @default("PT Jully Tjindrawan Robotik (Robotic Explorer)")
+  
+  // Pihak Kedua (Yang Menerima)
+  fasilitatorId        String?
+  fasilitator          Fasilitator? @relation(fields: [fasilitatorId], references: [id])
+  pihakKeduaNama       String?
+  pihakKeduaJabatan    String? @default("Fasilitator Koding, KA & Robotika")
+  pihakKeduaSekolah    String?
+  pihakKeduaAlamat     String?
+  
+  // Mengetahui
+  mengetahuiNama       String? // Nama Kepala SNT
+  mengetahuiNip        String?
+  mengetahuiJabatan    String? @default("Kepala SNT")
+  
+  // Kalkulasi Biaya RAB & Realisasi
+  subtotalRencana      Float @default(0)
+  persenCadangan       Float @default(10) // 10%
+  nominalCadangan      Float @default(0)
+  totalPaguRAB         Float @default(0) // Subtotal + Cadangan
+  
+  totalRealisasi       Float @default(0) // Total Belanja Tanda Terima
+  
+  status               String @default("DRAFT") // DRAFT, DIKIRIM, DITERIMA
+  catatan              String?
+  lampiranNotaUrl      String? // Bukti nota gabungan
+  
+  // Integrasi ke Kategori D RAB
+  rabItemId            String? @unique
+  rabItem              RabItem? @relation(fields: [rabItemId], references: [id])
+  
+  expenseRequestId     String? @unique
+  expenseRequest       ExpenseRequest? @relation(fields: [expenseRequestId], references: [id])
+  
+  items                ItemPengadaanIoT[]
+
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@map("paket_pengadaan_iot")
+}
+
+model ItemPengadaanIoT {
+  id              String   @id @default(cuid())
+  paketId         String
+  paket           PaketPengadaanIoT @relation(fields: [paketId], references: [id], onDelete: Cascade)
+  
+  kategori        String   // "Peralatan kerja", "Mekanik & rangka", "Komponen elektronik", "Daya", "Kabel & konektor", "Smart Lamp IoT", "Smart Garden IoT", dll.
+  namaBarang      String
+  satuan          String   @default("Unit")
+  volume          Float    @default(1)
+  
+  // Rencana RAB
+  hargaSatuanRAB  Float    @default(0)
+  totalRAB        Float    @default(0)
+  
+  // Realisasi Tanda Terima
+  hargaSatuanReal Float    @default(0)
+  totalReal       Float    @default(0)
+  kemasan         String?  // Box 1, Box 2, Box 3, Box 4, Di tempat sampah, -
+  diterima        Boolean  @default(true)
+  kondisiCatatan  String?
+  
+  urutan          Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("item_pengadaan_iot")
 }
