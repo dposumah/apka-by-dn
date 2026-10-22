@@ -193,6 +193,17 @@ async function syncPaketToRabCategory(paketId: string, userId?: string) {
       })
     }
 
+    // Dapatkan URL nota untuk expense (dukung format single URL maupun JSON array multi-file)
+    let receiptUrlForExpense = paket.lampiranNotaUrl || null
+    if (receiptUrlForExpense && receiptUrlForExpense.trim().startsWith('[')) {
+      try {
+        const parsed = JSON.parse(receiptUrlForExpense)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          receiptUrlForExpense = parsed[0].url
+        }
+      } catch (e) {}
+    }
+
     // Sinkronkan ExpenseRequest untuk kelompok ini
     if (creatorId && stat.real > 0) {
       const existingExpense = rabItem.expenses?.[0]
@@ -203,7 +214,7 @@ async function syncPaketToRabCategory(paketId: string, userId?: string) {
             amount: stat.real,
             description: `Belanja ${groupName} (${paket.lokasiSNT})`,
             date: paket.tanggalSurat || new Date(),
-            receiptUrl: paket.lampiranNotaUrl || existingExpense.receiptUrl
+            receiptUrl: receiptUrlForExpense || existingExpense.receiptUrl
           }
         })
       } else {
@@ -214,7 +225,7 @@ async function syncPaketToRabCategory(paketId: string, userId?: string) {
             description: `Belanja ${groupName} (${paket.lokasiSNT})`,
             status: 'APPROVED',
             date: paket.tanggalSurat || new Date(),
-            receiptUrl: paket.lampiranNotaUrl || null,
+            receiptUrl: receiptUrlForExpense,
             createdById: creatorId,
             fasilitatorId: paket.fasilitatorId || null
           }
@@ -260,7 +271,7 @@ async function syncPaketToRabCategory(paketId: string, userId?: string) {
           amount: extraRealSum,
           description: `Biaya Ongkir/Layanan Belanja IoT (${paket.lokasiSNT})`,
           date: paket.tanggalSurat || new Date(),
-          receiptUrl: paket.lampiranNotaUrl || existingExpense.receiptUrl
+          receiptUrl: receiptUrlForExpense || existingExpense.receiptUrl
         }
       })
     } else {
@@ -271,7 +282,7 @@ async function syncPaketToRabCategory(paketId: string, userId?: string) {
           description: `Biaya Ongkir/Layanan Belanja IoT (${paket.lokasiSNT})`,
           status: 'APPROVED',
           date: paket.tanggalSurat || new Date(),
-          receiptUrl: paket.lampiranNotaUrl || null,
+          receiptUrl: receiptUrlForExpense,
           createdById: creatorId,
           fasilitatorId: paket.fasilitatorId || null
         }
