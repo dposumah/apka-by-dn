@@ -204,8 +204,12 @@ async function syncPaketToRabCategory(paketId: string, userId?: string) {
       } catch (e) {}
     }
 
-    // Sinkronkan ExpenseRequest untuk kelompok ini
-    if (creatorId && stat.real > 0) {
+    // Sinkronkan ExpenseRequest untuk kelompok ini (hanya jika bukan transaksi manual pengguna yang memiliki nota/multi-transaksi)
+    const hasManualExpenses = rabItem.expenses && (
+      rabItem.expenses.length > 1 || 
+      rabItem.expenses.some(e => e.receiptUrl && !e.description.startsWith('Belanja '))
+    )
+    if (creatorId && stat.real > 0 && !hasManualExpenses) {
       const existingExpense = rabItem.expenses?.[0]
       if (existingExpense) {
         await prisma.expenseRequest.update({
@@ -835,7 +839,7 @@ export async function migrateAndSeedSntCategories() {
             persenCadangan: 10,
             nominalCadangan: cadangan,
             totalPaguRAB: subtotal + cadangan,
-            totalRealisasi: 2951596,
+            totalRealisasi: 1752896,
             status: 'DITERIMA',
             rabCategoryId: catKupang.id,
             items: {
@@ -846,8 +850,8 @@ export async function migrateAndSeedSntCategories() {
                 volume: it.volume,
                 hargaSatuanRAB: it.hargaSatuanRAB,
                 totalRAB: it.volume * it.hargaSatuanRAB,
-                hargaSatuanReal: it.hargaSatuanReal,
-                totalReal: it.volume * it.hargaSatuanReal,
+                hargaSatuanReal: 0,
+                totalReal: 0,
                 kemasan: it.kemasan,
                 diterima: it.diterima,
                 kondisiCatatan: it.kondisiCatatan,
