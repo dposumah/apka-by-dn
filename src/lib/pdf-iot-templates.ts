@@ -526,3 +526,305 @@ export function generateTandaTerimaIotHtml(paket: any, items: any[]): string {
     </html>
   `
 }
+
+export function generateBast100KitHtml(paket: any, lokasiData: any, items: any[]): string {
+  const d = lokasiData.tanggalKirim ? new Date(lokasiData.tanggalKirim) : new Date()
+  const namaHari = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
+  const namaBulan = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ]
+  const hariStr = namaHari[d.getDay()]
+  const tglStr = d.getDate()
+  const blnStr = namaBulan[d.getMonth()]
+  const thnStr = d.getFullYear()
+
+  // Saring items: item yang per kit (A, B, C) vs item tambahan lokasi (charger)
+  const kitItems = items.filter(it => !it.kategori?.includes('TAMBAHAN'))
+  const extraItems = items.filter(it => it.kategori?.includes('TAMBAHAN'))
+
+  return `
+    <!DOCTYPE html>
+    <html lang="id">
+    <head>
+      <meta charset="utf-8" />
+      <title>BAST Pengadaan Starter Kit IoT - ${lokasiData.namaLokasi}</title>
+      <style>
+        @page {
+          size: A4;
+          margin: 12mm 15mm;
+        }
+        body {
+          font-family: Arial, Helvetica, sans-serif;
+          color: #111827;
+          font-size: 9pt;
+          line-height: 1.4;
+          margin: 0;
+          padding: 0;
+        }
+        .kop-container {
+          border-bottom: 2.5px solid #1e3a8a;
+          padding-bottom: 10px;
+          margin-bottom: 14px;
+          text-align: center;
+        }
+        .kop-company {
+          font-size: 14pt;
+          font-weight: 800;
+          color: #1e3a8a;
+          letter-spacing: 0.5px;
+          margin: 0 0 2px 0;
+          text-transform: uppercase;
+        }
+        .kop-sub {
+          font-size: 9pt;
+          font-weight: 600;
+          color: #374151;
+          margin: 0 0 4px 0;
+        }
+        .kop-address {
+          font-size: 7.5pt;
+          color: #6b7280;
+          line-height: 1.3;
+        }
+        .doc-title {
+          text-align: center;
+          margin: 12px 0 16px 0;
+        }
+        .doc-title h1 {
+          font-size: 12pt;
+          font-weight: bold;
+          text-decoration: underline;
+          margin: 0 0 4px 0;
+          letter-spacing: 0.5px;
+        }
+        .doc-title p {
+          font-size: 9.5pt;
+          margin: 0;
+          font-family: 'Courier New', Courier, monospace;
+          font-weight: bold;
+        }
+        .party-block {
+          background-color: #f9fafb;
+          border: 1px solid #e5e7eb;
+          border-radius: 6px;
+          padding: 8px 12px;
+          margin-bottom: 10px;
+        }
+        .party-title {
+          font-weight: bold;
+          font-size: 9pt;
+          color: #1f2937;
+          border-bottom: 1px solid #e5e7eb;
+          padding-bottom: 4px;
+          margin-bottom: 6px;
+        }
+        table.meta-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 8.5pt;
+        }
+        table.meta-table td {
+          padding: 2px 0;
+          vertical-align: top;
+          border: none;
+        }
+        .items-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin: 12px 0;
+          font-size: 8pt;
+        }
+        .items-table th, .items-table td {
+          border: 1px solid #9ca3af;
+          padding: 4px 6px;
+        }
+        .items-table th {
+          background-color: #1e3a8a;
+          color: #ffffff;
+          font-weight: bold;
+          text-align: center;
+        }
+        .cat-row {
+          background-color: #f1f5f9;
+          font-weight: bold;
+          color: #1e293b;
+        }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .signature-section {
+          margin-top: 24px;
+          page-break-inside: avoid;
+        }
+        .sig-row-top {
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 20px;
+        }
+        .sig-col {
+          text-align: center;
+          width: 250px;
+        }
+        .sig-space {
+          height: 60px;
+        }
+        .sig-bottom {
+          text-align: center;
+          margin: 0 auto;
+          width: 300px;
+        }
+        @media print {
+          body { padding: 0; }
+          .page-break { page-break-before: always; }
+        }
+      </style>
+    </head>
+    <body>
+      <!-- KOP RESMI -->
+      <div class="kop-container">
+        <h2 class="kop-company">PT JULLY TJINDRAWAN ROBOTIK (ROBOTIC EXPLORER)</h2>
+        <div class="kop-sub">Divisi Pengadaan & Distribusi Starter Kit IoT — Program Pendidikan Teknologi Nasional</div>
+        <div class="kop-address">Greenville Blok AL no 1A-B, Duri Kepa, Kebon Jeruk, Jakarta Barat 11510 &middot; info@worldroboticexplorer.com &middot; 0822-9898-4848</div>
+      </div>
+
+      <!-- JUDUL SURAT -->
+      <div class="doc-title">
+        <h1>BERITA ACARA SERAH TERIMA (BAST) ALAT DAN BAHAN</h1>
+        <p>Nomor: ${lokasiData.nomorSurat || '……/BAST/KIT-IOT/X/2026'}</p>
+      </div>
+
+      <p style="margin: 6px 0 10px 0; font-size: 8.5pt;">
+        Pada hari ini, <strong>${hariStr}</strong>, tanggal <strong>${tglStr}</strong> bulan <strong>${blnStr}</strong> tahun <strong>${thnStr}</strong> bertempat di <strong>${lokasiData.namaLokasi}</strong>, yang bertanda tangan di bawah ini:
+      </p>
+
+      <!-- PIHAK PERTAMA -->
+      <div class="party-block">
+        <div class="party-title">PIHAK PERTAMA (Yang Menyerahkan)</div>
+        <table class="meta-table">
+          <tr>
+            <td style="width: 130px;">Nama</td>
+            <td style="width: 15px;">:</td>
+            <td><strong>${paket.pihakPertamaNama || 'Jully Tjindrawan, MBA'}</strong></td>
+          </tr>
+          <tr>
+            <td>Jabatan</td>
+            <td>:</td>
+            <td>${paket.pihakPertamaJabatan || 'Direktur Utama'}</td>
+          </tr>
+          <tr>
+            <td>Instansi / Perusahaan</td>
+            <td>:</td>
+            <td>${paket.pihakPertamaInstansi || 'PT Jully Tjindrawan Robotik (Robotic Explorer)'}</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- PIHAK KEDUA -->
+      <div class="party-block">
+        <div class="party-title">PIHAK KEDUA (Yang Menerima)</div>
+        <table class="meta-table">
+          <tr>
+            <td style="width: 130px;">Nama</td>
+            <td style="width: 15px;">:</td>
+            <td><strong>${lokasiData.penerimaNama || 'Penanggung Jawab Wilayah'}</strong></td>
+          </tr>
+          <tr>
+            <td>Satuan / Wilayah</td>
+            <td>:</td>
+            <td><strong>${lokasiData.sekolahTujuan || lokasiData.namaLokasi}</strong></td>
+          </tr>
+          <tr>
+            <td>Peruntukan Proyek</td>
+            <td>:</td>
+            <td>Pengadaan Starter Kit IoT — Alokasi Wilayah ${lokasiData.namaLokasi}</td>
+          </tr>
+        </table>
+      </div>
+
+      <p style="margin: 10px 0 6px 0; font-size: 8.5pt;">
+        PIHAK PERTAMA telah menyerahkan kepada PIHAK KEDUA, dan PIHAK KEDUA menyatakan telah menerima dalam keadaan <strong>lengkap, baru, dan berfungsi baik</strong> paket peralatan sebagai berikut:
+      </p>
+      <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 4px; padding: 6px 12px; margin-bottom: 8px; font-size: 9pt;">
+        <strong>Alokasi Paket yang Diserahterimakan:</strong>
+        <ul style="margin: 4px 0 0 16px; padding: 0;">
+          <li><strong>${lokasiData.alokasiKit} Unit Starter Kit IoT Lengkap</strong> (Rincian komponen di bawah, masing-masing dikemas dalam Kontainer EZ Box 15L berpengunci)</li>
+          <li><strong>${lokasiData.alokasiCharger} Unit Charger Baterai 18650 4-Slot USB</strong> (Perlengkapan pengisian daya baterai wilayah)</li>
+        </ul>
+      </div>
+
+      <div class="page-break"></div>
+
+      <p style="font-size: 8.5pt; font-weight: bold; margin-bottom: 4px;">Rincian Komponen per 1 Kit (Total Diterima = Qty &times; ${lokasiData.alokasiKit} Kit):</p>
+      <table class="items-table">
+        <thead>
+          <tr>
+            <th style="width: 28px;">No</th>
+            <th>Nama Komponen / Modul</th>
+            <th style="width: 55px;">Qty/Kit</th>
+            <th style="width: 45px;">Satuan</th>
+            <th style="width: 70px;">Total Diterima</th>
+            <th style="width: 90px;">Kemasan</th>
+            <th style="width: 50px;">Kondisi</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${kitItems.map((it, idx) => `
+            <tr>
+              <td class="text-center">${idx + 1}</td>
+              <td><strong>${it.namaBarang}</strong></td>
+              <td class="text-center">${it.qtyPerKit || 1}</td>
+              <td class="text-center">${it.satuan || 'pcs'}</td>
+              <td class="text-center font-bold" style="background-color: #f8fafc;">
+                ${(it.qtyPerKit || 1) * lokasiData.alokasiKit} ${it.satuan || 'pcs'}
+              </td>
+              <td>${it.kemasan || '–'}</td>
+              <td class="text-center">&#10003; Baik</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+
+      <!-- TANDA TANGAN -->
+      <div class="signature-section">
+        <p style="font-size: 8.5pt; margin-bottom: 14px;">
+          Demikian Berita Acara Serah Terima (BAST) ini dibuat dengan sebenarnya dalam rangkap secukupnya untuk dipergunakan sebagaimana mestinya.
+        </p>
+
+        <div class="sig-row-top">
+          <div class="sig-col">
+            <p style="margin: 0; font-weight: bold;">PIHAK PERTAMA</p>
+            <p style="margin: 2px 0 0 0; font-size: 8.5pt; color: #4b5563;">Yang Menyerahkan</p>
+            <div class="sig-space"></div>
+            <p style="margin: 0; font-weight: bold; text-decoration: underline;">
+              ${paket.pihakPertamaNama || 'Jully Tjindrawan, MBA'}
+            </p>
+            <p style="margin: 2px 0 0 0; font-size: 8pt;">${paket.pihakPertamaJabatan || 'Direktur Utama'}</p>
+          </div>
+
+          <div class="sig-col">
+            <p style="margin: 0; font-weight: bold;">PIHAK KEDUA</p>
+            <p style="margin: 2px 0 0 0; font-size: 8.5pt; color: #4b5563;">Yang Menerima</p>
+            <div class="sig-space"></div>
+            <p style="margin: 0; font-weight: bold; text-decoration: underline;">
+              ${lokasiData.penerimaNama || '________________________'}
+            </p>
+            <p style="margin: 2px 0 0 0; font-size: 8pt;">Penanggung Jawab ${lokasiData.namaLokasi}</p>
+          </div>
+        </div>
+
+        <div class="sig-bottom">
+          <p style="margin: 0; font-weight: bold;">Mengetahui,</p>
+          <p style="margin: 2px 0 0 0; font-size: 8.5pt; color: #4b5563;">Pejabat Pembuat Komitmen (PPK) / Pengawas Program</p>
+          <div class="sig-space"></div>
+          <p style="margin: 0; font-weight: bold; text-decoration: underline;">
+            (${paket.mengetahuiNama ? paket.mengetahuiNama : '________________________'})
+          </p>
+          <p style="margin: 2px 0 0 0; font-size: 8pt; color: #4b5563;">
+            NIP. ${paket.mengetahuiNip && paket.mengetahuiNip !== '–' ? paket.mengetahuiNip : '……………………………………'}
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `
+}

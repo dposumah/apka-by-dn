@@ -844,6 +844,15 @@ model PaketPengadaanIoT {
   mengetahuiNip        String?
   mengetahuiJabatan    String? @default("Kepala SNT")
   
+  // Program & Kontrak Komersial
+  tipeProgram          String @default("SNT") // "SNT" atau "STARTER_KIT_100"
+  jumlahKit            Int?   @default(1)
+  nilaiKontrakSPK      Float? @default(0) // DPP 2 SPK: Rp 238.550.000
+  potonganPPh22        Float? @default(0) // PPh 22 (1,5%): Rp 3.578.250
+  estimasiLaba         Float? @default(0) // Estimasi Laba: Rp 127.218.310
+  distribusiLokasiJson String? // Data alokasi 5 lokasi (IKN, Bogor, Cianjur, Donggala, Tarakan)
+  notaVendorJson       String? // Rekap & bukti nota per vendor (PCM, CNC, Shopee, The Box)
+
   // Kalkulasi Biaya RAB & Realisasi
   subtotalRencana      Float @default(0)
   persenCadangan       Float @default(10) // 10%
@@ -883,6 +892,7 @@ model ItemPengadaanIoT {
   namaBarang      String
   satuan          String   @default("Unit")
   volume          Float    @default(1)
+  qtyPerKit       Float?   @default(1)
   
   // Rencana RAB
   hargaSatuanRAB  Float    @default(0)
@@ -891,6 +901,8 @@ model ItemPengadaanIoT {
   // Realisasi Tanda Terima
   hargaSatuanReal Float    @default(0)
   totalReal       Float    @default(0)
+  vendor          String?  // "PCM Elektronik", "CNC Bandung", "Shopee", "The Box 03", dll.
+  statusOrder     String?  @default("Sudah order") // "Sudah order", "OK", "Cari harga", "Perlu konfirmasi"
   kemasan         String?  // Box 1, Box 2, Box 3, Box 4, Di tempat sampah, -
   diterima        Boolean  @default(true)
   kondisiCatatan  String?

@@ -119,7 +119,101 @@ async function syncPaketToRabCategory(paketId: string, userId?: string) {
     })
   }
 
-  // Hitung pagu dan realisasi per kelompok
+  // JIKA TIPE STARTER KIT 100 KIT: Sinkronkan ke 4 Kelompok Belanja
+  if (paket.tipeProgram === 'STARTER_KIT_100') {
+    const STARTER_4_GROUPS = [
+      { key: 'A. IoT CORE KIT', code: '1', name: 'A. IoT CORE KIT (25 item)' },
+      { key: 'B. PERANGKAT PENDUKUNG', code: '2', name: 'B. PERANGKAT PENDUKUNG (10 item)' },
+      { key: 'C. KEMASAN & KELENGKAPAN', code: '3', name: 'C. KEMASAN & KELENGKAPAN / QC (8 item)' },
+      { key: 'D. TAMBAHAN (tidak per kit)', code: '4', name: 'D. TAMBAHAN & ONGKIR PENGIRIMAN (3 item)' }
+    ]
+
+    const groupTotals: Record<string, { pagu: number; real: number; count: number }> = {}
+    STARTER_4_GROUPS.forEach(g => {
+      groupTotals[g.key] = { pagu: 0, real: 0, count: 0 }
+    })
+
+    for (const it of paket.items) {
+      const match = STARTER_4_GROUPS.find(g => it.kategori?.includes(g.key) || g.key.includes(it.kategori || ''))
+      if (match) {
+        groupTotals[match.key].pagu += (it.volume || 1) * (it.hargaSatuanRAB || 0)
+        groupTotals[match.key].real += (it.volume || 1) * (it.hargaSatuanReal || 0)
+        groupTotals[match.key].count += 1
+      }
+    }
+
+    let creatorId = userId
+    if (!creatorId) {
+      const firstAdmin = await prisma.user.findFirst({ where: { role: 'ADMIN' } })
+      creatorId = firstAdmin?.id || (await prisma.user.findFirst())?.id
+    }
+
+    for (const g of STARTER_4_GROUPS) {
+      const stat = groupTotals[g.key]
+      let rabItem = category.items.find((it: any) => it.code === g.code || it.name.includes(g.key))
+      if (rabItem) {
+        rabItem = await prisma.rabItem.update({
+          where: { id: rabItem.id },
+          data: {
+            name: g.name,
+            totalBudget: stat.pagu,
+            volume: `${stat.count} item`
+          },
+          include: { expenses: true }
+        })
+      } else {
+        rabItem = await prisma.rabItem.create({
+          data: {
+            categoryId: category.id,
+            code: g.code,
+            name: g.name,
+            totalBudget: stat.pagu,
+            volume: `${stat.count} item`
+          },
+          include: { expenses: true }
+        })
+      }
+
+      if (creatorId && stat.real > 0) {
+        const existingExp = rabItem.expenses?.[0]
+        if (existingExp) {
+          await prisma.expenseRequest.update({
+            where: { id: existingExp.id },
+            data: {
+              amount: stat.real,
+              description: `Belanja ${g.name} (Starter Kit IoT 100 Kit)`
+            }
+          })
+        } else {
+          await prisma.expenseRequest.create({
+            data: {
+              rabItemId: rabItem.id,
+              amount: stat.real,
+              description: `Belanja ${g.name} (Starter Kit IoT 100 Kit)`,
+              status: 'APPROVED',
+              createdById: creatorId
+            }
+          })
+        }
+      }
+    }
+
+    const subtotalRencana = Object.values(groupTotals).reduce((sum, g) => sum + g.pagu, 0)
+    const totalRealisasi = Object.values(groupTotals).reduce((sum, g) => sum + g.real, 0)
+
+    await prisma.paketPengadaanIoT.update({
+      where: { id: paketId },
+      data: {
+        subtotalRencana,
+        totalPaguRAB: subtotalRencana,
+        totalRealisasi
+      }
+    })
+
+    return { success: true, totalPaguRAB: subtotalRencana, totalRealisasi }
+  }
+
+  // Hitung pagu dan realisasi per kelompok untuk Program SNT Standard (8 Kelompok)
   const groupTotals: Record<string, { pagu: number; real: number; count: number }> = {}
   for (const g of STANDARD_8_KELOMPOK) {
     groupTotals[g] = { pagu: 0, real: 0, count: 0 }
@@ -492,10 +586,13 @@ export async function updatePaketIoT(id: string, data: any, items?: any[]) {
           namaBarang: it.namaBarang || 'Item',
           satuan: it.satuan || 'Unit',
           volume: Number(it.volume) || 1,
+          qtyPerKit: it.qtyPerKit !== undefined ? Number(it.qtyPerKit) : 1,
           hargaSatuanRAB: Number(it.hargaSatuanRAB) || 0,
           totalRAB: (Number(it.volume) || 1) * (Number(it.hargaSatuanRAB) || 0),
           hargaSatuanReal: Number(it.hargaSatuanReal) || 0,
           totalReal: (Number(it.volume) || 1) * (Number(it.hargaSatuanReal) || 0),
+          vendor: it.vendor || null,
+          statusOrder: it.statusOrder || 'Sudah order',
           kemasan: it.kemasan || '–',
           diterima: it.diterima !== undefined ? Boolean(it.diterima) : true,
           kondisiCatatan: it.kondisiCatatan || '',
@@ -527,7 +624,12 @@ export async function updatePaketIoT(id: string, data: any, items?: any[]) {
         persenCadangan: data.persenCadangan !== undefined ? Number(data.persenCadangan) : existing.persenCadangan,
         status: data.status !== undefined ? data.status : existing.status,
         catatan: data.catatan !== undefined ? data.catatan : existing.catatan,
-        lampiranNotaUrl: data.lampiranNotaUrl !== undefined ? data.lampiranNotaUrl : existing.lampiranNotaUrl
+        lampiranNotaUrl: data.lampiranNotaUrl !== undefined ? data.lampiranNotaUrl : existing.lampiranNotaUrl,
+        distribusiLokasiJson: data.distribusiLokasiJson !== undefined ? data.distribusiLokasiJson : existing.distribusiLokasiJson,
+        notaVendorJson: data.notaVendorJson !== undefined ? data.notaVendorJson : existing.notaVendorJson,
+        nilaiKontrakSPK: data.nilaiKontrakSPK !== undefined ? Number(data.nilaiKontrakSPK) : existing.nilaiKontrakSPK,
+        potonganPPh22: data.potonganPPh22 !== undefined ? Number(data.potonganPPh22) : existing.potonganPPh22,
+        estimasiLaba: data.estimasiLaba !== undefined ? Number(data.estimasiLaba) : existing.estimasiLaba
       }
     })
 
