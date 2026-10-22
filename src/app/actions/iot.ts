@@ -161,6 +161,17 @@ async function syncPaketToRabCategory(paketId: string, userId?: string) {
     creatorId = firstAdmin?.id || (await prisma.user.findFirst())?.id
   }
 
+  // Dapatkan URL nota untuk expense (dukung format single URL maupun JSON array multi-file)
+  let receiptUrlForExpense = paket.lampiranNotaUrl || null
+  if (receiptUrlForExpense && receiptUrlForExpense.trim().startsWith('[')) {
+    try {
+      const parsed = JSON.parse(receiptUrlForExpense)
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        receiptUrlForExpense = parsed[0].url
+      }
+    } catch (e) {}
+  }
+
   // 1. Sinkronkan 8 Pos Kelompok Belanja
   for (let idx = 0; idx < STANDARD_8_KELOMPOK.length; idx++) {
     const groupName = STANDARD_8_KELOMPOK[idx]
@@ -191,17 +202,6 @@ async function syncPaketToRabCategory(paketId: string, userId?: string) {
         },
         include: { expenses: true }
       })
-    }
-
-    // Dapatkan URL nota untuk expense (dukung format single URL maupun JSON array multi-file)
-    let receiptUrlForExpense = paket.lampiranNotaUrl || null
-    if (receiptUrlForExpense && receiptUrlForExpense.trim().startsWith('[')) {
-      try {
-        const parsed = JSON.parse(receiptUrlForExpense)
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          receiptUrlForExpense = parsed[0].url
-        }
-      } catch (e) {}
     }
 
     // Sinkronkan ExpenseRequest untuk kelompok ini (hanya jika bukan transaksi manual pengguna yang memiliki nota/multi-transaksi)
