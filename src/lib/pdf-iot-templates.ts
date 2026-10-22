@@ -456,7 +456,7 @@ export function generateTandaTerimaIotHtml(paket: any, items: any[]): string {
               <td class="text-center" style="font-weight: bold; color: ${it.diterima !== false ? '#047857' : '#b91c1c'};">
                 ${it.diterima !== false ? '&#10003;' : '&#10007;'}
               </td>
-              <td style="font-size: 8pt; color: #374151;">${it.kondisiCatatan || 'Baik'}</td>
+              <td style="font-size: 8pt; color: #374151;">${it.kondisiCatatan || ''}</td>
             </tr>
           `).join('')}
           <tr style="background-color: #f3f4f6; font-weight: bold;">

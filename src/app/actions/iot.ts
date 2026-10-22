@@ -480,7 +480,7 @@ export async function updatePaketIoT(id: string, data: any, items?: any[]) {
           totalReal: (Number(it.volume) || 1) * (Number(it.hargaSatuanReal) || 0),
           kemasan: it.kemasan || '–',
           diterima: it.diterima !== undefined ? Boolean(it.diterima) : true,
-          kondisiCatatan: it.kondisiCatatan || 'Baik',
+          kondisiCatatan: it.kondisiCatatan || '',
           urutan: idx + 1
         }))
       })
@@ -567,7 +567,7 @@ export async function autoSetPaketRealisasi(paketId: string, totalBelanja: numbe
           hargaSatuanReal: unitReal,
           totalReal: itemReal,
           diterima: true,
-          kondisiCatatan: 'Baik'
+          kondisiCatatan: ''
         }
       })
     }
@@ -633,18 +633,13 @@ export async function importExcelPaketIoT(paketId: string, base64Data: string) {
         const hargaAktual = excelItem.hargaAktual || 0
         const unitReal = vol > 0 ? Math.round(hargaAktual / vol) : hargaAktual
 
-        let note = excelItem.statusCatatan || 'Baik'
-        if (excelItem.toko) {
-          note = `${note} (${excelItem.toko})`.trim()
-        }
-
         await prisma.itemPengadaanIoT.update({
           where: { id: matched.id },
           data: {
             volume: vol,
             hargaSatuanReal: unitReal,
             totalReal: hargaAktual,
-            kondisiCatatan: note,
+            kondisiCatatan: '',
             diterima: true
           }
         })
@@ -681,7 +676,7 @@ export async function importExcelPaketIoT(paketId: string, base64Data: string) {
           totalReal: extra.hargaAktual,
           kemasan: '–',
           diterima: true,
-          kondisiCatatan: extra.statusCatatan || (extra.toko ? `Toko: ${extra.toko}` : 'Tambahan'),
+          kondisiCatatan: '',
           urutan: nextUrutan++
         }
       })

@@ -164,7 +164,7 @@ export function AlatBahanIotDetailClient({
         hargaSatuanReal: 0,
         kemasan: '–',
         diterima: true,
-        kondisiCatatan: 'Baik'
+        kondisiCatatan: ''
       }
     ])
   }
