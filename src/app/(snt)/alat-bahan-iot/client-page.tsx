@@ -306,14 +306,14 @@ export function AlatBahanIotClient({
             <table className="w-full text-xs text-left">
               <thead className="bg-slate-50 text-slate-600 uppercase border-b text-[11px]">
                 <tr>
-                  <th className="px-4 py-3 text-center" style="width: 40px;">No</th>
-                  <th className="px-4 py-3">Lokasi SNT & Satuan Pendidikan</th>
+                  <th className="px-4 py-3 text-center" style={{ width: '40px' }}>No</th>
+                  <th className="px-4 py-3">Lokasi SNT &amp; Satuan Pendidikan</th>
                   <th className="px-4 py-3">Fasilitator Penerima</th>
-                  <th className="px-4 py-3">Nomor & Tanggal Surat</th>
+                  <th className="px-4 py-3">Nomor &amp; Tanggal Surat</th>
                   <th className="px-4 py-3 text-right">Pagu RAB</th>
                   <th className="px-4 py-3 text-right">Realisasi Belanja</th>
                   <th className="px-4 py-3 text-center">Status</th>
-                  <th className="px-4 py-3 text-center" style="width: 220px;">Aksi</th>
+                  <th className="px-4 py-3 text-center" style={{ width: '220px' }}>Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
