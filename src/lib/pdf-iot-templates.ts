@@ -551,21 +551,28 @@ export function generateBast100KitHtml(paket: any, lokasiData: any, items: any[]
       <title>BAST Pengadaan Starter Kit IoT - ${lokasiData.namaLokasi}</title>
       <style>
         @page {
-          size: A4;
-          margin: 12mm 15mm;
+          size: A4 portrait;
+          margin: 6mm 12mm 8mm 12mm;
         }
-        body {
+        * {
+          box-sizing: border-box;
+        }
+        html, body {
           font-family: Arial, Helvetica, sans-serif;
           color: #111827;
           font-size: 9pt;
           line-height: 1.4;
           margin: 0;
           padding: 0;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
         }
         .kop-container {
           border-bottom: 2.5px solid #1e3a8a;
-          padding-bottom: 10px;
-          margin-bottom: 14px;
+          padding-top: 0;
+          padding-bottom: 8px;
+          margin-top: 0;
+          margin-bottom: 12px;
           text-align: center;
         }
         .kop-company {
@@ -674,7 +681,14 @@ export function generateBast100KitHtml(paket: any, lokasiData: any, items: any[]
           width: 300px;
         }
         @media print {
-          body { padding: 0; }
+          @page {
+            size: A4 portrait;
+            margin: 6mm 12mm 8mm 12mm;
+          }
+          html, body {
+            padding: 0;
+            margin: 0;
+          }
           .page-break { page-break-before: always; }
         }
       </style>
@@ -849,21 +863,28 @@ export function generateBastSntHtml(paket: any, items: any[]): string {
       <title>BAST Pengadaan Alat dan Bahan - ${paket.lokasiSNT}</title>
       <style>
         @page {
-          size: A4;
-          margin: 12mm 15mm;
+          size: A4 portrait;
+          margin: 6mm 12mm 8mm 12mm;
         }
-        body {
+        * {
+          box-sizing: border-box;
+        }
+        html, body {
           font-family: Arial, Helvetica, sans-serif;
           color: #111827;
           font-size: 8.5pt;
-          line-height: 1.4;
+          line-height: 1.35;
           margin: 0;
           padding: 0;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
         }
         .kop-container {
           border-bottom: 2.5px solid #1e3a8a;
-          padding-bottom: 8px;
-          margin-bottom: 12px;
+          padding-top: 0;
+          padding-bottom: 6px;
+          margin-top: 0;
+          margin-bottom: 10px;
           text-align: center;
         }
         .kop-company {
@@ -979,7 +1000,14 @@ export function generateBastSntHtml(paket: any, items: any[]): string {
           width: 320px;
         }
         @media print {
-          body { padding: 0; }
+          @page {
+            size: A4 portrait;
+            margin: 6mm 12mm 8mm 12mm;
+          }
+          html, body {
+            padding: 0;
+            margin: 0;
+          }
           .page-break { page-break-before: always; }
         }
       </style>
@@ -1098,7 +1126,7 @@ export function generateBastSntHtml(paket: any, items: any[]): string {
               <td class="text-center" style="font-weight: bold; color: ${it.diterima !== false ? '#047857' : '#b91c1c'};">
                 ${it.diterima !== false ? '&#10003; Baik' : '&#10007; Kurang/Rusak'}
               </td>
-              <td style="font-size: 7.5pt; color: #4b5563;">${it.kondisiCatatan || 'Sesuai Spesifikasi'}</td>
+              <td></td>
             </tr>
           `).join('')}
         </tbody>
