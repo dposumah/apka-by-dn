@@ -563,7 +563,8 @@ export async function autoSetPaketRealisasi(paketId: string, totalBelanja: numbe
     const standardSum = paket.items.reduce((sum, it) => sum + (it.volume * (it.hargaSatuanRAB || 1)), 0)
     const ratio = totalBelanja / (standardSum || 1)
 
-    // Update setiap item secara proporsional mendekati totalBelanja
+    // Update setiap item secara proporsional mendekati totalBelanja menggunakan batch transaction (<1 detik)
+    const updates = []
     let allocated = 0
     for (let i = 0; i < paket.items.length; i++) {
       const it = paket.items[i]
@@ -579,16 +580,27 @@ export async function autoSetPaketRealisasi(paketId: string, totalBelanja: numbe
 
       const unitReal = Math.round(itemReal / (it.volume || 1))
 
-      await prisma.itemPengadaanIoT.update({
-        where: { id: it.id },
-        data: {
-          hargaSatuanReal: unitReal,
-          totalReal: itemReal,
-          diterima: true,
-          kondisiCatatan: ''
-        }
-      })
+      updates.push(
+        prisma.itemPengadaanIoT.update({
+          where: { id: it.id },
+          data: {
+            hargaSatuanReal: unitReal,
+            totalReal: itemReal,
+            diterima: true,
+            kondisiCatatan: ''
+          }
+        })
+      )
     }
+
+    // Jalankan seluruh 50+ update dalam 1 transaksi cepat
+    await prisma.$transaction(updates)
+
+    // Update totalRealisasi di paket
+    await prisma.paketPengadaanIoT.update({
+      where: { id: paketId },
+      data: { totalRealisasi: totalBelanja }
+    })
 
     // Sinkronkan ke Kategori RAB
     await syncPaketToRabCategory(paketId, session?.user?.id)
@@ -627,6 +639,7 @@ export async function importExcelPaketIoT(paketId: string, base64Data: string) {
     // Cocokkan item dari Excel ke item di database
     const existingItems = [...paket.items]
     const updatedItemIds = new Set<string>()
+    const batchOps = []
 
     for (const excelItem of parsed.items) {
       if (excelItem.isExtra || !excelItem.namaBarang) continue
@@ -651,16 +664,18 @@ export async function importExcelPaketIoT(paketId: string, base64Data: string) {
         const hargaAktual = excelItem.hargaAktual || 0
         const unitReal = vol > 0 ? Math.round(hargaAktual / vol) : hargaAktual
 
-        await prisma.itemPengadaanIoT.update({
-          where: { id: matched.id },
-          data: {
-            volume: vol,
-            hargaSatuanReal: unitReal,
-            totalReal: hargaAktual,
-            kondisiCatatan: '',
-            diterima: true
-          }
-        })
+        batchOps.push(
+          prisma.itemPengadaanIoT.update({
+            where: { id: matched.id },
+            data: {
+              volume: vol,
+              hargaSatuanReal: unitReal,
+              totalReal: hargaAktual,
+              kondisiCatatan: '',
+              diterima: true
+            }
+          })
+        )
       }
     }
 
@@ -681,23 +696,29 @@ export async function importExcelPaketIoT(paketId: string, base64Data: string) {
         if (numMatch) vol = parseFloat(numMatch[1])
       }
 
-      await prisma.itemPengadaanIoT.create({
-        data: {
-          paketId,
-          kategori,
-          namaBarang: extra.namaBarang,
-          satuan: vol > 1 ? 'Pcs' : 'Paket',
-          volume: vol,
-          hargaSatuanRAB: 0,
-          totalRAB: 0,
-          hargaSatuanReal: vol > 0 ? Math.round(extra.hargaAktual / vol) : extra.hargaAktual,
-          totalReal: extra.hargaAktual,
-          kemasan: '–',
-          diterima: true,
-          kondisiCatatan: '',
-          urutan: nextUrutan++
-        }
-      })
+      batchOps.push(
+        prisma.itemPengadaanIoT.create({
+          data: {
+            paketId,
+            kategori,
+            namaBarang: extra.namaBarang,
+            satuan: vol > 1 ? 'Pcs' : 'Paket',
+            volume: vol,
+            hargaSatuanRAB: 0,
+            totalRAB: 0,
+            hargaSatuanReal: vol > 0 ? Math.round(extra.hargaAktual / vol) : extra.hargaAktual,
+            totalReal: extra.hargaAktual,
+            kemasan: '–',
+            diterima: true,
+            kondisiCatatan: '',
+            urutan: nextUrutan++
+          }
+        })
+      )
+    }
+
+    if (batchOps.length > 0) {
+      await prisma.$transaction(batchOps)
     }
 
     // Update catatan paket dari catatan keuangan Excel
