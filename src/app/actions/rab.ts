@@ -17,6 +17,7 @@ export async function getRabDashboardData() {
     include: {
       categories: {
         include: {
+          paketIoT: true,
           items: {
             include: {
               expenses: {

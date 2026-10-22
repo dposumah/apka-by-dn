@@ -520,6 +520,7 @@ model RabCategory {
   project   RabProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name      String
   items     RabItem[]
+  paketIoT  PaketPengadaanIoT?
 
   @@map("rab_categories")
 }
@@ -855,7 +856,10 @@ model PaketPengadaanIoT {
   catatan              String?
   lampiranNotaUrl      String? // Bukti nota gabungan
   
-  // Integrasi ke Kategori D RAB
+  // Integrasi ke Kategori RAB SNT Mandiri
+  rabCategoryId        String? @unique
+  rabCategory          RabCategory? @relation(fields: [rabCategoryId], references: [id])
+
   rabItemId            String? @unique
   rabItem              RabItem? @relation(fields: [rabItemId], references: [id])
   
