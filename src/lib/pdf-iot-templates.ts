@@ -1,4 +1,5 @@
 import { formatCurrency, terbilangRupiah } from '@/lib/format'
+import { getStandardItemKemasanAndSatuan, isLikelyVendorName } from '@/lib/iot-constants'
 
 export function generateRabIotHtml(paket: any, items: any[]): string {
   // Kelompokkan items berdasarkan kategori
@@ -446,19 +447,24 @@ export function generateTandaTerimaIotHtml(paket: any, items: any[]): string {
           </tr>
         </thead>
         <tbody>
-          ${items.map((it, idx) => `
+          ${items.map((it, idx) => {
+            const std = getStandardItemKemasanAndSatuan(it.namaBarang)
+            const displayKemasan = (!it.kemasan || it.kemasan === '–' || isLikelyVendorName(it.kemasan)) ? std.kemasan : it.kemasan
+            const isNumericSatuan = !it.satuan || /^\d+(\.\d+)?$/.test(String(it.satuan).trim())
+            const displaySatuan = isNumericSatuan ? std.satuan : it.satuan
+            return `
             <tr>
               <td class="text-center font-mono">${idx + 1}</td>
               <td style="font-weight: 500;">${it.namaBarang}</td>
-              <td class="text-center">${it.volume} ${it.satuan !== 'Unit' ? it.satuan : ''}</td>
+              <td class="text-center">${it.volume} ${displaySatuan !== 'Unit' ? displaySatuan : ''}</td>
               <td class="text-right font-mono">${new Intl.NumberFormat('id-ID').format(it.totalReal || (it.volume * it.hargaSatuanReal))}</td>
-              <td class="text-center">${it.kemasan || '–'}</td>
+              <td class="text-center">${displayKemasan || '–'}</td>
               <td class="text-center" style="font-weight: bold; color: ${it.diterima !== false ? '#047857' : '#b91c1c'};">
                 ${it.diterima !== false ? '&#10003;' : '&#10007;'}
               </td>
               <td style="font-size: 8pt; color: #374151;">${it.kondisiCatatan || ''}</td>
             </tr>
-          `).join('')}
+          `}).join('')}
           <tr style="background-color: #f3f4f6; font-weight: bold;">
             <td colspan="3" class="text-right" style="font-size: 9pt;">TOTAL :</td>
             <td class="text-right font-mono" style="font-size: 9.5pt; color: #0b2545;">
@@ -1147,20 +1153,25 @@ export function generateBastSntHtml(paket: any, items: any[]): string {
           </tr>
         </thead>
         <tbody>
-          ${items.map((it, idx) => `
+          ${items.map((it, idx) => {
+            const std = getStandardItemKemasanAndSatuan(it.namaBarang)
+            const displayKemasan = (!it.kemasan || it.kemasan === '–' || isLikelyVendorName(it.kemasan)) ? std.kemasan : it.kemasan
+            const isNumericSatuan = !it.satuan || /^\d+(\.\d+)?$/.test(String(it.satuan).trim())
+            const displaySatuan = isNumericSatuan ? std.satuan : it.satuan
+            return `
             <tr>
               <td class="text-center font-mono">${idx + 1}</td>
               <td style="font-size: 7.5pt; color: #4b5563;">${it.kategori || '–'}</td>
               <td style="font-weight: 600; color: #0f172a;">${it.namaBarang}</td>
               <td class="text-center font-bold">${it.volume}</td>
-              <td class="text-center">${it.satuan || 'Unit'}</td>
-              <td class="text-center">${it.kemasan || '–'}</td>
+              <td class="text-center">${displaySatuan || 'Unit'}</td>
+              <td class="text-center">${displayKemasan || '–'}</td>
               <td class="text-center" style="font-weight: bold; color: ${it.diterima !== false ? '#047857' : '#b91c1c'};">
                 ${it.diterima !== false ? '&#10003; Baik' : '&#10007; Kurang/Rusak'}
               </td>
               <td></td>
             </tr>
-          `).join('')}
+          `}).join('')}
         </tbody>
       </table>
 

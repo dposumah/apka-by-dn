@@ -3,7 +3,7 @@
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { checkAuth } from '@/lib/auth-check'
-import { DEFAULT_51_IOT_ITEMS, STANDARD_8_KELOMPOK } from '@/lib/iot-constants'
+import { DEFAULT_51_IOT_ITEMS, STANDARD_8_KELOMPOK, getStandardItemKemasanAndSatuan, isLikelyVendorName } from '@/lib/iot-constants'
 import { parseIotExcelWorkbook, normalizeItemName } from '@/lib/excel-iot-parser'
 
 /**
@@ -765,6 +765,7 @@ export async function importExcelPaketIoT(paketId: string, base64Data: string) {
 
         const hargaAktual = excelItem.hargaAktual || 0
         const unitReal = vol > 0 ? Math.round(hargaAktual / vol) : hargaAktual
+        const std = getStandardItemKemasanAndSatuan(matched.namaBarang)
 
         batchOps.push(
           prisma.itemPengadaanIoT.update({
@@ -774,7 +775,10 @@ export async function importExcelPaketIoT(paketId: string, base64Data: string) {
               hargaSatuanReal: unitReal,
               totalReal: hargaAktual,
               kondisiCatatan: '',
-              diterima: true
+              diterima: true,
+              vendor: excelItem.toko || matched.vendor,
+              kemasan: (!matched.kemasan || matched.kemasan === '–' || isLikelyVendorName(matched.kemasan)) ? std.kemasan : matched.kemasan,
+              satuan: (!matched.satuan || /^\d+(\.\d+)?$/.test(String(matched.satuan).trim())) ? std.satuan : matched.satuan
             }
           })
         )
@@ -798,19 +802,22 @@ export async function importExcelPaketIoT(paketId: string, base64Data: string) {
         if (numMatch) vol = parseFloat(numMatch[1])
       }
 
+      const extraStd = getStandardItemKemasanAndSatuan(extra.namaBarang)
+
       batchOps.push(
         prisma.itemPengadaanIoT.create({
           data: {
             paketId,
             kategori,
             namaBarang: extra.namaBarang,
-            satuan: vol > 1 ? 'Pcs' : 'Paket',
+            satuan: extraStd.satuan || (vol > 1 ? 'Pcs' : 'Paket'),
             volume: vol,
             hargaSatuanRAB: 0,
             totalRAB: 0,
             hargaSatuanReal: vol > 0 ? Math.round(extra.hargaAktual / vol) : extra.hargaAktual,
             totalReal: extra.hargaAktual,
-            kemasan: '–',
+            kemasan: extraStd.kemasan || '–',
+            vendor: extra.toko || '',
             diterima: true,
             kondisiCatatan: '',
             urutan: nextUrutan++

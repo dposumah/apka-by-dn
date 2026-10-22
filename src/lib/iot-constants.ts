@@ -92,3 +92,100 @@ export const DEFAULT_51_IOT_ITEMS: DefaultIotItem[] = [
   { kategori: 'Komponen Tambahan', namaBarang: 'Tang buaya', satuan: 'Unit', volume: 1, hargaSatuanRAB: 0, hargaSatuanReal: 27500, totalReal: 27500, kemasan: '–', diterima: true, kondisiCatatan: '' },
   { kategori: 'Komponen Tambahan', namaBarang: 'Pasta solder / flux', satuan: 'Unit', volume: 1, hargaSatuanRAB: 0, hargaSatuanReal: 12000, totalReal: 12000, kemasan: 'Box 1', diterima: true, kondisiCatatan: '' }
 ]
+
+/**
+ * Normalisasi nama barang untuk pencocokan standar
+ */
+export function normalizeIotItemName(s?: string): string {
+  return (s || '')
+    .toLowerCase()
+    .replace(/[×✕]/g, 'x')
+    .replace(/[–—\-]/g, ' ')
+    .replace(/[^a-z0-9]/g, '')
+    .trim()
+}
+
+/**
+ * Memeriksa apakah nilai kolom kemasan sebenarnya adalah nama Toko/Vendor
+ */
+export function isLikelyVendorName(val?: string): boolean {
+  if (!val) return false
+  const lower = val.toLowerCase().trim()
+  const vendorKeywords = [
+    'starlectric',
+    'shopee',
+    'tokopedia',
+    'permata',
+    'listrik',
+    'toko',
+    'store',
+    'shop',
+    'official',
+    'deli',
+    'mediator',
+    'remot',
+    'junda',
+    'beauty',
+    'isku',
+    'yesplus',
+    'suhartono',
+    'duta',
+    'hayashi',
+    'skenoo',
+    'offline',
+    'flash',
+    'beads',
+    'anekalapak',
+    'tidur'
+  ]
+  return vendorKeywords.some(kw => lower.includes(kw))
+}
+
+/**
+ * Mendapatkan kemasan dan satuan standar berdasarkan nama barang
+ */
+export function getStandardItemKemasanAndSatuan(namaBarang: string): { satuan: string; kemasan: string } {
+  const n = normalizeIotItemName(namaBarang)
+  if (!n) return { satuan: 'Unit', kemasan: '–' }
+
+  // 1. Exact match
+  const exact = DEFAULT_51_IOT_ITEMS.find(d => normalizeIotItemName(d.namaBarang) === n)
+  if (exact) {
+    return { satuan: exact.satuan, kemasan: exact.kemasan || '–' }
+  }
+
+  // 2. Prioritas khusus kata kunci komponen
+  if (n.includes('jumper')) return { satuan: 'Set', kemasan: '–' }
+  if (n.includes('gland')) return { satuan: 'Pcs', kemasan: '–' }
+  if (n.includes('ongkir') || n.includes('layanan')) return { satuan: 'Paket', kemasan: '–' }
+
+  // 3. Prefix & Substring match (diurutkan berdasarkan panjang nama terpanjang)
+  const sorted = [...DEFAULT_51_IOT_ITEMS].sort(
+    (a, b) => normalizeIotItemName(b.namaBarang).length - normalizeIotItemName(a.namaBarang).length
+  )
+
+  for (const d of sorted) {
+    const dn = normalizeIotItemName(d.namaBarang)
+    if (dn.startsWith(n) || n.startsWith(dn)) {
+      return { satuan: d.satuan, kemasan: d.kemasan || '–' }
+    }
+  }
+
+  for (const d of sorted) {
+    const dn = normalizeIotItemName(d.namaBarang)
+    if (dn.includes(n) || n.includes(dn)) {
+      return { satuan: d.satuan, kemasan: d.kemasan || '–' }
+    }
+  }
+
+  // 4. Heuristik berdasarkan jenis barang
+  if (n.includes('kabel') || n.includes('selang')) return { satuan: 'Meter', kemasan: '–' }
+  if (n.includes('baut') || n.includes('mur') || n.includes('spacer') || n.includes('resistor')) {
+    return { satuan: 'Pcs', kemasan: '–' }
+  }
+  if (n.includes('sensor') || n.includes('modul') || n.includes('driver')) {
+    return { satuan: 'Unit', kemasan: '–' }
+  }
+
+  return { satuan: 'Unit', kemasan: '–' }
+}

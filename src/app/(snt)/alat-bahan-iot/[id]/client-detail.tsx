@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency, terbilangRupiah } from '@/lib/format'
 import { updatePaketIoT, autoSetPaketRealisasi, importExcelPaketIoT } from '@/app/actions/iot'
-import { DEFAULT_51_IOT_ITEMS, STANDARD_8_KELOMPOK } from '@/lib/iot-constants'
+import { DEFAULT_51_IOT_ITEMS, STANDARD_8_KELOMPOK, getStandardItemKemasanAndSatuan, isLikelyVendorName } from '@/lib/iot-constants'
 import { generateRabIotHtml, generateTandaTerimaIotHtml, generateBast100KitHtml, generateBastSntHtml } from '@/lib/pdf-iot-templates'
 import { uploadFileClient } from '@/lib/upload-client'
 import { 
@@ -25,18 +25,19 @@ import {
   Package, 
   FileCheck, 
   Upload, 
-  Loader2,
-  AlertCircle,
-  Zap,
-  FileSpreadsheet,
-  Check,
-  X,
-  Truck,
-  MapPin,
-  TrendingUp,
-  Percent,
-  Search,
-  CheckCircle
+  Loader2, 
+  AlertCircle, 
+  Zap, 
+  FileSpreadsheet, 
+  Check, 
+  X, 
+  Truck, 
+  MapPin, 
+  TrendingUp, 
+  Percent, 
+  Search, 
+  CheckCircle,
+  Sparkles
 } from 'lucide-react'
 
 function parseNotaAttachments(val?: string | null): { name: string; url: string; uploadedAt?: string }[] {
@@ -327,6 +328,28 @@ export function AlatBahanIotDetailClient({
         }))
       )
     }
+  }
+
+  const handleAutoSetKemasanAndSatuan = () => {
+    let count = 0
+    setItems(prev => prev.map(it => {
+      const std = getStandardItemKemasanAndSatuan(it.namaBarang)
+      const isVendorKemasan = isLikelyVendorName(it.kemasan)
+      const needsKemasan = !it.kemasan || it.kemasan === '-' || it.kemasan === '–' || isVendorKemasan
+      const needsSatuan = !it.satuan || /^\d+(\.\d+)?$/.test(String(it.satuan).trim())
+
+      if (needsKemasan || needsSatuan) {
+        count++
+        return {
+          ...it,
+          kemasan: std.kemasan || '–',
+          satuan: needsSatuan ? std.satuan : it.satuan,
+          vendor: (it.vendor || (isVendorKemasan ? it.kemasan : ''))
+        }
+      }
+      return it
+    }))
+    alert(`Berhasil mengotomatiskan kemasan & satuan untuk ${count} item!\n\nKemasan telah disesuaikan (Box 1-4, Di tempat sampah, atau –) dan satuan telah diperbaiki (Unit, Roll, Set, Meter, dll).\nSilakan klik tombol 'Simpan & Sinkronkan RAB' di bagian atas.`)
   }
 
   const handleSelectFasilitator = (fasilId: string) => {
@@ -1027,6 +1050,16 @@ export function AlatBahanIotDetailClient({
                     disabled={isImportingExcel}
                   />
                 </label>
+
+                <button
+                  type="button"
+                  onClick={handleAutoSetKemasanAndSatuan}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                  title="Otomatiskan kemasan (Box 1-4, dll) dan satuan standar berdasarkan nama barang"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>🪄 Auto-Set Kemasan &amp; Satuan</span>
+                </button>
 
                 <button
                   type="button"
