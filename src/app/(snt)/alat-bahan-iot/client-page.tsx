@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/format'
 import { createPaketIoT, deletePaketIoT } from '@/app/actions/iot'
-import { generateRabIotHtml, generateTandaTerimaIotHtml, generateBast100KitHtml } from '@/lib/pdf-iot-templates'
+import { generateRabIotHtml, generateTandaTerimaIotHtml, generateBast100KitHtml, generateBastSntHtml } from '@/lib/pdf-iot-templates'
 import { 
   Plus, 
   Search, 
@@ -132,6 +132,18 @@ export function AlatBahanIotClient({
 
   const handlePrintTandaTerima = (paket: any) => {
     const html = generateTandaTerimaIotHtml(paket, paket.items || [])
+    const win = window.open('', '_blank')
+    if (win) {
+      win.document.write(html)
+      win.document.close()
+      setTimeout(() => {
+        win.print()
+      }, 700)
+    }
+  }
+
+  const handlePrintBastSnt = (paket: any) => {
+    const html = generateBastSntHtml(paket, paket.items || [])
     const win = window.open('', '_blank')
     if (win) {
       win.document.write(html)
@@ -424,7 +436,7 @@ export function AlatBahanIotClient({
                       <th className="px-4 py-3 text-right">Pagu RAB</th>
                       <th className="px-4 py-3 text-right">Realisasi Belanja</th>
                       <th className="px-4 py-3 text-center">Status</th>
-                      <th className="px-4 py-3 text-center" style={{ width: '220px' }}>Aksi</th>
+                      <th className="px-4 py-3 text-center" style={{ width: '250px' }}>Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -491,11 +503,20 @@ export function AlatBahanIotClient({
 
                                 <button
                                   type="button"
+                                  onClick={() => handlePrintBastSnt(paket)}
+                                  className="p-1.5 text-blue-700 hover:bg-blue-50 rounded border border-blue-200 transition-colors cursor-pointer"
+                                  title="Cetak Berita Acara Serah Terima (BAST Resmi)"
+                                >
+                                  <FileText className="w-3.5 h-3.5 text-blue-700" />
+                                </button>
+
+                                <button
+                                  type="button"
                                   onClick={() => handlePrintTandaTerima(paket)}
                                   className="p-1.5 text-emerald-700 hover:bg-emerald-50 rounded border border-emerald-200 transition-colors cursor-pointer"
-                                  title="Cetak Surat Tanda Terima (Format Resmi Kupang)"
+                                  title="Cetak Surat Tanda Terima (Format Kupang)"
                                 >
-                                  <FileText className="w-3.5 h-3.5" />
+                                  <FileText className="w-3.5 h-3.5 text-emerald-700" />
                                 </button>
 
                                 <button

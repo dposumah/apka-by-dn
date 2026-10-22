@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { formatCurrency, terbilangRupiah } from '@/lib/format'
 import { updatePaketIoT, autoSetPaketRealisasi, importExcelPaketIoT } from '@/app/actions/iot'
 import { DEFAULT_51_IOT_ITEMS, STANDARD_8_KELOMPOK } from '@/lib/iot-constants'
-import { generateRabIotHtml, generateTandaTerimaIotHtml, generateBast100KitHtml } from '@/lib/pdf-iot-templates'
+import { generateRabIotHtml, generateTandaTerimaIotHtml, generateBast100KitHtml, generateBastSntHtml } from '@/lib/pdf-iot-templates'
 import { uploadFileClient } from '@/lib/upload-client'
 import { 
   ArrowLeft, 
@@ -478,6 +478,24 @@ export function AlatBahanIotDetailClient({
     }
   }
 
+  const handlePrintBastSnt = () => {
+    const currentPaketData = {
+      ...paket,
+      ...headerForm,
+      totalPaguRAB,
+      totalRealisasi
+    }
+    const html = generateBastSntHtml(currentPaketData, items)
+    const win = window.open('', '_blank')
+    if (win) {
+      win.document.write(html)
+      win.document.close()
+      setTimeout(() => {
+        win.print()
+      }, 700)
+    }
+  }
+
   const handlePrintRAB = () => {
     const currentPaketData = {
       ...paket,
@@ -543,15 +561,26 @@ export function AlatBahanIotDetailClient({
         {/* TOP ACTION BUTTONS */}
         <div className="flex items-center gap-2 flex-wrap">
           {!is100Kit && (
-            <button
-              type="button"
-              onClick={handlePrintTandaTerima}
-              className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-              title="Cetak Surat Tanda Terima (Format Kupang)"
-            >
-              <FileText className="w-4 h-4" />
-              <span>Cetak Tanda Terima (PDF)</span>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={handlePrintBastSnt}
+                className="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                title="Cetak Berita Acara Serah Terima (BAST Resmi)"
+              >
+                <FileText className="w-4 h-4" />
+                <span>Cetak BAST Resmi (PDF)</span>
+              </button>
+              <button
+                type="button"
+                onClick={handlePrintTandaTerima}
+                className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                title="Cetak Surat Tanda Terima (Format Kupang)"
+              >
+                <FileText className="w-4 h-4" />
+                <span>Cetak Tanda Terima (PDF)</span>
+              </button>
+            </>
           )}
 
           <button
@@ -1541,12 +1570,36 @@ export function AlatBahanIotDetailClient({
         ) : (
           <Card className="border-slate-200 shadow-xs">
             <CardHeader className="bg-slate-50/60 border-b pb-3">
-              <CardTitle className="text-sm font-bold text-slate-900">
-                Konfigurasi Surat &amp; Pihak Penandatangan
-              </CardTitle>
-              <CardDescription className="text-xs text-slate-500">
-                Informasi ini akan tercetak otomatis pada berkas Surat Tanda Terima dan Dokumen RAB resmi.
-              </CardDescription>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-sm font-bold text-slate-900">
+                    Konfigurasi Surat &amp; Pihak Penandatangan
+                  </CardTitle>
+                  <CardDescription className="text-xs text-slate-500">
+                    Informasi ini akan tercetak otomatis pada berkas BAST Resmi, Surat Tanda Terima, dan Dokumen RAB.
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handlePrintBastSnt}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                    title="Cetak Berita Acara Serah Terima (BAST Resmi)"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Cetak BAST (PDF)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handlePrintTandaTerima}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                    title="Cetak Surat Tanda Terima (Format Kupang)"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Cetak Tanda Terima</span>
+                  </button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="pt-4 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
