@@ -77,18 +77,18 @@ export const DEFAULT_51_IOT_ITEMS: DefaultIotItem[] = [
   { kategori: 'Smart Garden IoT', namaBarang: 'Sensor soil moisture', satuan: 'Unit', volume: 2, hargaSatuanRAB: 18000, hargaSatuanReal: 9000, totalReal: 18000, kemasan: 'Box 4', diterima: true, kondisiCatatan: '' },
   { kategori: 'Smart Garden IoT', namaBarang: 'Pompa 5V', satuan: 'Unit', volume: 2, hargaSatuanRAB: 25000, hargaSatuanReal: 12000, totalReal: 24000, kemasan: 'Box 1', diterima: true, kondisiCatatan: '' },
   { kategori: 'Smart Garden IoT', namaBarang: 'Selang pompa 5V', satuan: 'Meter', volume: 5, hargaSatuanRAB: 5000, hargaSatuanReal: 5000, totalReal: 25000, kemasan: '–', diterima: true, kondisiCatatan: '' },
-  { kategori: 'Smart Garden IoT', namaBarang: 'Wadah plastik', satuan: 'Unit', volume: 6, hargaSatuanRAB: 8000, hargaSatuanReal: 3833, totalReal: 23000, kemasan: '–', diterima: true, kondisiCatatan: '' },
+  { kategori: 'Smart Garden IoT', namaBarang: 'Wadah plastik', satuan: 'Unit', volume: 4, hargaSatuanRAB: 8000, hargaSatuanReal: 3833, totalReal: 23000, kemasan: '–', diterima: true, kondisiCatatan: '' },
 
-  // 8. Komponen Tambahan (11 items)
-  { kategori: 'Komponen Tambahan', namaBarang: 'Motor driver L298N', satuan: 'Unit', volume: 2, hargaSatuanRAB: 26500, hargaSatuanReal: 13250, totalReal: 26500, kemasan: '–', diterima: true, kondisiCatatan: '' },
-  { kategori: 'Komponen Tambahan', namaBarang: 'Modul step up', satuan: 'Unit', volume: 2, hargaSatuanRAB: 28000, hargaSatuanReal: 28000, totalReal: 56000, kemasan: '–', diterima: true, kondisiCatatan: '' },
-  { kategori: 'Komponen Tambahan', namaBarang: 'Modul step down', satuan: 'Unit', volume: 2, hargaSatuanRAB: 13250, hargaSatuanReal: 13250, totalReal: 26500, kemasan: '–', diterima: true, kondisiCatatan: '' },
-  { kategori: 'Komponen Tambahan', namaBarang: 'Mur baut M3×6', satuan: 'Pcs', volume: 20, hargaSatuanRAB: 700, hargaSatuanReal: 695, totalReal: 13900, kemasan: '–', diterima: true, kondisiCatatan: '' },
-  { kategori: 'Komponen Tambahan', namaBarang: 'Mur baut M3×8', satuan: 'Pcs', volume: 20, hargaSatuanRAB: 700, hargaSatuanReal: 695, totalReal: 13900, kemasan: '–', diterima: true, kondisiCatatan: '' },
-  { kategori: 'Komponen Tambahan', namaBarang: 'Multimeter', satuan: 'Unit', volume: 1, hargaSatuanRAB: 141900, hargaSatuanReal: 141900, totalReal: 141900, kemasan: '–', diterima: true, kondisiCatatan: '' },
-  { kategori: 'Komponen Tambahan', namaBarang: 'Resistor 4k7 ohm', satuan: 'Pcs', volume: 10, hargaSatuanRAB: 100, hargaSatuanReal: 100, totalReal: 1000, kemasan: '–', diterima: true, kondisiCatatan: '' },
-  { kategori: 'Komponen Tambahan', namaBarang: 'Vibration sensor', satuan: 'Unit', volume: 1, hargaSatuanRAB: 21000, hargaSatuanReal: 21000, totalReal: 21000, kemasan: '–', diterima: true, kondisiCatatan: '' },
-  { kategori: 'Komponen Tambahan', namaBarang: 'Sensor suhu air', satuan: 'Unit', volume: 1, hargaSatuanRAB: 39000, hargaSatuanReal: 39000, totalReal: 39000, kemasan: '–', diterima: true, kondisiCatatan: '' },
-  { kategori: 'Komponen Tambahan', namaBarang: 'Tang buaya', satuan: 'Unit', volume: 1, hargaSatuanRAB: 27500, hargaSatuanReal: 27500, totalReal: 27500, kemasan: '–', diterima: true, kondisiCatatan: '' },
-  { kategori: 'Komponen Tambahan', namaBarang: 'Pasta solder / flux', satuan: 'Unit', volume: 1, hargaSatuanRAB: 12000, hargaSatuanReal: 12000, totalReal: 12000, kemasan: 'Box 1', diterima: true, kondisiCatatan: '' }
+  // 8. Komponen Tambahan (11 items) - Di RAB rencana bernilai 0 (didanai dari Cadangan 10% / realisasi belanja)
+  { kategori: 'Komponen Tambahan', namaBarang: 'Motor driver L298N', satuan: 'Unit', volume: 2, hargaSatuanRAB: 0, hargaSatuanReal: 13250, totalReal: 26500, kemasan: '–', diterima: true, kondisiCatatan: '' },
+  { kategori: 'Komponen Tambahan', namaBarang: 'Modul step up', satuan: 'Unit', volume: 2, hargaSatuanRAB: 0, hargaSatuanReal: 28000, totalReal: 56000, kemasan: '–', diterima: true, kondisiCatatan: '' },
+  { kategori: 'Komponen Tambahan', namaBarang: 'Modul step down', satuan: 'Unit', volume: 2, hargaSatuanRAB: 0, hargaSatuanReal: 13250, totalReal: 26500, kemasan: '–', diterima: true, kondisiCatatan: '' },
+  { kategori: 'Komponen Tambahan', namaBarang: 'Mur baut M3×6', satuan: 'Pcs', volume: 20, hargaSatuanRAB: 0, hargaSatuanReal: 695, totalReal: 13900, kemasan: '–', diterima: true, kondisiCatatan: '' },
+  { kategori: 'Komponen Tambahan', namaBarang: 'Mur baut M3×8', satuan: 'Pcs', volume: 20, hargaSatuanRAB: 0, hargaSatuanReal: 695, totalReal: 13900, kemasan: '–', diterima: true, kondisiCatatan: '' },
+  { kategori: 'Komponen Tambahan', namaBarang: 'Multimeter', satuan: 'Unit', volume: 1, hargaSatuanRAB: 0, hargaSatuanReal: 141900, totalReal: 141900, kemasan: '–', diterima: true, kondisiCatatan: '' },
+  { kategori: 'Komponen Tambahan', namaBarang: 'Resistor 4k7 ohm', satuan: 'Pcs', volume: 10, hargaSatuanRAB: 0, hargaSatuanReal: 100, totalReal: 1000, kemasan: '–', diterima: true, kondisiCatatan: '' },
+  { kategori: 'Komponen Tambahan', namaBarang: 'Vibration sensor', satuan: 'Unit', volume: 1, hargaSatuanRAB: 0, hargaSatuanReal: 21000, totalReal: 21000, kemasan: '–', diterima: true, kondisiCatatan: '' },
+  { kategori: 'Komponen Tambahan', namaBarang: 'Sensor suhu air', satuan: 'Unit', volume: 1, hargaSatuanRAB: 0, hargaSatuanReal: 39000, totalReal: 39000, kemasan: '–', diterima: true, kondisiCatatan: '' },
+  { kategori: 'Komponen Tambahan', namaBarang: 'Tang buaya', satuan: 'Unit', volume: 1, hargaSatuanRAB: 0, hargaSatuanReal: 27500, totalReal: 27500, kemasan: '–', diterima: true, kondisiCatatan: '' },
+  { kategori: 'Komponen Tambahan', namaBarang: 'Pasta solder / flux', satuan: 'Unit', volume: 1, hargaSatuanRAB: 0, hargaSatuanReal: 12000, totalReal: 12000, kemasan: 'Box 1', diterima: true, kondisiCatatan: '' }
 ]

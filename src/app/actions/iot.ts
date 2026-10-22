@@ -301,7 +301,10 @@ export async function getPaketIoTList() {
   const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN', 'ACCOUNTANT', 'KORWIL'])
   if (authError) return []
 
-  await migrateAndSeedSntCategories()
+  const count = await prisma.paketPengadaanIoT.count()
+  if (count === 0) {
+    await migrateAndSeedSntCategories()
+  }
 
   return prisma.paketPengadaanIoT.findMany({
     include: {

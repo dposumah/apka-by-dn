@@ -27,7 +27,8 @@ import {
   Printer,
   ExternalLink,
   X,
-  Cpu
+  Cpu,
+  AlertTriangle
 } from 'lucide-react'
 
 export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor }: any) {
@@ -781,85 +782,152 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
           <span className="text-xs text-slate-500">Klik "Lihat Rincian Item" untuk melihat, mengedit, atau menambah item anggaran</span>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-stretch">
           {data.categories.map((cat: any) => {
             const isExpanded = expandedCategories[cat.id]
+            const warningItems = cat.items.filter((item: any) => item.realized > item.totalBudget * 0.8)
+            const percentAbsorbed = cat.budget > 0 ? Math.min(Math.round((cat.realized / cat.budget) * 100), 999) : 0
+            const isOverbudget = cat.remaining < 0
+
             return (
-              <Card key={cat.id} className="border-slate-200 shadow-sm overflow-hidden">
-                <CardHeader className="bg-slate-50/70 border-b border-slate-100 pb-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <CardTitle className="text-base font-bold text-slate-900">{cat.name}</CardTitle>
-                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                      {(cat.name.includes("IoT") || cat.name.includes("Robotic")) && (
-                        <Link
-                          href={cat.paketIoT?.id ? `/alat-bahan-iot/${cat.paketIoT.id}` : "/alat-bahan-iot"}
-                          className="inline-flex items-center gap-1 text-xs text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 font-semibold px-2.5 py-1 rounded transition-colors"
-                          title="Kelola Paket Alat & Bahan IoT per SNT"
+              <Card key={cat.id} className="border-slate-200/90 shadow-sm rounded-xl overflow-hidden flex flex-col justify-between bg-white hover:border-slate-300 transition-all">
+                <div>
+                  <CardHeader className="bg-slate-50/80 border-b border-slate-100 p-4 pb-3">
+                    <div className="flex flex-col gap-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-blue-100 text-blue-800 font-bold text-xs shrink-0 shadow-sm">
+                            {cat.name.split('.')[0] || 'K'}
+                          </span>
+                          <CardTitle className="text-sm sm:text-base font-bold text-slate-900 leading-snug">
+                            {cat.name}
+                          </CardTitle>
+                        </div>
+                        {isOverbudget ? (
+                          <Badge variant="destructive" className="text-[10px] uppercase font-bold shrink-0">
+                            Overbudget
+                          </Badge>
+                        ) : percentAbsorbed >= 80 ? (
+                          <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[10px] uppercase font-bold shrink-0">
+                            Mendekati Pagu
+                          </Badge>
+                        ) : null}
+                      </div>
+
+                      {/* Action buttons toolbar */}
+                      <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                        {(cat.name.includes("IoT") || cat.name.includes("Robotic")) && (
+                          <Link
+                            href={cat.paketIoT?.id ? `/alat-bahan-iot/${cat.paketIoT.id}` : "/alat-bahan-iot"}
+                            className="inline-flex items-center gap-1 text-[11px] text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 font-medium px-2.5 py-1 rounded-md transition-colors"
+                            title="Kelola Paket Alat & Bahan IoT per SNT"
+                          >
+                            <Cpu className="w-3.5 h-3.5" />
+                            <span>Kelola Alat & Bahan IoT</span>
+                          </Link>
+                        )}
+                        <button
+                          onClick={() => setReportCategory(cat)}
+                          className="inline-flex items-center gap-1 text-[11px] text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 font-medium px-2.5 py-1 rounded-md transition-colors"
+                          title="Lihat Rekap Pemasukan & Pengeluaran Kategori Ini"
                         >
-                          <Cpu className="w-3.5 h-3.5" />
-                          <span>Kelola Alat & Bahan IoT</span>
-                        </Link>
-                      )}
-                      <button
-                        onClick={() => setReportCategory(cat)}
-                        className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 font-semibold px-2.5 py-1 rounded transition-colors"
-                        title="Lihat Rekap Pemasukan & Pengeluaran Kategori Ini"
-                      >
-                        <FileText className="w-3.5 h-3.5" />
-                        <span>Rekap & Pengeluaran</span>
-                      </button>
-                      <button
-                        onClick={() => openCreateItemModal(cat.id)}
-                        className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 rounded hover:bg-blue-50 transition-colors"
-                        title="Tambah item di kategori ini"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Tambah Item</span>
-                      </button>
+                          <FileText className="w-3.5 h-3.5" />
+                          <span>Rekap & Pengeluaran</span>
+                        </button>
+                        <button
+                          onClick={() => openCreateItemModal(cat.id)}
+                          className="inline-flex items-center gap-1 text-[11px] text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 font-medium px-2.5 py-1 rounded-md transition-colors"
+                          title="Tambah item di kategori ini"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Tambah Item</span>
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-600">Pagu Anggaran:</span>
-                      <span className="font-semibold text-slate-900">{formatCurrency(cat.budget)}</span>
+                  </CardHeader>
+
+                  <CardContent className="p-4 space-y-3">
+                    {/* Financial Figures Bar */}
+                    <div className="grid grid-cols-3 gap-2 bg-slate-50/70 p-3 rounded-lg border border-slate-100 text-center">
+                      <div>
+                        <span className="text-[11px] font-medium text-slate-500 block">Pagu Anggaran</span>
+                        <span className="font-bold text-slate-900 text-xs sm:text-sm">
+                          {formatCurrency(cat.budget)}
+                        </span>
+                      </div>
+                      <div className="border-x border-slate-200/80 px-1">
+                        <span className="text-[11px] font-medium text-slate-500 block">Realisasi</span>
+                        <span className="font-bold text-red-600 text-xs sm:text-sm">
+                          {formatCurrency(cat.realized)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[11px] font-medium text-slate-500 block">Sisa Anggaran</span>
+                        <span className={`font-bold text-xs sm:text-sm ${cat.remaining < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                          {formatCurrency(cat.remaining)}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-600">Realisasi:</span>
-                      <span className="font-semibold text-red-600">{formatCurrency(cat.realized)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm border-b pb-3">
-                      <span className="text-slate-600">Sisa Anggaran:</span>
-                      <span className="font-bold text-green-600">{formatCurrency(cat.remaining)}</span>
-                    </div>
-                    
-                    {/* Warning Box */}
-                    {cat.items.filter((item: any) => item.realized > item.totalBudget * 0.8).length > 0 && (
-                      <div className="bg-amber-50 border border-amber-200 rounded p-2.5 text-xs">
-                        <span className="font-bold text-amber-900 block mb-1">Perhatian Overbudget / Kritis:</span>
-                        {cat.items.filter((item: any) => item.realized > item.totalBudget * 0.8).map((item: any) => (
-                          <div key={item.id} className="text-amber-800 flex justify-between py-0.5">
-                            <span>{item.name}</span>
-                            <span className="font-semibold">{item.realized > item.totalBudget ? 'OVERBUDGET' : 'PERINGATAN (>80%)'}</span>
-                          </div>
-                        ))}
+
+                    {/* Progress Absorption bar */}
+                    {cat.budget > 0 && (
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-[11px] text-slate-500 font-medium">
+                          <span>Penyerapan Anggaran</span>
+                          <span className={percentAbsorbed > 100 ? 'text-red-600 font-bold' : 'text-slate-700'}>
+                            {percentAbsorbed}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                          <div 
+                            className={`h-1.5 rounded-full ${percentAbsorbed > 100 ? 'bg-red-500' : percentAbsorbed > 80 ? 'bg-amber-500' : 'bg-blue-500'}`}
+                            style={{ width: `${Math.min(percentAbsorbed, 100)}%` }}
+                          />
+                        </div>
                       </div>
                     )}
 
-                    {/* Toggle Accordion */}
-                    <div className="pt-2">
-                      <button
-                        type="button"
-                        onClick={() => toggleCategoryExpand(cat.id)}
-                        className="w-full flex items-center justify-between text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-md transition-colors"
-                      >
-                        <span>Kelola Rincian Item ({cat.items.length} item)</span>
-                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                      </button>
+                    {/* Warning Box */}
+                    {warningItems.length > 0 && (
+                      <div className="bg-amber-50/90 border border-amber-200/90 rounded-lg p-2.5 text-xs">
+                        <div className="flex items-center justify-between text-amber-900 font-semibold mb-1">
+                          <span className="flex items-center gap-1.5">
+                            <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                            <span>Perhatian Overbudget / Kritis ({warningItems.length} pos):</span>
+                          </span>
+                        </div>
+                        <div className="max-h-24 overflow-y-auto space-y-1 pr-1 divide-y divide-amber-200/50">
+                          {warningItems.map((item: any) => (
+                            <div key={item.id} className="text-amber-800 flex justify-between items-center py-0.5 text-[11px]">
+                              <span className="truncate pr-2">{item.name}</span>
+                              <span className={`font-bold shrink-0 text-[10px] px-1.5 py-0.5 rounded ${
+                                item.realized > item.totalBudget 
+                                  ? 'bg-red-100 text-red-700' 
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}>
+                                {item.realized > item.totalBudget ? 'OVERBUDGET' : '>80%'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </div>
 
-                      {isExpanded && (
-                        <div className="mt-3 overflow-x-auto border rounded-md">
+                {/* Card Footer: Accordion */}
+                <div className="p-4 pt-0">
+                  <button
+                    type="button"
+                    onClick={() => toggleCategoryExpand(cat.id)}
+                    className="w-full flex items-center justify-between text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-lg transition-colors"
+                  >
+                    <span>Kelola Rincian Item ({cat.items.length} item)</span>
+                    {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
+                  </button>
+
+                  {isExpanded && (
+                    <div className="mt-3 overflow-x-auto border rounded-lg bg-white">
                           <table className="w-full text-xs text-left">
                             <thead className="bg-slate-50 text-slate-600 uppercase border-b">
                               <tr>
@@ -928,9 +996,7 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
                         </div>
                       )}
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </Card>
             )
           })}
         </div>
