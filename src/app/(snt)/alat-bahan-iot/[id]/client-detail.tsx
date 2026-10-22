@@ -103,7 +103,8 @@ export function AlatBahanIotDetailClient({
     lampiranNotaUrl: paket.lampiranNotaUrl || '',
     nilaiKontrakSPK: paket.nilaiKontrakSPK || 238550000,
     potonganPPh22: paket.potonganPPh22 || 3578250,
-    estimasiLaba: paket.estimasiLaba || 127218310
+    estimasiLaba: paket.estimasiLaba || 127218310,
+    kosongkanTanggalBAST: paket.kosongkanTanggalBAST !== undefined ? paket.kosongkanTanggalBAST : true
   })
 
   // 5 Lokasi Distribusi State
@@ -1452,6 +1453,24 @@ export function AlatBahanIotDetailClient({
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-4 space-y-4">
+                <div className="bg-blue-50/70 border border-blue-200/90 rounded-lg p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-start sm:items-center gap-2.5">
+                    <input
+                      type="checkbox"
+                      id="kosongkanTanggalBAST100"
+                      checked={headerForm.kosongkanTanggalBAST}
+                      onChange={e => setHeaderForm(prev => ({ ...prev, kosongkanTanggalBAST: e.target.checked }))}
+                      className="mt-0.5 sm:mt-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                    />
+                    <label htmlFor="kosongkanTanggalBAST100" className="text-xs font-medium text-slate-800 cursor-pointer select-none">
+                      <strong>Kosongkan hari, tanggal, &amp; bulan pada cetak BAST</strong> (titik-titik untuk diisi manual/pulpen oleh penerima wilayah saat kiriman tiba)
+                    </label>
+                  </div>
+                  <Badge variant="outline" className={`text-[10px] shrink-0 font-semibold ${headerForm.kosongkanTanggalBAST ? 'bg-amber-50 text-amber-800 border-amber-300' : 'bg-emerald-50 text-emerald-800 border-emerald-300'}`}>
+                    {headerForm.kosongkanTanggalBAST ? 'Diisi Manual di Lapangan' : 'Sesuai Tanggal Kirim'}
+                  </Badge>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {distribusiLokasi.map((lokasi, idx) => (
                     <div key={lokasi.id || idx} className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs space-y-3">
@@ -1635,6 +1654,24 @@ export function AlatBahanIotDetailClient({
                     className="w-full text-xs border rounded-lg p-2 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                   />
                 </div>
+              </div>
+
+              <div className="bg-blue-50/70 border border-blue-200/90 rounded-lg p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start sm:items-center gap-2.5">
+                  <input
+                    type="checkbox"
+                    id="kosongkanTanggalBASTSnt"
+                    checked={headerForm.kosongkanTanggalBAST}
+                    onChange={e => setHeaderForm(prev => ({ ...prev, kosongkanTanggalBAST: e.target.checked }))}
+                    className="mt-0.5 sm:mt-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                  />
+                  <label htmlFor="kosongkanTanggalBASTSnt" className="text-xs font-medium text-slate-800 cursor-pointer select-none">
+                    <strong>Kosongkan hari, tanggal, &amp; bulan pada cetak BAST</strong> (titik-titik untuk diisi manual/pulpen oleh petugas saat serah terima di sekolah)
+                  </label>
+                </div>
+                <Badge variant="outline" className={`text-[10px] shrink-0 font-semibold ${headerForm.kosongkanTanggalBAST ? 'bg-amber-50 text-amber-800 border-amber-300' : 'bg-emerald-50 text-emerald-800 border-emerald-300'}`}>
+                  {headerForm.kosongkanTanggalBAST ? 'Diisi Manual di Lokasi' : 'Otomatis Sesuai Tanggal Surat'}
+                </Badge>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t">

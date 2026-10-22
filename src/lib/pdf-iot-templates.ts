@@ -539,6 +539,22 @@ export function generateBast100KitHtml(paket: any, lokasiData: any, items: any[]
   const blnStr = namaBulan[d.getMonth()]
   const thnStr = d.getFullYear()
 
+  const isManualDate = paket.kosongkanTanggalBAST !== false
+
+  const hariDisplay = isManualDate 
+    ? '<span style="display: inline-block; width: 85px; border-bottom: 1px dotted #374151; margin: 0 2px;">&nbsp;</span>' 
+    : `<strong>${hariStr}</strong>`
+
+  const tglDisplay = isManualDate 
+    ? '<span style="display: inline-block; width: 45px; border-bottom: 1px dotted #374151; margin: 0 2px;">&nbsp;</span>' 
+    : `<strong>${tglStr}</strong>`
+
+  const blnDisplay = isManualDate 
+    ? '<span style="display: inline-block; width: 105px; border-bottom: 1px dotted #374151; margin: 0 2px;">&nbsp;</span>' 
+    : `<strong>${blnStr}</strong>`
+
+  const thnDisplay = isManualDate ? (thnStr || '2026') : thnStr
+
   // Saring items: item yang per kit (A, B, C) vs item tambahan lokasi (charger)
   const kitItems = items.filter(it => !it.kategori?.includes('TAMBAHAN'))
   const extraItems = items.filter(it => it.kategori?.includes('TAMBAHAN'))
@@ -708,7 +724,7 @@ export function generateBast100KitHtml(paket: any, lokasiData: any, items: any[]
       </div>
 
       <p style="margin: 6px 0 10px 0; font-size: 8.5pt;">
-        Pada hari ini, <strong>${hariStr}</strong>, tanggal <strong>${tglStr}</strong> bulan <strong>${blnStr}</strong> tahun <strong>${thnStr}</strong> bertempat di <strong>${lokasiData.namaLokasi}</strong>, yang bertanda tangan di bawah ini:
+        Pada hari ini, ${hariDisplay}, tanggal ${tglDisplay} bulan ${blnDisplay} tahun <strong>${thnDisplay}</strong> bertempat di <strong>${lokasiData.namaLokasi}</strong>, yang bertanda tangan di bawah ini:
       </p>
 
       <!-- PIHAK PERTAMA -->
@@ -854,6 +870,22 @@ export function generateBastSntHtml(paket: any, items: any[]): string {
   const tglStr = d.getDate()
   const blnStr = namaBulan[d.getMonth()]
   const thnStr = d.getFullYear()
+
+  const isManualDate = paket.kosongkanTanggalBAST !== false
+
+  const hariDisplay = isManualDate 
+    ? '<span style="display: inline-block; width: 85px; border-bottom: 1px dotted #374151; margin: 0 2px;">&nbsp;</span>' 
+    : `<strong>${hariStr}</strong>`
+
+  const tglDisplay = isManualDate 
+    ? '<span style="display: inline-block; width: 45px; border-bottom: 1px dotted #374151; margin: 0 2px;">&nbsp;</span>' 
+    : `<strong>${tglStr}</strong>`
+
+  const blnDisplay = isManualDate 
+    ? '<span style="display: inline-block; width: 105px; border-bottom: 1px dotted #374151; margin: 0 2px;">&nbsp;</span>' 
+    : `<strong>${blnStr}</strong>`
+
+  const thnDisplay = isManualDate ? (thnStr || '2026') : thnStr
 
   return `
     <!DOCTYPE html>
@@ -1027,7 +1059,7 @@ export function generateBastSntHtml(paket: any, items: any[]): string {
       </div>
 
       <p style="margin: 6px 0 8px 0; font-size: 8.5pt;">
-        Pada hari ini, <strong>${hariStr}</strong>, tanggal <strong>${tglStr}</strong> bulan <strong>${blnStr}</strong> tahun <strong>${thnStr}</strong> bertempat di <strong>${paket.lokasiSNT}</strong>, yang bertanda tangan di bawah ini:
+        Pada hari ini, ${hariDisplay}, tanggal ${tglDisplay} bulan ${blnDisplay} tahun <strong>${thnDisplay}</strong> bertempat di <strong>${paket.lokasiSNT}</strong>, yang bertanda tangan di bawah ini:
       </p>
 
       <!-- PIHAK PERTAMA -->
