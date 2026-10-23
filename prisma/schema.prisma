@@ -863,6 +863,7 @@ model PaketPengadaanIoT {
   
   status               String @default("DRAFT") // DRAFT, DIKIRIM, DITERIMA
   catatan              String?
+  narasiLaporan        String? // Teks narasi laporan pertanggungjawaban IoT
   lampiranNotaUrl      String? // Bukti nota gabungan
   
   // Integrasi ke Kategori RAB SNT Mandiri

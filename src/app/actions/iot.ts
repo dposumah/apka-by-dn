@@ -624,6 +624,7 @@ export async function updatePaketIoT(id: string, data: any, items?: any[]) {
         persenCadangan: data.persenCadangan !== undefined ? Number(data.persenCadangan) : existing.persenCadangan,
         status: data.status !== undefined ? data.status : existing.status,
         catatan: data.catatan !== undefined ? data.catatan : existing.catatan,
+        narasiLaporan: data.narasiLaporan !== undefined ? data.narasiLaporan : existing.narasiLaporan,
         lampiranNotaUrl: data.lampiranNotaUrl !== undefined ? data.lampiranNotaUrl : existing.lampiranNotaUrl,
         distribusiLokasiJson: data.distribusiLokasiJson !== undefined ? data.distribusiLokasiJson : existing.distribusiLokasiJson,
         notaVendorJson: data.notaVendorJson !== undefined ? data.notaVendorJson : existing.notaVendorJson,

@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/format'
 import { createPaketIoT, deletePaketIoT } from '@/app/actions/iot'
-import { generateRabIotHtml, generateTandaTerimaIotHtml, generateBast100KitHtml, generateBastSntHtml } from '@/lib/pdf-iot-templates'
+import { generateRabIotHtml, generateBast100KitHtml, generateBastSntHtml, generateLaporanLengkapIotHtml } from '@/lib/pdf-iot-templates'
 import { 
   Plus, 
   Search, 
@@ -130,8 +130,8 @@ export function AlatBahanIotClient({
     }
   }
 
-  const handlePrintTandaTerima = (paket: any) => {
-    const html = generateTandaTerimaIotHtml(paket, paket.items || [])
+  const handlePrintLaporanLengkap = (paket: any) => {
+    const html = generateLaporanLengkapIotHtml(paket, paket.items || [])
     const win = window.open('', '_blank')
     if (win) {
       win.document.write(html)
@@ -263,7 +263,7 @@ export function AlatBahanIotClient({
             </h1>
           </div>
           <p className="text-sm text-slate-500 mt-1">
-            Penyusunan Rencana Anggaran Biaya (RAB) dan Surat Tanda Terima serah terima barang per lokasi SNT. Terintegrasi langsung dengan <strong>RAB Kategori D (Biaya IoT/Robotic)</strong>.
+            Penyusunan Rencana Anggaran Biaya (RAB), Berita Acara Serah Terima (BAST), dan Laporan Pertanggungjawaban serah terima barang per lokasi SNT. Terintegrasi langsung dengan <strong>RAB Kategori D (Biaya IoT/Robotic)</strong>.
           </p>
         </div>
 
@@ -376,7 +376,7 @@ export function AlatBahanIotClient({
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-emerald-700">{formatCurrency(totalRealAll)}</div>
-                <p className="text-[11px] text-emerald-600/80 mt-0.5">Total tanda terima diserahterimakan</p>
+                <p className="text-[11px] text-emerald-600/80 mt-0.5">Total realisasi belanja diserahterimakan</p>
               </CardContent>
             </Card>
 
@@ -407,7 +407,7 @@ export function AlatBahanIotClient({
                     Daftar Paket Pengadaan Alat & Bahan Robotika (Program SNT)
                   </CardTitle>
                   <CardDescription className="text-xs text-slate-500">
-                    Pilih paket lokasi untuk mengedit 51+ item alat bahan, mencetak tanda terima resmi, atau mencetak RAB.
+                    Pilih paket lokasi untuk mengedit 51+ item alat bahan, mencetak BAST resmi, Dokumen RAB, atau Laporan Lengkap.
                   </CardDescription>
                 </div>
 
@@ -512,11 +512,11 @@ export function AlatBahanIotClient({
 
                                 <button
                                   type="button"
-                                  onClick={() => handlePrintTandaTerima(paket)}
-                                  className="p-1.5 text-emerald-700 hover:bg-emerald-50 rounded border border-emerald-200 transition-colors cursor-pointer"
-                                  title="Cetak Surat Tanda Terima (Format Kupang)"
+                                  onClick={() => handlePrintLaporanLengkap(paket)}
+                                  className="p-1.5 text-purple-700 hover:bg-purple-50 rounded border border-purple-200 transition-colors cursor-pointer"
+                                  title="Cetak Laporan Lengkap Pengadaan IoT (Narasi, RAB, BAST, Realisasi & Bukti Nota)"
                                 >
-                                  <FileText className="w-3.5 h-3.5 text-emerald-700" />
+                                  <FileText className="w-3.5 h-3.5 text-purple-700" />
                                 </button>
 
                                 <button
@@ -958,7 +958,7 @@ export function AlatBahanIotClient({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
-                    Nomor Surat Tanda Terima
+                    Nomor Surat BAST / Laporan
                   </label>
                   <input
                     type="text"

@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { formatCurrency, terbilangRupiah } from '@/lib/format'
 import { updatePaketIoT, autoSetPaketRealisasi, importExcelPaketIoT } from '@/app/actions/iot'
 import { DEFAULT_51_IOT_ITEMS, STANDARD_8_KELOMPOK, getStandardItemKemasanAndSatuan, isLikelyVendorName } from '@/lib/iot-constants'
-import { generateRabIotHtml, generateTandaTerimaIotHtml, generateBast100KitHtml, generateBastSntHtml } from '@/lib/pdf-iot-templates'
+import { generateRabIotHtml, generateBast100KitHtml, generateBastSntHtml, generateLaporanLengkapIotHtml } from '@/lib/pdf-iot-templates'
 import { uploadFileClient } from '@/lib/upload-client'
 import { 
   ArrowLeft, 
@@ -101,6 +101,7 @@ export function AlatBahanIotDetailClient({
     persenCadangan: paket.persenCadangan !== undefined ? paket.persenCadangan : (is100Kit ? 0 : 10),
     status: paket.status || 'DRAFT',
     catatan: paket.catatan || '',
+    narasiLaporan: paket.narasiLaporan || '',
     lampiranNotaUrl: paket.lampiranNotaUrl || '',
     nilaiKontrakSPK: paket.nilaiKontrakSPK || 238550000,
     potonganPPh22: paket.potonganPPh22 || 3578250,
@@ -484,14 +485,14 @@ export function AlatBahanIotDetailClient({
     }))
   }
 
-  const handlePrintTandaTerima = () => {
+  const handlePrintLaporanLengkap = () => {
     const currentPaketData = {
       ...paket,
       ...headerForm,
       totalPaguRAB,
       totalRealisasi
     }
-    const html = generateTandaTerimaIotHtml(currentPaketData, items)
+    const html = generateLaporanLengkapIotHtml(currentPaketData, items)
     const win = window.open('', '_blank')
     if (win) {
       win.document.write(html)
@@ -585,27 +586,26 @@ export function AlatBahanIotDetailClient({
         {/* TOP ACTION BUTTONS */}
         <div className="flex items-center gap-2 flex-wrap">
           {!is100Kit && (
-            <>
-              <button
-                type="button"
-                onClick={handlePrintBastSnt}
-                className="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-                title="Cetak Berita Acara Serah Terima (BAST Resmi)"
-              >
-                <FileText className="w-4 h-4" />
-                <span>Cetak BAST Resmi (PDF)</span>
-              </button>
-              <button
-                type="button"
-                onClick={handlePrintTandaTerima}
-                className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-                title="Cetak Surat Tanda Terima (Format Kupang)"
-              >
-                <FileText className="w-4 h-4" />
-                <span>Cetak Tanda Terima (PDF)</span>
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={handlePrintBastSnt}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+              title="Cetak Berita Acara Serah Terima (BAST Resmi)"
+            >
+              <FileText className="w-4 h-4" />
+              <span>Cetak BAST Resmi (PDF)</span>
+            </button>
           )}
+
+          <button
+            type="button"
+            onClick={handlePrintLaporanLengkap}
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+            title="Cetak Laporan Lengkap Pengadaan IoT (Narasi, RAB, BAST, Realisasi & Bukti Nota)"
+          >
+            <FileText className="w-4 h-4" />
+            <span>Cetak Laporan Lengkap (PDF)</span>
+          </button>
 
           <button
             type="button"
@@ -702,7 +702,7 @@ export function AlatBahanIotDetailClient({
           </div>
 
           <div className="bg-emerald-50/70 border border-emerald-200 rounded-lg p-3">
-            <span className="text-[11px] font-semibold uppercase text-emerald-700 block">Realisasi Tanda Terima</span>
+            <span className="text-[11px] font-semibold uppercase text-emerald-700 block">Realisasi Belanja Pengadaan</span>
             <span className="text-base font-bold text-emerald-800 mt-0.5 block">{formatCurrency(totalRealisasi)}</span>
             <span className="text-[10px] text-emerald-600">{items.length} item serah terima</span>
           </div>
@@ -1628,7 +1628,7 @@ export function AlatBahanIotDetailClient({
                     Konfigurasi Surat &amp; Pihak Penandatangan
                   </CardTitle>
                   <CardDescription className="text-xs text-slate-500">
-                    Informasi ini akan tercetak otomatis pada berkas BAST Resmi, Surat Tanda Terima, dan Dokumen RAB.
+                    Informasi ini akan tercetak otomatis pada berkas BAST Resmi, Dokumen RAB, dan Laporan Pertanggungjawaban Lengkap.
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1643,12 +1643,12 @@ export function AlatBahanIotDetailClient({
                   </button>
                   <button
                     type="button"
-                    onClick={handlePrintTandaTerima}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-                    title="Cetak Surat Tanda Terima (Format Kupang)"
+                    onClick={handlePrintLaporanLengkap}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                    title="Cetak Laporan Lengkap Pengadaan IoT (Narasi, RAB, BAST, Realisasi & Bukti Nota)"
                   >
                     <FileText className="w-3.5 h-3.5" />
-                    <span>Cetak Tanda Terima</span>
+                    <span>Cetak Laporan Lengkap (PDF)</span>
                   </button>
                 </div>
               </div>
@@ -1705,6 +1705,51 @@ export function AlatBahanIotDetailClient({
                 <Badge variant="outline" className={`text-[10px] shrink-0 font-semibold ${headerForm.kosongkanTanggalBAST ? 'bg-amber-50 text-amber-800 border-amber-300' : 'bg-emerald-50 text-emerald-800 border-emerald-300'}`}>
                   {headerForm.kosongkanTanggalBAST ? 'Diisi Manual di Lokasi' : 'Otomatis Sesuai Tanggal Surat'}
                 </Badge>
+              </div>
+
+              {/* NARASI LAPORAN PENGADAAN IOT (BAB I) */}
+              <div className="bg-purple-50/40 border border-purple-200/80 rounded-xl p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <span className="text-xs font-bold text-purple-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-purple-700" />
+                      <span>Narasi Laporan Pertanggungjawaban (Bab I Laporan)</span>
+                    </span>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Narasi pengantar yang akan tercetak pada lembar Bab I dokumen Laporan Pertanggungjawaban Pengadaan IoT.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const selisihVal = totalPaguRAB - totalRealisasi
+                      const defaultText = `Dalam rangka mendukung percepatan penguasaan teknologi tingkat dasar dan menengah pada Program Sekolah Nasional Terintegrasi (SNT) Tahun 2026, PT Jully Tjindrawan Robotik (Robotic Explorer) selaku Koordinator Wilayah 2 telah melaksanakan pengadaan dan pendistribusian paket alat dan bahan robotika berbasis Internet of Things (IoT) untuk lokasi ${headerForm.lokasiSNT}.\n\nPengadaan ini mencakup penyediaan komponen inti mikrokontroler (ESP32), sensor ultrasonik, servo, modul daya, aktuator, serta peralatan kerja dan mekanik penunjang untuk 3 proyek utama: ${headerForm.lingkupProyek || 'Rover (Smart Trash IoT), Smart Lamp IoT, dan Smart Garden IoT'}.\n\nTotal pagu anggaran rencana yang dialokasikan adalah sebesar ${formatCurrency(totalPaguRAB)}, dengan total realisasi belanja aktual sebesar ${formatCurrency(totalRealisasi)} (terdapat ${selisihVal >= 0 ? 'efisiensi/sisa anggaran sebesar ' + formatCurrency(selisihVal) : 'defisit anggaran sebesar ' + formatCurrency(Math.abs(selisihVal))}).\n\nSeluruh barang telah diperiksa kelayakan fisiknya, diserahterimakan kepada pihak fasilitator dan satuan pendidikan dalam kondisi baik, lengkap, dan siap digunakan untuk proses belajar mengajar serta kegiatan ekstrakurikuler.`
+                      setHeaderForm(prev => ({ ...prev, narasiLaporan: defaultText }))
+                    }}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-md transition-colors cursor-pointer self-start sm:self-auto"
+                    title="Isi teks narasi otomatis dengan angka anggaran terbaru"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                    <span>Muat Narasi Standar</span>
+                  </button>
+                </div>
+
+                <textarea
+                  rows={5}
+                  value={headerForm.narasiLaporan}
+                  onChange={e => setHeaderForm(prev => ({ ...prev, narasiLaporan: e.target.value }))}
+                  placeholder="Tulis narasi laporan pengadaan atau klik 'Muat Narasi Standar' untuk menghasilkan narasi baku resmi otomatis..."
+                  className="w-full text-xs border rounded-lg p-2.5 bg-white text-slate-800 leading-relaxed focus:ring-1 focus:ring-purple-500 focus:outline-none"
+                />
+
+                <div className="flex items-center justify-between text-[11px] text-slate-400 pt-0.5">
+                  <span>
+                    {headerForm.narasiLaporan ? `${headerForm.narasiLaporan.split(/\s+/).filter(Boolean).length} kata • ${headerForm.narasiLaporan.length} karakter` : 'Belum ada narasi khusus (otomatis menggunakan teks baku saat cetak)'}
+                  </span>
+                  <span className="italic text-slate-500">
+                    *Klik 'Simpan Perubahan' di bagian atas untuk menyimpan teks narasi ini.
+                  </span>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t">
@@ -2063,7 +2108,7 @@ export function AlatBahanIotDetailClient({
 
                   {/* Info Note Rekomendasi */}
                   <div className="bg-blue-50/80 border border-blue-200 rounded-lg p-3 text-xs text-blue-800 leading-relaxed">
-                    💡 <strong>Rekomendasi Pengunggahan:</strong> Anda tidak perlu mengunggah nota satu-per-satu untuk setiap item. Cukup kumpulkan beberapa nota belanja gabungan (misalnya: 1 nota Starlectric, 1 nota Toko Permata, dan rekap Shopee) atau 1 file PDF bundle di sini. Dokumen ini menjadi bukti transaksi sah lampiran Tanda Terima.
+                    💡 <strong>Rekomendasi Pengunggahan:</strong> Anda tidak perlu mengunggah nota satu-per-satu untuk setiap item. Cukup kumpulkan beberapa nota belanja gabungan (misalnya: 1 nota Starlectric, 1 nota Toko Permata, dan rekap Shopee) atau 1 file PDF bundle di sini. Dokumen ini menjadi bukti transaksi sah lampiran Laporan Pertanggungjawaban &amp; BAST.
                   </div>
 
                   {/* Uploaded Files List */}

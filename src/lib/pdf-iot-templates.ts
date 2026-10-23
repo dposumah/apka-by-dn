@@ -1227,3 +1227,885 @@ export function generateBastSntHtml(paket: any, items: any[]): string {
     </html>
   `
 }
+
+
+/**
+ * GENERATE LAPORAN LENGKAP PENGADAAN IOT (ALL-IN-ONE BUNDLE)
+ * 1. Narasi Laporan Pertanggungjawaban & Ringkasan Eksekutif Finansial
+ * 2. Dokumen RAB Rencana (8 Kategori Belanja + Cadangan Tak Terduga)
+ * 3. Dokumen Realisasi Belanja Aktual & Rekapitulasi per Toko/Vendor
+ * 4. Berita Acara Serah Terima (BAST Resmi 3 Pihak)
+ * 5. Lampiran Bukti Transaksi (Galeri Foto Nota, Invoices & Lembar Pengesahan)
+ */
+export function generateLaporanLengkapIotHtml(paket: any, items: any[]): string {
+  const is100Kit = paket.tipeProgram === 'STARTER_KIT_100'
+
+  // Perhitungan Keuangan
+  const subtotalRAB = items.reduce((sum, it) => sum + (it.volume * (it.hargaSatuanRAB || 0)), 0)
+  const persenCadangan = paket.persenCadangan !== undefined ? paket.persenCadangan : (is100Kit ? 0 : 10)
+  const nominalCadangan = Math.round(subtotalRAB * (persenCadangan / 100))
+  const totalPaguRAB = subtotalRAB + nominalCadangan
+  const totalRealisasi = items.reduce((sum, it) => sum + (it.volume * (it.hargaSatuanReal || 0)), 0)
+  const selisih = totalPaguRAB - totalRealisasi
+  const persenRealisasi = totalPaguRAB > 0 ? ((totalRealisasi / totalPaguRAB) * 100).toFixed(1) : '0'
+
+  // Kategori Items untuk RAB
+  const groupedCategories: { [key: string]: any[] } = {}
+  items.forEach(it => {
+    const cat = it.kategori || 'Lain-lain'
+    if (!groupedCategories[cat]) groupedCategories[cat] = []
+    groupedCategories[cat].push(it)
+  })
+
+  // Rekap per Vendor / Toko
+  const vendorMap: { [key: string]: { count: number; total: number } } = {}
+  items.forEach(it => {
+    let v = it.vendor && it.vendor.trim() !== '–' && it.vendor.trim() !== '' ? it.vendor.trim() : ''
+    if (!v) {
+      if (it.kemasan && isLikelyVendorName(it.kemasan)) {
+        v = it.kemasan.trim()
+      } else {
+        v = 'Toko Rekanan / Pasar Elektronik'
+      }
+    }
+    if (!vendorMap[v]) vendorMap[v] = { count: 0, total: 0 }
+    vendorMap[v].count += 1
+    vendorMap[v].total += (it.volume * (it.hargaSatuanReal || 0))
+  })
+  const vendorList = Object.entries(vendorMap).map(([name, data]) => ({ name, ...data }))
+  vendorList.sort((a, b) => b.total - a.total)
+
+  // Tanggal
+  const d = paket.tanggalSurat ? new Date(paket.tanggalSurat) : new Date()
+  const namaBulan = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ]
+  const namaHari = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
+  const tglStr = d.getDate()
+  const blnStr = namaBulan[d.getMonth()]
+  const thnStr = d.getFullYear()
+  const hariStr = namaHari[d.getDay()]
+
+  const isManualDate = paket.kosongkanTanggalBAST !== false
+  const hariDisplay = isManualDate 
+    ? '<span style="display: inline-block; width: 85px; border-bottom: 1px dotted #374151; margin: 0 2px;">&nbsp;</span>' 
+    : `<strong>${hariStr}</strong>`
+  const tglDisplay = isManualDate 
+    ? '<span style="display: inline-block; width: 45px; border-bottom: 1px dotted #374151; margin: 0 2px;">&nbsp;</span>' 
+    : `<strong>${tglStr}</strong>`
+  const blnDisplay = isManualDate 
+    ? '<span style="display: inline-block; width: 105px; border-bottom: 1px dotted #374151; margin: 0 2px;">&nbsp;</span>' 
+    : `<strong>${blnStr}</strong>`
+  const thnDisplay = isManualDate ? (thnStr || '2026') : thnStr
+
+  // Default Narasi Laporan
+  const defaultNarasi = `Dalam rangka mendukung percepatan penguasaan teknologi tingkat dasar dan menengah pada Program Sekolah Nasional Terintegrasi (SNT) Tahun 2026, PT Jully Tjindrawan Robotik (Robotic Explorer) selaku Koordinator Wilayah 2 telah melaksanakan pengadaan dan pendistribusian paket alat dan bahan robotika berbasis Internet of Things (IoT) untuk lokasi ${paket.lokasiSNT}.\n\nPengadaan ini mencakup penyediaan komponen inti mikrokontroler (ESP32), sensor ultrasonik, servo, modul daya, aktuator, serta peralatan kerja dan mekanik penunjang untuk 3 proyek utama: ${paket.lingkupProyek || 'Rover (Smart Trash IoT), Smart Lamp IoT, dan Smart Garden IoT'}.\n\nTotal pagu anggaran rencana yang dialokasikan adalah sebesar ${formatCurrency(totalPaguRAB)}, dengan total realisasi belanja aktual sebesar ${formatCurrency(totalRealisasi)} (terdapat ${selisih >= 0 ? 'efisiensi/sisa anggaran sebesar ' + formatCurrency(selisih) : 'defisit anggaran sebesar ' + formatCurrency(Math.abs(selisih))}).\n\nSeluruh barang telah diperiksa kelayakan fisiknya, diserahterimakan kepada pihak fasilitator dan satuan pendidikan dalam kondisi baik, lengkap, dan siap digunakan untuk proses belajar mengajar serta kegiatan ekstrakurikuler.`
+  const narasiText = (paket.narasiLaporan && paket.narasiLaporan.trim()) ? paket.narasiLaporan.trim() : defaultNarasi
+  const narasiParagraphs = narasiText.split(/\n\s*\n/).filter(Boolean)
+
+  // Parsing Lampiran Bukti
+  function parseLampiran(val?: string | null): { name: string; url: string; uploadedAt?: string }[] {
+    if (!val || !val.trim()) return []
+    if (val.trim().startsWith('[')) {
+      try {
+        const parsed = JSON.parse(val)
+        if (Array.isArray(parsed)) return parsed
+      } catch (e) {}
+    }
+    return [{ name: 'Bukti Nota Pembelian', url: val, uploadedAt: new Date().toISOString() }]
+  }
+
+  const lampiranList = parseLampiran(paket.lampiranNotaUrl)
+  const imageExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.svg']
+  const imageLampiran = lampiranList.filter(l => {
+    const lower = (l.url || l.name || '').toLowerCase()
+    return imageExtensions.some(ext => lower.includes(ext))
+  })
+  const nonImageLampiran = lampiranList.filter(l => !imageLampiran.includes(l))
+
+  return `
+    <!DOCTYPE html>
+    <html lang="id">
+    <head>
+      <meta charset="utf-8" />
+      <title>Laporan Lengkap Pengadaan IoT - ${paket.lokasiSNT}</title>
+      <style>
+        @page {
+          size: A4 portrait;
+          margin: 8mm 12mm 10mm 12mm;
+        }
+        * {
+          box-sizing: border-box;
+        }
+        html, body {
+          font-family: Arial, Helvetica, sans-serif;
+          color: #111827;
+          font-size: 8.5pt;
+          line-height: 1.4;
+          margin: 0;
+          padding: 0;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .page-break {
+          page-break-before: always;
+        }
+        .no-break {
+          page-break-inside: avoid;
+        }
+
+        /* KOP SURAT */
+        .kop-container {
+          border-bottom: 2.5px solid #1e3a8a;
+          padding-bottom: 6px;
+          margin-bottom: 12px;
+          text-align: center;
+        }
+        .kop-company {
+          font-size: 13pt;
+          font-weight: 800;
+          color: #1e3a8a;
+          letter-spacing: 0.5px;
+          margin: 0 0 2px 0;
+          text-transform: uppercase;
+        }
+        .kop-brand {
+          font-size: 10pt;
+          font-weight: 700;
+          color: #2563eb;
+          margin: 0 0 2px 0;
+          letter-spacing: 1px;
+        }
+        .kop-sub {
+          font-size: 8.5pt;
+          font-weight: 600;
+          color: #374151;
+          margin: 0 0 3px 0;
+        }
+        .kop-address {
+          font-size: 7.5pt;
+          color: #6b7280;
+          line-height: 1.3;
+        }
+
+        /* HEADER DOKUMEN */
+        .doc-title {
+          text-align: center;
+          margin: 12px 0 16px 0;
+        }
+        .doc-title h1 {
+          font-size: 12pt;
+          font-weight: 800;
+          margin: 0 0 4px 0;
+          letter-spacing: 0.5px;
+          color: #0f172a;
+          text-transform: uppercase;
+        }
+        .doc-title h2 {
+          font-size: 10pt;
+          font-weight: 700;
+          color: #1e40af;
+          margin: 0 0 4px 0;
+        }
+        .doc-title p {
+          font-size: 8.5pt;
+          color: #4b5563;
+          margin: 0;
+        }
+
+        /* BAB & SECTION HEADERS */
+        .bab-header {
+          background-color: #1e3a8a;
+          color: white;
+          padding: 6px 10px;
+          font-size: 9.5pt;
+          font-weight: bold;
+          border-radius: 4px;
+          margin: 16px 0 10px 0;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        .bab-header.green {
+          background-color: #065f46;
+        }
+        .bab-header.purple {
+          background-color: #5b21b6;
+        }
+        .bab-header.slate {
+          background-color: #334155;
+        }
+
+        /* KPI METRIC CARDS */
+        .kpi-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 8px;
+          margin-bottom: 14px;
+        }
+        .kpi-card {
+          border: 1px solid #cbd5e1;
+          background-color: #f8fafc;
+          border-radius: 6px;
+          padding: 8px 10px;
+          text-align: center;
+        }
+        .kpi-label {
+          font-size: 7.5pt;
+          color: #64748b;
+          text-transform: uppercase;
+          font-weight: 700;
+          margin-bottom: 4px;
+        }
+        .kpi-value {
+          font-size: 11pt;
+          font-weight: 800;
+          color: #0f172a;
+        }
+        .kpi-sub {
+          font-size: 7pt;
+          color: #94a3b8;
+          margin-top: 2px;
+        }
+
+        /* TABLES */
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 12px;
+          font-size: 8pt;
+        }
+        th, td {
+          border: 1px solid #94a3b8;
+          padding: 4.5px 6px;
+          vertical-align: middle;
+        }
+        th {
+          background-color: #e2e8f0;
+          color: #0f172a;
+          font-weight: 700;
+          text-align: left;
+        }
+        .table-primary th {
+          background-color: #dbeafe;
+          color: #1e3a8a;
+        }
+        .table-emerald th {
+          background-color: #d1fae5;
+          color: #065f46;
+        }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+        .font-bold { font-weight: bold; }
+        .bg-total {
+          background-color: #f1f5f9;
+          font-weight: bold;
+        }
+
+        /* NARASI PARAGRAPH */
+        .narasi-box {
+          background-color: #ffffff;
+          border: 1px solid #cbd5e1;
+          border-left: 4px solid #2563eb;
+          border-radius: 4px;
+          padding: 12px 14px;
+          margin-bottom: 14px;
+        }
+        .narasi-p {
+          font-size: 8.5pt;
+          line-height: 1.5;
+          color: #1e293b;
+          margin: 0 0 8px 0;
+          text-align: justify;
+        }
+        .narasi-p:last-child {
+          margin-bottom: 0;
+        }
+
+        /* SIGNATURE BOXES */
+        .sig-container {
+          display: flex;
+          justify-content: space-between;
+          gap: 16px;
+          margin-top: 24px;
+          page-break-inside: avoid;
+        }
+        .sig-col {
+          flex: 1;
+          text-align: center;
+          font-size: 8pt;
+          page-break-inside: avoid;
+        }
+        .sig-space {
+          height: 60px;
+        }
+
+        /* GALLERY NOTA */
+        .receipt-gallery {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 12px;
+          margin-top: 10px;
+        }
+        .receipt-card {
+          border: 1px solid #cbd5e1;
+          border-radius: 6px;
+          padding: 8px;
+          background-color: #ffffff;
+          page-break-inside: avoid;
+          text-align: center;
+        }
+        .receipt-img {
+          max-width: 100%;
+          max-height: 380px;
+          object-fit: contain;
+          border-radius: 4px;
+          border: 1px solid #e2e8f0;
+          background-color: #f8fafc;
+        }
+        .receipt-caption {
+          font-size: 7.5pt;
+          color: #475569;
+          font-weight: 600;
+          margin-top: 6px;
+        }
+      </style>
+    </head>
+    <body>
+
+      <!-- ========================================== -->
+      <!-- COVER / HALAMAN 1: NARASI & EKSEKUTIF     -->
+      <!-- ========================================== -->
+      <div class="kop-container">
+        <div class="kop-company">PT JULLY TJINDRAWAN ROBOTIK</div>
+        <div class="kop-brand">ROBOTIC EXPLORER</div>
+        <div class="kop-sub">Koordinator Wilayah 2 — Program Sekolah Nasional Terintegrasi (SNT) 2026</div>
+        <div class="kop-address">
+          Sekretariat &amp; Workshop: Jakarta &bull; Email: snt.korwil2@roboticexplorer.id &bull; Dokumen Resmi Terverifikasi
+        </div>
+      </div>
+
+      <div class="doc-title">
+        <h1>LAPORAN PERTANGGUNGJAWABAN &amp; REALISASI PENGADAAN</h1>
+        <h2>PAKET ALAT DAN BAHAN ROBOTIKA BERBASIS INTERNET OF THINGS (IOT)</h2>
+        <p>
+          Satuan Pendidikan: <strong>${paket.pihakKeduaSekolah || paket.lokasiSNT}</strong> &bull; Wilayah: <strong>${paket.lokasiSNT}</strong> &bull; Nomor Dokumen: <strong>${paket.nomorSurat || '–'}</strong>
+        </p>
+      </div>
+
+      <!-- KPI FINANSIAL & FISIK -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Pagu Anggaran Rencana (RAB)</div>
+          <div class="kpi-value" style="color: #1e3a8a;">${formatCurrency(totalPaguRAB)}</div>
+          <div class="kpi-sub">Termasuk cadangan ${persenCadangan}%</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Realisasi Belanja Aktual</div>
+          <div class="kpi-value" style="color: #065f46;">${formatCurrency(totalRealisasi)}</div>
+          <div class="kpi-sub">${persenRealisasi}% dari pagu rencana</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">${selisih >= 0 ? 'Efisiensi / Sisa Dana' : 'Defisit Belanja'}</div>
+          <div class="kpi-value" style="color: ${selisih >= 0 ? '#047857' : '#b91c1c'};">
+            ${selisih >= 0 ? '+' : '-'}${formatCurrency(Math.abs(selisih))}
+          </div>
+          <div class="kpi-sub">${selisih >= 0 ? 'Hemat Anggaran' : 'Kelebihan Realisasi'}</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Fisik Komponen IoT</div>
+          <div class="kpi-value" style="color: #6b21a8;">${items.length} Item</div>
+          <div class="kpi-sub">100% Baru &amp; Berfungsi Baik</div>
+        </div>
+      </div>
+
+      <!-- BAB I: NARASI & PENDAHULUAN -->
+      <div class="bab-header">
+        <span>BAB I. PENDAHULUAN &amp; NARASI PERTANGGUNGJAWABAN</span>
+        <span style="font-size: 8pt; font-weight: normal;">Ringkasan Eksekutif Pengadaan</span>
+      </div>
+
+      <div class="narasi-box">
+        ${narasiParagraphs.map(p => `<p class="narasi-p">${p}</p>`).join('')}
+      </div>
+
+      <!-- INFORMASI PROYEK & DISTRIBUSI -->
+      <table style="margin-bottom: 14px;">
+        <tr style="background-color: #f8fafc;">
+          <th style="width: 25%; font-size: 7.5pt;">Lingkup / Output Proyek</th>
+          <td style="font-size: 8pt;"><strong>${paket.lingkupProyek || 'Rover (Smart Trash IoT), Smart Lamp IoT, dan Smart Garden IoT'}</strong></td>
+        </tr>
+        <tr>
+          <th style="font-size: 7.5pt;">Koordinator Wilayah (Pihak I)</th>
+          <td style="font-size: 8pt;">${paket.pihakPertamaNama || 'Jully Tjindrawan, MBA'} (${paket.pihakPertamaJabatan || 'Korwil 2 Program SNT'} — ${paket.pihakPertamaInstansi || 'PT Jully Tjindrawan Robotik'})</td>
+        </tr>
+        <tr style="background-color: #f8fafc;">
+          <th style="font-size: 7.5pt;">Fasilitator Lapangan (Pihak II)</th>
+          <td style="font-size: 8pt;">${paket.pihakKeduaNama || (paket.fasilitator?.namaLengkap || 'Penanggung Jawab Fasilitator')} (${paket.pihakKeduaJabatan || 'Fasilitator Robotika & IoT'})</td>
+        </tr>
+        <tr>
+          <th style="font-size: 7.5pt;">Satuan Pendidikan &amp; Alamat</th>
+          <td style="font-size: 8pt;"><strong>${paket.pihakKeduaSekolah || paket.lokasiSNT}</strong> — ${paket.pihakKeduaAlamat || '–'}</td>
+        </tr>
+        <tr style="background-color: #f8fafc;">
+          <th style="font-size: 7.5pt;">Penanggung Jawab Sekolah</th>
+          <td style="font-size: 8pt;">${paket.mengetahuiNama ? paket.mengetahuiNama : (paket.pihakKeduaSekolah ? 'Kepala ' + paket.pihakKeduaSekolah : 'Kepala Sekolah SNT')} ${paket.mengetahuiNip && paket.mengetahuiNip !== '–' ? `(NIP. ${paket.mengetahuiNip})` : ''}</td>
+        </tr>
+      </table>
+
+      <!-- ========================================== -->
+      <!-- BAB II: DOKUMEN RENCANA ANGGARAN BIAYA (RAB)-->
+      <!-- ========================================== -->
+      <div class="page-break"></div>
+
+      <div class="bab-header">
+        <span>BAB II. DOKUMEN RENCANA ANGGARAN BIAYA (RAB)</span>
+        <span style="font-size: 8pt; font-weight: normal;">Pagu Total: ${formatCurrency(totalPaguRAB)}</span>
+      </div>
+
+      <p style="font-size: 8pt; color: #475569; margin: 4px 0 8px 0;">
+        Rencana Anggaran Biaya (RAB) disusun berdasarkan 8 kategori komponen standar untuk menunjang modul praktikum siswa:
+      </p>
+
+      <!-- TABEL REKAP 8 KATEGORI -->
+      <table class="table-primary" style="margin-bottom: 12px;">
+        <thead>
+          <tr>
+            <th style="width: 32px;" class="text-center">No</th>
+            <th>Kategori / Kelompok Komponen</th>
+            <th style="width: 70px;" class="text-center">Jumlah Item</th>
+            <th style="width: 120px;" class="text-right">Subtotal RAB</th>
+            <th style="width: 60px;" class="text-right">Porsi (%)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${Object.entries(groupedCategories).map(([catName, catItems], idx) => {
+            const catSubtotal = catItems.reduce((sum, it) => sum + (it.volume * (it.hargaSatuanRAB || 0)), 0)
+            const catPct = subtotalRAB > 0 ? ((catSubtotal / subtotalRAB) * 100).toFixed(1) : '0'
+            return `
+              <tr>
+                <td class="text-center">${idx + 1}</td>
+                <td class="font-bold">${catName}</td>
+                <td class="text-center">${catItems.length} item</td>
+                <td class="text-right font-mono">${formatCurrency(catSubtotal)}</td>
+                <td class="text-right font-mono">${catPct}%</td>
+              </tr>
+            `
+          }).join('')}
+          <tr class="bg-total">
+            <td colspan="3" class="text-right">SUBTOTAL BIAYA KOMPONEN (A) :</td>
+            <td class="text-right font-mono">${formatCurrency(subtotalRAB)}</td>
+            <td class="text-right font-mono">100.0%</td>
+          </tr>
+          ${persenCadangan > 0 ? `
+            <tr style="background-color: #eff6ff;">
+              <td colspan="3" class="text-right font-bold" style="color: #1e3a8a;">
+                CADANGAN BIAYA TAK TERDUGA (${persenCadangan}%) (B) :
+              </td>
+              <td class="text-right font-mono font-bold" style="color: #1e3a8a;">${formatCurrency(nominalCadangan)}</td>
+              <td class="text-right font-mono">${persenCadangan}%</td>
+            </tr>
+          ` : ''}
+          <tr style="background-color: #dbeafe; font-weight: bold; font-size: 8.5pt;">
+            <td colspan="3" class="text-right" style="color: #1e3a8a;">TOTAL PAGU ANGGARAN RENCANA (A + B) :</td>
+            <td class="text-right font-mono" style="color: #1e3a8a;">${formatCurrency(totalPaguRAB)}</td>
+            <td class="text-right font-mono">-</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- TABEL RINCIAN ITEM RAB -->
+      <table class="table-primary">
+        <thead>
+          <tr>
+            <th style="width: 26px;" class="text-center">No</th>
+            <th style="width: 95px;">Kategori</th>
+            <th>Nama Alat dan Bahan</th>
+            <th style="width: 40px;" class="text-center">Vol</th>
+            <th style="width: 45px;" class="text-center">Satuan</th>
+            <th style="width: 80px;" class="text-right">Harga Satuan</th>
+            <th style="width: 90px;" class="text-right">Total RAB</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map((it, idx) => {
+            const std = getStandardItemKemasanAndSatuan(it.namaBarang)
+            const isNumericSatuan = !it.satuan || /^\d+(\.\d+)?$/.test(String(it.satuan).trim())
+            const displaySatuan = isNumericSatuan ? std.satuan : it.satuan
+            const totalItemRAB = it.volume * (it.hargaSatuanRAB || 0)
+            return `
+              <tr>
+                <td class="text-center font-mono">${idx + 1}</td>
+                <td style="font-size: 7.5pt; color: #4b5563;">${it.kategori || '–'}</td>
+                <td style="font-weight: 600;">${it.namaBarang}</td>
+                <td class="text-center font-bold">${it.volume}</td>
+                <td class="text-center">${displaySatuan || 'Unit'}</td>
+                <td class="text-right font-mono">${formatCurrency(it.hargaSatuanRAB || 0)}</td>
+                <td class="text-right font-mono font-bold">${formatCurrency(totalItemRAB)}</td>
+              </tr>
+            `
+          }).join('')}
+          <tr class="bg-total">
+            <td colspan="6" class="text-right">TOTAL PAGU RAB RENCANA :</td>
+            <td class="text-right font-mono font-bold" style="color: #1e3a8a;">${formatCurrency(totalPaguRAB)}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- ========================================== -->
+      <!-- BAB III: REALISASI BELANJA & REKAP VENDOR -->
+      <!-- ========================================== -->
+      <div class="page-break"></div>
+
+      <div class="bab-header green">
+        <span>BAB III. DOKUMEN REALISASI BELANJA AKTUAL &amp; AUDIT VENDOR</span>
+        <span style="font-size: 8pt; font-weight: normal;">Total Realisasi: ${formatCurrency(totalRealisasi)}</span>
+      </div>
+
+      <p style="font-size: 8pt; color: #475569; margin: 4px 0 8px 0;">
+        Realisasi pembelanjaan aktual diperoleh dari transaksi langsung di toko rekanan terpercaya serta marketplace resmi:
+      </p>
+
+      <!-- TABEL REKAP TOKO / VENDOR -->
+      <table class="table-emerald" style="margin-bottom: 12px;">
+        <thead>
+          <tr>
+            <th style="width: 32px;" class="text-center">No</th>
+            <th>Toko / Platform Belanja</th>
+            <th style="width: 80px;" class="text-center">Jumlah Item</th>
+            <th style="width: 120px;" class="text-right">Total Belanja (Rp)</th>
+            <th style="width: 70px;" class="text-right">Porsi (%)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${vendorList.map((v, idx) => {
+            const pct = totalRealisasi > 0 ? ((v.total / totalRealisasi) * 100).toFixed(1) : '0'
+            return `
+              <tr>
+                <td class="text-center">${idx + 1}</td>
+                <td class="font-bold">${v.name}</td>
+                <td class="text-center">${v.count} item</td>
+                <td class="text-right font-mono font-bold">${formatCurrency(v.total)}</td>
+                <td class="text-right font-mono">${pct}%</td>
+              </tr>
+            `
+          }).join('')}
+          <tr class="bg-total" style="background-color: #ecfdf5;">
+            <td colspan="3" class="text-right">TOTAL REALISASI BELANJA AKTUAL :</td>
+            <td class="text-right font-mono font-bold" style="color: #065f46;">${formatCurrency(totalRealisasi)}</td>
+            <td class="text-right font-mono">100.0%</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- TABEL RINCIAN REALISASI PER ITEM -->
+      <table class="table-emerald">
+        <thead>
+          <tr>
+            <th style="width: 26px;" class="text-center">No</th>
+            <th>Nama Alat dan Bahan</th>
+            <th style="width: 35px;" class="text-center">Vol</th>
+            <th style="width: 40px;" class="text-center">Sat</th>
+            <th style="width: 75px;" class="text-right">Harga Real</th>
+            <th style="width: 85px;" class="text-right">Total Real</th>
+            <th style="width: 120px;">Toko / Vendor</th>
+            <th style="width: 55px;" class="text-center">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map((it, idx) => {
+            const std = getStandardItemKemasanAndSatuan(it.namaBarang)
+            const isNumericSatuan = !it.satuan || /^\d+(\.\d+)?$/.test(String(it.satuan).trim())
+            const displaySatuan = isNumericSatuan ? std.satuan : it.satuan
+            let vendorDisplay = it.vendor && it.vendor.trim() !== '–' && it.vendor.trim() !== '' ? it.vendor.trim() : ''
+            if (!vendorDisplay && it.kemasan && isLikelyVendorName(it.kemasan)) {
+              vendorDisplay = it.kemasan.trim()
+            }
+            if (!vendorDisplay) vendorDisplay = 'Toko Lokal / Online'
+
+            const totalItemReal = it.volume * (it.hargaSatuanReal || 0)
+            return `
+              <tr>
+                <td class="text-center font-mono">${idx + 1}</td>
+                <td style="font-weight: 600;">${it.namaBarang}</td>
+                <td class="text-center font-bold">${it.volume}</td>
+                <td class="text-center">${displaySatuan || 'Unit'}</td>
+                <td class="text-right font-mono">${formatCurrency(it.hargaSatuanReal || 0)}</td>
+                <td class="text-right font-mono font-bold">${formatCurrency(totalItemReal)}</td>
+                <td style="font-size: 7.5pt; color: #374151;">${vendorDisplay}</td>
+                <td class="text-center" style="font-size: 7.5pt; font-weight: bold; color: #047857;">&#10003; Lunas</td>
+              </tr>
+            `
+          }).join('')}
+          <tr class="bg-total" style="background-color: #ecfdf5; font-size: 8.5pt;">
+            <td colspan="5" class="text-right" style="color: #065f46;">TOTAL REALISASI BELANJA :</td>
+            <td class="text-right font-mono font-bold" style="color: #065f46;">${formatCurrency(totalRealisasi)}</td>
+            <td colspan="2" style="font-size: 7.5pt; color: #065f46;">
+              ${selisih >= 0 ? `Efisiensi: ${formatCurrency(selisih)}` : `Defisit: ${formatCurrency(Math.abs(selisih))}`}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- ========================================== -->
+      <!-- BAB IV: BERITA ACARA SERAH TERIMA (BAST)   -->
+      <!-- ========================================== -->
+      <div class="page-break"></div>
+
+      <div class="kop-container">
+        <div class="kop-company">PT JULLY TJINDRAWAN ROBOTIK</div>
+        <div class="kop-brand">ROBOTIC EXPLORER</div>
+        <div class="kop-sub">Koordinator Wilayah 2 — Program Sekolah Nasional Terintegrasi (SNT) 2026</div>
+        <div class="kop-address">
+          Sekretariat: Jakarta &bull; Email: snt.korwil2@roboticexplorer.id &bull; Dokumen Resmi Penyerahan Barang
+        </div>
+      </div>
+
+      <div class="doc-title" style="margin-bottom: 10px;">
+        <h1 style="font-size: 11pt; text-decoration: underline;">BERITA ACARA SERAH TERIMA (BAST)</h1>
+        <p style="font-size: 8pt; margin-top: 2px;">
+          Nomor: <strong>${paket.nomorSurat || '……/BAST/RE-K2/SNT/2026'}</strong>
+        </p>
+      </div>
+
+      <p style="font-size: 8pt; line-height: 1.4; margin: 0 0 8px 0;">
+        Pada hari ini, ${hariDisplay}, tanggal ${tglDisplay}, bulan ${blnDisplay}, tahun <strong>${thnDisplay}</strong>, bertempat di <strong>${paket.pihakKeduaSekolah || paket.lokasiSNT}</strong>, kami yang bertanda tangan di bawah ini:
+      </p>
+
+      <!-- PIHAK PERTAMA -->
+      <table style="margin-bottom: 6px;">
+        <tr style="background-color: #eff6ff;">
+          <td colspan="3" style="font-weight: bold; color: #1e3a8a; font-size: 8pt;">PIHAK PERTAMA (Yang Menyerahkan):</td>
+        </tr>
+        <tr>
+          <td style="width: 130px;">Nama</td>
+          <td style="width: 10px;">:</td>
+          <td><strong>${paket.pihakPertamaNama || 'Jully Tjindrawan, MBA'}</strong></td>
+        </tr>
+        <tr>
+          <td>Jabatan</td>
+          <td>:</td>
+          <td>${paket.pihakPertamaJabatan || 'Koordinator Wilayah 2, Program SNT'}</td>
+        </tr>
+        <tr>
+          <td>Instansi / Lembaga</td>
+          <td>:</td>
+          <td><strong>${paket.pihakPertamaInstansi || 'PT Jully Tjindrawan Robotik (Robotic Explorer)'}</strong></td>
+        </tr>
+      </table>
+
+      <!-- PIHAK KEDUA -->
+      <table style="margin-bottom: 8px;">
+        <tr style="background-color: #ecfdf5;">
+          <td colspan="3" style="font-weight: bold; color: #065f46; font-size: 8pt;">PIHAK KEDUA (Yang Menerima):</td>
+        </tr>
+        <tr>
+          <td style="width: 130px;">Nama</td>
+          <td style="width: 10px;">:</td>
+          <td><strong>${paket.pihakKeduaNama || (paket.fasilitator?.namaLengkap || 'Penanggung Jawab Fasilitator')}</strong></td>
+        </tr>
+        <tr>
+          <td>Jabatan</td>
+          <td>:</td>
+          <td>${paket.pihakKeduaJabatan || 'Fasilitator Koding, KA & Robotika'}</td>
+        </tr>
+        <tr>
+          <td>Satuan Pendidikan / Lokasi</td>
+          <td>:</td>
+          <td><strong>${paket.pihakKeduaSekolah || paket.lokasiSNT}</strong></td>
+        </tr>
+      </table>
+
+      <p style="font-size: 8pt; margin: 4px 0 8px 0;">
+        PIHAK PERTAMA telah menyerahkan kepada PIHAK KEDUA, dan PIHAK KEDUA telah memeriksa serta menerima barang berikut dalam kondisi <strong>lengkap, baru, dan berfungsi baik</strong>:
+      </p>
+
+      <!-- TABEL FISIK BAST -->
+      <table>
+        <thead>
+          <tr style="background-color: #f1f5f9;">
+            <th style="width: 26px;" class="text-center">No</th>
+            <th>Nama Alat dan Bahan</th>
+            <th style="width: 40px;" class="text-center">Vol</th>
+            <th style="width: 45px;" class="text-center">Sat</th>
+            <th style="width: 75px;" class="text-center">Kemasan</th>
+            <th style="width: 65px;" class="text-center">Kondisi</th>
+            <th style="width: 80px;" class="text-center">Keterangan</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map((it, idx) => {
+            const std = getStandardItemKemasanAndSatuan(it.namaBarang)
+            const displayKemasan = (!it.kemasan || it.kemasan === '–' || isLikelyVendorName(it.kemasan)) ? std.kemasan : it.kemasan
+            const isNumericSatuan = !it.satuan || /^\d+(\.\d+)?$/.test(String(it.satuan).trim())
+            const displaySatuan = isNumericSatuan ? std.satuan : it.satuan
+            return `
+              <tr>
+                <td class="text-center font-mono">${idx + 1}</td>
+                <td style="font-weight: 600;">${it.namaBarang}</td>
+                <td class="text-center font-bold">${it.volume}</td>
+                <td class="text-center">${displaySatuan || 'Unit'}</td>
+                <td class="text-center">${displayKemasan || '–'}</td>
+                <td class="text-center" style="font-weight: bold; color: ${it.diterima !== false ? '#047857' : '#b91c1c'};">
+                  ${it.diterima !== false ? '&#10003; Baik' : '&#10007; Rusak'}
+                </td>
+                <td class="text-center" style="font-size: 7pt; color: #64748b;">Lengkap</td>
+              </tr>
+            `
+          }).join('')}
+        </tbody>
+      </table>
+
+      <!-- KLAUSUL & TANDA TANGAN BAST -->
+      <p style="font-size: 7.8pt; line-height: 1.35; margin: 6px 0;">
+        Demikian Berita Acara Serah Terima ini dibuat dengan sebenarnya dalam rangkap secukupnya untuk dipergunakan sebagaimana mestinya bagi kelancaran operasional pembelajaran SNT.
+      </p>
+
+      <div class="sig-container">
+        <div class="sig-col">
+          <p style="margin: 0; font-weight: bold;">PIHAK PERTAMA</p>
+          <p style="margin: 1px 0 0 0; font-size: 7.5pt; color: #64748b;">Yang Menyerahkan,</p>
+          <div class="sig-space"></div>
+          <p style="margin: 0; font-weight: bold; text-decoration: underline;">
+            ${paket.pihakPertamaNama || 'Jully Tjindrawan, MBA'}
+          </p>
+          <p style="margin: 1px 0 0 0; font-size: 7pt;">${paket.pihakPertamaJabatan || 'Korwil 2 Program SNT'}</p>
+        </div>
+
+        <div class="sig-col">
+          <p style="margin: 0; font-weight: bold;">PIHAK KEDUA</p>
+          <p style="margin: 1px 0 0 0; font-size: 7.5pt; color: #64748b;">Yang Menerima,</p>
+          <div class="sig-space"></div>
+          <p style="margin: 0; font-weight: bold; text-decoration: underline;">
+            ${paket.pihakKeduaNama || (paket.fasilitator?.namaLengkap || 'Penanggung Jawab Fasilitator')}
+          </p>
+          <p style="margin: 1px 0 0 0; font-size: 7pt;">${paket.pihakKeduaJabatan || 'Fasilitator SNT'}</p>
+        </div>
+
+        <div class="sig-col">
+          <p style="margin: 0; font-weight: bold;">MENGETAHUI,</p>
+          <p style="margin: 1px 0 0 0; font-size: 7.5pt; color: #64748b;">Kepala Satuan Pendidikan SNT,</p>
+          <div class="sig-space"></div>
+          <p style="margin: 0; font-weight: bold; text-decoration: underline;">
+            (${paket.mengetahuiNama ? paket.mengetahuiNama : (paket.pihakKeduaSekolah ? 'Kepala ' + paket.pihakKeduaSekolah : 'Kepala Sekolah SNT')})
+          </p>
+          <p style="margin: 1px 0 0 0; font-size: 7pt; color: #64748b;">
+            NIP. ${paket.mengetahuiNip && paket.mengetahuiNip !== '–' ? paket.mengetahuiNip : '……………………………………'}
+          </p>
+        </div>
+      </div>
+
+      <!-- ========================================== -->
+      <!-- BAB V: LAMPIRAN BUKTI TRANSAKSI & NOTA    -->
+      <!-- ========================================== -->
+      <div class="page-break"></div>
+
+      <div class="bab-header purple">
+        <span>BAB V. LAMPIRAN BUKTI TRANSAKSI, NOTA, DAN INVOICE BELANJA</span>
+        <span style="font-size: 8pt; font-weight: normal;">Arsip Administrasi Terverifikasi</span>
+      </div>
+
+      <p style="font-size: 8pt; color: #475569; margin: 4px 0 10px 0;">
+        Berikut adalah dokumentasi fisik bukti pembayaran, nota toko, invoice marketplace, dan kwitansi pembelanjaan alat dan bahan IoT yang sah:
+      </p>
+
+      ${imageLampiran.length > 0 ? `
+        <div class="receipt-gallery">
+          ${imageLampiran.map((img, idx) => `
+            <div class="receipt-card">
+              <img src="${img.url}" alt="${img.name}" class="receipt-img" />
+              <div class="receipt-caption">
+                Lampiran ${idx + 1}: ${img.name}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : `
+        <div style="background-color: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px; padding: 24px; text-align: center; margin-bottom: 16px;">
+          <p style="margin: 0; font-size: 8.5pt; color: #64748b;">
+            Belum ada berkas scan gambar nota yang diunggah secara digital ke dalam sistem paket ini.
+          </p>
+          <p style="margin: 4px 0 0 0; font-size: 7.5pt; color: #94a3b8;">
+            (Arsip fisik asli nota / invoice tersimpan dalam map administrasi pengadaan Korwil 2).
+          </p>
+        </div>
+      `}
+
+      ${nonImageLampiran.length > 0 ? `
+        <div style="margin-top: 14px;">
+          <p style="font-weight: bold; font-size: 8pt; margin: 0 0 6px 0; color: #334155;">Berkas Dokumen Pendukung (PDF / Digital Document):</p>
+          <table>
+            <thead>
+              <tr style="background-color: #f1f5f9;">
+                <th style="width: 30px;" class="text-center">No</th>
+                <th>Nama Berkas Dokumen</th>
+                <th style="width: 140px;">Waktu Unggah</th>
+                <th style="width: 80px;" class="text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${nonImageLampiran.map((doc, idx) => `
+                <tr>
+                  <td class="text-center font-mono">${idx + 1}</td>
+                  <td class="font-bold">${doc.name}</td>
+                  <td style="font-size: 7.5pt; color: #64748b;">${doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleString('id-ID') : '–'}</td>
+                  <td class="text-center" style="font-weight: bold; color: #047857;">&#10003; Sah</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      ` : ''}
+
+      <!-- LEMBAR PENGESAHAN LAPORAN LENGKAP -->
+      <div style="margin-top: 30px; page-break-inside: avoid; border-top: 1.5px solid #cbd5e1; padding-top: 14px;">
+        <div style="text-align: center; margin-bottom: 16px;">
+          <p style="font-weight: bold; font-size: 9pt; margin: 0; text-transform: uppercase;">
+            LEMBAR PENGESAHAN LAPORAN PERTANGGUNGJAWABAN PENGADAAN IOT
+          </p>
+          <p style="font-size: 7.5pt; color: #64748b; margin: 2px 0 0 0;">
+            Program Sekolah Nasional Terintegrasi (SNT) — Koordinator Wilayah 2 Tahun Anggaran 2026
+          </p>
+        </div>
+
+        <div class="sig-container" style="margin-top: 16px;">
+          <div class="sig-col">
+            <p style="margin: 0; font-weight: bold;">Disusun Oleh:</p>
+            <p style="margin: 1px 0 0 0; font-size: 7.5pt; color: #64748b;">Tim Logistik &amp; Pengadaan Korwil 2</p>
+            <div class="sig-space"></div>
+            <p style="margin: 0; font-weight: bold; text-decoration: underline;">
+              Tim Pengadaan IoT Korwil 2
+            </p>
+            <p style="margin: 1px 0 0 0; font-size: 7pt; color: #64748b;">PT Jully Tjindrawan Robotik</p>
+          </div>
+
+          <div class="sig-col">
+            <p style="margin: 0; font-weight: bold;">Diperiksa &amp; Disahkan Oleh:</p>
+            <p style="margin: 1px 0 0 0; font-size: 7.5pt; color: #64748b;">Koordinator Wilayah 2 SNT,</p>
+            <div class="sig-space"></div>
+            <p style="margin: 0; font-weight: bold; text-decoration: underline;">
+              Jully Tjindrawan, MBA
+            </p>
+            <p style="margin: 1px 0 0 0; font-size: 7pt; color: #64748b;">Direktur Utama</p>
+          </div>
+
+          <div class="sig-col">
+            <p style="margin: 0; font-weight: bold;">Diterima &amp; Diverifikasi Oleh:</p>
+            <p style="margin: 1px 0 0 0; font-size: 7.5pt; color: #64748b;">Penanggung Jawab Sekolah / SNT,</p>
+            <div class="sig-space"></div>
+            <p style="margin: 0; font-weight: bold; text-decoration: underline;">
+              (${paket.mengetahuiNama ? paket.mengetahuiNama : (paket.pihakKeduaSekolah ? 'Kepala ' + paket.pihakKeduaSekolah : 'Kepala Sekolah SNT')})
+            </p>
+            <p style="margin: 1px 0 0 0; font-size: 7pt; color: #64748b;">
+              NIP. ${paket.mengetahuiNip && paket.mengetahuiNip !== '–' ? paket.mengetahuiNip : '……………………………………'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </body>
+    </html>
+  `
+}
