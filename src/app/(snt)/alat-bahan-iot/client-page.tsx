@@ -688,7 +688,7 @@ export function AlatBahanIotClient({
                         <span>Distribusi 5 Lokasi Pengiriman &amp; Cetak BAST</span>
                       </h3>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        Alokasi merata 20 Starter Kit IoT + 1 Charger Laptop per wilayah. Klik tombol "Cetak BAST (PDF)" untuk mencetak dokumen serah terima resmi per lokasi.
+                        Alokasi merata 20 Starter Kit IoT + 1 Charger Baterai 18650 (4-Slot USB) per wilayah. Klik tombol "Cetak BAST (PDF)" untuk mencetak dokumen serah terima resmi per lokasi.
                       </p>
                     </div>
                   </div>
@@ -724,7 +724,7 @@ export function AlatBahanIotClient({
                             </td>
                             <td className="px-4 py-3.5 text-center">
                               <Badge className="bg-amber-100 text-amber-900 border-amber-200 font-medium">
-                                {lokasi.ekstraCharger} Charger Laptop
+                                {lokasi.ekstraCharger || 1} Charger Baterai 18650 (4-Slot)
                               </Badge>
                             </td>
                             <td className="px-4 py-3.5 text-slate-700">

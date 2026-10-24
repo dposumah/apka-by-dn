@@ -1576,7 +1576,7 @@ export function AlatBahanIotDetailClient({
                   <span>Distribusi 5 Lokasi Pengiriman &amp; Cetak BAST Resmi</span>
                 </CardTitle>
                 <CardDescription className="text-xs text-slate-500">
-                  Setiap lokasi menerima 20 Starter Kit IoT lengkap (Kontainer Box 15L) + 1 Charger Laptop. Anda dapat menyesuaikan nama penanggung jawab atau nomor surat, lalu klik tombol "Cetak BAST (PDF)".
+                  Setiap lokasi menerima 20 Starter Kit IoT lengkap (Kontainer Box 15L) + 1 Unit Charger Baterai 18650 (4-Slot USB). Anda dapat menyesuaikan nama penanggung jawab atau nomor surat, lalu klik tombol "Cetak BAST (PDF)".
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-4 space-y-4">
@@ -1607,7 +1607,7 @@ export function AlatBahanIotDetailClient({
                           <span>{lokasi.namaLokasi}</span>
                         </div>
                         <Badge className="bg-blue-100 text-blue-800 text-[10px] font-bold">
-                          {lokasi.alokasiKit} Kit + {lokasi.ekstraCharger} Charger
+                          {lokasi.alokasiKit} Kit + {lokasi.ekstraCharger || 1} Charger Baterai
                         </Badge>
                       </div>
 
