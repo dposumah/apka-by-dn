@@ -648,6 +648,15 @@ export function AlatBahanIotClient({
                       <ArrowRight className="w-4 h-4" />
                     </Link>
 
+                    <Link
+                      href={`/alat-bahan-iot/${paket100.id}?tab=receipts`}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition-colors shadow-xs"
+                      title="Buka langsung tab unggah nota & invoice"
+                    >
+                      <Upload className="w-4 h-4" />
+                      <span>Upload Nota &amp; Invoice</span>
+                    </Link>
+
                     <button
                       type="button"
                       onClick={() => handlePrintRAB(paket100)}

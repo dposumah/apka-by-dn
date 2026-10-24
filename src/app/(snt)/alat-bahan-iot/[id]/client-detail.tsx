@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -63,6 +63,17 @@ export function AlatBahanIotDetailClient({
   const [activeTab, setActiveTab] = useState<'items' | 'groups' | 'parties' | 'receipts'>('items')
   const [isSaving, setIsSaving] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+
+  // Auto switch tab if ?tab=receipts in URL
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const tab = params.get('tab')
+      if (tab && ['items', 'groups', 'parties', 'receipts'].includes(tab)) {
+        setActiveTab(tab as any)
+      }
+    }
+  }, [])
 
   // Auto-Set Realisasi Modal State
   const [showAutoSetModal, setShowAutoSetModal] = useState(false)
@@ -465,8 +476,17 @@ export function AlatBahanIotDetailClient({
       }
 
       const merged = [...existing, ...newItems]
-      setHeaderForm(prev => ({ ...prev, lampiranNotaUrl: JSON.stringify(merged) }))
-      alert(`${newItems.length} berkas nota berhasil diunggah! Silakan klik 'Simpan Perubahan' di bagian atas.`)
+      const jsonStr = JSON.stringify(merged)
+      setHeaderForm(prev => ({ ...prev, lampiranNotaUrl: jsonStr }))
+
+      // Auto-save langsung ke database
+      try {
+        await updatePaketIoT(paket.id, { lampiranNotaUrl: jsonStr })
+      } catch (saveErr) {
+        console.error('Auto-save lampiran nota failed:', saveErr)
+      }
+
+      alert(`${newItems.length} berkas nota/invoice berhasil diunggah dan tersimpan ke database!`)
     } catch (err: any) {
       alert('Gagal mengunggah nota: ' + (err.message || err))
     } finally {
@@ -475,14 +495,22 @@ export function AlatBahanIotDetailClient({
     }
   }
 
-  const handleDeleteReceipt = (index: number) => {
+  const handleDeleteReceipt = async (index: number) => {
     if (!confirm('Hapus berkas nota ini dari daftar?')) return
     const list = parseNotaAttachments(headerForm.lampiranNotaUrl)
     const filtered = list.filter((_, i) => i !== index)
+    const newJson = filtered.length > 0 ? JSON.stringify(filtered) : ''
     setHeaderForm(prev => ({
       ...prev,
-      lampiranNotaUrl: filtered.length > 0 ? JSON.stringify(filtered) : ''
+      lampiranNotaUrl: newJson
     }))
+
+    // Auto-save langsung ke database
+    try {
+      await updatePaketIoT(paket.id, { lampiranNotaUrl: newJson })
+    } catch (saveErr) {
+      console.error('Auto-save hapus lampiran nota failed:', saveErr)
+    }
   }
 
   const handlePrintLaporanLengkap = () => {
@@ -615,6 +643,27 @@ export function AlatBahanIotDetailClient({
           >
             <Printer className="w-4 h-4" />
             <span>Cetak Dokumen RAB (PDF)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('receipts')
+              setTimeout(() => {
+                const el = document.getElementById('upload-nota-section')
+                if (el) el.scrollIntoView({ behavior: 'smooth' })
+              }, 50)
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+            title="Buka Menu Upload Bukti Nota & Invoice"
+          >
+            <Upload className="w-4 h-4" />
+            <span>Upload Nota &amp; Invoice</span>
+            {parseNotaAttachments(headerForm.lampiranNotaUrl).length > 0 && (
+              <span className="bg-emerald-800 text-emerald-100 text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5">
+                {parseNotaAttachments(headerForm.lampiranNotaUrl).length}
+              </span>
+            )}
           </button>
 
           {is100Kit && (
@@ -767,12 +816,17 @@ export function AlatBahanIotDetailClient({
           onClick={() => setActiveTab('receipts')}
           className={`px-4 py-2.5 border-b-2 flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap ${
             activeTab === 'receipts'
-              ? 'border-blue-600 text-blue-700 font-bold bg-blue-50/40'
+              ? 'border-emerald-600 text-emerald-700 font-bold bg-emerald-50/40'
               : 'border-transparent text-slate-600 hover:text-slate-900'
           }`}
         >
-          <Upload className="w-4 h-4" />
-          <span>{is100Kit ? '4. Parameter SPK & Lampiran Nota' : '4. Lampiran Bukti Nota Belanja'}</span>
+          <Upload className="w-4 h-4 text-emerald-600" />
+          <span>{is100Kit ? '4. Upload Bukti Nota & Invoice' : '4. Upload Bukti Nota Belanja'}</span>
+          {parseNotaAttachments(headerForm.lampiranNotaUrl).length > 0 && (
+            <span className="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+              {parseNotaAttachments(headerForm.lampiranNotaUrl).length}
+            </span>
+          )}
         </button>
       </div>
 
@@ -1369,6 +1423,46 @@ export function AlatBahanIotDetailClient({
                 </table>
               </CardContent>
             </Card>
+
+            {/* CALLOUT UNGGAH BUKTI NOTA VENDOR */}
+            <div className="lg:col-span-2 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50/40 border border-emerald-200/90 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <FileCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                    <span>Arsip Bukti Transaksi Nota &amp; Invoice Rekanan</span>
+                    {parseNotaAttachments(headerForm.lampiranNotaUrl).length > 0 ? (
+                      <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px] font-bold">
+                        {parseNotaAttachments(headerForm.lampiranNotaUrl).length} Berkas Terunggah
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-300 text-[10px]">
+                        Belum Ada Nota
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+                    Unggah nota/invoice asli dari PCM Elektronik, CNC Store Bandung, Shopee, The Box 03, dan resi ekspedisi agar otomatis tercetak di lampiran Bab V Laporan Lengkap.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('receipts')
+                  setTimeout(() => {
+                    const el = document.getElementById('upload-nota-section')
+                    if (el) el.scrollIntoView({ behavior: 'smooth' })
+                  }, 50)
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shrink-0 transition-colors cursor-pointer shadow-xs"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span>+ Buka Menu Upload Nota</span>
+              </button>
+            </div>
           </div>
         ) : (
           <Card className="border-slate-200 shadow-xs">
@@ -1889,6 +1983,126 @@ export function AlatBahanIotDetailClient({
       {activeTab === 'receipts' && (
         is100Kit ? (
           <div className="space-y-6">
+            {/* LAMPIRAN NOTA VENDOR DITEMPATKAN DI ATAS DENGAN DROPZONE BESAR */}
+            <Card id="upload-nota-section" className="border-emerald-200 shadow-sm bg-white">
+              <CardHeader className="bg-emerald-50/50 border-b border-emerald-100 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <FileCheck className="w-4 h-4 text-emerald-600" />
+                    <span>Upload Bukti Nota &amp; Invoice Rekanan Vendor (100 Kit)</span>
+                  </CardTitle>
+                  <CardDescription className="text-xs text-slate-500">
+                    Unggah bukti nota kuitansi / invoice dari PCM Elektronik, CNC Store Bandung, The Box 03, Shopee, dan ekspedisi pengiriman.
+                  </CardDescription>
+                </div>
+
+                <label className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold cursor-pointer shadow-xs transition shrink-0">
+                  {isUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                  <span>{isUploading ? 'Mengunggah...' : '+ Pilih File Nota'}</span>
+                  <input
+                    type="file"
+                    accept=".pdf,image/*"
+                    multiple
+                    onChange={handleUploadReceipt}
+                    className="hidden"
+                    disabled={isUploading}
+                  />
+                </label>
+              </CardHeader>
+
+              <CardContent className="pt-4 space-y-4">
+                {/* BIG UPLOAD DROPZONE BANNER */}
+                <label className="border-2 border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/30 hover:bg-emerald-50/60 rounded-xl p-6 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-2 group">
+                  <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center group-hover:scale-105 transition-transform shadow-xs">
+                    {isUploading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Upload className="w-6 h-6" />}
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-slate-800">
+                      {isUploading ? 'Sedang Mengunggah &amp; Menyimpan Berkas...' : 'Klik di Sini untuk Memilih Berkas Nota / Invoice'}
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5 max-w-lg mx-auto">
+                      Mendukung format gambar foto/scan (JPG, PNG, WebP) dan berkas dokumen PDF. Anda dapat memilih beberapa file nota sekaligus.
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 px-3 py-1 rounded-full transition-colors mt-1">
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Pilih Berkas Nota dari Komputer</span>
+                  </span>
+                  <input
+                    type="file"
+                    accept=".pdf,image/*"
+                    multiple
+                    onChange={handleUploadReceipt}
+                    className="hidden"
+                    disabled={isUploading}
+                  />
+                </label>
+
+                {(() => {
+                  const receiptList = parseNotaAttachments(headerForm.lampiranNotaUrl)
+                  if (receiptList.length === 0) {
+                    return (
+                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-center text-slate-500 text-xs">
+                        Belum ada berkas nota/invoice yang diunggah. Silakan klik kotak hijau di atas untuk mengunggah berkas.
+                      </div>
+                    )
+                  }
+                  return (
+                    <div className="space-y-2 pt-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-800">
+                          Berkas Nota &amp; Invoice Terunggah ({receiptList.length} file):
+                        </span>
+                        <span className="text-[11px] text-emerald-700 font-medium">
+                          ✓ Otomatis tersimpan ke database &amp; tampil di Bab V Laporan
+                        </span>
+                      </div>
+                      <div className="divide-y border rounded-lg overflow-hidden bg-white shadow-xs">
+                        {receiptList.map((rec, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-3 hover:bg-slate-50 transition text-xs">
+                            <div className="flex items-center gap-2.5 truncate pr-2">
+                              <span className="w-6 h-6 rounded-md bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs shrink-0">
+                                {idx + 1}
+                              </span>
+                              <div className="truncate">
+                                <span className="font-semibold text-slate-800 block truncate" title={rec.name}>
+                                  {rec.name}
+                                </span>
+                                {rec.uploadedAt && (
+                                  <span className="text-[10px] text-slate-400">
+                                    Diunggah: {new Date(rec.uploadedAt).toLocaleString('id-ID')}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <a
+                                href={rec.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded border border-blue-200 transition-colors"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                <span>Lihat Berkas</span>
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteReceipt(idx)}
+                                className="text-[11px] text-red-600 hover:text-red-800 hover:bg-red-50 p-1.5 rounded transition-colors"
+                                title="Hapus berkas ini"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })()}
+              </CardContent>
+            </Card>
+
             {/* PARAMETER KOMERSIAL KONTRAK */}
             <Card className="border-slate-200 shadow-xs">
               <CardHeader className="bg-slate-50/60 border-b pb-3">
@@ -1957,86 +2171,6 @@ export function AlatBahanIotDetailClient({
                     />
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* LAMPIRAN NOTA VENDOR */}
-            <Card className="border-slate-200 shadow-xs">
-              <CardHeader className="bg-slate-50/60 border-b pb-3 flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                    <FileCheck className="w-4 h-4 text-emerald-600" />
-                    <span>Lampiran Bukti Nota &amp; Invoice Rekanan Vendor</span>
-                  </CardTitle>
-                  <CardDescription className="text-xs text-slate-500">
-                    Unggah bukti nota invoice dari PCM, CNC Store Bandung, The Box Indonesia, Shopee, dan ekspedisi.
-                  </CardDescription>
-                </div>
-
-                <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold cursor-pointer shadow-xs transition">
-                  {isUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-                  <span>{isUploading ? 'Mengunggah...' : '+ Unggah File Nota'}</span>
-                  <input
-                    type="file"
-                    accept=".pdf,image/*"
-                    multiple
-                    onChange={handleUploadReceipt}
-                    className="hidden"
-                    disabled={isUploading}
-                  />
-                </label>
-              </CardHeader>
-              <CardContent className="pt-4 space-y-4">
-                {(() => {
-                  const receiptList = parseNotaAttachments(headerForm.lampiranNotaUrl)
-                  if (receiptList.length === 0) {
-                    return (
-                      <div className="border border-dashed border-slate-300 rounded-lg p-6 text-center text-slate-400">
-                        <p className="text-xs">Belum ada berkas nota yang diunggah.</p>
-                      </div>
-                    )
-                  }
-                  return (
-                    <div className="space-y-2">
-                      <span className="text-xs font-semibold text-slate-700 block">
-                        Berkas Nota Terunggah ({receiptList.length} file):
-                      </span>
-                      <div className="divide-y border rounded-lg overflow-hidden bg-slate-50/50">
-                        {receiptList.map((rec, idx) => (
-                          <div key={idx} className="flex items-center justify-between p-2.5 hover:bg-white transition text-xs">
-                            <div className="flex items-center gap-2 truncate pr-2">
-                              <span className="w-5 h-5 rounded bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-[10px]">
-                                {idx + 1}
-                              </span>
-                              <span className="font-medium text-slate-800 truncate" title={rec.name}>
-                                {rec.name}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <a
-                                href={rec.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded border border-blue-200"
-                              >
-                                <ExternalLink className="w-3 h-3" />
-                                <span>Lihat</span>
-                              </a>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteReceipt(idx)}
-                                className="text-[11px] text-red-600 hover:text-red-800 hover:bg-red-50 p-1 rounded"
-                                title="Hapus berkas ini"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )
-                })()}
               </CardContent>
             </Card>
           </div>
