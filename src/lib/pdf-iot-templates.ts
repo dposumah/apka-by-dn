@@ -1628,7 +1628,7 @@ export function generateLaporanLengkapIotHtml(paket: any, items: any[]): string 
       </div>
 
       <div class="narasi-box">
-        ${narasiParagraphs.map(p => `<p class="narasi-p">${p}</p>`).join('')}
+        ${narasiParagraphs.map((p: string) => `<p class="narasi-p">${p}</p>`).join('')}
       </div>
 
       <!-- INFORMASI PROYEK & DISTRIBUSI -->

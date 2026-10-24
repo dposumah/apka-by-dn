@@ -29,7 +29,8 @@ import {
   TrendingUp,
   Percent,
   CheckCircle,
-  Clock
+  Clock,
+  Upload
 } from 'lucide-react'
 
 export function AlatBahanIotClient({ 
