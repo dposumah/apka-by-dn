@@ -833,13 +833,13 @@ export function generateBast100KitHtml(paket: any, lokasiData: any, items: any[]
       <table class="items-table">
         <thead>
           <tr>
-            <th style="width: 26px;">No</th>
+            <th style="width: 28px;">No</th>
             <th>Nama Komponen / Modul</th>
             <th style="width: 50px;">Qty/Kit</th>
             <th style="width: 45px;">Satuan</th>
-            <th style="width: 70px;">Total Diterima</th>
-            <th style="width: 90px;">Kemasan</th>
-            <th style="width: 50px;">Kondisi</th>
+            <th style="width: 75px;">Total Diterima</th>
+            <th style="width: 60px;">Kondisi</th>
+            <th style="width: 80px;">Keterangan</th>
           </tr>
         </thead>
         <tbody>
@@ -852,8 +852,8 @@ export function generateBast100KitHtml(paket: any, lokasiData: any, items: any[]
               <td class="text-center font-bold" style="background-color: #f8fafc;">
                 ${(it.qtyPerKit || 1) * lokasiData.alokasiKit} ${it.satuan || 'pcs'}
               </td>
-              <td>${it.kemasan || '–'}</td>
               <td class="text-center">&#10003; Baik</td>
+              <td class="text-center"></td>
             </tr>
           `).join('')}
         </tbody>
@@ -1207,11 +1207,10 @@ export function generateBastSntHtml(paket: any, items: any[]): string {
         <thead>
           <tr>
             <th style="width: 26px;">No</th>
-            <th style="width: 110px;">Kelompok / Kategori</th>
+            <th style="width: 120px;">Kelompok / Kategori</th>
             <th>Nama Alat dan Bahan</th>
             <th style="width: 45px;">Volume</th>
             <th style="width: 45px;">Satuan</th>
-            <th style="width: 70px;">Kemasan</th>
             <th style="width: 65px;">Kondisi</th>
             <th style="width: 90px;">Keterangan</th>
           </tr>
@@ -1229,7 +1228,6 @@ export function generateBastSntHtml(paket: any, items: any[]): string {
               <td style="font-weight: 600; color: #0f172a;">${it.namaBarang}</td>
               <td class="text-center font-bold">${it.volume}</td>
               <td class="text-center">${displaySatuan || 'Unit'}</td>
-              <td class="text-center">${displayKemasan || '–'}</td>
               <td class="text-center" style="font-weight: bold; color: ${it.diterima !== false ? '#047857' : '#b91c1c'};">
                 ${it.diterima !== false ? '&#10003; Baik' : '&#10007; Kurang/Rusak'}
               </td>
@@ -2011,7 +2009,6 @@ export function generateLaporanLengkapIotHtml(paket: any, items: any[]): string 
             <th>Nama Alat dan Bahan</th>
             <th style="width: 40px;" class="text-center">Vol</th>
             <th style="width: 45px;" class="text-center">Sat</th>
-            <th style="width: 75px;" class="text-center">Kemasan</th>
             <th style="width: 65px;" class="text-center">Kondisi</th>
             <th style="width: 80px;" class="text-center">Keterangan</th>
           </tr>
@@ -2028,11 +2025,10 @@ export function generateLaporanLengkapIotHtml(paket: any, items: any[]): string 
                 <td style="font-weight: 600;">${it.namaBarang}</td>
                 <td class="text-center font-bold">${it.volume}</td>
                 <td class="text-center">${displaySatuan || 'Unit'}</td>
-                <td class="text-center">${displayKemasan || '–'}</td>
                 <td class="text-center" style="font-weight: bold; color: ${it.diterima !== false ? '#047857' : '#b91c1c'};">
                   ${it.diterima !== false ? '&#10003; Baik' : '&#10007; Rusak'}
                 </td>
-                <td class="text-center" style="font-size: 7pt; color: #64748b;">Lengkap</td>
+                <td class="text-center"></td>
               </tr>
             `
           }).join('')}
