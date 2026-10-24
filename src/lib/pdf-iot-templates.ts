@@ -561,6 +561,18 @@ export function generateBast100KitHtml(paket: any, lokasiData: any, items: any[]
 
   const thnDisplay = isManualDate ? (thnStr || '2026') : thnStr
 
+  // Opsi Nama Manual (Titik-Titik untuk ditulis pulpen di lapangan)
+  const isManualNama = paket.kosongkanNamaBAST !== false
+  const isPenerimaGeneric = !lokasiData.penerimaNama 
+    || /^(fasilitator|koordinator|penanggung\s*jawab|pic|wilayah)/i.test(lokasiData.penerimaNama.trim())
+    || lokasiData.penerimaNama.trim() === '–'
+    || lokasiData.penerimaNama.trim() === '-'
+  const showManualPenerima = isManualNama || isPenerimaGeneric
+
+  const isMengetahuiGeneric = !paket.mengetahuiNama 
+    || /^(pemberi\s*kerja|ppk|pejabat|pengawas|kepala)/i.test(paket.mengetahuiNama.trim())
+  const showManualMengetahui = isManualNama || isMengetahuiGeneric
+
   // Saring items: item yang per kit (A, B, C) vs item tambahan lokasi (charger)
   const kitItems = items.filter(it => !it.kategori?.includes('TAMBAHAN'))
   const extraItems = items.filter(it => it.kategori?.includes('TAMBAHAN'))
@@ -574,7 +586,7 @@ export function generateBast100KitHtml(paket: any, lokasiData: any, items: any[]
       <style>
         @page {
           size: A4 portrait;
-          margin: 6mm 12mm 8mm 12mm;
+          margin: 6mm 10mm 6mm 10mm;
         }
         * {
           box-sizing: border-box;
@@ -582,23 +594,23 @@ export function generateBast100KitHtml(paket: any, lokasiData: any, items: any[]
         html, body {
           font-family: Arial, Helvetica, sans-serif;
           color: #111827;
-          font-size: 9pt;
-          line-height: 1.4;
+          font-size: 8.5pt;
+          line-height: 1.35;
           margin: 0;
           padding: 0;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
         }
         .kop-container {
-          border-bottom: 2.5px solid #1e3a8a;
+          border-bottom: 2px solid #1e3a8a;
           padding-top: 0;
-          padding-bottom: 8px;
+          padding-bottom: 4px;
           margin-top: 0;
-          margin-bottom: 12px;
+          margin-bottom: 8px;
           text-align: center;
         }
         .kop-company {
-          font-size: 14pt;
+          font-size: 13pt;
           font-weight: 800;
           color: #1e3a8a;
           letter-spacing: 0.5px;
@@ -606,29 +618,29 @@ export function generateBast100KitHtml(paket: any, lokasiData: any, items: any[]
           text-transform: uppercase;
         }
         .kop-sub {
-          font-size: 9pt;
+          font-size: 8.5pt;
           font-weight: 600;
           color: #374151;
-          margin: 0 0 4px 0;
+          margin: 0 0 2px 0;
         }
         .kop-address {
           font-size: 7.5pt;
           color: #6b7280;
-          line-height: 1.3;
+          line-height: 1.25;
         }
         .doc-title {
           text-align: center;
-          margin: 12px 0 16px 0;
+          margin: 6px 0 8px 0;
         }
         .doc-title h1 {
-          font-size: 12pt;
+          font-size: 11pt;
           font-weight: bold;
           text-decoration: underline;
-          margin: 0 0 4px 0;
+          margin: 0 0 2px 0;
           letter-spacing: 0.5px;
         }
         .doc-title p {
-          font-size: 9.5pt;
+          font-size: 8.5pt;
           margin: 0;
           font-family: 'Courier New', Courier, monospace;
           font-weight: bold;
@@ -636,43 +648,61 @@ export function generateBast100KitHtml(paket: any, lokasiData: any, items: any[]
         .party-block {
           background-color: #f9fafb;
           border: 1px solid #e5e7eb;
-          border-radius: 6px;
-          padding: 8px 12px;
-          margin-bottom: 10px;
+          border-radius: 4px;
+          padding: 4px 8px;
+          margin-bottom: 5px;
         }
         .party-title {
           font-weight: bold;
-          font-size: 9pt;
+          font-size: 8pt;
           color: #1f2937;
           border-bottom: 1px solid #e5e7eb;
-          padding-bottom: 4px;
-          margin-bottom: 6px;
+          padding-bottom: 2px;
+          margin-bottom: 3px;
         }
         table.meta-table {
           width: 100%;
           border-collapse: collapse;
-          font-size: 8.5pt;
+          font-size: 7.5pt;
         }
         table.meta-table td {
-          padding: 2px 0;
+          padding: 1.5px 0;
           vertical-align: top;
           border: none;
+        }
+        .alokasi-box {
+          background-color: #eff6ff;
+          border: 1px solid #bfdbfe;
+          border-radius: 4px;
+          padding: 4px 8px;
+          margin-bottom: 6px;
+          font-size: 8pt;
         }
         .items-table {
           width: 100%;
           border-collapse: collapse;
-          margin: 12px 0;
-          font-size: 8pt;
+          margin: 4px 0 8px 0;
+          font-size: 7.5pt;
+          page-break-inside: auto;
+        }
+        .items-table thead {
+          display: table-header-group;
+        }
+        .items-table tr {
+          page-break-inside: avoid;
+          page-break-after: auto;
         }
         .items-table th, .items-table td {
           border: 1px solid #9ca3af;
-          padding: 4px 6px;
+          padding: 2.5px 5px;
+          line-height: 1.25;
         }
         .items-table th {
           background-color: #1e3a8a;
           color: #ffffff;
           font-weight: bold;
           text-align: center;
+          font-size: 7.5pt;
         }
         .cat-row {
           background-color: #f1f5f9;
@@ -682,36 +712,35 @@ export function generateBast100KitHtml(paket: any, lokasiData: any, items: any[]
         .text-right { text-align: right; }
         .text-center { text-align: center; }
         .signature-section {
-          margin-top: 24px;
+          margin-top: 10px;
           page-break-inside: avoid;
         }
         .sig-row-top {
           display: flex;
           justify-content: space-between;
-          margin-bottom: 20px;
+          margin-bottom: 12px;
         }
         .sig-col {
           text-align: center;
           width: 250px;
         }
         .sig-space {
-          height: 60px;
+          height: 48px;
         }
         .sig-bottom {
           text-align: center;
           margin: 0 auto;
-          width: 300px;
+          width: 320px;
         }
         @media print {
           @page {
             size: A4 portrait;
-            margin: 6mm 12mm 8mm 12mm;
+            margin: 6mm 10mm 6mm 10mm;
           }
           html, body {
             padding: 0;
             margin: 0;
           }
-          .page-break { page-break-before: always; }
         }
       </style>
     </head>
@@ -729,7 +758,7 @@ export function generateBast100KitHtml(paket: any, lokasiData: any, items: any[]
         <p>Nomor: ${lokasiData.nomorSurat || '……/BAST/KIT-IOT/X/2026'}</p>
       </div>
 
-      <p style="margin: 6px 0 10px 0; font-size: 8.5pt;">
+      <p style="margin: 4px 0 8px 0; font-size: 8pt;">
         Pada hari ini, ${hariDisplay}, tanggal ${tglDisplay} bulan ${blnDisplay} tahun <strong>${thnDisplay}</strong> bertempat di <strong>${lokasiData.namaLokasi}</strong>, yang bertanda tangan di bawah ini:
       </p>
 
@@ -762,7 +791,17 @@ export function generateBast100KitHtml(paket: any, lokasiData: any, items: any[]
           <tr>
             <td style="width: 130px;">Nama</td>
             <td style="width: 15px;">:</td>
-            <td><strong>${lokasiData.penerimaNama || 'Penanggung Jawab Wilayah'}</strong></td>
+            <td>
+              ${showManualPenerima 
+                ? '<span style="display: inline-block; width: 220px; border-bottom: 1px dotted #374151;">&nbsp;</span> <span style="font-size: 7.5pt; color: #6b7280; font-weight: normal;">(diisi nama penanggung jawab penerima)</span>'
+                : `<strong>${lokasiData.penerimaNama}</strong>`
+              }
+            </td>
+          </tr>
+          <tr>
+            <td>Jabatan / Peran</td>
+            <td>:</td>
+            <td>Penanggung Jawab / Koordinator Lapangan Wilayah ${lokasiData.namaLokasi}</td>
           </tr>
           <tr>
             <td>Satuan / Wilayah</td>
@@ -777,26 +816,26 @@ export function generateBast100KitHtml(paket: any, lokasiData: any, items: any[]
         </table>
       </div>
 
-      <p style="margin: 10px 0 6px 0; font-size: 8.5pt;">
+      <p style="margin: 6px 0 4px 0; font-size: 8pt;">
         PIHAK PERTAMA telah menyerahkan kepada PIHAK KEDUA, dan PIHAK KEDUA menyatakan telah menerima dalam keadaan <strong>lengkap, baru, dan berfungsi baik</strong> paket peralatan sebagai berikut:
       </p>
-      <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 4px; padding: 6px 12px; margin-bottom: 8px; font-size: 9pt;">
+      <div class="alokasi-box">
         <strong>Alokasi Paket yang Diserahterimakan:</strong>
-        <ul style="margin: 4px 0 0 16px; padding: 0;">
+        <ul style="margin: 3px 0 0 16px; padding: 0;">
           <li><strong>${lokasiData.alokasiKit} Unit Starter Kit IoT Lengkap</strong> (Rincian komponen di bawah, masing-masing dikemas dalam Kontainer EZ Box 15L berpengunci)</li>
-          <li><strong>${lokasiData.alokasiCharger} Unit Charger Baterai 18650 4-Slot USB</strong> (Perlengkapan pengisian daya baterai wilayah)</li>
+          <li><strong>${lokasiData.alokasiCharger || 1} Unit Charger Baterai 18650 4-Slot USB</strong> (Perlengkapan pengisian daya baterai wilayah)</li>
         </ul>
       </div>
 
-      <div class="page-break"></div>
-
-      <p style="font-size: 8.5pt; font-weight: bold; margin-bottom: 4px;">Rincian Komponen per 1 Kit (Total Diterima = Qty &times; ${lokasiData.alokasiKit} Kit):</p>
+      <p style="font-size: 8pt; font-weight: bold; margin: 6px 0 3px 0;">
+        Rincian Komponen per 1 Kit (Total Diterima = Qty &times; ${lokasiData.alokasiKit} Kit):
+      </p>
       <table class="items-table">
         <thead>
           <tr>
-            <th style="width: 28px;">No</th>
+            <th style="width: 26px;">No</th>
             <th>Nama Komponen / Modul</th>
-            <th style="width: 55px;">Qty/Kit</th>
+            <th style="width: 50px;">Qty/Kit</th>
             <th style="width: 45px;">Satuan</th>
             <th style="width: 70px;">Total Diterima</th>
             <th style="width: 90px;">Kemasan</th>
@@ -822,42 +861,62 @@ export function generateBast100KitHtml(paket: any, lokasiData: any, items: any[]
 
       <!-- TANDA TANGAN -->
       <div class="signature-section">
-        <p style="font-size: 8.5pt; margin-bottom: 14px;">
+        <p style="font-size: 8pt; margin-bottom: 10px;">
           Demikian Berita Acara Serah Terima (BAST) ini dibuat dengan sebenarnya dalam rangkap secukupnya untuk dipergunakan sebagaimana mestinya.
         </p>
 
         <div class="sig-row-top">
           <div class="sig-col">
             <p style="margin: 0; font-weight: bold;">PIHAK PERTAMA</p>
-            <p style="margin: 2px 0 0 0; font-size: 8.5pt; color: #4b5563;">Yang Menyerahkan</p>
+            <p style="margin: 2px 0 0 0; font-size: 8pt; color: #4b5563;">Yang Menyerahkan</p>
             <div class="sig-space"></div>
             <p style="margin: 0; font-weight: bold; text-decoration: underline;">
               ${paket.pihakPertamaNama || 'Jully Tjindrawan, MBA'}
             </p>
-            <p style="margin: 2px 0 0 0; font-size: 8pt;">${paket.pihakPertamaJabatan || 'Direktur Utama'}</p>
+            <p style="margin: 2px 0 0 0; font-size: 7.5pt;">${paket.pihakPertamaJabatan || 'Direktur Utama'}</p>
+            <p style="margin: 1px 0 0 0; font-size: 7pt; color: #4b5563;">${paket.pihakPertamaInstansi || 'PT Jully Tjindrawan Robotik'}</p>
           </div>
 
           <div class="sig-col">
             <p style="margin: 0; font-weight: bold;">PIHAK KEDUA</p>
-            <p style="margin: 2px 0 0 0; font-size: 8.5pt; color: #4b5563;">Yang Menerima</p>
+            <p style="margin: 2px 0 0 0; font-size: 8pt; color: #4b5563;">Yang Menerima</p>
             <div class="sig-space"></div>
-            <p style="margin: 0; font-weight: bold; text-decoration: underline;">
-              ${lokasiData.penerimaNama || '________________________'}
-            </p>
-            <p style="margin: 2px 0 0 0; font-size: 8pt;">Penanggung Jawab ${lokasiData.namaLokasi}</p>
+            ${showManualPenerima ? `
+              <p style="margin: 0; font-weight: bold; letter-spacing: 0.5px;">
+                ( .................................................... )
+              </p>
+              <p style="margin: 3px 0 0 0; font-size: 8pt; font-weight: 600; color: #1f2937;">Penanggung Jawab ${lokasiData.namaLokasi}</p>
+              <p style="margin: 2px 0 0 0; font-size: 7.5pt; color: #4b5563;">NIP / Kontak: ...........................................</p>
+            ` : `
+              <p style="margin: 0; font-weight: bold; text-decoration: underline;">
+                ${lokasiData.penerimaNama}
+              </p>
+              <p style="margin: 2px 0 0 0; font-size: 8pt;">Penanggung Jawab ${lokasiData.namaLokasi}</p>
+            `}
           </div>
         </div>
 
         <div class="sig-bottom">
           <p style="margin: 0; font-weight: bold;">Mengetahui,</p>
-          <p style="margin: 2px 0 0 0; font-size: 8.5pt; color: #4b5563;">Pejabat Pembuat Komitmen (PPK) / Pengawas Program</p>
-          <div class="sig-space"></div>
-          <p style="margin: 0; font-weight: bold; text-decoration: underline;">
-            (${paket.mengetahuiNama ? paket.mengetahuiNama : '________________________'})
-          </p>
           <p style="margin: 2px 0 0 0; font-size: 8pt; color: #4b5563;">
-            NIP. ${paket.mengetahuiNip && paket.mengetahuiNip !== '–' ? paket.mengetahuiNip : '……………………………………'}
+            Pejabat Pembuat Komitmen (PPK) / Pengawas Program
           </p>
+          <div class="sig-space"></div>
+          ${showManualMengetahui ? `
+            <p style="margin: 0; font-weight: bold; letter-spacing: 0.5px;">
+              ( .................................................... )
+            </p>
+            <p style="margin: 3px 0 0 0; font-size: 7.5pt; color: #4b5563;">
+              NIP. ....................................................
+            </p>
+          ` : `
+            <p style="margin: 0; font-weight: bold; text-decoration: underline;">
+              (${paket.mengetahuiNama})
+            </p>
+            <p style="margin: 2px 0 0 0; font-size: 7.5pt; color: #4b5563;">
+              NIP. ${paket.mengetahuiNip && paket.mengetahuiNip !== '–' ? paket.mengetahuiNip : '……………………………………'}
+            </p>
+          `}
         </div>
       </div>
     </body>
@@ -1102,7 +1161,12 @@ export function generateBastSntHtml(paket: any, items: any[]): string {
           <tr>
             <td style="width: 140px;">Nama</td>
             <td style="width: 15px;">:</td>
-            <td><strong>${paket.pihakKeduaNama || (paket.fasilitator?.namaLengkap || 'Penanggung Jawab Fasilitator')}</strong></td>
+            <td>
+              ${(paket.kosongkanNamaBAST !== false || !paket.pihakKeduaNama || /^(fasilitator|koordinator|penanggung\s*jawab|pic)/i.test(String(paket.pihakKeduaNama).trim()))
+                ? '<span style="display: inline-block; width: 220px; border-bottom: 1px dotted #374151;">&nbsp;</span> <span style="font-size: 7.5pt; color: #6b7280; font-weight: normal;">(diisi nama penanggung jawab penerima)</span>'
+                : `<strong>${paket.pihakKeduaNama || (paket.fasilitator?.namaLengkap || 'Penanggung Jawab Fasilitator')}</strong>`
+              }
+            </td>
           </tr>
           <tr>
             <td>Jabatan</td>
@@ -1201,11 +1265,19 @@ export function generateBastSntHtml(paket: any, items: any[]): string {
             <p style="margin: 0; font-weight: bold;">PIHAK KEDUA</p>
             <p style="margin: 2px 0 0 0; font-size: 8pt; color: #4b5563;">Yang Menerima</p>
             <div class="sig-space"></div>
-            <p style="margin: 0; font-weight: bold; text-decoration: underline;">
-              ${paket.pihakKeduaNama || (paket.fasilitator?.namaLengkap || 'Penanggung Jawab Fasilitator')}
-            </p>
-            <p style="margin: 2px 0 0 0; font-size: 7.5pt;">${paket.pihakKeduaJabatan || 'Fasilitator Koding, KA & Robotika'}</p>
-            <p style="margin: 1px 0 0 0; font-size: 7pt; color: #4b5563;">${paket.pihakKeduaSekolah || paket.lokasiSNT}</p>
+            ${(paket.kosongkanNamaBAST !== false || !paket.pihakKeduaNama || /^(fasilitator|koordinator|penanggung\s*jawab|pic)/i.test(String(paket.pihakKeduaNama).trim())) ? `
+              <p style="margin: 0; font-weight: bold; letter-spacing: 0.5px;">
+                ( .................................................... )
+              </p>
+              <p style="margin: 3px 0 0 0; font-size: 7.5pt;">${paket.pihakKeduaJabatan || 'Fasilitator Koding, KA & Robotika'}</p>
+              <p style="margin: 1px 0 0 0; font-size: 7pt; color: #4b5563;">${paket.pihakKeduaSekolah || paket.lokasiSNT}</p>
+            ` : `
+              <p style="margin: 0; font-weight: bold; text-decoration: underline;">
+                ${paket.pihakKeduaNama || (paket.fasilitator?.namaLengkap || 'Penanggung Jawab Fasilitator')}
+              </p>
+              <p style="margin: 2px 0 0 0; font-size: 7.5pt;">${paket.pihakKeduaJabatan || 'Fasilitator Koding, KA & Robotika'}</p>
+              <p style="margin: 1px 0 0 0; font-size: 7pt; color: #4b5563;">${paket.pihakKeduaSekolah || paket.lokasiSNT}</p>
+            `}
           </div>
         </div>
 
@@ -1215,12 +1287,21 @@ export function generateBastSntHtml(paket: any, items: any[]): string {
             Kepala Sekolah / Penanggung Jawab Satuan Pendidikan
           </p>
           <div class="sig-space"></div>
-          <p style="margin: 0; font-weight: bold; text-decoration: underline;">
-            (${paket.mengetahuiNama ? paket.mengetahuiNama : (paket.pihakKeduaSekolah ? 'Kepala ' + paket.pihakKeduaSekolah : 'Kepala Sekolah SNT')})
-          </p>
-          <p style="margin: 2px 0 0 0; font-size: 7.5pt; color: #4b5563;">
-            NIP. ${paket.mengetahuiNip && paket.mengetahuiNip !== '–' ? paket.mengetahuiNip : '……………………………………'}
-          </p>
+          ${(paket.kosongkanNamaBAST !== false || !paket.mengetahuiNama || /^(pemberi\s*kerja|ppk|pejabat|pengawas|kepala)/i.test(String(paket.mengetahuiNama).trim())) ? `
+            <p style="margin: 0; font-weight: bold; letter-spacing: 0.5px;">
+              ( .................................................... )
+            </p>
+            <p style="margin: 3px 0 0 0; font-size: 7.5pt; color: #4b5563;">
+              NIP. ....................................................
+            </p>
+          ` : `
+            <p style="margin: 0; font-weight: bold; text-decoration: underline;">
+              (${paket.mengetahuiNama ? paket.mengetahuiNama : (paket.pihakKeduaSekolah ? 'Kepala ' + paket.pihakKeduaSekolah : 'Kepala Sekolah SNT')})
+            </p>
+            <p style="margin: 2px 0 0 0; font-size: 7.5pt; color: #4b5563;">
+              NIP. ${paket.mengetahuiNip && paket.mengetahuiNip !== '–' ? paket.mengetahuiNip : '……………………………………'}
+            </p>
+          `}
         </div>
       </div>
     </body>
@@ -1978,22 +2059,38 @@ export function generateLaporanLengkapIotHtml(paket: any, items: any[]): string 
           <p style="margin: 0; font-weight: bold;">PIHAK KEDUA</p>
           <p style="margin: 1px 0 0 0; font-size: 7.5pt; color: #64748b;">Yang Menerima,</p>
           <div class="sig-space"></div>
-          <p style="margin: 0; font-weight: bold; text-decoration: underline;">
-            ${paket.pihakKeduaNama || (paket.fasilitator?.namaLengkap || 'Penanggung Jawab Fasilitator')}
-          </p>
-          <p style="margin: 1px 0 0 0; font-size: 7pt;">${paket.pihakKeduaJabatan || 'Fasilitator SNT'}</p>
+          ${(paket.kosongkanNamaBAST !== false || !paket.pihakKeduaNama || /^(fasilitator|koordinator|penanggung\s*jawab|pic)/i.test(String(paket.pihakKeduaNama).trim())) ? `
+            <p style="margin: 0; font-weight: bold; letter-spacing: 0.5px;">
+              ( .................................................... )
+            </p>
+            <p style="margin: 2px 0 0 0; font-size: 7pt;">${paket.pihakKeduaJabatan || 'Fasilitator SNT'}</p>
+          ` : `
+            <p style="margin: 0; font-weight: bold; text-decoration: underline;">
+              ${paket.pihakKeduaNama || (paket.fasilitator?.namaLengkap || 'Penanggung Jawab Fasilitator')}
+            </p>
+            <p style="margin: 1px 0 0 0; font-size: 7pt;">${paket.pihakKeduaJabatan || 'Fasilitator SNT'}</p>
+          `}
         </div>
 
         <div class="sig-col">
           <p style="margin: 0; font-weight: bold;">MENGETAHUI,</p>
           <p style="margin: 1px 0 0 0; font-size: 7.5pt; color: #64748b;">Kepala Satuan Pendidikan SNT,</p>
           <div class="sig-space"></div>
-          <p style="margin: 0; font-weight: bold; text-decoration: underline;">
-            (${paket.mengetahuiNama ? paket.mengetahuiNama : (paket.pihakKeduaSekolah ? 'Kepala ' + paket.pihakKeduaSekolah : 'Kepala Sekolah SNT')})
-          </p>
-          <p style="margin: 1px 0 0 0; font-size: 7pt; color: #64748b;">
-            NIP. ${paket.mengetahuiNip && paket.mengetahuiNip !== '–' ? paket.mengetahuiNip : '……………………………………'}
-          </p>
+          ${(paket.kosongkanNamaBAST !== false || !paket.mengetahuiNama || /^(pemberi\s*kerja|ppk|pejabat|pengawas|kepala)/i.test(String(paket.mengetahuiNama).trim())) ? `
+            <p style="margin: 0; font-weight: bold; letter-spacing: 0.5px;">
+              ( .................................................... )
+            </p>
+            <p style="margin: 2px 0 0 0; font-size: 7pt; color: #64748b;">
+              NIP. ....................................................
+            </p>
+          ` : `
+            <p style="margin: 0; font-weight: bold; text-decoration: underline;">
+              (${paket.mengetahuiNama ? paket.mengetahuiNama : (paket.pihakKeduaSekolah ? 'Kepala ' + paket.pihakKeduaSekolah : 'Kepala Sekolah SNT')})
+            </p>
+            <p style="margin: 1px 0 0 0; font-size: 7pt; color: #64748b;">
+              NIP. ${paket.mengetahuiNip && paket.mengetahuiNip !== '–' ? paket.mengetahuiNip : '……………………………………'}
+            </p>
+          `}
         </div>
       </div>
 
