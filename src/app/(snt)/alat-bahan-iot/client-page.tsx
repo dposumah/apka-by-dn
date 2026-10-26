@@ -201,12 +201,13 @@ export function AlatBahanIotClient({
   const vendorList = useMemo(() => {
     if (!paket100?.notaVendorJson) {
       return [
-        { vendor: 'PCM (Printed Circuit Maker)', itemsCount: 23, totalPagu: 67230000, totalReal: 67230000, status: 'Lunas' },
-        { vendor: 'CNC Store Bandung', itemsCount: 15, totalPagu: 26027000, totalReal: 26027000, status: 'Lunas' },
-        { vendor: 'The Box Indonesia', itemsCount: 1, totalPagu: 4400000, totalReal: 4400000, status: 'Lunas' },
-        { vendor: 'Shopee / Marketplace', itemsCount: 4, totalPagu: 1796440, totalReal: 1796440, status: 'Lunas' },
-        { vendor: 'QC & Packing Internal', itemsCount: 2, totalPagu: 7550000, totalReal: 7550000, status: 'Selesai' },
-        { vendor: 'Acuan Kabel & Label', itemsCount: 1, totalPagu: 750000, totalReal: 750000, status: 'Lunas' }
+        { vendor: 'PCM Elektronik', itemsCount: 13, totalPagu: 46745000, totalReal: 46745000, status: 'Sudah order' },
+        { vendor: 'CNC Store Bandung', itemsCount: 17, totalPagu: 45241000, totalReal: 45241000, status: 'Sudah order' },
+        { vendor: 'Percetakan (Alqori, Surya, Online Print)', itemsCount: 3, totalPagu: 13950000, totalReal: 13950000, status: 'Cari harga' },
+        { vendor: 'QC & Perakitan Internal', itemsCount: 1, totalPagu: 7550000, totalReal: 7550000, status: 'Cari harga' },
+        { vendor: 'The Box 03', itemsCount: 1, totalPagu: 4400000, totalReal: 4400000, status: 'Sudah order' },
+        { vendor: 'Shopee (kyware, rzaelectro, dll)', itemsCount: 6, totalPagu: 1746440, totalReal: 1746440, status: 'Lunas' },
+        { vendor: 'Cadangan Kabel & Acuan', itemsCount: 1, totalPagu: 750000, totalReal: 750000, status: 'Cari harga' }
       ]
     }
     try {
@@ -596,7 +597,7 @@ export function AlatBahanIotClient({
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-blue-950">
-                  {formatCurrency(paket100?.totalRealisasi || 107753440)}
+                  {formatCurrency(paket100?.totalRealisasi || 120382440)}
                 </div>
                 <p className="text-[11px] text-blue-700 mt-0.5">4 Pos Kategori F Dashboard RAB</p>
               </CardContent>
@@ -611,9 +612,11 @@ export function AlatBahanIotClient({
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-purple-950">
-                  {formatCurrency(paket100?.estimasiLaba || 127218310)}
+                  {formatCurrency(paket100?.estimasiLaba || 114589310)}
                 </div>
-                <p className="text-[11px] text-purple-700 mt-0.5 font-bold">Margin Laba: 53.32%</p>
+                <p className="text-[11px] text-purple-700 mt-0.5 font-bold">
+                  Margin Laba: {((((paket100?.estimasiLaba || 114589310) / (paket100?.nilaiKontrakSPK || 238550000))) * 100).toFixed(2)}%
+                </p>
               </CardContent>
             </Card>
           </div>

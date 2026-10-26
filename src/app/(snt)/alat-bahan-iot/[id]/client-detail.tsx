@@ -116,7 +116,7 @@ export function AlatBahanIotDetailClient({
     lampiranNotaUrl: paket.lampiranNotaUrl || '',
     nilaiKontrakSPK: paket.nilaiKontrakSPK || 238550000,
     potonganPPh22: paket.potonganPPh22 || 3578250,
-    estimasiLaba: paket.estimasiLaba || 127218310,
+    estimasiLaba: paket.estimasiLaba || 114589310,
     kosongkanTanggalBAST: paket.kosongkanTanggalBAST !== undefined ? paket.kosongkanTanggalBAST : true,
     kosongkanNamaBAST: paket.kosongkanNamaBAST !== undefined ? paket.kosongkanNamaBAST : true
   })
