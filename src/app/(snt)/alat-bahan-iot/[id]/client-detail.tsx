@@ -442,6 +442,20 @@ export function AlatBahanIotDetailClient({
             alert('Gagal mengimpor Excel: ' + res.error)
             return
           }
+          if (res?.isStarterKit100) {
+            alert(
+              `✅ Berhasil Menyinkronkan File Excel Starter Kit IoT!\n\n` +
+              `• Total Item Belanja: ${res.totalItems} item\n` +
+              `• Total Belanja (HPP): ${formatCurrency(res.totalPengeluaran || 0)}\n` +
+              `• Nilai Kontrak SPK: ${formatCurrency(238550000)}\n` +
+              `• Potongan PPh 22 (1.5%): ${formatCurrency(3578250)}\n` +
+              `• Estimasi Laba Bersih: ${formatCurrency(res.estimasiLaba || 0)} (Margin: ${(Number(res.margin || 0) * 100).toFixed(2)}%)\n` +
+              `• Rekapitulasi Vendor: ${res.vendorBreakdown?.length || 0} rekanan berhasil disinkronkan otomatis.\n\n` +
+              `Semua data item, kuantitas, harga, status pesanan, dan vendor telah disimpan ke database.`
+            )
+            window.location.reload()
+            return
+          }
           alert(`Berhasil mengimpor file Excel!\n• ${res.matchedCount} item berhasil dicocokkan\n• ${res.extraCount} item tambahan/ongkir dicatat\n• Total realisasi belanja: ${formatCurrency(res.totalPengeluaran || 0)}`)
           window.location.reload()
         } catch (innerErr: any) {
@@ -454,6 +468,8 @@ export function AlatBahanIotDetailClient({
     } catch (err: any) {
       alert('Gagal membaca file: ' + err.message)
       setIsImportingExcel(false)
+    } finally {
+      e.target.value = ''
     }
   }
 
@@ -666,6 +682,21 @@ export function AlatBahanIotDetailClient({
               </span>
             )}
           </button>
+
+          <label 
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-teal-700 hover:bg-teal-800 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+            title="Unggah file Excel (v3.Belanja_Starter_Kit_IoT_100_kit.xlsx) untuk memperbarui seluruh data belanja secara otomatis"
+          >
+            {isImportingExcel ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+            <span>{isImportingExcel ? 'Menyinkronkan...' : 'Update dari Excel (.xlsx)'}</span>
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={handleExcelUpload}
+              className="hidden"
+              disabled={isImportingExcel}
+            />
+          </label>
 
           {is100Kit && (
             <Link
@@ -888,6 +919,21 @@ export function AlatBahanIotDetailClient({
                   <option value="QC & Packing Internal">QC Internal</option>
                   <option value="Acuan Kabel & Label">Acuan Kabel</option>
                 </select>
+
+                <label 
+                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-teal-700 hover:bg-teal-800 text-white rounded text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                  title="Sinkronkan seluruh item & harga dari file Excel belanja terbaru"
+                >
+                  {isImportingExcel ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileSpreadsheet className="w-3.5 h-3.5" />}
+                  <span>{isImportingExcel ? 'Menyinkronkan...' : 'Update dari Excel'}</span>
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={handleExcelUpload}
+                    className="hidden"
+                    disabled={isImportingExcel}
+                  />
+                </label>
 
                 <button
                   type="button"

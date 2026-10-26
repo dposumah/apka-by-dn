@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/format'
-import { createPaketIoT, deletePaketIoT } from '@/app/actions/iot'
+import { createPaketIoT, deletePaketIoT, importExcelPaketIoT } from '@/app/actions/iot'
 import { generateRabIotHtml, generateBast100KitHtml, generateBastSntHtml, generateLaporanLengkapIotHtml } from '@/lib/pdf-iot-templates'
 import { 
   Plus, 
@@ -30,7 +30,8 @@ import {
   Percent,
   CheckCircle,
   Clock,
-  Upload
+  Upload,
+  FileSpreadsheet
 } from 'lucide-react'
 
 export function AlatBahanIotClient({ 
@@ -164,6 +165,54 @@ export function AlatBahanIotClient({
       setTimeout(() => {
         win.print()
       }, 700)
+    }
+  }
+
+  const [isSyncingExcel100, setIsSyncingExcel100] = useState(false)
+
+  const handleSyncExcel100 = async (e: React.ChangeEvent<HTMLInputElement>, targetPaketId: string) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setIsSyncingExcel100(true)
+    try {
+      const reader = new FileReader()
+      reader.onload = async (evt) => {
+        try {
+          const b64 = (evt.target?.result as string).split(',')[1]
+          const res = await importExcelPaketIoT(targetPaketId, b64)
+          if (res?.error) {
+            alert('Gagal menyinkronkan Excel: ' + res.error)
+            return
+          }
+          if (res?.isStarterKit100) {
+            alert(
+              `✅ Berhasil Menyinkronkan File Excel Starter Kit IoT!\n\n` +
+              `• Total Item Belanja: ${res.totalItems} item\n` +
+              `• Total Belanja (HPP): ${formatCurrency(res.totalPengeluaran || 0)}\n` +
+              `• Nilai Kontrak SPK: ${formatCurrency(238550000)}\n` +
+              `• Potongan PPh 22 (1.5%): ${formatCurrency(3578250)}\n` +
+              `• Estimasi Laba Bersih: ${formatCurrency(res.estimasiLaba || 0)} (Margin: ${(Number(res.margin || 0) * 100).toFixed(2)}%)\n` +
+              `• Rekapitulasi Vendor: ${res.vendorBreakdown?.length || 0} rekanan berhasil disinkronkan otomatis.\n\n` +
+              `Semua perubahan harga, kuantitas, status pesanan, dan vendor telah disimpan ke database.`
+            )
+            window.location.reload()
+            return
+          }
+          alert(`Berhasil mengimpor file Excel! Total realisasi: ${formatCurrency(res.totalPengeluaran || 0)}`)
+          window.location.reload()
+        } catch (innerErr: any) {
+          alert('Gagal memproses file: ' + innerErr.message)
+        } finally {
+          setIsSyncingExcel100(false)
+        }
+      }
+      reader.readAsDataURL(file)
+    } catch (err: any) {
+      alert('Gagal membaca file: ' + err.message)
+      setIsSyncingExcel100(false)
+    } finally {
+      e.target.value = ''
     }
   }
 
@@ -660,6 +709,21 @@ export function AlatBahanIotClient({
                       <Upload className="w-4 h-4" />
                       <span>Upload Nota &amp; Invoice</span>
                     </Link>
+
+                    <label 
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-teal-700 hover:bg-teal-600 text-white rounded-lg text-xs font-semibold transition-colors shadow-xs cursor-pointer"
+                      title="Sinkronkan data belanja Starter Kit IoT langsung dari file Excel"
+                    >
+                      {isSyncingExcel100 ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+                      <span>{isSyncingExcel100 ? 'Menyinkronkan...' : 'Update dari Excel (.xlsx)'}</span>
+                      <input
+                        type="file"
+                        accept=".xlsx,.xls"
+                        onChange={(e) => handleSyncExcel100(e, paket100.id)}
+                        className="hidden"
+                        disabled={isSyncingExcel100}
+                      />
+                    </label>
 
                     <button
                       type="button"

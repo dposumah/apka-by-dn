@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { checkAuth } from '@/lib/auth-check'
 import { DEFAULT_51_IOT_ITEMS, STANDARD_8_KELOMPOK, getStandardItemKemasanAndSatuan, isLikelyVendorName } from '@/lib/iot-constants'
-import { parseIotExcelWorkbook, normalizeItemName } from '@/lib/excel-iot-parser'
+import { parseIotExcelWorkbook, normalizeItemName, parseStarterKit100Workbook } from '@/lib/excel-iot-parser'
 
 /**
  * Determines next category name letter for SNT
@@ -733,6 +733,70 @@ export async function importExcelPaketIoT(paketId: string, base64Data: string) {
     if (!paket) return { error: 'Paket tidak ditemukan' }
 
     const buffer = Buffer.from(base64Data, 'base64')
+
+    // 1. Cek apakah ini format Workbook Starter Kit 100 Kit (Sheet Belanja)
+    const parsed100 = parseStarterKit100Workbook(buffer)
+    if (parsed100 && parsed100.items.length > 0) {
+      await prisma.$transaction(async (tx) => {
+        // Hapus item lama paket ini
+        await tx.itemPengadaanIoT.deleteMany({
+          where: { paketId: paket.id }
+        })
+
+        // Masukkan item baru yang telah disinkronkan dari Excel
+        await tx.itemPengadaanIoT.createMany({
+          data: parsed100.items.map(it => ({
+            paketId: paket.id,
+            kategori: it.kategori,
+            namaBarang: it.namaBarang,
+            satuan: it.satuan,
+            volume: it.volume,
+            qtyPerKit: it.qtyPerKit,
+            hargaSatuanRAB: it.hargaSatuanRAB,
+            totalRAB: it.totalRAB,
+            hargaSatuanReal: it.hargaSatuanReal,
+            totalReal: it.totalReal,
+            vendor: it.vendor,
+            statusOrder: it.statusOrder,
+            kondisiCatatan: it.kondisiCatatan,
+            diterima: true
+          }))
+        })
+
+        // Update Paket Pengadaan IoT
+        await tx.paketPengadaanIoT.update({
+          where: { id: paket.id },
+          data: {
+            subtotalRencana: parsed100.totalBiaya,
+            totalPaguRAB: parsed100.totalBiaya,
+            totalRealisasi: parsed100.totalBiaya,
+            nilaiKontrakSPK: parsed100.nilaiKontrakDPP,
+            potonganPPh22: parsed100.pph22,
+            estimasiLaba: parsed100.estimasiLaba,
+            notaVendorJson: JSON.stringify(parsed100.vendorSummary)
+          }
+        })
+      })
+
+      // Sinkronkan ke RabCategory jika terhubung
+      await syncPaketToRabCategory(paketId, session?.user?.id)
+
+      revalidatePath('/alat-bahan-iot/' + paketId)
+      revalidatePath('/alat-bahan-iot')
+      revalidatePath('/dashboard-rab')
+
+      return {
+        success: true,
+        isStarterKit100: true,
+        totalItems: parsed100.items.length,
+        totalPengeluaran: parsed100.totalBiaya,
+        estimasiLaba: parsed100.estimasiLaba,
+        margin: parsed100.margin,
+        vendorBreakdown: parsed100.vendorSummary
+      }
+    }
+
+    // 2. Format SNT Lokasi Tunggal
     const parsed = parseIotExcelWorkbook(buffer)
 
     if (!parsed.items || parsed.items.length === 0) {
