@@ -1,6 +1,24 @@
 "use client"
 
-import { Edit, Printer, Copy, Trash2, Link as LinkIcon, FileText, FileCheck2, Loader2, X } from 'lucide-react'
+import { 
+  Edit, 
+  Printer, 
+  Copy, 
+  Trash2, 
+  Link as LinkIcon, 
+  FileText, 
+  FileCheck2, 
+  Loader2, 
+  X,
+  ChevronDown,
+  ChevronRight,
+  CheckCircle2,
+  Clock,
+  Calendar,
+  Layers,
+  Check,
+  AlertCircle
+} from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -101,6 +119,49 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
     const computedTotalHonor = computedTotalJP * (parseInt(manualRate) || 0);
 
 
+  // Helper Status Pembayaran
+  const getRekapPaymentStatus = (rekap: any): 'LUNAS' | 'SEBAGIAN' | 'BELUM_BAYAR' => {
+    const hasHonor = Boolean(rekap.buktiPembayaranHonor)
+    const totalTransport = hitungTotalTransportRekap(rekap)
+    const needsTransport = totalTransport > 0
+    const hasTransport = Boolean(rekap.buktiPembayaranTransport)
+
+    if (rekap.status === 'APPROVED' || (hasHonor && (!needsTransport || hasTransport))) {
+      return 'LUNAS'
+    }
+    if (hasHonor || hasTransport) {
+      return 'SEBAGIAN'
+    }
+    return 'BELUM_BAYAR'
+  }
+
+  // Format Indonesian Month
+  const formatBulanIndo = (bulanStr: string) => {
+    if (!bulanStr) return '-'
+    const parts = bulanStr.split('-')
+    if (parts.length !== 2) return bulanStr
+    const year = parts[0]
+    const monthNum = parseInt(parts[1], 10)
+    const namaBulan = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ]
+    const bulanName = namaBulan[monthNum - 1] || parts[1]
+    return `${bulanName} ${year}`
+  }
+
+  // Active Tab & View Mode
+  const [activeTab, setActiveTab] = useState<'ALL' | 'UNPAID' | 'PAID'>('PAID')
+  const [isGroupedByMonth, setIsGroupedByMonth] = useState<boolean>(true)
+  const [collapsedMonths, setCollapsedMonths] = useState<Record<string, boolean>>({})
+
+  const toggleMonth = (bulan: string) => {
+    setCollapsedMonths(prev => ({
+      ...prev,
+      [bulan]: !prev[bulan]
+    }))
+  }
+
   const [filterLokasi, setFilterLokasi] = useState('')
   const [filterNama, setFilterNama] = useState('')
   const [filterBulan, setFilterBulan] = useState('')
@@ -124,26 +185,127 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
     }
   }
 
-  const filteredData = initialData.filter((rekap: any) => {
-    const matchLokasi = filterLokasi ? rekap.fasilitator?.lokasiSNT === filterLokasi : true;
-    const matchNama = filterNama ? rekap.fasilitator?.namaLengkap?.toLowerCase().includes(filterNama.toLowerCase()) : true;
-    const matchBulan = filterBulan ? rekap.bulan === filterBulan : true;
-    return matchLokasi && matchNama && matchBulan;
-  });
+  // Global Statistics across initialData
+  const stats = useMemo(() => {
+    let totalHonor = 0
+    let totalTransport = 0
+    let lunasCount = 0
+    let unpaidCount = 0
+    const uniqueMonths = new Set<string>()
 
-  const sortedData = [...filteredData].sort((a, b) => {
-    let comparison = 0
-    if (sortField === 'nama') {
-      comparison = (a.fasilitator.namaLengkap || '').localeCompare(b.fasilitator.namaLengkap || '')
-    } else if (sortField === 'lokasi') {
-      comparison = (a.fasilitator.lokasiSNT || '').localeCompare(b.fasilitator.lokasiSNT || '')
-    } else if (sortField === 'bulan') {
-      comparison = (a.bulan || '').localeCompare(b.bulan || '')
-    } else {
-      comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    for (const r of initialData) {
+      if (r.bulan) uniqueMonths.add(r.bulan)
+      totalHonor += (r.totalHonor || 0)
+      totalTransport += hitungTotalTransportRekap(r)
+      const st = getRekapPaymentStatus(r)
+      if (st === 'LUNAS' || st === 'SEBAGIAN') {
+        lunasCount++
+      } else {
+        unpaidCount++
+      }
     }
-    return sortOrder === 'asc' ? comparison : -comparison
-  })
+
+    return {
+      totalCount: initialData.length,
+      lunasCount,
+      unpaidCount,
+      totalHonor,
+      totalTransport,
+      grandTotal: totalHonor + totalTransport,
+      monthCount: uniqueMonths.size,
+      monthsList: Array.from(uniqueMonths).sort().reverse()
+    }
+  }, [initialData])
+
+  const filteredData = useMemo(() => {
+    return initialData.filter((rekap: any) => {
+      const matchLokasi = filterLokasi ? rekap.fasilitator?.lokasiSNT === filterLokasi : true;
+      const matchNama = filterNama ? rekap.fasilitator?.namaLengkap?.toLowerCase().includes(filterNama.toLowerCase()) : true;
+      const matchBulan = filterBulan ? rekap.bulan === filterBulan : true;
+
+      const st = getRekapPaymentStatus(rekap)
+      let matchTab = true
+      if (activeTab === 'PAID') {
+        matchTab = st === 'LUNAS' || st === 'SEBAGIAN'
+      } else if (activeTab === 'UNPAID') {
+        matchTab = st === 'BELUM_BAYAR'
+      }
+
+      return matchLokasi && matchNama && matchBulan && matchTab;
+    });
+  }, [initialData, filterLokasi, filterNama, filterBulan, activeTab]);
+
+  const sortedData = useMemo(() => {
+    return [...filteredData].sort((a, b) => {
+      let comparison = 0
+      if (sortField === 'nama') {
+        comparison = (a.fasilitator?.namaLengkap || '').localeCompare(b.fasilitator?.namaLengkap || '')
+      } else if (sortField === 'lokasi') {
+        comparison = (a.fasilitator?.lokasiSNT || '').localeCompare(b.fasilitator?.lokasiSNT || '')
+      } else if (sortField === 'bulan') {
+        comparison = (a.bulan || '').localeCompare(b.bulan || '')
+      } else {
+        comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      }
+      return sortOrder === 'asc' ? comparison : -comparison
+    })
+  }, [filteredData, sortField, sortOrder]);
+
+  const monthGroups = useMemo(() => {
+    const groups: Record<string, {
+      bulan: string;
+      labelBulan: string;
+      items: any[];
+      totalFasilitator: number;
+      totalJP: number;
+      totalHonor: number;
+      totalTransport: number;
+      grandTotal: number;
+      lunasCount: number;
+      unpaidCount: number;
+    }> = {}
+
+    for (const item of sortedData) {
+      const b = item.bulan || 'Tanpa Bulan'
+      if (!groups[b]) {
+        groups[b] = {
+          bulan: b,
+          labelBulan: formatBulanIndo(b),
+          items: [],
+          totalFasilitator: 0,
+          totalJP: 0,
+          totalHonor: 0,
+          totalTransport: 0,
+          grandTotal: 0,
+          lunasCount: 0,
+          unpaidCount: 0
+        }
+      }
+      groups[b].items.push(item)
+      groups[b].totalFasilitator += 1
+      groups[b].totalJP += (item.totalJP || 0)
+      groups[b].totalHonor += (item.totalHonor || 0)
+      const t = hitungTotalTransportRekap(item)
+      groups[b].totalTransport += t
+      groups[b].grandTotal += ((item.totalHonor || 0) + t)
+
+      const st = getRekapPaymentStatus(item)
+      if (st === 'LUNAS' || st === 'SEBAGIAN') {
+        groups[b].lunasCount += 1
+      } else {
+        groups[b].unpaidCount += 1
+      }
+    }
+
+    return Object.values(groups).sort((a, b) => b.bulan.localeCompare(a.bulan))
+  }, [sortedData])
+
+  const expandAll = () => setCollapsedMonths({})
+  const collapseAll = () => {
+    const all: Record<string, boolean> = {}
+    monthGroups.forEach(g => { all[g.bulan] = true })
+    setCollapsedMonths(all)
+  }
 
   useEffect(() => {
     async function fetchJp() {
@@ -414,6 +576,280 @@ Atas Nama: ${namaLengkap}`;
     }
   }
 
+  const renderTable = (items: any[], showMonthColumn: boolean = true) => (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm text-left border-collapse">
+        <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700 uppercase tracking-wider">
+          <tr>
+            <th className="py-3.5 px-4 cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort("nama")}>
+              <div className="flex items-center gap-1.5">
+                <span>Fasilitator</span>
+                <span className="text-slate-400 font-normal">{sortField === "nama" ? (sortOrder === "asc" ? "↑" : "↓") : "↕"}</span>
+              </div>
+            </th>
+            <th className="py-3.5 px-4 cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort("lokasi")}>
+              <div className="flex items-center gap-1.5">
+                <span>Lokasi SNT</span>
+                <span className="text-slate-400 font-normal">{sortField === "lokasi" ? (sortOrder === "asc" ? "↑" : "↓") : "↕"}</span>
+              </div>
+            </th>
+            {showMonthColumn && (
+              <th className="py-3.5 px-4 cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap text-center" onClick={() => handleSort("bulan")}>
+                <div className="flex items-center justify-center gap-1.5">
+                  <span>Bulan</span>
+                  <span className="text-slate-400 font-normal">{sortField === "bulan" ? (sortOrder === "asc" ? "↑" : "↓") : "↕"}</span>
+                </div>
+              </th>
+            )}
+            <th className="py-3.5 px-4 text-center whitespace-nowrap">Total JP</th>
+            <th className="py-3.5 px-4 text-right whitespace-nowrap">Total Honor</th>
+            <th className="py-3.5 px-4 text-center whitespace-nowrap">Status</th>
+            <th className="py-3.5 px-4 text-right whitespace-nowrap">Total Transport</th>
+            <th className="py-3 px-3 text-center whitespace-nowrap">Bukti Bayar</th>
+            <th className="py-3 px-3 text-center whitespace-nowrap w-36">Aksi</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-200/70">
+          {items.length === 0 ? (
+            <tr>
+              <td colSpan={showMonthColumn ? 9 : 8} className="py-12 text-center text-slate-500">
+                Tidak ada data rekapitulasi honorarium.
+              </td>
+            </tr>
+          ) : (
+            items.map((rekap) => (
+              <tr key={rekap.id} className="hover:bg-slate-50/80 transition-colors">
+                {/* 1. Fasilitator */}
+                <td className="py-3 px-3 align-top">
+                  <div className="font-semibold text-slate-900 leading-snug">{rekap.fasilitator?.namaLengkap}</div>
+                  {(rekap.fasilitator?.bankName || rekap.fasilitator?.bankAccount) ? (
+                    <div className="text-[11px] text-slate-400 mt-1 font-mono">
+                      {rekap.fasilitator.bankName} {rekap.fasilitator.bankAccount ? `• ${rekap.fasilitator.bankAccount}` : ''}
+                    </div>
+                  ) : null}
+                </td>
+
+                {/* 2. Lokasi SNT */}
+                <td className="py-3 px-3 align-top">
+                  {rekap.fasilitator?.lokasiSNT ? (
+                    <div className="text-xs">
+                      <span className="font-semibold text-slate-800 block">
+                        {rekap.fasilitator.lokasiSNT.split(' - ')[0]}
+                      </span>
+                      {rekap.fasilitator.lokasiSNT.split(' - ')[1] && (
+                        <span className="text-slate-500 block text-[11px] mt-0.5 leading-tight">
+                          {rekap.fasilitator.lokasiSNT.split(' - ')[1]}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-slate-400 text-xs italic">-</span>
+                  )}
+                </td>
+
+                {/* 3. Bulan */}
+                {showMonthColumn && (
+                  <td className="py-3 px-2.5 align-top text-center whitespace-nowrap">
+                    <span className="inline-block px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-mono font-medium border border-slate-200">
+                      {rekap.bulan}
+                    </span>
+                  </td>
+                )}
+
+                {/* 4. Total JP */}
+                <td className="py-3 px-2 align-top text-center whitespace-nowrap">
+                  <span className="font-bold text-slate-800 text-sm">{rekap.totalJP}</span>
+                  <span className="text-[10px] text-slate-400 block font-medium">JP</span>
+                </td>
+
+                {/* 5. Total Honor */}
+                <td className="py-3 px-3 align-top text-right whitespace-nowrap">
+                  <div className="font-bold text-slate-900 text-sm">
+                    {formatCurrency(rekap.totalHonor)}
+                  </div>
+                </td>
+
+                {/* 6. Status */}
+                <td className="py-3 px-2 align-top text-center whitespace-nowrap">
+                  <Badge 
+                    variant={rekap.status === 'SUBMITTED' ? 'default' : 'secondary'}
+                    className={rekap.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100 font-semibold text-[11px]' : 'text-[11px]'}
+                  >
+                    {rekap.status}
+                  </Badge>
+                </td>
+
+                {/* 7. Total Transport */}
+                <td className="py-3 px-3 align-top text-right whitespace-nowrap">
+                  <div className="flex items-center justify-end gap-1.5">
+                    <span className="font-medium text-slate-900">{formatCurrency(hitungTotalTransportRekap(rekap))}</span>
+                    <button 
+                      type="button"
+                      onClick={() => openEditTransportModal(rekap)}
+                      className="p-1 hover:bg-amber-100 bg-amber-50 text-amber-700 border border-amber-200 rounded transition-colors cursor-pointer"
+                      title="Edit Biaya Transport"
+                    >
+                      <Edit className="w-3 h-3" />
+                    </button>
+                  </div>
+                  {rekap.totalTransport !== null && rekap.totalTransport !== undefined && (
+                    <span className="text-[10px] text-amber-600 font-medium block mt-0.5">Disesuaikan Admin</span>
+                  )}
+                </td>
+
+                {/* 8. Bukti Bayar & Dokumen Lampiran */}
+                <td className="py-3 px-3 align-top text-center">
+                  <div className="flex flex-col items-center gap-1.5 min-w-[95px]">
+                    {rekap.buktiPembayaranHonor ? (
+                      <button 
+                        type="button"
+                        onClick={() => setPreviewModal({
+                          isOpen: true,
+                          title: `Bukti Transfer Honor - ${rekap.fasilitator?.namaLengkap || 'Fasilitator'} (${rekap.bulan})`,
+                          url: rekap.buktiPembayaranHonor
+                        })}
+                        className="text-xs text-emerald-700 hover:text-emerald-900 font-medium hover:underline inline-flex items-center gap-1 cursor-pointer bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 w-full justify-center transition-colors"
+                      >
+                        ✓ Honor
+                      </button>
+                    ) : null}
+                    {rekap.buktiPembayaranTransport ? (
+                      <button 
+                        type="button"
+                        onClick={() => setPreviewModal({
+                          isOpen: true,
+                          title: `Bukti Transfer Transport - ${rekap.fasilitator?.namaLengkap || 'Fasilitator'} (${rekap.bulan})`,
+                          url: rekap.buktiPembayaranTransport
+                        })}
+                        className="text-xs text-purple-700 hover:text-purple-900 font-medium hover:underline inline-flex items-center gap-1 cursor-pointer bg-purple-50 px-2 py-0.5 rounded border border-purple-200 w-full justify-center transition-colors"
+                      >
+                        ✓ Transport
+                      </button>
+                    ) : null}
+                    {rekap.filePdf ? (
+                      <button 
+                        type="button"
+                        onClick={() => setPreviewModal({
+                          isOpen: true,
+                          title: `Dokumen PDF TTD - ${rekap.fasilitator?.namaLengkap || 'Fasilitator'} (${rekap.bulan})`,
+                          url: rekap.filePdf
+                        })}
+                        className="text-xs text-blue-700 hover:text-blue-900 font-medium hover:underline inline-flex items-center gap-1 cursor-pointer bg-blue-50 px-2 py-0.5 rounded border border-blue-200 w-full justify-center transition-colors"
+                      >
+                        <FileText className="w-3 h-3 text-blue-600" />
+                        <span>PDF TTD</span>
+                      </button>
+                    ) : null}
+                    {(rekap.status === 'SUBMITTED' || rekap.status === 'APPROVED') && (
+                      <button 
+                        onClick={() => { setUploadingRekap(rekap); setHonorFile(null); setTransportFile(null); setShowUploadModal(true); }}
+                        className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 px-2 py-0.5 rounded transition-colors font-medium cursor-pointer w-full mt-0.5"
+                      >
+                        {rekap.buktiPembayaranHonor && rekap.buktiPembayaranTransport ? 'Ganti Bukti' : 'Upload Bukti'}
+                      </button>
+                    )}
+                  </div>
+                </td>
+
+                {/* 9. Aksi */}
+                <td className="py-3 px-3 align-top text-right">
+                  {(rekap.status === 'SUBMITTED' || rekap.status === 'APPROVED') && (
+                    <div className="flex flex-col gap-1.5 w-32 ml-auto">
+                      <button 
+                        type="button"
+                        onClick={() => openKopModal(rekap)}
+                        disabled={loadingId === rekap.id}
+                        className="w-full inline-flex items-center justify-center gap-1.5 text-xs bg-slate-900 text-white hover:bg-slate-800 rounded-md px-2 py-1.5 font-medium transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+                        title="Buat invoice dan cetak dokumen rekap honorarium"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>{loadingId === rekap.id ? 'Memproses...' : 'Invoice & Cetak'}</span>
+                      </button>
+
+                      <button 
+                        type="button"
+                        onClick={() => openEditTransportModal(rekap)} 
+                        className="w-full inline-flex items-center justify-center gap-1.5 text-xs bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 rounded-md px-2 py-1 font-medium transition-colors cursor-pointer" 
+                        title="Edit Biaya Transport Rekap"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                        <span>Edit Transport</span>
+                      </button>
+
+                      <button 
+                        type="button"
+                        onClick={() => handleCopyText(rekap)} 
+                        className="w-full inline-flex items-center justify-center gap-1.5 text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-md px-2 py-1 font-medium transition-colors cursor-pointer" 
+                        title="Salin rincian data pembayaran ke clipboard"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Salin Data</span>
+                      </button>
+
+                      <button 
+                        type="button"
+                        onClick={() => handleSync(rekap.id)} 
+                        className="w-full inline-flex items-center justify-center gap-1.5 text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-md px-2 py-1 font-medium transition-colors cursor-pointer" 
+                        title="Tautkan laporan mingguan fasilitator yang telat ke rekap ini (Tidak merubah honor)"
+                      >
+                        <LinkIcon className="w-3.5 h-3.5" />
+                        <span>Tautkan</span>
+                      </button>
+
+                      <button 
+                        type="button"
+                        onClick={() => handleDelete(rekap.id)} 
+                        className="w-full inline-flex items-center justify-center gap-1.5 text-xs bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded-md px-2 py-1 font-medium transition-colors cursor-pointer"
+                        title="Hapus Rekapitulasi Ini"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Hapus</span>
+                      </button>
+                    </div>
+                  )}
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+        {items.length > 0 && (
+          <tfoot className="bg-slate-100/90 border-t-2 font-mono font-bold text-xs sticky bottom-0 z-10 shadow-xs">
+            <tr>
+              <td colSpan={showMonthColumn ? 3 : 2} className="py-3 px-4 text-right uppercase text-slate-900 font-sans font-bold">
+                Subtotal ({items.length} Fasilitator):
+              </td>
+              <td className="py-3 px-2 text-center text-slate-900 font-bold">
+                {items.reduce((s, it) => s + (it.totalJP || 0), 0)} JP
+              </td>
+              <td className="py-3 px-3 text-right text-slate-900 font-bold">
+                {formatCurrency(items.reduce((s, it) => s + (it.totalHonor || 0), 0))}
+              </td>
+              <td className="py-3 px-2 text-center text-[11px] font-sans">
+                <span className="text-emerald-700 font-bold">
+                  {items.filter(it => getRekapPaymentStatus(it) === 'LUNAS').length} Lunas
+                </span>
+                {items.some(it => getRekapPaymentStatus(it) !== 'LUNAS') && (
+                  <span className="text-amber-700 font-medium ml-1">
+                    ({items.filter(it => getRekapPaymentStatus(it) !== 'LUNAS').length} proses)
+                  </span>
+                )}
+              </td>
+              <td className="py-3 px-3 text-right text-slate-900 font-bold">
+                {formatCurrency(items.reduce((s, it) => s + hitungTotalTransportRekap(it), 0))}
+              </td>
+              <td colSpan={2} className="py-3 px-3 text-right font-sans">
+                <span className="text-[11px] text-slate-500 mr-2 font-medium">Total Transfer:</span>
+                <span className="text-emerald-950 font-black text-sm">
+                  {formatCurrency(items.reduce((s, it) => s + (it.totalHonor || 0) + hitungTotalTransportRekap(it), 0))}
+                </span>
+              </td>
+            </tr>
+          </tfoot>
+        )}
+      </table>
+    </div>
+  )
+
   return (
     <div className="p-6 md:p-8 space-y-6 max-w-[1440px] mx-auto">
       
@@ -424,10 +860,37 @@ Atas Nama: ${namaLengkap}`;
         </div>
         <button 
           onClick={() => setShowManualForm(!showManualForm)}
-          className="bg-slate-900 text-white px-4 py-2 rounded-md hover:bg-slate-800"
+          className="bg-slate-900 text-white px-4 py-2 rounded-md hover:bg-slate-800 cursor-pointer font-medium"
         >
           {showManualForm ? 'Batal' : '+ Buat Rekap Manual'}
         </button>
+      </div>
+
+      {/* STATS SUMMARY BANNER */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 shadow-xs">
+          <span className="text-[11px] font-semibold uppercase text-slate-500 block">Total Rekapitulasi</span>
+          <span className="text-xl font-bold text-slate-900 mt-0.5 block">{stats.totalCount} Data</span>
+          <span className="text-[11px] text-slate-500">{stats.monthCount} periode bulan tercatat</span>
+        </div>
+
+        <div className="bg-emerald-50/70 border border-emerald-200 rounded-lg p-3.5 shadow-xs">
+          <span className="text-[11px] font-semibold uppercase text-emerald-800 block">Selesai Dibayar (Lunas)</span>
+          <span className="text-xl font-bold text-emerald-900 mt-0.5 block">{stats.lunasCount} Rekap</span>
+          <span className="text-[11px] text-emerald-700 font-medium">Bukti transfer sudah lengkap</span>
+        </div>
+
+        <div className="bg-amber-50/70 border border-amber-200 rounded-lg p-3.5 shadow-xs">
+          <span className="text-[11px] font-semibold uppercase text-amber-800 block">Belum Dibayar / Proses</span>
+          <span className="text-xl font-bold text-amber-900 mt-0.5 block">{stats.unpaidCount} Rekap</span>
+          <span className="text-[11px] text-amber-700 font-medium">Draft / Belum ada bukti transfer</span>
+        </div>
+
+        <div className="bg-indigo-50/70 border border-indigo-200 rounded-lg p-3.5 shadow-xs">
+          <span className="text-[11px] font-semibold uppercase text-indigo-800 block">Total Pengeluaran Rekap</span>
+          <span className="text-xl font-bold text-indigo-950 mt-0.5 block font-mono">{formatCurrency(stats.grandTotal)}</span>
+          <span className="text-[11px] text-indigo-700">Honor: {formatCurrency(stats.totalHonor)} | Trans: {formatCurrency(stats.totalTransport)}</span>
+        </div>
       </div>
 
       {showManualForm && (
@@ -546,253 +1009,193 @@ Atas Nama: ${namaLengkap}`;
         )}
       </div>
 
+      {/* TABS & VIEW CONTROLS */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
+        <div className="flex items-center gap-2 overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => setActiveTab('PAID')}
+            className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'PAID'
+                ? 'bg-emerald-700 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
+            }`}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Selesai Dibayar</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+              activeTab === 'PAID' ? 'bg-emerald-800 text-emerald-100' : 'bg-slate-200 text-slate-700'
+            }`}>
+              {stats.lunasCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('UNPAID')}
+            className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'UNPAID'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>Belum Dibayar / Proses</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+              activeTab === 'UNPAID' ? 'bg-amber-700 text-amber-100' : 'bg-slate-200 text-slate-700'
+            }`}>
+              {stats.unpaidCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('ALL')}
+            className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'ALL'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Semua Data</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+              activeTab === 'ALL' ? 'bg-slate-800 text-slate-200' : 'bg-slate-200 text-slate-700'
+            }`}>
+              {stats.totalCount}
+            </span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setIsGroupedByMonth(!isGroupedByMonth)}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg border flex items-center gap-1.5 transition-colors cursor-pointer ${
+              isGroupedByMonth 
+                ? 'bg-blue-50 border-blue-300 text-blue-700' 
+                : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50'
+            }`}
+            title="Beralih antara tampilan kelompok per bulan atau tabel datar"
+          >
+            <Calendar className="w-3.5 h-3.5 text-blue-600" />
+            <span>{isGroupedByMonth ? 'Mode: Kelompok Per Bulan' : 'Mode: Tabel Flat'}</span>
+          </button>
+
+          {isGroupedByMonth && (
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={expandAll}
+                className="px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-md hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                Buka Semua
+              </button>
+              <button
+                type="button"
+                onClick={collapseAll}
+                className="px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-md hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                Tutup Semua
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="flex justify-between items-center text-xs text-slate-500 mb-1">
         <span>Menampilkan <strong>{sortedData.length}</strong> dari <strong>{initialData.length}</strong> rekapitulasi honor</span>
         {filterLokasi && <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-medium">Lokasi: {filterLokasi}</span>}
       </div>
 
-      <Card className="border-slate-200 shadow-sm overflow-hidden">
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left border-collapse">
-              <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                <tr>
-                  <th className="py-3.5 px-4 cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort("nama")}>
-                    <div className="flex items-center gap-1.5">
-                      <span>Fasilitator</span>
-                      <span className="text-slate-400 font-normal">{sortField === "nama" ? (sortOrder === "asc" ? "↑" : "↓") : "↕"}</span>
-                    </div>
-                  </th>
-                  <th className="py-3.5 px-4 cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort("lokasi")}>
-                    <div className="flex items-center gap-1.5">
-                      <span>Lokasi SNT</span>
-                      <span className="text-slate-400 font-normal">{sortField === "lokasi" ? (sortOrder === "asc" ? "↑" : "↓") : "↕"}</span>
-                    </div>
-                  </th>
-                  <th className="py-3.5 px-4 cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort("bulan")}>
-                    <div className="flex items-center gap-1.5">
-                      <span>Bulan</span>
-                      <span className="text-slate-400 font-normal">{sortField === "bulan" ? (sortOrder === "asc" ? "↑" : "↓") : "↕"}</span>
-                    </div>
-                  </th>
-                  <th className="py-3.5 px-4 text-center whitespace-nowrap">Total JP</th>
-                  <th className="py-3.5 px-4 text-right whitespace-nowrap">Total Honor</th>
-                  <th className="py-3.5 px-4 text-center whitespace-nowrap">Status</th>
-                  <th className="py-3.5 px-4 text-right whitespace-nowrap">Total Transport</th>
-                  <th className="py-3 px-3 text-center whitespace-nowrap">Bukti Bayar</th>
-                  <th className="py-3 px-3 text-center whitespace-nowrap w-36">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200/70">
-                {sortedData.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="py-12 text-center text-slate-500">
-                      Tidak ada data rekapitulasi honorarium.
-                    </td>
-                  </tr>
-                ) : (
-                  sortedData.map((rekap) => (
-                    <tr key={rekap.id} className="hover:bg-slate-50/80 transition-colors">
-                      {/* 1. Fasilitator */}
-                      <td className="py-3 px-3 align-top">
-                        <div className="font-semibold text-slate-900 leading-snug">{rekap.fasilitator.namaLengkap}</div>
-                        {(rekap.fasilitator.bankName || rekap.fasilitator.bankAccount) ? (
-                          <div className="text-[11px] text-slate-400 mt-1 font-mono">
-                            {rekap.fasilitator.bankName} {rekap.fasilitator.bankAccount ? `• ${rekap.fasilitator.bankAccount}` : ''}
-                          </div>
-                        ) : null}
-                      </td>
-
-                      {/* 2. Lokasi SNT (Kolom Tersendiri) */}
-                      <td className="py-3 px-3 align-top">
-                        {rekap.fasilitator.lokasiSNT ? (
-                          <div className="text-xs">
-                            <span className="font-semibold text-slate-800 block">
-                              {rekap.fasilitator.lokasiSNT.split(' - ')[0]}
+      {isGroupedByMonth ? (
+        <div className="space-y-5">
+          {monthGroups.length === 0 ? (
+            <Card className="border-slate-200 shadow-xs">
+              <CardContent className="py-12 text-center text-slate-500">
+                Tidak ada data rekapitulasi honorarium pada kategori / filter ini.
+              </CardContent>
+            </Card>
+          ) : (
+            monthGroups.map((group) => {
+              const isCollapsed = !!collapsedMonths[group.bulan];
+              return (
+                <Card key={group.bulan} className="border-slate-200 shadow-xs overflow-hidden transition-all">
+                  <CardHeader 
+                    onClick={() => toggleMonth(group.bulan)}
+                    className="bg-slate-50/90 border-b border-slate-200 py-3.5 px-4 cursor-pointer hover:bg-slate-100/90 transition-colors select-none"
+                  >
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-blue-100 text-blue-700 rounded-lg">
+                          <Calendar className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-base font-bold text-slate-900">
+                              Bulan {group.labelBulan}
+                            </h3>
+                            <span className="px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 font-semibold text-xs">
+                              {group.totalFasilitator} Fasilitator
                             </span>
-                            {rekap.fasilitator.lokasiSNT.split(' - ')[1] && (
-                              <span className="text-slate-500 block text-[11px] mt-0.5 leading-tight">
-                                {rekap.fasilitator.lokasiSNT.split(' - ')[1]}
-                              </span>
+                            {group.unpaidCount === 0 ? (
+                              <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 font-semibold text-xs flex items-center gap-1">
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>100% Selesai Dibayar ({group.lunasCount}/{group.totalFasilitator})</span>
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-amber-100 text-amber-800 border-amber-300 font-semibold text-xs flex items-center gap-1">
+                                <Clock className="w-3.5 h-3.5" />
+                                <span>{group.unpaidCount} Perlu Pembayaran</span>
+                              </Badge>
                             )}
                           </div>
-                        ) : (
-                          <span className="text-slate-400 text-xs italic">-</span>
-                        )}
-                      </td>
-
-                      {/* 3. Bulan */}
-                      <td className="py-3 px-2.5 align-top text-center whitespace-nowrap">
-                        <span className="inline-block px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-mono font-medium border border-slate-200">
-                          {rekap.bulan}
-                        </span>
-                      </td>
-
-                      {/* 4. Total JP */}
-                      <td className="py-3 px-2 align-top text-center whitespace-nowrap">
-                        <span className="font-bold text-slate-800 text-sm">{rekap.totalJP}</span>
-                        <span className="text-[10px] text-slate-400 block font-medium">JP</span>
-                      </td>
-
-                      {/* 5. Total Honor */}
-                      <td className="py-3 px-3 align-top text-right whitespace-nowrap">
-                        <div className="font-bold text-slate-900 text-sm">
-                          {formatCurrency(rekap.totalHonor)}
+                          <p className="text-xs text-slate-500 mt-0.5 font-mono">
+                            Periode: {group.bulan} &bull; Total {group.totalJP} JP
+                          </p>
                         </div>
-                      </td>
+                      </div>
 
-                      {/* 6. Status */}
-                      <td className="py-3 px-2 align-top text-center whitespace-nowrap">
-                        <Badge 
-                          variant={rekap.status === 'SUBMITTED' ? 'default' : 'secondary'}
-                          className={rekap.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100 font-semibold text-[11px]' : 'text-[11px]'}
-                        >
-                          {rekap.status}
-                        </Badge>
-                      </td>
-
-                      {/* 7. Total Transport */}
-                      <td className="py-3 px-3 align-top text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <span className="font-medium text-slate-900">{formatCurrency(hitungTotalTransportRekap(rekap))}</span>
-                          <button 
-                            type="button"
-                            onClick={() => openEditTransportModal(rekap)}
-                            className="p-1 hover:bg-amber-100 bg-amber-50 text-amber-700 border border-amber-200 rounded transition-colors"
-                            title="Edit Biaya Transport"
-                          >
-                            <Edit className="w-3 h-3" />
-                          </button>
-                        </div>
-                        {rekap.totalTransport !== null && rekap.totalTransport !== undefined && (
-                          <span className="text-[10px] text-amber-600 font-medium block mt-0.5">Disesuaikan Admin</span>
-                        )}
-                      </td>
-
-                      {/* 8. Bukti Bayar & Dokumen Lampiran */}
-                      <td className="py-3 px-3 align-top text-center">
-                        <div className="flex flex-col items-center gap-1.5 min-w-[95px]">
-                          {rekap.buktiPembayaranHonor ? (
-                            <button 
-                              type="button"
-                              onClick={() => setPreviewModal({
-                                isOpen: true,
-                                title: `Bukti Transfer Honor - ${rekap.fasilitator?.namaLengkap || 'Fasilitator'} (${rekap.bulan})`,
-                                url: rekap.buktiPembayaranHonor
-                              })}
-                              className="text-xs text-emerald-700 hover:text-emerald-900 font-medium hover:underline inline-flex items-center gap-1 cursor-pointer bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 w-full justify-center transition-colors"
-                            >
-                              ✓ Honor
-                            </button>
-                          ) : null}
-                          {rekap.buktiPembayaranTransport ? (
-                            <button 
-                              type="button"
-                              onClick={() => setPreviewModal({
-                                isOpen: true,
-                                title: `Bukti Transfer Transport - ${rekap.fasilitator?.namaLengkap || 'Fasilitator'} (${rekap.bulan})`,
-                                url: rekap.buktiPembayaranTransport
-                              })}
-                              className="text-xs text-purple-700 hover:text-purple-900 font-medium hover:underline inline-flex items-center gap-1 cursor-pointer bg-purple-50 px-2 py-0.5 rounded border border-purple-200 w-full justify-center transition-colors"
-                            >
-                              ✓ Transport
-                            </button>
-                          ) : null}
-                          {rekap.filePdf ? (
-                            <button 
-                              type="button"
-                              onClick={() => setPreviewModal({
-                                isOpen: true,
-                                title: `Dokumen PDF TTD - ${rekap.fasilitator?.namaLengkap || 'Fasilitator'} (${rekap.bulan})`,
-                                url: rekap.filePdf
-                              })}
-                              className="text-xs text-blue-700 hover:text-blue-900 font-medium hover:underline inline-flex items-center gap-1 cursor-pointer bg-blue-50 px-2 py-0.5 rounded border border-blue-200 w-full justify-center transition-colors"
-                            >
-                              <FileText className="w-3 h-3 text-blue-600" />
-                              <span>PDF TTD</span>
-                            </button>
-                          ) : null}
-                          {(rekap.status === 'SUBMITTED' || rekap.status === 'APPROVED') && (
-                            <button 
-                              onClick={() => { setUploadingRekap(rekap); setHonorFile(null); setTransportFile(null); setShowUploadModal(true); }}
-                              className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 px-2 py-0.5 rounded transition-colors font-medium cursor-pointer w-full mt-0.5"
-                            >
-                              {rekap.buktiPembayaranHonor && rekap.buktiPembayaranTransport ? 'Ganti Bukti' : 'Upload Bukti'}
-                            </button>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* 9. Aksi (Menu Tersusun Secara Vertikal) */}
-                      <td className="py-3 px-3 align-top text-right">
-                        {(rekap.status === 'SUBMITTED' || rekap.status === 'APPROVED') && (
-                          <div className="flex flex-col gap-1.5 w-32 ml-auto">
-                            {/* Tombol Utama: Cetak / Invoice */}
-                            <button 
-                              type="button"
-                              onClick={() => openKopModal(rekap)}
-                              disabled={loadingId === rekap.id}
-                              className="w-full inline-flex items-center justify-center gap-1.5 text-xs bg-slate-900 text-white hover:bg-slate-800 rounded-md px-2 py-1.5 font-medium transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
-                              title="Buat invoice dan cetak dokumen rekap honorarium"
-                            >
-                              <Printer className="w-3.5 h-3.5" />
-                              <span>{loadingId === rekap.id ? 'Memproses...' : 'Invoice & Cetak'}</span>
-                            </button>
-
-                            {/* Tombol Edit Transport */}
-                            <button 
-                              type="button"
-                              onClick={() => openEditTransportModal(rekap)} 
-                              className="w-full inline-flex items-center justify-center gap-1.5 text-xs bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 rounded-md px-2 py-1 font-medium transition-colors cursor-pointer" 
-                              title="Edit Biaya Transport Rekap"
-                            >
-                              <Edit className="w-3.5 h-3.5" />
-                              <span>Edit Transport</span>
-                            </button>
-
-                            {/* Tombol Salin Data */}
-                            <button 
-                              type="button"
-                              onClick={() => handleCopyText(rekap)} 
-                              className="w-full inline-flex items-center justify-center gap-1.5 text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-md px-2 py-1 font-medium transition-colors cursor-pointer" 
-                              title="Salin rincian data pembayaran ke clipboard"
-                            >
-                              <Copy className="w-3.5 h-3.5" />
-                              <span>Salin Data</span>
-                            </button>
-
-                            {/* Tombol Tautkan Laporan */}
-                            <button 
-                              type="button"
-                              onClick={() => handleSync(rekap.id)} 
-                              className="w-full inline-flex items-center justify-center gap-1.5 text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-md px-2 py-1 font-medium transition-colors cursor-pointer" 
-                              title="Tautkan laporan mingguan fasilitator yang telat ke rekap ini (Tidak merubah honor)"
-                            >
-                              <LinkIcon className="w-3.5 h-3.5" />
-                              <span>Tautkan</span>
-                            </button>
-
-                            {/* Tombol Hapus */}
-                            <button 
-                              type="button"
-                              onClick={() => handleDelete(rekap.id)} 
-                              className="w-full inline-flex items-center justify-center gap-1.5 text-xs bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded-md px-2 py-1 font-medium transition-colors cursor-pointer"
-                              title="Hapus Rekapitulasi Ini"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              <span>Hapus</span>
-                            </button>
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-3 text-right">
+                          <div className="hidden sm:block">
+                            <span className="text-[10px] text-slate-500 uppercase tracking-wider block">Total Honor</span>
+                            <span className="text-xs font-bold text-slate-900">{formatCurrency(group.totalHonor)}</span>
                           </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+                          <div className="hidden sm:block">
+                            <span className="text-[10px] text-slate-500 uppercase tracking-wider block">Total Transport</span>
+                            <span className="text-xs font-bold text-slate-900">{formatCurrency(group.totalTransport)}</span>
+                          </div>
+                          <div className="bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg text-right">
+                            <span className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider block">Total Pengeluaran</span>
+                            <span className="text-sm font-black text-emerald-950 font-mono">{formatCurrency(group.grandTotal)}</span>
+                          </div>
+                        </div>
+
+                        <div className="p-1 rounded-md text-slate-500">
+                          {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                        </div>
+                      </div>
+                    </div>
+                  </CardHeader>
+
+                  {!isCollapsed && (
+                    <CardContent className="p-0">
+                      {renderTable(group.items, false)}
+                    </CardContent>
+                  )}
+                </Card>
+              );
+            })
+          )}
+        </div>
+      ) : (
+        <Card className="border-slate-200 shadow-xs overflow-hidden">
+          <CardContent className="p-0">
+            {renderTable(sortedData, true)}
+          </CardContent>
+        </Card>
+      )}
     
       {/* Modal Pilih Dokumen */}
       
