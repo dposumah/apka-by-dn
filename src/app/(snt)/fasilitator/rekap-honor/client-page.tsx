@@ -25,7 +25,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency, terbilangRupiah } from '@/lib/format'
-import { hitungTotalTransportRekap } from '@/lib/transport'
+import { hitungTotalTransportRekap, hitungDetailTransportRekap } from '@/lib/transport'
 import { useState, useEffect, useMemo } from 'react'
 import { createRekapManual, deleteRekap, generateKwitansiHonor, generateKwitansiTransportBulanan, updateRekapTransport, copyRekapFromPreviousMonth } from '@/app/actions/rekap'
 import { adminGenerateInvoiceHonor, uploadBuktiRekap, generateInvoiceHonorRecord } from '@/app/actions/rekap'
@@ -587,7 +587,8 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
       const lokasi = rekap.fasilitator?.lokasiSNT || '-';
       const jumlahJP = rekap.totalJP;
       
-      const totalTransport = hitungTotalTransportRekap(rekap);
+      const detailTransport = hitungDetailTransportRekap(rekap);
+      const totalTransport = detailTransport.totalTransport;
 
       const totalHonor = rekap.totalHonor || 0;
       const totalTransfer = totalHonor + totalTransport;
@@ -599,8 +600,8 @@ Bulan Laporan: ${rekap.bulan}
 Jumlah JP: ${jumlahJP} JP
 
 Rincian Pembayaran:
-- Subtotal Honor: Rp ${Math.round(totalHonor).toLocaleString('id-ID')}
-- Bantuan Transport: Rp ${Math.round(totalTransport).toLocaleString('id-ID')}
+- Subtotal Honor: Rp ${Math.round(totalHonor).toLocaleString('id-ID')} (${jumlahJP} JP)
+- Bantuan Transport: Rp ${Math.round(totalTransport).toLocaleString('id-ID')} (${detailTransport.ringkasanKeterangan})
 Total Transfer: Rp ${Math.round(totalTransfer).toLocaleString('id-ID')}
 
 Informasi Rekening:

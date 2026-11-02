@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import { PrintButton } from "./print-button"
-import { hitungTotalTransportRekap } from "@/lib/transport"
+import { hitungTotalTransportRekap, hitungDetailTransportRekap } from "@/lib/transport"
 
 export default async function RekapPdfPage({ params }: { params: Promise<{ id: string }> | { id: string } }) {
   const { id } = await Promise.resolve(params);
@@ -17,7 +17,8 @@ export default async function RekapPdfPage({ params }: { params: Promise<{ id: s
 
   if (!rekap) return notFound()
 
-  const totalTransport = hitungTotalTransportRekap(rekap)
+  const detailTransport = hitungDetailTransportRekap(rekap)
+  const totalTransport = detailTransport.totalTransport
   const totalKeseluruhan = (rekap.totalHonor || 0) + totalTransport
 
   const formatBulan = (bulan: string) => {
@@ -89,7 +90,12 @@ export default async function RekapPdfPage({ params }: { params: Promise<{ id: s
               <td className="border border-black px-3 py-2 text-right whitespace-nowrap">Rp {rekap.totalHonor.toLocaleString('id-ID')}</td>
             </tr>
             <tr className="font-bold">
-              <td colSpan={5} className="border border-black px-3 py-2 text-right">BANTUAN BIAYA TRANSPORTASI</td>
+              <td colSpan={5} className="border border-black px-3 py-2 text-right">
+                BANTUAN BIAYA TRANSPORTASI
+                <div className="text-[11px] font-normal text-slate-600 mt-0.5">
+                  ({detailTransport.ringkasanKeterangan})
+                </div>
+              </td>
               <td className="border border-black px-3 py-2 text-right whitespace-nowrap">Rp {totalTransport.toLocaleString('id-ID')}</td>
             </tr>
             <tr className="font-bold bg-slate-50">

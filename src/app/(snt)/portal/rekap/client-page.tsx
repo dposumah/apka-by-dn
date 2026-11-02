@@ -10,7 +10,7 @@ import { createRekapBulanan, submitRekapBulanan } from '@/app/actions/rekap'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, FileText, Printer, Upload, Eye, Wallet, Car } from 'lucide-react'
 import { useModal } from '@/components/modal-provider'
-import { hitungTotalTransportRekap } from '@/lib/transport'
+import { hitungTotalTransportRekap, hitungDetailTransportRekap } from '@/lib/transport'
 import { FilePreviewModal } from '@/components/shared/FilePreviewModal'
 import { uploadFileClient } from '@/lib/upload-client'
 
@@ -113,7 +113,8 @@ export function RekapClientPage({ fasilitator, availableMonths, rekaps }: { fasi
           </div>
         ) : (
           rekaps.map((rekap: any) => {
-            const transportAmount = hitungTotalTransportRekap({ ...rekap, fasilitator })
+            const detailTransport = hitungDetailTransportRekap({ ...rekap, fasilitator })
+            const transportAmount = detailTransport.totalTransport
             const totalHonor = rekap.totalHonor || 0
             const totalKeseluruhan = totalHonor + transportAmount
 
@@ -235,10 +236,34 @@ export function RekapClientPage({ fasilitator, availableMonths, rekaps }: { fasi
                         <div className="text-xl font-bold text-slate-900">
                           Rp {transportAmount.toLocaleString('id-ID')}
                         </div>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
-                          {rekap.totalTransport !== null && rekap.totalTransport !== undefined ? 'Disesuaikan admin' : 'Standar operasional'}
+                        <p className="text-[11px] text-slate-600 mt-1 font-medium leading-tight">
+                          {detailTransport.ringkasanKeterangan}
                         </p>
                       </div>
+
+                      {/* Detail Accordion Sesi Transportasi */}
+                      {detailTransport.items.length > 0 && (
+                        <div className="mt-2.5 pt-2 border-t border-slate-200/60">
+                          <details className="text-[11px] text-slate-600">
+                            <summary className="font-semibold text-purple-700 hover:text-purple-900 cursor-pointer select-none">
+                              Rincian Per Sesi ({detailTransport.items.length} Sesi)
+                            </summary>
+                            <div className="mt-2 space-y-1.5 pl-2 border-l-2 border-purple-200 bg-white/70 p-1.5 rounded">
+                              {detailTransport.items.map((it) => (
+                                <div key={it.no} className="flex justify-between items-start text-[10.5px] border-b border-slate-100 last:border-0 pb-1 last:pb-0">
+                                  <div>
+                                    <span className="font-semibold text-slate-800">Sesi {it.no}</span> {it.tanggal ? `(${it.tanggal})` : ''} • <span className="font-medium">{it.metode}</span>
+                                    <div className="text-[10px] text-slate-500">{it.keterangan}</div>
+                                  </div>
+                                  <span className="font-bold text-slate-800 ml-2 whitespace-nowrap">
+                                    Rp {it.total.toLocaleString('id-ID')}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                        </div>
+                      )}
 
                       {/* Bukti Transfer Transport */}
                       {rekap.buktiPembayaranTransport && (

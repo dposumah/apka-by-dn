@@ -1,4 +1,4 @@
-import { hitungTotalTransportRekap } from '@/lib/transport';
+import { hitungTotalTransportRekap, hitungDetailTransportRekap } from '@/lib/transport';
 
 export const getInvoiceHtml = (rekap: any, kopType: 'maleo' | 'robotic', invoiceRecord?: any) => {
   const kopImage = window.location.origin + (kopType === 'maleo' ? '/kop-maleo.png' : '/kop-surat.png');
@@ -14,8 +14,9 @@ export const getInvoiceHtml = (rekap: any, kopType: 'maleo' | 'robotic', invoice
     return `${monthName} ${year}`;
   };
   
-  // Hitung total transport
-  const totalTransport = hitungTotalTransportRekap(rekap);
+  // Hitung detail & total transport
+  const detailTransport = hitungDetailTransportRekap(rekap);
+  const totalTransport = detailTransport.totalTransport;
 
   const totalHonor = rekap.totalHonor || 0;
   const totalKeseluruhan = totalHonor + totalTransport;
@@ -41,10 +42,51 @@ export const getInvoiceHtml = (rekap: any, kopType: 'maleo' | 'robotic', invoice
           <tr><td style="padding: 5px 0;">Jumlah sesi / JP</td><td>:</td><td style="border-bottom: 1px solid #000;">${(rekap.totalJPIntra > 0 && rekap.totalJPEkstra > 0) ? `${rekap.totalJP} JP (Intra: ${rekap.totalJPIntra} JP + Ekstra: ${rekap.totalJPEkstra} JP)` : `${rekap.totalJP} JP`}</td></tr>
           <tr><td style="padding: 5px 0;">Honor per JP</td><td>:</td><td style="border-bottom: 1px solid #000;">Rp ${(Math.round(totalHonor / (rekap.totalJP || 1))).toLocaleString('id-ID')}</td></tr>
           <tr><td style="padding: 5px 0;">Subtotal Honor</td><td>:</td><td style="border-bottom: 1px solid #000; font-weight: bold;">Rp ${totalHonor.toLocaleString('id-ID')}</td></tr>
-          <tr><td style="padding: 5px 0;">Bantuan Biaya Transport</td><td>:</td><td style="border-bottom: 1px solid #000; font-weight: bold;">Rp ${totalTransport.toLocaleString('id-ID')}</td></tr>
+          <tr>
+            <td style="padding: 5px 0; vertical-align: top;">Bantuan Biaya Transport</td>
+            <td style="vertical-align: top;">:</td>
+            <td style="border-bottom: 1px solid #000;">
+              <span style="font-weight: bold;">Rp ${totalTransport.toLocaleString('id-ID')}</span>
+              <div style="font-size: 11px; color: #475569; margin-top: 2px; font-weight: normal;">
+                ${detailTransport.ringkasanKeterangan}
+              </div>
+            </td>
+          </tr>
           <tr style="background-color: #f8fafc;"><td style="padding: 6px 0; font-weight: bold;">Total Pembayaran</td><td>:</td><td style="border-bottom: 2px solid #000; font-weight: bold; font-size: 1.05em;">Rp ${totalKeseluruhan.toLocaleString('id-ID')}</td></tr>
           <tr><td style="padding: 5px 0;">Lokasi pelaksanaan</td><td>:</td><td style="border-bottom: 1px solid #000;">${rekap.fasilitator?.lokasiSNT ? rekap.fasilitator.lokasiSNT : '-'}</td></tr>
         </table>
+
+        ${totalTransport > 0 && detailTransport.items.length > 0 ? `
+        <div style="margin-bottom: 18px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 14px; background-color: #f8fafc; font-size: 12px;">
+          <div style="font-weight: bold; color: #1e293b; margin-bottom: 6px; display: flex; justify-content: space-between;">
+            <span>Rincian Bantuan Transportasi Fasilitator:</span>
+            <span style="font-weight: normal; color: #64748b;">${rekap.fasilitator?.jarakPPKm ? `Jarak PP: ${rekap.fasilitator.jarakPPKm} km` : ''}</span>
+          </div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+            <thead>
+              <tr style="border-bottom: 1px solid #cbd5e1; text-align: left; color: #475569;">
+                <th style="padding: 4px; width: 14%;">Sesi</th>
+                <th style="padding: 4px; width: 22%;">Tanggal / Metode</th>
+                <th style="padding: 4px;">Dasar Penggantian Transportasi</th>
+                <th style="padding: 4px; text-align: right; width: 20%;">Nominal</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${detailTransport.items.map(it => `
+                <tr style="border-bottom: 1px dashed #e2e8f0;">
+                  <td style="padding: 4px;">Pertemuan ${it.no}</td>
+                  <td style="padding: 4px;">${it.tanggal ? it.tanggal + ' • ' : ''}<strong>${it.metode}</strong></td>
+                  <td style="padding: 4px; color: #334155;">${it.keterangan}</td>
+                  <td style="padding: 4px; text-align: right; font-weight: bold; color: #1e293b;">Rp ${it.total.toLocaleString('id-ID')}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div style="margin-top: 6px; font-size: 10px; color: #64748b; font-style: italic;">
+            * Penggantian transportasi luring tanpa bukti karcis/tiket umum dihitung berdasarkan Rumus Konsumsi BBM Jarak PP (${rekap.fasilitator?.jarakPPKm || 0} km) & Standar Operasional Transport Lokal SNT. Sesi daring tidak diberikan bantuan transport.
+          </div>
+        </div>
+        ` : ''}
         
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 14px;">
           <tr>
@@ -106,6 +148,8 @@ export const getKwitansiHtml = (rekap: any, record: any, type: 'HONOR' | 'TRANSP
     const monthName = monthNames[parseInt(month, 10) - 1] || month;
     return `${monthName} ${year}`;
   };
+
+  const detailTransport = hitungDetailTransportRekap(rekap);
   
   if (type === 'HONOR') {
     return `
@@ -224,7 +268,12 @@ export const getKwitansiHtml = (rekap: any, record: any, type: 'HONOR' | 'TRANSP
           </tr>
           <tr>
             <td style="padding: 10px 0; vertical-align: top;">Untuk Pembayaran</td>
-            <td style="padding: 10px 0;">: ${record.perihal}</td>
+            <td style="padding: 10px 0;">: 
+              ${record.perihal}
+              <div style="margin-top: 6px; font-size: 13px; color: #475569; font-style: italic;">
+                Rincian: ${detailTransport.ringkasanKeterangan}
+              </div>
+            </td>
           </tr>
         </table>
         <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 60px;">
