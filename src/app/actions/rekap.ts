@@ -1377,6 +1377,12 @@ export async function updateRekapTransport(rekapId: string, totalTransport: numb
       include: { fasilitator: true, laporan: true }
     });
 
+    if (dataToUpdate.totalTransport === 0) {
+      await prisma.kwitansiRecord.deleteMany({
+        where: { rekapId, tipeKwitansi: 'TRANSPORT' }
+      });
+    }
+
     await syncSingleRekapToRabExpenses(rekapId);
     revalidatePath('/fasilitator/rekap-honor');
     revalidatePath('/portal/rekap');
@@ -1446,6 +1452,12 @@ export async function batchUpdateTransportByFormula(
         where: { id: r.id },
         data: { totalTransport: calc.totalSetelahPlafon }
       });
+
+      if (calc.totalSetelahPlafon === 0) {
+        await prisma.kwitansiRecord.deleteMany({
+          where: { rekapId: r.id, tipeKwitansi: 'TRANSPORT' }
+        });
+      }
 
       await syncSingleRekapToRabExpenses(r.id);
       updatedList.push(updated);
@@ -1564,6 +1576,21 @@ export async function syncSingleRekapToRabExpenses(rekapId: string) {
             fasilitatorId: rekap.fasilitatorId,
             date: expDate
           }
+        });
+      }
+    } else {
+      // Jika transport = 0 (Daring), hapus expense request jika sebelumnya pernah dibuat
+      const existingTransport = await prisma.expenseRequest.findFirst({
+        where: {
+          AND: [
+            { description: { contains: 'Transportasi' } },
+            { description: { contains: `(RekapID: ${rekap.id})` } }
+          ]
+        }
+      });
+      if (existingTransport) {
+        await prisma.expenseRequest.delete({
+          where: { id: existingTransport.id }
         });
       }
     }

@@ -28,13 +28,13 @@ export const getInvoiceHtml = (rekap: any, kopType: 'maleo' | 'robotic', invoice
       </div>
       <div style="padding: 0 50px;">
         <div style="text-align: center; margin-bottom: 30px;">
-          <h2>INVOICE HONORARIUM & TRANSPORT</h2>
+          <h2>${totalTransport > 0 ? 'INVOICE HONORARIUM & TRANSPORT' : 'INVOICE HONORARIUM'}</h2>
           ${noInvoiceStr ? `<div style="text-align: center; margin-top: 5px; font-size: 14px;"><strong>No Invoice:</strong> ${noInvoiceStr}</div>` : ''}
           ${tanggalInvoice ? `<div style="text-align: center; margin-top: 5px; font-size: 14px;"><strong>Tanggal:</strong> ${tanggalInvoice}</div>` : ''}
           <p>KKA Sekolah Nasional Terintegrasi Tahun 2026</p>
         </div>
         
-        <p style="margin-top: 0; margin-bottom: 12px; font-size: 14px;">Pembayaran honorarium dan transport fasilitator atas nama tersebut di bawah, untuk kegiatan/program:</p>
+        <p style="margin-top: 0; margin-bottom: 12px; font-size: 14px;">Pembayaran honorarium ${totalTransport > 0 ? 'dan transport ' : ''}fasilitator atas nama tersebut di bawah, untuk kegiatan/program:</p>
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px;">
           <tr><td style="width: 32%; padding: 5px 0;">Nama fasilitator</td><td style="width: 3%;">:</td><td style="width: 65%; border-bottom: 1px solid #000;">${rekap.fasilitator?.namaLengkap || '-'}</td></tr>
           <tr><td style="padding: 5px 0;">Nama program/kegiatan</td><td>:</td><td style="border-bottom: 1px solid #000;">KKA Sekolah Nasional Terintegrasi (SNT)</td></tr>

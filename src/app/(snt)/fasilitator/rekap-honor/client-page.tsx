@@ -638,7 +638,7 @@ export function RekapHonorClient({
     e.preventDefault()
     setIsSubmitting(true)
     try {
-      const transportVal = manualTransport ? parseFloat(manualTransport) : null;
+      const transportVal = (manualTransport !== '' && !isNaN(Number(manualTransport))) ? parseFloat(manualTransport) : null;
       await createRekapManual(
         manualFasilId, 
         manualBulan, 
@@ -764,14 +764,16 @@ Atas Nama: ${namaLengkap}`;
     const hasKwH = !!(kwH?.noKwitansi && !kwH.noKwitansi.includes('TEMP'))
     const hasKwT = !!(kwT?.noKwitansi && !kwT.noKwitansi.includes('TEMP'))
 
+    const isZeroTransport = hitungTotalTransportRekap(rekap) <= 0;
+
     if (hasInv || hasKwH || hasKwT) {
-      setPrintCheckInvoice(hasInv)
-      setPrintCheckHonor(hasKwH)
-      setPrintCheckTransport(hasKwT)
+      setPrintCheckInvoice(hasInv);
+      setPrintCheckHonor(hasKwH);
+      setPrintCheckTransport(isZeroTransport ? false : hasKwT);
     } else {
-      setPrintCheckInvoice(true)
-      setPrintCheckHonor(false)
-      setPrintCheckTransport(false)
+      setPrintCheckInvoice(true);
+      setPrintCheckHonor(false);
+      setPrintCheckTransport(false);
     }
 
     setPrintKopType('maleo')
@@ -984,9 +986,13 @@ Atas Nama: ${namaLengkap}`;
                       <Edit className="w-3 h-3" />
                     </button>
                   </div>
-                  {rekap.totalTransport !== null && rekap.totalTransport !== undefined && (
+                  {hitungTotalTransportRekap(rekap) === 0 ? (
+                    <span className="inline-block text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded mt-0.5">
+                      Daring (Rp 0)
+                    </span>
+                  ) : rekap.totalTransport !== null && rekap.totalTransport !== undefined ? (
                     <span className="text-[10px] text-amber-600 font-medium block mt-0.5">Disesuaikan Admin</span>
-                  )}
+                  ) : null}
                 </td>
 
                 {/* 8. Bukti Bayar & Dokumen Lampiran */}
@@ -1375,6 +1381,26 @@ Atas Nama: ${namaLengkap}`;
                     onChange={e => setManualTransport(e.target.value)} 
                     placeholder="Kosongkan jika auto" 
                   />
+                  <div className="mt-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+                    <label className="flex items-start gap-2 cursor-pointer select-none">
+                      <input 
+                        type="checkbox"
+                        checked={manualTransport === '0'}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setManualTransport('0');
+                          } else {
+                            setManualTransport('');
+                          }
+                        }}
+                        className="w-4 h-4 mt-0.5 text-amber-600 rounded border-gray-300 focus:ring-amber-500 cursor-pointer"
+                      />
+                      <div className="text-xs">
+                        <span className="font-bold text-amber-900 block">Kegiatan Daring (Tanpa Transport / Rp 0)</span>
+                        <span className="text-[10.5px] text-amber-700 block">Centang jika kegiatan dilaksanakan full daring. Kwitansi transport tidak digenerate.</span>
+                      </div>
+                    </label>
+                  </div>
                   {manualFasilId && (
                     <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                       <button
@@ -1794,14 +1820,20 @@ Atas Nama: ${namaLengkap}`;
                       />
                       <span>Kwitansi Honorarium (Sesi Mengajar)</span>
                     </label>
-                    <label className="flex items-center space-x-2 text-sm cursor-pointer">
+                    <label className={`flex items-center space-x-2 text-sm ${hitungTotalTransportRekap(selectedRekap) <= 0 ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
                       <input 
                         type="checkbox" 
-                        checked={printCheckTransport} 
+                        checked={printCheckTransport && hitungTotalTransportRekap(selectedRekap) > 0} 
+                        disabled={hitungTotalTransportRekap(selectedRekap) <= 0}
                         onChange={e => setPrintCheckTransport(e.target.checked)} 
                         className="w-4 h-4 text-emerald-600 rounded" 
                       />
                       <span>Kwitansi Transport (Bulanan)</span>
+                      {hitungTotalTransportRekap(selectedRekap) <= 0 && (
+                        <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded ml-1">
+                          Daring / Rp 0 (Tanpa Kwitansi)
+                        </span>
+                      )}
                     </label>
                   </div>
                 </div>
@@ -2558,6 +2590,41 @@ Atas Nama: ${namaLengkap}`;
                 );
               })()}
 
+              {/* Opsi Daring */}
+              <div className={`p-3 rounded-xl border transition-all ${transportAmountInput === '0' ? 'bg-amber-100/90 border-amber-300' : 'bg-slate-50 border-slate-200'}`}>
+                <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                  <input 
+                    type="checkbox"
+                    checked={transportAmountInput === '0'}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setTransportAmountInput('0');
+                      } else {
+                        const sbm = Number(editingTransportRekap.fasilitator?.besaranTransport) || 120000;
+                        const sesi = Number(editingTransportRekap.jumlahSesi) || 4;
+                        setTransportAmountInput((sbm * sesi).toString());
+                      }
+                    }}
+                    className="w-4 h-4 mt-0.5 text-amber-600 rounded border-gray-300 focus:ring-amber-500 cursor-pointer"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-900">
+                        Pelaksanaan Daring (Online) — Tanpa Bantuan Transport (Rp 0)
+                      </span>
+                      {transportAmountInput === '0' && (
+                        <span className="text-[10px] bg-amber-600 text-white font-bold px-1.5 py-0.5 rounded">
+                          Aktif (Rp 0)
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[11px] text-slate-600 block mt-0.5">
+                      Centang jika kegiatan berlangsung secara daring/online. Kwitansi transport tidak akan digenerate dan bantuan transport di-set Rp 0.
+                    </span>
+                  </div>
+                </label>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Nominal Total Transport Disepakati (Rp)
@@ -2574,9 +2641,15 @@ Atas Nama: ${namaLengkap}`;
                     required
                   />
                 </div>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Nominal ini langsung tercatat sebagai total bantuan transport fasilitator pada invoice, kwitansi, dan rekap transfer.
-                </p>
+                {transportAmountInput === '0' ? (
+                  <p className="text-[11px] text-amber-700 font-semibold mt-1">
+                    ⚠️ Pelaksanaan Daring: Total bantuan transport Rp 0. Kwitansi transport dinonaktifkan.
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Nominal ini langsung tercatat sebagai total bantuan transport fasilitator pada invoice, kwitansi, dan rekap transfer.
+                  </p>
+                )}
               </div>
             </div>
 

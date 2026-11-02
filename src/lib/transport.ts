@@ -238,66 +238,80 @@ export function hitungDetailTransportRekap(
   if (isCustomAdmin) {
     totalTransport = Number(rekap.totalTransport) || 0;
     
-    // Hitung total dari sesi yang memiliki laporan
-    const totalDariLaporan = items
-      .slice(0, laporanList.length)
-      .reduce((sum, it) => sum + it.total, 0);
-
-    const sisaCount = items.length - laporanList.length;
-    if (sisaCount > 0 && laporanList.length > 0) {
-      // Sisa sesi yang tidak ada laporan mengambil sisa dari totalTransport
-      const sisaNominal = Math.max(0, totalTransport - totalDariLaporan);
-      const perSesiSisa = Math.round(sisaNominal / sisaCount);
-      for (let i = laporanList.length; i < items.length; i++) {
-        items[i].biayaDarat = perSesiSisa;
-        items[i].total = perSesiSisa;
-        if (jarak > 0) {
-          items[i].keterangan = `Bantuan BBM (+20%) Jarak PP ${jarak} km (Sisa Sesi)`;
-        } else {
-          items[i].keterangan = `Bantuan Transport SNT (Sisa Sesi)`;
-        }
-      }
-    } else {
-      const customPerSesi = targetSesi > 0 ? Math.round(totalTransport / targetSesi) : totalTransport;
+    if (totalTransport === 0) {
+      // Pelaksanaan Daring: Set seluruh item menjadi Daring Rp 0
       items.forEach(it => {
-        if (it.metode !== 'DARING' && it.jenisPenggantian !== 'BUKTI_TIKET') {
-          it.biayaDarat = customPerSesi;
-          it.total = customPerSesi;
+        it.biayaDarat = 0;
+        it.biayaLaut = 0;
+        it.total = 0;
+        it.metode = 'DARING';
+        it.jenisPenggantian = 'DARING';
+        it.keterangan = 'Pelaksanaan Daring (Online - Tanpa Bantuan Transport)';
+      });
+      ringkasanKeterangan = 'Pelaksanaan Daring (Rp 0 - Tanpa Bantuan Biaya Transportasi)';
+    } else {
+      // Hitung total dari sesi yang memiliki laporan
+      const totalDariLaporan = items
+        .slice(0, laporanList.length)
+        .reduce((sum, it) => sum + it.total, 0);
+
+      const sisaCount = items.length - laporanList.length;
+      if (sisaCount > 0 && laporanList.length > 0) {
+        // Sisa sesi yang tidak ada laporan mengambil sisa dari totalTransport
+        const sisaNominal = Math.max(0, totalTransport - totalDariLaporan);
+        const perSesiSisa = Math.round(sisaNominal / sisaCount);
+        for (let i = laporanList.length; i < items.length; i++) {
+          items[i].biayaDarat = perSesiSisa;
+          items[i].total = perSesiSisa;
           if (jarak > 0) {
-            it.keterangan = `Bantuan BBM (+20%) Jarak PP ${jarak} km`;
+            items[i].keterangan = `Bantuan BBM (+20%) Jarak PP ${jarak} km (Sisa Sesi)`;
+          } else {
+            items[i].keterangan = `Bantuan Transport SNT (Sisa Sesi)`;
           }
         }
-      });
+      } else {
+        const customPerSesi = targetSesi > 0 ? Math.round(totalTransport / targetSesi) : totalTransport;
+        items.forEach(it => {
+          if (it.metode !== 'DARING' && it.jenisPenggantian !== 'BUKTI_TIKET') {
+            it.biayaDarat = customPerSesi;
+            it.total = customPerSesi;
+            if (jarak > 0) {
+              it.keterangan = `Bantuan BBM (+20%) Jarak PP ${jarak} km`;
+            }
+          }
+        });
+      }
     }
   } else {
     totalTransport = items.reduce((sum, it) => sum + it.total, 0);
   }
 
   // Ringkasan Keterangan
-  let ringkasanKeterangan = '';
-  if (isCustomAdmin) {
-    const jmlLap = laporanList.length;
-    const jmlSisa = Math.max(0, targetSesi - jmlLap);
-    if (jmlLap > 0 && jmlSisa > 0) {
-      const totLap = items.slice(0, jmlLap).reduce((s, it) => s + it.total, 0);
-      const totSisa = Math.max(0, totalTransport - totLap);
-      ringkasanKeterangan = `${jmlLap} Sesi Terlapor (Rp ${totLap.toLocaleString('id-ID')}) + ${jmlSisa} Sesi Sisa (Rp ${totSisa.toLocaleString('id-ID')})`;
+  if (!ringkasanKeterangan) {
+    if (isCustomAdmin) {
+      const jmlLap = laporanList.length;
+      const jmlSisa = Math.max(0, targetSesi - jmlLap);
+      if (jmlLap > 0 && jmlSisa > 0) {
+        const totLap = items.slice(0, jmlLap).reduce((s, it) => s + it.total, 0);
+        const totSisa = Math.max(0, totalTransport - totLap);
+        ringkasanKeterangan = `${jmlLap} Sesi Terlapor (Rp ${totLap.toLocaleString('id-ID')}) + ${jmlSisa} Sesi Sisa (Rp ${totSisa.toLocaleString('id-ID')})`;
+      } else {
+        const perSesi = targetSesi > 0 ? Math.round(totalTransport / targetSesi) : totalTransport;
+        const jarakKet = jarak > 0 ? ` - Jarak PP ${jarak} km` : '';
+        ringkasanKeterangan = `${targetSesi} Pertemuan @ Rp ${perSesi.toLocaleString('id-ID')} (Bantuan BBM & Transport${jarakKet})`;
+      }
     } else {
-      const perSesi = targetSesi > 0 ? Math.round(totalTransport / targetSesi) : totalTransport;
-      const jarakKet = jarak > 0 ? ` - Jarak PP ${jarak} km` : '';
-      ringkasanKeterangan = `${targetSesi} Pertemuan @ Rp ${perSesi.toLocaleString('id-ID')} (Bantuan BBM & Transport${jarakKet})`;
-    }
-  } else {
-    const hasLaut = items.some(it => it.biayaLaut > 0);
-    if (hasLaut) {
-      const totLaut = items.reduce((s, it) => s + it.biayaLaut, 0);
-      const totDarat = items.reduce((s, it) => s + it.biayaDarat, 0);
-      ringkasanKeterangan = `${targetSesi} Sesi (Tiket Laut Rp ${totLaut.toLocaleString('id-ID')} + Bantuan BBM/Darat Rp ${totDarat.toLocaleString('id-ID')})`;
-    } else if (sesiDaringCount > 0) {
-      ringkasanKeterangan = `${sesiLuringCount} Sesi Luring @ Rp ${standarSesi.toLocaleString('id-ID')} + ${sesiDaringCount} Sesi Daring (Rp 0)`;
-    } else {
-      const infoJarak = jarak > 0 ? ` - Jarak PP ${jarak} km` : '';
-      ringkasanKeterangan = `${sesiLuringCount} Pertemuan Luring @ Rp ${standarSesi.toLocaleString('id-ID')} (Bantuan BBM${infoJarak})`;
+      const hasLaut = items.some(it => it.biayaLaut > 0);
+      if (hasLaut) {
+        const totLaut = items.reduce((s, it) => s + it.biayaLaut, 0);
+        const totDarat = items.reduce((s, it) => s + it.biayaDarat, 0);
+        ringkasanKeterangan = `${targetSesi} Sesi (Tiket Laut Rp ${totLaut.toLocaleString('id-ID')} + Bantuan BBM/Darat Rp ${totDarat.toLocaleString('id-ID')})`;
+      } else if (sesiDaringCount > 0) {
+        ringkasanKeterangan = `${sesiLuringCount} Sesi Luring @ Rp ${standarSesi.toLocaleString('id-ID')} + ${sesiDaringCount} Sesi Daring (Rp 0)`;
+      } else {
+        const infoJarak = jarak > 0 ? ` - Jarak PP ${jarak} km` : '';
+        ringkasanKeterangan = `${sesiLuringCount} Pertemuan Luring @ Rp ${standarSesi.toLocaleString('id-ID')} (Bantuan BBM${infoJarak})`;
+      }
     }
   }
 
