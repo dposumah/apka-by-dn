@@ -255,7 +255,16 @@ export async function cancelTransportPaid(laporanId: string) {
 }
 
 
-export async function createRekapManual(fasilitatorId: string, bulan: string, totalJP: number, totalHonor: number, jumlahSesi: number, totalJPIntra?: number, totalJPEkstra?: number) {
+export async function createRekapManual(
+  fasilitatorId: string, 
+  bulan: string, 
+  totalJP: number, 
+  totalHonor: number, 
+  jumlahSesi: number, 
+  totalJPIntra?: number, 
+  totalJPEkstra?: number,
+  totalTransport?: number | null
+) {
   const session = await getServerSession(authOptions);
   
   // Create RekapHonorarium directly with SUBMITTED status
@@ -269,6 +278,7 @@ export async function createRekapManual(fasilitatorId: string, bulan: string, to
       totalJPEkstra: totalJPEkstra || 0,
       jumlahSesi,
       totalHonor,
+      totalTransport: totalTransport !== undefined ? totalTransport : null,
       status: 'SUBMITTED',
     }
   });
@@ -293,6 +303,98 @@ export async function createRekapManual(fasilitatorId: string, bulan: string, to
   revalidatePath('/fasilitator/rekap-honor');
   revalidatePath('/portal/rekap');
   return rekap;
+}
+
+export async function copyRekapFromPreviousMonth(
+  sourceBulan: string, 
+  targetBulan: string, 
+  newSesi: number,
+  selectedFasilIds?: string[]
+) {
+  const session = await getServerSession(authOptions);
+  
+  // 1. Ambil rekap di sourceBulan
+  const sourceRekaps = await prisma.rekapHonorarium.findMany({
+    where: {
+      bulan: sourceBulan,
+      ...(selectedFasilIds && selectedFasilIds.length > 0 ? { fasilitatorId: { in: selectedFasilIds } } : {})
+    },
+    include: { fasilitator: true }
+  });
+
+  if (sourceRekaps.length === 0) {
+    throw new Error(`Tidak ditemukan data rekap pada bulan sumber (${sourceBulan})`);
+  }
+
+  // 2. Cek rekap yang sudah ada di targetBulan agar tidak duplikat
+  const existingTarget = await prisma.rekapHonorarium.findMany({
+    where: { bulan: targetBulan },
+    select: { fasilitatorId: true }
+  });
+  const existingFasilIds = new Set(existingTarget.map(r => r.fasilitatorId));
+
+  const toCreate = sourceRekaps.filter(r => !existingFasilIds.has(r.fasilitatorId));
+  if (toCreate.length === 0) {
+    throw new Error(`Semua fasilitator pada bulan ${sourceBulan} sudah memiliki rekap di bulan ${targetBulan}`);
+  }
+
+  const [y, m] = targetBulan.split('-');
+  const startDate = new Date(parseInt(y), parseInt(m) - 1, 1);
+  const endDate = new Date(parseInt(y), parseInt(m), 0, 23, 59, 59);
+
+  const results = [];
+  for (const src of toCreate) {
+    const oldSesi = src.jumlahSesi || 3;
+    const ratio = oldSesi > 0 ? newSesi / oldSesi : 1;
+
+    const newIntra = Math.round((src.totalJPIntra || 0) * ratio);
+    const newEkstra = Math.round((src.totalJPEkstra || 0) * ratio);
+    const newTotalJP = newIntra + newEkstra;
+    const rate = src.totalJP > 0 ? Math.round(src.totalHonor / src.totalJP) : 65000;
+    const newHonor = newTotalJP * rate;
+
+    let newTransport: number | null = null;
+    if (src.totalTransport !== null && src.totalTransport !== undefined) {
+      newTransport = Math.round(src.totalTransport * ratio);
+    }
+
+    const created = await prisma.rekapHonorarium.create({
+      data: {
+        fasilitatorId: src.fasilitatorId,
+        bulan: targetBulan,
+        jumlahSesi: newSesi,
+        totalJPIntra: newIntra,
+        totalJPEkstra: newEkstra,
+        totalJP: newTotalJP,
+        totalHonor: newHonor,
+        totalTransport: newTransport,
+        status: 'SUBMITTED',
+      }
+    });
+
+    // Otomatis tautkan laporan mingguan pada bulan ini jika ada
+    await prisma.laporanKegiatan.updateMany({
+      where: {
+        fasilitatorId: src.fasilitatorId,
+        date: { gte: startDate, lte: endDate },
+        rekapHonorariumId: null
+      },
+      data: {
+        rekapHonorariumId: created.id
+      }
+    });
+
+    await syncSingleRekapToRabExpenses(created.id);
+    results.push(created);
+  }
+
+  revalidatePath('/fasilitator/rekap-honor');
+  revalidatePath('/portal/rekap');
+  return {
+    success: true,
+    createdCount: results.length,
+    skippedCount: sourceRekaps.length - toCreate.length
+  };
 }
 
 

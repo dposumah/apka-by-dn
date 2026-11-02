@@ -17,7 +17,9 @@ import {
   Calendar,
   Layers,
   Check,
-  AlertCircle
+  AlertCircle,
+  History,
+  Sparkles
 } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -25,7 +27,7 @@ import { Badge } from '@/components/ui/badge'
 import { formatCurrency, terbilangRupiah } from '@/lib/format'
 import { hitungTotalTransportRekap } from '@/lib/transport'
 import { useState, useEffect, useMemo } from 'react'
-import { createRekapManual, deleteRekap, generateKwitansiHonor, generateKwitansiTransportBulanan, updateRekapTransport } from '@/app/actions/rekap'
+import { createRekapManual, deleteRekap, generateKwitansiHonor, generateKwitansiTransportBulanan, updateRekapTransport, copyRekapFromPreviousMonth } from '@/app/actions/rekap'
 import { adminGenerateInvoiceHonor, uploadBuktiRekap, generateInvoiceHonorRecord } from '@/app/actions/rekap'
 import { getInvoiceHtml, getKwitansiHtml } from './pdf-generator'
 import { useRouter } from 'next/navigation'
@@ -107,16 +109,169 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   })
   
-    const [manualJPIntra, setManualJPIntra] = useState('')
+  const [manualJPIntra, setManualJPIntra] = useState('')
   const [manualJPEkstra, setManualJPEkstra] = useState('')
   const [manualRate, setManualRate] = useState('65000')
   const [manualSesi, setManualSesi] = useState('4')
   const [manualHonor, setManualHonor] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
     
-    // Computed values
-    const computedTotalJP = (parseInt(manualJPIntra) || 0) + (parseInt(manualJPEkstra) || 0);
-    const computedTotalHonor = computedTotalJP * (parseInt(manualRate) || 0);
+  // Computed values
+  const computedTotalJP = (parseInt(manualJPIntra) || 0) + (parseInt(manualJPEkstra) || 0);
+  const computedTotalHonor = computedTotalJP * (parseInt(manualRate) || 0);
+
+  // Previous Month Helper State for Manual Form
+  const [lastCopiedPrev, setLastCopiedPrev] = useState<{
+    bulan: string;
+    oldSesi: number;
+    intraPerSesi: number;
+    ekstraPerSesi: number;
+    rate: number;
+  } | null>(null)
+
+  // Find previous month's rekap for the selected fasilitator in manual form
+  const previousRekapForSelectedFasil = useMemo(() => {
+    if (!manualFasilId) return null;
+    const list = initialData
+      .filter((r: any) => r.fasilitatorId === manualFasilId && (!manualBulan || r.bulan < manualBulan))
+      .sort((a: any, b: any) => (b.bulan || '').localeCompare(a.bulan || ''));
+    return list[0] || null;
+  }, [manualFasilId, manualBulan, initialData]);
+
+  const handleApplyPreviousData = (prev: any, scaleToNewSesi: boolean = true) => {
+    if (!prev) return;
+    const oldSesi = prev.jumlahSesi || 3;
+    const targetSesi = parseInt(manualSesi) || 4;
+    const rate = prev.totalJP > 0 ? Math.round(prev.totalHonor / prev.totalJP) : 65000;
+    setManualRate(rate.toString());
+
+    const intraPerSesi = oldSesi > 0 ? (prev.totalJPIntra || 0) / oldSesi : 0;
+    const ekstraPerSesi = oldSesi > 0 ? (prev.totalJPEkstra || 0) / oldSesi : 0;
+
+    if (scaleToNewSesi && targetSesi > 0) {
+      const newIntra = Math.round(intraPerSesi * targetSesi);
+      const newEkstra = Math.round(ekstraPerSesi * targetSesi);
+      setManualJPIntra(newIntra.toString());
+      setManualJPEkstra(newEkstra.toString());
+    } else {
+      setManualSesi(oldSesi.toString());
+      setManualJPIntra((prev.totalJPIntra || 0).toString());
+      setManualJPEkstra((prev.totalJPEkstra || 0).toString());
+    }
+
+    setLastCopiedPrev({
+      bulan: prev.bulan,
+      oldSesi,
+      intraPerSesi,
+      ekstraPerSesi,
+      rate
+    });
+  };
+
+  const handleSesiChange = (newSesiStr: string) => {
+    setManualSesi(newSesiStr);
+    const newSesiNum = parseInt(newSesiStr);
+    if (lastCopiedPrev && newSesiNum > 0) {
+      const newIntra = Math.round(lastCopiedPrev.intraPerSesi * newSesiNum);
+      const newEkstra = Math.round(lastCopiedPrev.ekstraPerSesi * newSesiNum);
+      setManualJPIntra(newIntra.toString());
+      setManualJPEkstra(newEkstra.toString());
+    }
+  };
+
+  // Bulk Copy Modal State
+  const [showBulkCopyModal, setShowBulkCopyModal] = useState(false);
+  const [bulkSourceBulan, setBulkSourceBulan] = useState(() => {
+    if (initialData.length > 0) {
+      const distinct = Array.from(new Set(initialData.map((r: any) => r.bulan).filter(Boolean))).sort().reverse();
+      return distinct[0] || '2026-09';
+    }
+    return '2026-09';
+  });
+  const [bulkTargetBulan, setBulkTargetBulan] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [bulkNewSesi, setBulkNewSesi] = useState<number>(4);
+  const [isBulkCopying, setIsBulkCopying] = useState(false);
+
+  // Distinct months in initialData for bulk copy source selector
+  const availableSourceMonths = useMemo(() => {
+    const setM = new Set<string>();
+    initialData.forEach((r: any) => {
+      if (r.bulan) setM.add(r.bulan);
+    });
+    return Array.from(setM).sort().reverse();
+  }, [initialData]);
+
+  // Bulk copy preview
+  const bulkPreviewList = useMemo(() => {
+    if (!bulkSourceBulan) return [];
+    const sourceItems = initialData.filter((r: any) => r.bulan === bulkSourceBulan);
+    const existingTargetFasils = new Set(
+      initialData.filter((r: any) => r.bulan === bulkTargetBulan).map((r: any) => r.fasilitatorId)
+    );
+
+    return sourceItems.map((src: any) => {
+      const oldSesi = src.jumlahSesi || 3;
+      const ratio = oldSesi > 0 ? (bulkNewSesi || 4) / oldSesi : 1;
+      const newIntra = Math.round((src.totalJPIntra || 0) * ratio);
+      const newEkstra = Math.round((src.totalJPEkstra || 0) * ratio);
+      const newTotalJP = newIntra + newEkstra;
+      const rate = src.totalJP > 0 ? Math.round(src.totalHonor / src.totalJP) : 65000;
+      const newHonor = newTotalJP * rate;
+      const alreadyExists = existingTargetFasils.has(src.fasilitatorId);
+
+      return {
+        fasilitatorId: src.fasilitatorId,
+        namaLengkap: src.fasilitator?.namaLengkap || '-',
+        lokasiSNT: src.fasilitator?.lokasiSNT || '-',
+        oldSesi,
+        oldIntra: src.totalJPIntra || 0,
+        oldEkstra: src.totalJPEkstra || 0,
+        oldJP: src.totalJP || 0,
+        oldHonor: src.totalHonor || 0,
+        newSesi: bulkNewSesi || 4,
+        newIntra,
+        newEkstra,
+        newTotalJP,
+        newHonor,
+        alreadyExists
+      };
+    });
+  }, [bulkSourceBulan, bulkTargetBulan, bulkNewSesi, initialData]);
+
+  const handleExecuteBulkCopy = async () => {
+    const readyItems = bulkPreviewList.filter(item => !item.alreadyExists);
+    if (readyItems.length === 0) {
+      await alert('Tidak ada fasilitator yang perlu disalin (semua sudah ada di bulan tujuan).');
+      return;
+    }
+
+    if (!bulkNewSesi || bulkNewSesi <= 0) {
+      await alert('Masukkan jumlah pertemuan baru yang valid.');
+      return;
+    }
+
+    if (!(await confirm(`Yakin ingin menyalin data ${readyItems.length} fasilitator dari bulan ${bulkSourceBulan} ke bulan ${bulkTargetBulan} dengan ${bulkNewSesi} pertemuan?`))) {
+      return;
+    }
+
+    setIsBulkCopying(true);
+    try {
+      const res = await copyRekapFromPreviousMonth(bulkSourceBulan, bulkTargetBulan, bulkNewSesi);
+      if (res?.success) {
+        await alert(`Berhasil menyalin ${res.createdCount} rekapitulasi ke bulan ${bulkTargetBulan} (${bulkNewSesi} pertemuan)!`);
+        setShowBulkCopyModal(false);
+        router.refresh();
+      }
+    } catch (e: any) {
+      await alert('Gagal menyalin: ' + (e.message || e));
+    } finally {
+      setIsBulkCopying(false);
+    }
+  };
 
 
   // Helper Status Pembayaran
@@ -858,12 +1013,23 @@ Atas Nama: ${namaLengkap}`;
           <h1 className="text-3xl font-bold tracking-tight">Rekap Honorarium Bulanan</h1>
           <p className="text-slate-500 mt-1">Daftar rekapitulasi honorarium yang diajukan oleh Fasilitator.</p>
         </div>
-        <button 
-          onClick={() => setShowManualForm(!showManualForm)}
-          className="bg-slate-900 text-white px-4 py-2 rounded-md hover:bg-slate-800 cursor-pointer font-medium"
-        >
-          {showManualForm ? 'Batal' : '+ Buat Rekap Manual'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button 
+            type="button"
+            onClick={() => setShowBulkCopyModal(true)}
+            className="bg-indigo-700 hover:bg-indigo-800 text-white px-3.5 py-2 rounded-md text-xs font-bold inline-flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+            title="Salin rekapitulasi seluruh fasilitator dari bulan sebelumnya dengan penyesuaian jumlah pertemuan baru"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Salin dari Bulan Lalu</span>
+          </button>
+          <button 
+            onClick={() => setShowManualForm(!showManualForm)}
+            className="bg-slate-900 text-white px-4 py-2 rounded-md hover:bg-slate-800 cursor-pointer font-medium text-xs"
+          >
+            {showManualForm ? 'Batal' : '+ Buat Rekap Manual'}
+          </button>
+        </div>
       </div>
 
       {/* STATS SUMMARY BANNER */}
@@ -904,23 +1070,115 @@ Atas Nama: ${namaLengkap}`;
                   
                 <div>
                   <label className="block text-sm font-medium mb-1">Fasilitator</label>
-                  <select required className="w-full border rounded p-2" value={manualFasilId} onChange={e => setManualFasilId(e.target.value)}>
+                  <select 
+                    required 
+                    className="w-full border rounded p-2" 
+                    value={manualFasilId} 
+                    onChange={e => {
+                      setManualFasilId(e.target.value);
+                      setLastCopiedPrev(null);
+                    }}
+                  >
                     <option value="">Pilih Fasilitator...</option>
                     {fasilitators.map((f: any) => (
                       <option key={f.id} value={f.id}>{f.namaLengkap} - {f.lokasiSNT}</option>
                     ))}
                   </select>
-                  </div>
+                </div>
                   
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Bulan (YYYY-MM)</label>
-                    <input type="month" required className="w-full border rounded p-2" value={manualBulan} onChange={e => setManualBulan(e.target.value)} />
+                <div>
+                  <label className="block text-sm font-medium mb-1">Bulan (YYYY-MM)</label>
+                  <input 
+                    type="month" 
+                    required 
+                    className="w-full border rounded p-2" 
+                    value={manualBulan} 
+                    onChange={e => {
+                      setManualBulan(e.target.value);
+                      setLastCopiedPrev(null);
+                    }} 
+                  />
+                </div>
+              </div>
+
+              {/* HELPER BOX: DATA BULAN SEBELUMNYA */}
+              {previousRekapForSelectedFasil && (
+                <div className="bg-amber-50/90 border border-amber-200 rounded-lg p-3.5 text-xs flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
+                  <div className="space-y-1">
+                    <div className="font-bold text-amber-950 flex items-center gap-1.5 text-sm">
+                      <History className="w-4 h-4 text-amber-700" />
+                      <span>Data Rekap Sebelumnya Ditemukan ({formatBulanIndo(previousRekapForSelectedFasil.bulan)})</span>
+                    </div>
+                    <div className="text-amber-900">
+                      Bulan {formatBulanIndo(previousRekapForSelectedFasil.bulan)}:{' '}
+                      <span className="font-bold">{previousRekapForSelectedFasil.jumlahSesi || 3} Pertemuan</span> &bull;{' '}
+                      <span className="font-bold">{previousRekapForSelectedFasil.totalJPIntra || 0} JP Intra</span> +{' '}
+                      <span className="font-bold">{previousRekapForSelectedFasil.totalJPEkstra || 0} JP Ekstra</span> ({previousRekapForSelectedFasil.totalJP} JP Total) &bull;{' '}
+                      Honor: <span className="font-bold">{formatCurrency(previousRekapForSelectedFasil.totalHonor)}</span>
+                    </div>
+                    <div className="text-[11px] text-amber-800">
+                      Rata-rata: {((previousRekapForSelectedFasil.totalJPIntra || 0) / (previousRekapForSelectedFasil.jumlahSesi || 1)).toFixed(1).replace('.0', '')} JP Intra + {((previousRekapForSelectedFasil.totalJPEkstra || 0) / (previousRekapForSelectedFasil.jumlahSesi || 1)).toFixed(1).replace('.0', '')} JP Ekstra per pertemuan.
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleApplyPreviousData(previousRekapForSelectedFasil, true)}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-md font-semibold transition-colors shadow-xs cursor-pointer text-xs"
+                      title={`Salin data JP dan hitung proporsional untuk ${manualSesi} pertemuan`}
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Gunakan &amp; Sesuaikan ke {manualSesi} Pertemuan</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleApplyPreviousData(previousRekapForSelectedFasil, false)}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-amber-100/50 text-amber-900 border border-amber-300 rounded-md font-medium transition-colors cursor-pointer text-xs"
+                      title="Salin persis angka sesi dan JP bulan lalu tanpa penskalaan"
+                    >
+                      <span>Salin Persis Sesi Lama</span>
+                    </button>
                   </div>
                 </div>
+              )}
+
+              {lastCopiedPrev && (
+                <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 px-3.5 py-2 rounded-md text-xs flex items-center justify-between shadow-xs">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>
+                      Data aktif disesuaikan dari <strong>{formatBulanIndo(lastCopiedPrev.bulan)}</strong> ({lastCopiedPrev.oldSesi} pertemuan). Disesuaikan ke <strong>{manualSesi} pertemuan</strong> ({manualJPIntra} Intra + {manualJPEkstra} Ekstra = {computedTotalJP} JP).
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setLastCopiedPrev(null)}
+                    className="text-emerald-700 hover:text-emerald-950 font-bold ml-2 text-sm p-1"
+                    title="Batalkan penggunaan acuan"
+                  >
+                    &times;
+                  </button>
+                </div>
+              )}
+
               <div className="grid grid-cols-4 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Jumlah Sesi (Pertemuan)</label>
-                  <input type="number" min="0" required className="w-full border rounded p-2" value={manualSesi} onChange={e => setManualSesi(e.target.value)} />
+                <div>
+                  <label className="block text-sm font-medium mb-1">Jumlah Sesi (Pertemuan)</label>
+                  <input 
+                    type="number" 
+                    min="1" 
+                    required 
+                    className="w-full border rounded p-2" 
+                    value={manualSesi} 
+                    onChange={e => handleSesiChange(e.target.value)} 
+                  />
+                  {lastCopiedPrev && (
+                    <span className="text-[10px] text-amber-700 block mt-1">
+                      💡 JP otomatis menyesuaikan saat jumlah sesi diubah.
+                    </span>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Jumlah JP</label>
@@ -954,7 +1212,7 @@ Atas Nama: ${namaLengkap}`;
                 <button 
                   type="submit" 
                   disabled={isSubmitting}
-                  className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50"
+                  className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 cursor-pointer font-medium"
                 >
                   {isSubmitting ? 'Menyimpan...' : 'Simpan & Munculkan di Tabel'}
                 </button>
@@ -1852,6 +2110,187 @@ Atas Nama: ${namaLengkap}`;
                   className="px-4 py-2 text-xs text-white bg-blue-600 rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
                 >
                   {isSavingTransport ? 'Menyimpan...' : 'Simpan Transport'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Salin Semua dari Bulan Sebelumnya */}
+      {showBulkCopyModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[92vh] flex flex-col overflow-hidden">
+            <div className="flex justify-between items-center p-5 border-b bg-indigo-50/60">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-indigo-600 text-white rounded-lg">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Salin Rekapitulasi dari Bulan Sebelumnya</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Duplikasi data seluruh fasilitator sekaligus dengan penyesuaian jumlah pertemuan baru secara proporsional.
+                  </p>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setShowBulkCopyModal(false)}
+                className="text-slate-400 hover:text-slate-600 text-xl font-bold p-1 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 bg-slate-50 border rounded-lg">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Bulan Sumber (Asal)</label>
+                  <select 
+                    value={bulkSourceBulan} 
+                    onChange={e => setBulkSourceBulan(e.target.value)}
+                    className="w-full text-xs border rounded p-2 bg-white font-medium"
+                  >
+                    {availableSourceMonths.map(m => (
+                      <option key={m} value={m}>
+                        {formatBulanIndo(m)} ({m})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Bulan Target (Tujuan)</label>
+                  <input 
+                    type="month" 
+                    value={bulkTargetBulan} 
+                    onChange={e => setBulkTargetBulan(e.target.value)}
+                    className="w-full text-xs border rounded p-2 bg-white font-medium" 
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Jumlah Pertemuan Baru</label>
+                  <input 
+                    type="number" 
+                    min="1" 
+                    max="10"
+                    value={bulkNewSesi} 
+                    onChange={e => setBulkNewSesi(parseInt(e.target.value) || 4)}
+                    className="w-full text-xs border rounded p-2 bg-white font-bold text-indigo-700" 
+                  />
+                  <span className="text-[10px] text-slate-500 block mt-0.5">
+                    Contoh: 3 pertemuan (Sep) &rarr; 4 pertemuan (Okt)
+                  </span>
+                </div>
+              </div>
+
+              {/* Tabel Pratinjau Duplikasi */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-slate-800">
+                    Pratinjau Data yang Akan Dibuat ({bulkPreviewList.filter(it => !it.alreadyExists).length} Fasilitator Siap Dibuat)
+                  </span>
+                  <span className="text-[11px] text-slate-500">
+                    JP dihitung proporsional: <em>(JP Lama / Sesi Lama) &times; {bulkNewSesi} Sesi</em>
+                  </span>
+                </div>
+
+                <div className="border rounded-lg overflow-x-auto max-h-[340px] overflow-y-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-slate-100 text-slate-700 uppercase sticky top-0 border-b text-[10px]">
+                      <tr>
+                        <th className="p-2">No</th>
+                        <th className="p-2">Fasilitator</th>
+                        <th className="p-2 text-center bg-slate-200/50">Sesi Lama</th>
+                        <th className="p-2 text-center bg-slate-200/50">JP Lama</th>
+                        <th className="p-2 text-center bg-indigo-100 text-indigo-900 font-bold">Sesi Baru</th>
+                        <th className="p-2 text-center bg-indigo-100 text-indigo-900 font-bold">JP Baru</th>
+                        <th className="p-2 text-right bg-indigo-100 text-indigo-900 font-bold">Estimasi Honor Baru</th>
+                        <th className="p-2 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {bulkPreviewList.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="p-6 text-center text-slate-400">
+                            Tidak ada data fasilitator pada bulan sumber.
+                          </td>
+                        </tr>
+                      ) : (
+                        bulkPreviewList.map((item, idx) => (
+                          <tr key={item.fasilitatorId} className={item.alreadyExists ? 'bg-slate-50/80 opacity-60' : 'hover:bg-slate-50'}>
+                            <td className="p-2 text-center text-slate-500">{idx + 1}</td>
+                            <td className="p-2 font-medium text-slate-900">
+                              <div>{item.namaLengkap}</div>
+                              <div className="text-[10px] text-slate-400">{item.lokasiSNT}</div>
+                            </td>
+                            <td className="p-2 text-center bg-slate-50 font-mono">{item.oldSesi}</td>
+                            <td className="p-2 text-center bg-slate-50 font-mono">
+                              {item.oldJP} JP
+                              <span className="block text-[9px] text-slate-400">({item.oldIntra} I / {item.oldEkstra} E)</span>
+                            </td>
+                            <td className="p-2 text-center font-bold text-indigo-700 font-mono bg-indigo-50/40">
+                              {item.newSesi}
+                            </td>
+                            <td className="p-2 text-center font-bold text-indigo-900 font-mono bg-indigo-50/40">
+                              {item.newTotalJP} JP
+                              <span className="block text-[9px] text-indigo-600">({item.newIntra} I / {item.newEkstra} E)</span>
+                            </td>
+                            <td className="p-2 text-right font-bold text-slate-900 font-mono bg-indigo-50/40">
+                              {formatCurrency(item.newHonor)}
+                            </td>
+                            <td className="p-2 text-center">
+                              {item.alreadyExists ? (
+                                <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-600 text-[10px] font-semibold">
+                                  Sudah Ada
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                                  Siap Buat
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border-t bg-slate-50 flex items-center justify-between gap-3">
+              <span className="text-xs text-slate-500">
+                Total siap dibuat: <strong>{bulkPreviewList.filter(it => !it.alreadyExists).length}</strong> fasilitator untuk periode <strong>{formatBulanIndo(bulkTargetBulan)}</strong>.
+              </span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowBulkCopyModal(false)}
+                  disabled={isBulkCopying}
+                  className="px-4 py-2 text-xs text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 cursor-pointer font-medium"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecuteBulkCopy}
+                  disabled={isBulkCopying || bulkPreviewList.filter(it => !it.alreadyExists).length === 0}
+                  className="px-4 py-2 text-xs text-white bg-indigo-700 hover:bg-indigo-800 rounded-lg font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-50 inline-flex items-center gap-1.5"
+                >
+                  {isBulkCopying ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Memproses Duplikasi...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Buat {bulkPreviewList.filter(it => !it.alreadyExists).length} Rekap Sekaligus</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
