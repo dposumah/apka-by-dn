@@ -19,15 +19,17 @@ import {
   Check,
   AlertCircle,
   History,
-  Sparkles
+  Sparkles,
+  Fuel,
+  Sliders
 } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency, terbilangRupiah } from '@/lib/format'
-import { hitungTotalTransportRekap, hitungDetailTransportRekap } from '@/lib/transport'
+import { hitungTotalTransportRekap, hitungDetailTransportRekap, hitungTransportDenganRumusBBMDanPlafon, HARGA_BBM_DEFAULT } from '@/lib/transport'
 import { useState, useEffect, useMemo } from 'react'
-import { createRekapManual, deleteRekap, generateKwitansiHonor, generateKwitansiTransportBulanan, updateRekapTransport, copyRekapFromPreviousMonth } from '@/app/actions/rekap'
+import { createRekapManual, deleteRekap, generateKwitansiHonor, generateKwitansiTransportBulanan, updateRekapTransport, copyRekapFromPreviousMonth, batchUpdateTransportByFormula } from '@/app/actions/rekap'
 import { adminGenerateInvoiceHonor, uploadBuktiRekap, generateInvoiceHonorRecord } from '@/app/actions/rekap'
 import { getInvoiceHtml, getKwitansiHtml } from './pdf-generator'
 import { useRouter } from 'next/navigation'
@@ -56,11 +58,38 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
   const [editingTransportRekap, setEditingTransportRekap] = useState<any | null>(null)
   const [transportAmountInput, setTransportAmountInput] = useState<string>('')
   const [isSavingTransport, setIsSavingTransport] = useState(false)
+  const [editHargaBbm, setEditHargaBbm] = useState('13900')
+  const [editKonsumsi, setEditKonsumsi] = useState('10')
+  const [editUseMax, setEditUseMax] = useState(false)
+  const [editMaxType, setEditMaxType] = useState<'PER_SESI' | 'TOTAL'>('PER_SESI')
+  const [editMaxNominal, setEditMaxNominal] = useState('150000')
+  const [editUseMin, setEditUseMin] = useState(true)
+
+  // Batch Transport Modal states
+  const [showBatchTransportModal, setShowBatchTransportModal] = useState(false)
+  const [batchTransportBulan, setBatchTransportBulan] = useState('2026-10')
+  const [batchUseBbm, setBatchUseBbm] = useState(true)
+  const [batchHargaBbm, setBatchHargaBbm] = useState('13900')
+  const [batchKonsumsi, setBatchKonsumsi] = useState('10')
+  const [batchUseMin, setBatchUseMin] = useState(true)
+  const [batchMinNominal, setBatchMinNominal] = useState('120000')
+  const [batchUseMax, setBatchUseMax] = useState(true)
+  const [batchMaxType, setBatchMaxType] = useState<'PER_SESI' | 'TOTAL'>('PER_SESI')
+  const [batchMaxNominal, setBatchMaxNominal] = useState('150000')
+  const [isApplyingBatchTransport, setIsApplyingBatchTransport] = useState(false)
+  const [batchSelectedRekapIds, setBatchSelectedRekapIds] = useState<string[]>([])
+
+  // Manual Form Transport states
+  const [manualTransport, setManualTransport] = useState('')
 
   const openEditTransportModal = (rekap: any) => {
     setEditingTransportRekap(rekap)
     const currentAmount = hitungTotalTransportRekap(rekap)
     setTransportAmountInput(currentAmount.toString())
+    setEditUseMax(false)
+    setEditMaxType('PER_SESI')
+    setEditMaxNominal('150000')
+    setEditUseMin(true)
   }
 
   const handleSaveTransport = async () => {
@@ -270,6 +299,81 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
       await alert('Gagal menyalin: ' + (e.message || e));
     } finally {
       setIsBulkCopying(false);
+    }
+  };
+
+  const availableRekapMonths = useMemo(() => {
+    const setM = new Set<string>();
+    initialData.forEach((r: any) => { if (r.bulan) setM.add(r.bulan); });
+    const arr = Array.from(setM).sort((a, b) => b.localeCompare(a));
+    return arr.length > 0 ? arr : ['2026-10', '2026-09'];
+  }, [initialData]);
+
+  const batchPreviewList = useMemo(() => {
+    if (!showBatchTransportModal || !batchTransportBulan) return [];
+    const list = initialData.filter((r: any) => r.bulan === batchTransportBulan);
+    return list.map((r: any) => {
+      const fasil = r.fasilitator || {};
+      const jarak = Number(fasil.jarakPPKm) || 0;
+      const sesi = Number(r.jumlahSesi) || 4;
+      const currentTransport = hitungTotalTransportRekap(r);
+
+      const calc = hitungTransportDenganRumusBBMDanPlafon(r, {
+        useRumusBbm: batchUseBbm,
+        hargaBBM: parseFloat(batchHargaBbm) || 13900,
+        konsumsiKmPerLiter: parseFloat(batchKonsumsi) || 10,
+        useBatasMinimum: batchUseMin,
+        batasMinimumNominal: parseFloat(batchMinNominal) || 120000,
+        useBatasMaksimal: batchUseMax,
+        tipeBatasMaksimal: batchMaxType,
+        batasMaksimalNominal: parseFloat(batchMaxNominal) || 0
+      });
+
+      return {
+        rekapId: r.id,
+        nama: fasil.namaLengkap || '-',
+        lokasi: fasil.lokasiSNT || '-',
+        jarak,
+        sesi,
+        currentTransport,
+        newPerSesi: calc.perSesiSetelahPlafon,
+        newTotal: calc.totalSetelahPlafon,
+        isCapped: calc.isCapped,
+        keterangan: calc.keterangan
+      };
+    });
+  }, [showBatchTransportModal, batchTransportBulan, initialData, batchUseBbm, batchHargaBbm, batchKonsumsi, batchUseMin, batchMinNominal, batchUseMax, batchMaxType, batchMaxNominal]);
+
+  const handleApplyBatchTransport = async () => {
+    if (batchPreviewList.length === 0) return;
+    const targetCount = batchSelectedRekapIds.length > 0 ? batchSelectedRekapIds.length : batchPreviewList.length;
+    if (!(await confirm(`Terapkan perhitungan transport (Rumus BBM & Batas Maksimal) ke ${targetCount} rekapitulasi pada bulan ${batchTransportBulan}?`))) return;
+
+    setIsApplyingBatchTransport(true);
+    try {
+      const res = await batchUpdateTransportByFormula(batchTransportBulan, {
+        useRumusBbm: batchUseBbm,
+        hargaBBM: parseFloat(batchHargaBbm) || 13900,
+        konsumsiKmPerLiter: parseFloat(batchKonsumsi) || 10,
+        useBatasMinimum: batchUseMin,
+        batasMinimumNominal: parseFloat(batchMinNominal) || 120000,
+        useBatasMaksimal: batchUseMax,
+        tipeBatasMaksimal: batchMaxType,
+        batasMaksimalNominal: parseFloat(batchMaxNominal) || 0,
+        selectedRekapIds: batchSelectedRekapIds.length > 0 ? batchSelectedRekapIds : undefined
+      });
+
+      if (res?.error) {
+        await alert(res.error);
+      } else {
+        await alert(`Berhasil menerapkan rumus BBM & batas maksimal ke ${res.count} rekapitulasi!`);
+        setShowBatchTransportModal(false);
+        router.refresh();
+      }
+    } catch (e: any) {
+      await alert('Gagal memperbarui transport: ' + (e.message || ''));
+    } finally {
+      setIsApplyingBatchTransport(false);
     }
   };
 
@@ -511,14 +615,23 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
     e.preventDefault()
     setIsSubmitting(true)
     try {
-      await createRekapManual(manualFasilId, manualBulan, computedTotalJP, computedTotalHonor, parseInt(manualSesi) || 4, parseInt(manualJPIntra) || 0, parseInt(manualJPEkstra) || 0)
+      const transportVal = manualTransport ? parseFloat(manualTransport) : null;
+      await createRekapManual(
+        manualFasilId, 
+        manualBulan, 
+        computedTotalJP, 
+        computedTotalHonor, 
+        parseInt(manualSesi) || 4, 
+        parseInt(manualJPIntra) || 0, 
+        parseInt(manualJPEkstra) || 0,
+        transportVal
+      )
       setShowManualForm(false)
       setManualFasilId('')
       setManualBulan('')
-
-
       setManualRate('65000')
       setManualSesi('4')
+      setManualTransport('')
       router.refresh()
     } catch(err: any) {
       alert(err.message)
@@ -1014,7 +1127,20 @@ Atas Nama: ${namaLengkap}`;
           <h1 className="text-3xl font-bold tracking-tight">Rekap Honorarium Bulanan</h1>
           <p className="text-slate-500 mt-1">Daftar rekapitulasi honorarium yang diajukan oleh Fasilitator.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button 
+            type="button"
+            onClick={() => {
+              setBatchTransportBulan(availableRekapMonths[0] || '2026-10');
+              setShowBatchTransportModal(true);
+            }}
+            className="bg-purple-700 hover:bg-purple-800 text-white px-3.5 py-2 rounded-md text-xs font-bold inline-flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+            title="Kalkulasi transport massal menggunakan rumus BBM dan batas maksimal untuk seluruh fasilitator"
+          >
+            <Fuel className="w-4 h-4" />
+            <span>Atur Transport (BBM & Plafon)</span>
+          </button>
+
           <button 
             type="button"
             onClick={() => setShowBulkCopyModal(true)}
@@ -1164,7 +1290,7 @@ Atas Nama: ${namaLengkap}`;
                 </div>
               )}
 
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
                 <div>
                   <label className="block text-sm font-medium mb-1">Jumlah Sesi (Pertemuan)</label>
                   <input 
@@ -1194,7 +1320,7 @@ Atas Nama: ${namaLengkap}`;
                     </div>
                     <div>
                       <label className="text-xs text-slate-500">Total JP</label>
-                      <input type="number" readOnly className="w-full border rounded p-2 bg-slate-100" value={computedTotalJP} />
+                      <input type="number" readOnly className="w-full border rounded p-2 bg-slate-100 font-bold" value={computedTotalJP} />
                     </div>
                   </div>
                 </div>
@@ -1206,7 +1332,47 @@ Atas Nama: ${namaLengkap}`;
 
                 <div>
                   <label className="block text-sm font-medium mb-1">Total Honor (Rp)</label>
-                  <input type="number" min="0" required value={computedTotalHonor} readOnly className="w-full border rounded p-2 bg-slate-100" />
+                  <input type="number" min="0" required value={computedTotalHonor} readOnly className="w-full border rounded p-2 bg-slate-100 font-bold text-slate-900" />
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-sm font-medium">Bantuan Transport (Rp)</label>
+                    {manualFasilId && (
+                      <span className="text-[10px] text-indigo-700 font-semibold bg-indigo-50 px-1 py-0.5 rounded">
+                        {fasilitators.find((f: any) => f.id === manualFasilId)?.jarakPPKm || 0} km PP
+                      </span>
+                    )}
+                  </div>
+                  <input 
+                    type="number" 
+                    min="0" 
+                    className="w-full border rounded p-2" 
+                    value={manualTransport} 
+                    onChange={e => setManualTransport(e.target.value)} 
+                    placeholder="Kosongkan jika auto" 
+                  />
+                  {manualFasilId && (
+                    <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const f = fasilitators.find((fa: any) => fa.id === manualFasilId);
+                          const sesi = parseInt(manualSesi) || 4;
+                          const calc = hitungTransportDenganRumusBBMDanPlafon({ fasilitator: f, jumlahSesi: sesi }, {
+                            useRumusBbm: true,
+                            useBatasMaksimal: true,
+                            batasMaksimalNominal: 150000
+                          });
+                          setManualTransport(calc.totalSetelahPlafon.toString());
+                        }}
+                        className="text-[10.5px] text-indigo-600 hover:text-indigo-800 font-semibold underline cursor-pointer"
+                        title="Hitung dengan rumus jarak BBM dan plafon Rp 150.000/sesi"
+                      >
+                        ⚡ Hitung BBM &amp; Plafon
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex justify-end pt-2">
@@ -2054,6 +2220,10 @@ Atas Nama: ${namaLengkap}`;
                   <span className="text-slate-500">Jumlah Pertemuan:</span>
                   <span className="font-semibold">{editingTransportRekap.jumlahSesi || 4} Sesi ({editingTransportRekap.laporan?.length || 0} Terlapor)</span>
                 </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Jarak Kedudukan ke Lokasi:</span>
+                  <span className="font-semibold text-indigo-700">{editingTransportRekap.fasilitator?.jarakPPKm || 0} km Pulang-Pergi</span>
+                </div>
                 {editingTransportRekap.totalTransport !== null && editingTransportRekap.totalTransport !== undefined && (
                   <div className="text-amber-700 font-medium pt-1 border-t">
                     Status: Nominal saat ini telah disesuaikan manual oleh Admin.
@@ -2061,9 +2231,136 @@ Atas Nama: ${namaLengkap}`;
                 )}
               </div>
 
+              {/* Kalkulator Rumus BBM & Batas Maksimal */}
+              {(() => {
+                const editJarak = Number(editingTransportRekap.fasilitator?.jarakPPKm) || 0;
+                const editSesi = Number(editingTransportRekap.jumlahSesi) || 4;
+                const editSbm = Number(editingTransportRekap.fasilitator?.besaranTransport) || 120000;
+                const editHarga = parseFloat(editHargaBbm) || 13900;
+                const editKons = parseFloat(editKonsumsi) || 10;
+                const editBbmPerSesi = Math.round((editJarak / editKons) * editHarga);
+                const editPerSesiWithMin = editUseMin ? Math.max(editSbm, editBbmPerSesi) : editBbmPerSesi;
+
+                let editFinalPerSesi = editPerSesiWithMin;
+                let editFinalTotal = editPerSesiWithMin * editSesi;
+                let editIsCapped = false;
+
+                if (editUseMax && editMaxNominal) {
+                  const maxVal = parseFloat(editMaxNominal) || 0;
+                  if (editMaxType === 'PER_SESI') {
+                    if (editPerSesiWithMin > maxVal) {
+                      editFinalPerSesi = maxVal;
+                      editFinalTotal = editFinalPerSesi * editSesi;
+                      editIsCapped = true;
+                    }
+                  } else {
+                    if (editFinalTotal > maxVal) {
+                      editFinalTotal = maxVal;
+                      editFinalPerSesi = Math.round(maxVal / editSesi);
+                      editIsCapped = true;
+                    }
+                  }
+                }
+
+                return (
+                  <div className="bg-gradient-to-br from-indigo-50/70 to-purple-50/50 border border-indigo-200 rounded-xl p-3.5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-950">
+                        <Fuel className="w-4 h-4 text-indigo-600" />
+                        <span>Kalkulator Rumus BBM &amp; Plafon</span>
+                      </div>
+                      <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded">
+                        {editJarak} km PP
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="bg-white p-2 rounded-lg border border-indigo-100">
+                        <span className="text-slate-500 block text-[10px]">Rumus BBM Murni:</span>
+                        <span className="font-bold text-slate-800">
+                          Rp {editBbmPerSesi.toLocaleString('id-ID')}
+                        </span>
+                        <span className="text-[10px] text-slate-400 block">/ pertemuan ({editJarak} km)</span>
+                      </div>
+                      <div className="bg-white p-2 rounded-lg border border-indigo-100">
+                        <span className="text-slate-500 block text-[10px]">Standar SBM Lokal:</span>
+                        <span className="font-bold text-slate-800">
+                          Rp {editSbm.toLocaleString('id-ID')}
+                        </span>
+                        <span className="text-[10px] text-slate-400 block">/ pertemuan</span>
+                      </div>
+                    </div>
+
+                    {/* Opsi Batas Maksimal (Plafon) */}
+                    <div className="pt-2 border-t border-indigo-100 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center gap-1.5 text-xs text-slate-800 font-medium cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={editUseMax} 
+                            onChange={e => setEditUseMax(e.target.checked)} 
+                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" 
+                          />
+                          <span>Gunakan Batas Maksimal</span>
+                        </label>
+                        {editUseMax && (
+                          <select 
+                            value={editMaxType} 
+                            onChange={e => setEditMaxType(e.target.value as any)} 
+                            className="text-[11px] border border-slate-200 rounded px-1.5 py-0.5 bg-white text-slate-700 font-medium"
+                          >
+                            <option value="PER_SESI">Per Pertemuan</option>
+                            <option value="TOTAL">Total Bulanan</option>
+                          </select>
+                        )}
+                      </div>
+
+                      {editUseMax && (
+                        <div className="flex items-center gap-2 bg-white p-2 rounded border border-indigo-100">
+                          <span className="text-xs text-slate-600 whitespace-nowrap">Plafon Maks: Rp</span>
+                          <input 
+                            type="number" 
+                            value={editMaxNominal} 
+                            onChange={e => setEditMaxNominal(e.target.value)} 
+                            className="w-full text-xs font-bold border rounded px-2 py-1 bg-white focus:ring-1 focus:ring-indigo-500" 
+                            placeholder="150000"
+                          />
+                        </div>
+                      )}
+
+                      {editIsCapped && (
+                        <div className="text-[10.5px] text-amber-800 bg-amber-50 border border-amber-200 rounded p-1.5 font-medium">
+                          ⚠️ Terpotong plafon maksimal dari Rp {(editPerSesiWithMin * editSesi).toLocaleString('id-ID')} menjadi <strong>Rp {editFinalTotal.toLocaleString('id-ID')}</strong>.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Tombol Terapkan */}
+                    <div className="pt-2 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setTransportAmountInput(editFinalTotal.toString())}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors cursor-pointer shadow-xs"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Gunakan Rp {editFinalTotal.toLocaleString('id-ID')}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTransportAmountInput((editSbm * editSesi).toString())}
+                        className="px-2.5 py-1.5 text-xs font-medium bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg transition-colors cursor-pointer"
+                        title="Gunakan Standar SBM Murni"
+                      >
+                        Standar SBM
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Nominal Total Transport (Rp)
+                  Nominal Total Transport Disepakati (Rp)
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-medium">Rp</span>
@@ -2078,7 +2375,7 @@ Atas Nama: ${namaLengkap}`;
                   />
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1">
-                  Nominal ini langsung tercatat sebagai total transport fasilitator pada invoice, kwitansi, dan rekap transfer.
+                  Nominal ini langsung tercatat sebagai total bantuan transport fasilitator pada invoice, kwitansi, dan rekap transfer.
                 </p>
               </div>
             </div>
@@ -2290,6 +2587,265 @@ Atas Nama: ${namaLengkap}`;
                     <>
                       <Sparkles className="w-3.5 h-3.5" />
                       <span>Buat {bulkPreviewList.filter(it => !it.alreadyExists).length} Rekap Sekaligus</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Atur Transportasi Massal (Rumus BBM & Batas Maksimal) */}
+      {showBatchTransportModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden">
+            <div className="flex justify-between items-center p-5 border-b bg-purple-50/70">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-purple-700 text-white rounded-lg">
+                  <Fuel className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Atur Bantuan Transportasi Massal</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Kalkulasi dan terapkan besaran bantuan transport berdasarkan <strong>Rumus Jarak BBM</strong> dan <strong>Batas Maksimal (Plafon)</strong> ke seluruh fasilitator.
+                  </p>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setShowBatchTransportModal(false)}
+                className="text-slate-400 hover:text-slate-600 text-xl font-bold p-1 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto space-y-4">
+              {/* Opsi Pengaturan Rumus & Plafon */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-4 bg-slate-50 border rounded-xl">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Periode Bulan Rekap</label>
+                  <select 
+                    value={batchTransportBulan} 
+                    onChange={e => setBatchTransportBulan(e.target.value)}
+                    className="w-full text-xs border rounded p-2 bg-white font-bold text-purple-900"
+                  >
+                    {availableRekapMonths.map(m => (
+                      <option key={m} value={m}>
+                        {formatBulanIndo(m)} ({m})
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-[10px] text-slate-500 block mt-1">
+                    {batchPreviewList.length} rekapitulasi tercatat pada bulan ini
+                  </span>
+                </div>
+
+                <div className="space-y-2 bg-white p-2.5 rounded-lg border border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-slate-800 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={batchUseBbm} 
+                        onChange={e => setBatchUseBbm(e.target.checked)} 
+                        className="rounded border-slate-300 text-purple-600 focus:ring-purple-500" 
+                      />
+                      <span>Gunakan Rumus BBM</span>
+                    </label>
+                    <span className="text-[10px] text-slate-500 font-mono">10 km/L</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-slate-500">Harga BBM: Rp</span>
+                    <input 
+                      type="number" 
+                      value={batchHargaBbm} 
+                      onChange={e => setBatchHargaBbm(e.target.value)} 
+                      disabled={!batchUseBbm}
+                      className="w-full text-xs font-semibold border rounded px-2 py-1 bg-white disabled:bg-slate-100" 
+                      placeholder="13900"
+                    />
+                  </div>
+
+                  <label className="flex items-center gap-1.5 text-[11px] text-slate-600 cursor-pointer pt-1 border-t">
+                    <input 
+                      type="checkbox" 
+                      checked={batchUseMin} 
+                      onChange={e => setBatchUseMin(e.target.checked)} 
+                      className="rounded border-slate-300 text-purple-600" 
+                    />
+                    <span>Batas Bawah SBM (Rp 120.000/sesi)</span>
+                  </label>
+                </div>
+
+                <div className="space-y-2 bg-white p-2.5 rounded-lg border border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-slate-800 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={batchUseMax} 
+                        onChange={e => setBatchUseMax(e.target.checked)} 
+                        className="rounded border-slate-300 text-purple-600 focus:ring-purple-500" 
+                      />
+                      <span>Batas Maksimal (Plafon)</span>
+                    </label>
+                    {batchUseMax && (
+                      <select 
+                        value={batchMaxType} 
+                        onChange={e => setBatchMaxType(e.target.value as any)} 
+                        className="text-[10px] border border-slate-200 rounded px-1.5 py-0.5 bg-white font-medium"
+                      >
+                        <option value="PER_SESI">Per Sesi</option>
+                        <option value="TOTAL">Total Bulan</option>
+                      </select>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-slate-500">Nominal: Rp</span>
+                    <input 
+                      type="number" 
+                      value={batchMaxNominal} 
+                      onChange={e => setBatchMaxNominal(e.target.value)} 
+                      disabled={!batchUseMax}
+                      className="w-full text-xs font-bold border rounded px-2 py-1 bg-white text-purple-900 disabled:bg-slate-100" 
+                      placeholder="150000"
+                    />
+                  </div>
+                  <span className="text-[10px] text-slate-500 block">
+                    {batchUseMax ? `Biaya transport yang melebihi Rp ${Number(batchMaxNominal || 0).toLocaleString('id-ID')} akan dipotong batas atas.` : 'Batas maksimal nonaktif (mengikuti kalkulasi penuh).'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Tabel Pratinjau Kalkulasi */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-slate-800">
+                    Pratinjau Hasil Perhitungan ({batchPreviewList.length} Fasilitator)
+                  </span>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-slate-500">
+                      Terkena Plafon: <strong className="text-amber-700">{batchPreviewList.filter(it => it.isCapped).length}</strong> fasilitator
+                    </span>
+                  </div>
+                </div>
+
+                <div className="border rounded-lg overflow-x-auto max-h-[340px] overflow-y-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-slate-100 text-slate-700 uppercase sticky top-0 border-b text-[10px]">
+                      <tr>
+                        <th className="p-2 w-8">No</th>
+                        <th className="p-2">Fasilitator &amp; Lokasi</th>
+                        <th className="p-2 text-center">Jarak PP</th>
+                        <th className="p-2 text-center">Sesi</th>
+                        <th className="p-2 text-right">Transport Saat Ini</th>
+                        <th className="p-2 text-right bg-purple-50 text-purple-950 font-bold">Tarif / Sesi</th>
+                        <th className="p-2 text-center">Status Plafon</th>
+                        <th className="p-2 text-right bg-purple-100 text-purple-950 font-bold">Transport Baru</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {batchPreviewList.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="p-6 text-center text-slate-400">
+                            Tidak ada data rekapitulasi pada bulan {batchTransportBulan}.
+                          </td>
+                        </tr>
+                      ) : (
+                        batchPreviewList.map((item, idx) => (
+                          <tr key={item.rekapId} className="hover:bg-slate-50">
+                            <td className="p-2 text-center text-slate-500">{idx + 1}</td>
+                            <td className="p-2 font-medium text-slate-900">
+                              <div>{item.nama}</div>
+                              <div className="text-[10px] text-slate-500 font-normal">{item.lokasi}</div>
+                            </td>
+                            <td className="p-2 text-center font-mono">
+                              {item.jarak > 0 ? (
+                                <span className="font-semibold text-slate-700">{item.jarak} km</span>
+                              ) : (
+                                <span className="text-slate-400">Lokal</span>
+                              )}
+                            </td>
+                            <td className="p-2 text-center font-bold text-slate-700">{item.sesi}</td>
+                            <td className="p-2 text-right font-mono text-slate-600">
+                              Rp {item.currentTransport.toLocaleString('id-ID')}
+                            </td>
+                            <td className="p-2 text-right font-bold text-purple-900 bg-purple-50/50 font-mono">
+                              Rp {item.newPerSesi.toLocaleString('id-ID')}
+                            </td>
+                            <td className="p-2 text-center">
+                              {item.isCapped ? (
+                                <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                                  ⚠️ Dibatasi Plafon
+                                </span>
+                              ) : (
+                                <span className="text-[10px] bg-emerald-100 text-emerald-800 font-medium px-1.5 py-0.5 rounded-full">
+                                  ✓ Sesuai Rumus
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-2 text-right font-bold text-purple-900 bg-purple-100/50 font-mono text-sm">
+                              Rp {item.newTotal.toLocaleString('id-ID')}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                    {batchPreviewList.length > 0 && (
+                      <tfoot className="bg-slate-100 font-bold sticky bottom-0 border-t text-xs">
+                        <tr>
+                          <td colSpan={4} className="p-2.5 text-right uppercase text-slate-700">Total Keseluruhan:</td>
+                          <td className="p-2.5 text-right font-mono text-slate-700">
+                            Rp {batchPreviewList.reduce((s, it) => s + it.currentTransport, 0).toLocaleString('id-ID')}
+                          </td>
+                          <td colSpan={2} className="p-2.5 text-center text-[11px] text-slate-500 font-normal">
+                            Selisih: {(() => {
+                              const sel = batchPreviewList.reduce((s, it) => s + it.newTotal, 0) - batchPreviewList.reduce((s, it) => s + it.currentTransport, 0);
+                              return sel >= 0 ? `+Rp ${sel.toLocaleString('id-ID')}` : `-Rp ${Math.abs(sel).toLocaleString('id-ID')}`;
+                            })()}
+                          </td>
+                          <td className="p-2.5 text-right font-bold text-purple-950 font-mono text-sm bg-purple-100">
+                            Rp {batchPreviewList.reduce((s, it) => s + it.newTotal, 0).toLocaleString('id-ID')}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border-t bg-slate-50 flex items-center justify-between gap-3">
+              <span className="text-xs text-slate-500">
+                Akan memperbarui biaya transport untuk <strong>{batchPreviewList.length}</strong> fasilitator di bulan <strong>{formatBulanIndo(batchTransportBulan)}</strong>.
+              </span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowBatchTransportModal(false)}
+                  disabled={isApplyingBatchTransport}
+                  className="px-4 py-2 text-xs text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 cursor-pointer font-medium"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyBatchTransport}
+                  disabled={isApplyingBatchTransport || batchPreviewList.length === 0}
+                  className="px-4 py-2 text-xs text-white bg-purple-700 hover:bg-purple-800 rounded-lg font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-50 inline-flex items-center gap-1.5"
+                >
+                  {isApplyingBatchTransport ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Menerapkan Transport...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Fuel className="w-3.5 h-3.5" />
+                      <span>Terapkan ke {batchPreviewList.length} Fasilitator</span>
                     </>
                   )}
                 </button>

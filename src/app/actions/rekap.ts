@@ -9,7 +9,7 @@ import { revalidatePath } from 'next/cache';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { checkAuth } from '@/lib/auth-check';
-import { hitungTotalTransportRekap } from '@/lib/transport';
+import { hitungTotalTransportRekap, hitungTransportDenganRumusBBMDanPlafon, TransportFormulaOptions } from '@/lib/transport';
 
 
 export async function getAvailableMonths(fasilitatorId: string) {
@@ -1382,6 +1382,67 @@ export async function updateRekapTransport(rekapId: string, totalTransport: numb
     return { success: true, rekap: JSON.parse(JSON.stringify(updated)) };
   } catch (error: any) {
     console.error('Error in updateRekapTransport:', error);
+    return { error: error.message || 'Unknown error' };
+  }
+}
+
+export async function batchUpdateTransportByFormula(
+  bulan: string,
+  options: {
+    useRumusBbm: boolean;
+    hargaBBM?: number;
+    konsumsiKmPerLiter?: number;
+    useBatasMaksimal: boolean;
+    tipeBatasMaksimal?: 'PER_SESI' | 'TOTAL';
+    batasMaksimalNominal?: number;
+    useBatasMinimum?: boolean;
+    batasMinimumNominal?: number;
+    selectedRekapIds?: string[];
+  }
+) {
+  try {
+    const { error: authError, session } = await checkAuth(['ADMIN', 'SUPER_ADMIN']);
+    if (authError || !session) return { error: authError || "Unauthorized" };
+
+    const rekaps = await prisma.rekapHonorarium.findMany({
+      where: {
+        bulan,
+        ...(options.selectedRekapIds && options.selectedRekapIds.length > 0 ? { id: { in: options.selectedRekapIds } } : {})
+      },
+      include: { fasilitator: true, laporan: true }
+    });
+
+    if (rekaps.length === 0) {
+      return { error: `Tidak ditemukan rekapitulasi pada bulan ${bulan}` };
+    }
+
+    const updatedList = [];
+    for (const r of rekaps) {
+      const calc = hitungTransportDenganRumusBBMDanPlafon(r, {
+        useRumusBbm: options.useRumusBbm,
+        hargaBBM: options.hargaBBM,
+        konsumsiKmPerLiter: options.konsumsiKmPerLiter,
+        useBatasMaksimal: options.useBatasMaksimal,
+        tipeBatasMaksimal: options.tipeBatasMaksimal,
+        batasMaksimalNominal: options.batasMaksimalNominal,
+        useBatasMinimum: options.useBatasMinimum,
+        batasMinimumNominal: options.batasMinimumNominal
+      });
+
+      const updated = await prisma.rekapHonorarium.update({
+        where: { id: r.id },
+        data: { totalTransport: calc.totalSetelahPlafon }
+      });
+
+      await syncSingleRekapToRabExpenses(r.id);
+      updatedList.push(updated);
+    }
+
+    revalidatePath('/fasilitator/rekap-honor');
+    revalidatePath('/portal/rekap');
+    return { success: true, count: updatedList.length };
+  } catch (error: any) {
+    console.error('Error in batchUpdateTransportByFormula:', error);
     return { error: error.message || 'Unknown error' };
   }
 }

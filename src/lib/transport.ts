@@ -268,3 +268,92 @@ export function hitungDetailTransportRekap(
     items
   };
 }
+
+export interface TransportFormulaOptions {
+  hargaBBM?: number;
+  konsumsiKmPerLiter?: number;
+  useRumusBbm?: boolean;
+  useBatasMaksimal?: boolean;
+  tipeBatasMaksimal?: 'PER_SESI' | 'TOTAL';
+  batasMaksimalNominal?: number | null;
+  useBatasMinimum?: boolean;
+  batasMinimumNominal?: number | null;
+}
+
+export interface HasilKalkulasiTransport {
+  perSesiSebelumPlafon: number;
+  perSesiSetelahPlafon: number;
+  totalSebelumPlafon: number;
+  totalSetelahPlafon: number;
+  isCapped: boolean;
+  jarakKm: number;
+  sesiCount: number;
+  keterangan: string;
+}
+
+export function hitungTransportDenganRumusBBMDanPlafon(
+  rekapOrFasil: any,
+  options: TransportFormulaOptions = {}
+): HasilKalkulasiTransport {
+  const fasil = rekapOrFasil.fasilitator || rekapOrFasil;
+  const jarakKm = Number(fasil.jarakPPKm) || 0;
+  const sesiCount = Number(rekapOrFasil.jumlahSesi) || 4;
+  const hargaBBM = Number(options.hargaBBM) || HARGA_BBM_DEFAULT;
+  const konsumsi = Number(options.konsumsiKmPerLiter) || 10;
+
+  // Rumus BBM murni per sesi: (Jarak / konsumsi) * hargaBBM
+  const rumusBBMPerSesi = Math.round((jarakKm / konsumsi) * hargaBBM);
+
+  // Batas minimum (Floor) jika diaktifkan (default: aktif agar jarak dekat tetap dapat transport minimum)
+  let perSesiSebelumPlafon = rumusBBMPerSesi;
+  if (options.useBatasMinimum !== false) {
+    const minSBM = options.batasMinimumNominal !== undefined && options.batasMinimumNominal !== null
+      ? Number(options.batasMinimumNominal)
+      : (Number(fasil.besaranTransport) || 120000);
+    perSesiSebelumPlafon = Math.max(minSBM, rumusBBMPerSesi);
+  }
+
+  let totalSebelumPlafon = perSesiSebelumPlafon * sesiCount;
+  let perSesiSetelahPlafon = perSesiSebelumPlafon;
+  let totalSetelahPlafon = totalSebelumPlafon;
+  let isCapped = false;
+
+  // Batas Maksimal (Plafon / Cap)
+  if (options.useBatasMaksimal && options.batasMaksimalNominal && Number(options.batasMaksimalNominal) > 0) {
+    const plafon = Number(options.batasMaksimalNominal);
+    if (options.tipeBatasMaksimal === 'TOTAL') {
+      if (totalSebelumPlafon > plafon) {
+        totalSetelahPlafon = plafon;
+        perSesiSetelahPlafon = Math.round(plafon / sesiCount);
+        isCapped = true;
+      }
+    } else {
+      // Default: PER_SESI
+      if (perSesiSebelumPlafon > plafon) {
+        perSesiSetelahPlafon = plafon;
+        totalSetelahPlafon = perSesiSetelahPlafon * sesiCount;
+        isCapped = true;
+      }
+    }
+  }
+
+  let keterangan = '';
+  if (isCapped) {
+    keterangan = `Dibatasi Maksimal (Plafon Rp ${(options.batasMaksimalNominal || 0).toLocaleString('id-ID')})`;
+  } else if (rumusBBMPerSesi > (Number(fasil.besaranTransport) || 120000)) {
+    keterangan = `Rumus BBM Jarak PP ${jarakKm} km (${Math.round(jarakKm / konsumsi)} L @ Rp ${hargaBBM.toLocaleString('id-ID')})`;
+  } else {
+    keterangan = `Standar SBM Transport (${jarakKm > 0 ? `Jarak PP ${jarakKm} km` : 'Lokal'})`;
+  }
+
+  return {
+    perSesiSebelumPlafon,
+    perSesiSetelahPlafon,
+    totalSebelumPlafon,
+    totalSetelahPlafon,
+    isCapped,
+    jarakKm,
+    sesiCount,
+    keterangan
+  };
+}
