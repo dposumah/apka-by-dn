@@ -2,7 +2,7 @@
  * Utility perhitungan transport fasilitator
  */
 
-export const HARGA_BBM_DEFAULT = 13900;
+export const HARGA_BBM_DEFAULT = 16300;
 export const PERSEN_BUFFER_BBM_DEFAULT = 20; // Tambahan 20% dari hasil rumus BBM
 
 export function hitungBatasWajarTransport(

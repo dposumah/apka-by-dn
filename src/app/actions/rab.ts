@@ -458,7 +458,9 @@ export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
     }
 
     const maxPlafon = fasil?.besaranTransport ?? 120000;
-    const batasTanpaNota = (fasil?.jarakPPKm && fasil.jarakPPKm > 0) ? Math.round((fasil.jarakPPKm / 10) * 13900) : 0;
+    const hargaBbmSetting = await getAppSetting('harga_pertamax', '16300');
+    const hargaBbmVal = parseFloat(hargaBbmSetting) || 16300;
+    const batasTanpaNota = (fasil?.jarakPPKm && fasil.jarakPPKm > 0) ? Math.round((fasil.jarakPPKm / 10) * hargaBbmVal) : 0;
 
     if (finalReqTransportDarat > maxPlafon) {
       return {
@@ -788,7 +790,15 @@ export async function getLaporanPengeluaran(startDate?: string, endDate?: string
 // ==================== APP SETTINGS ====================
 
 export async function getAppSetting(key: string, defaultValue: string) {
-  const setting = await prisma.appSetting.findUnique({ where: { key } });
+  const setting = await prisma.appSetting.findFirst({
+    where: {
+      OR: [
+        { key: key },
+        { key: key.toLowerCase() },
+        { key: key.toUpperCase() }
+      ]
+    }
+  });
   return setting ? setting.value : defaultValue;
 }
 
@@ -797,11 +807,13 @@ export async function updateAppSetting(key: string, value: string, label?: strin
   if (authError) throw new Error(authError);
 
   const setting = await prisma.appSetting.upsert({
-    where: { key },
+    where: { key: key.toLowerCase() },
     update: { value, label: label || null },
-    create: { key, value, label: label || null }
+    create: { key: key.toLowerCase(), value, label: label || null }
   });
   revalidatePath('/snt-akun');
+  revalidatePath('/fasilitator/rekap-honor');
+  revalidatePath('/portal/laporan');
   return setting;
 }
 

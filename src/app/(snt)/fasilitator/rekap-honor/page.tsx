@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { RekapHonorClient } from './client-page'
+import { getAppSetting } from '@/app/actions/rab'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,5 +16,14 @@ export default async function AdminRekapHonorPage() {
     orderBy: { createdAt: 'desc' }
   })
 
-  return <RekapHonorClient initialData={rekapList} fasilitators={fasilitators} />
+  const hargaBbmSetting = await getAppSetting('harga_pertamax', '16300');
+  const globalHargaBbm = parseFloat(hargaBbmSetting) || 16300;
+
+  return (
+    <RekapHonorClient 
+      initialData={rekapList} 
+      fasilitators={fasilitators} 
+      globalHargaBbm={globalHargaBbm} 
+    />
+  )
 }

@@ -39,7 +39,15 @@ import { getFasilitatorJpForMonth, syncLaporanToRekap } from '@/app/actions/reka
 import { FilePreviewModal } from '@/components/shared/FilePreviewModal'
 import { uploadFileClient } from '@/lib/upload-client'
 
-export function RekapHonorClient({ initialData, fasilitators = [] }: { initialData: any[], fasilitators?: any[] }) {
+export function RekapHonorClient({ 
+  initialData, 
+  fasilitators = [],
+  globalHargaBbm = 16300
+}: { 
+  initialData: any[], 
+  fasilitators?: any[],
+  globalHargaBbm?: number 
+}) {
   const { confirm, alert } = useModal();
 
   const router = useRouter()
@@ -58,7 +66,7 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
   const [editingTransportRekap, setEditingTransportRekap] = useState<any | null>(null)
   const [transportAmountInput, setTransportAmountInput] = useState<string>('')
   const [isSavingTransport, setIsSavingTransport] = useState(false)
-  const [editHargaBbm, setEditHargaBbm] = useState('13900')
+  const [editHargaBbm, setEditHargaBbm] = useState((globalHargaBbm || 16300).toString())
   const [editKonsumsi, setEditKonsumsi] = useState('10')
   const [editUseMax, setEditUseMax] = useState(false)
   const [editMaxType, setEditMaxType] = useState<'PER_SESI' | 'TOTAL'>('PER_SESI')
@@ -70,7 +78,7 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
   const [batchTransportBulan, setBatchTransportBulan] = useState('2026-10')
   const [batchUseBbm, setBatchUseBbm] = useState(true)
   const [batchModeBbm, setBatchModeBbm] = useState<'MURNI' | 'COMBINED'>('MURNI')
-  const [batchHargaBbm, setBatchHargaBbm] = useState('13900')
+  const [batchHargaBbm, setBatchHargaBbm] = useState((globalHargaBbm || 16300).toString())
   const [batchKonsumsi, setBatchKonsumsi] = useState('10')
   const [batchUseMin, setBatchUseMin] = useState(true)
   const [batchMinNominal, setBatchMinNominal] = useState('120000')
@@ -79,6 +87,13 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
   const [batchMaxNominal, setBatchMaxNominal] = useState('150000')
   const [isApplyingBatchTransport, setIsApplyingBatchTransport] = useState(false)
   const [batchSelectedRekapIds, setBatchSelectedRekapIds] = useState<string[]>([])
+
+  useEffect(() => {
+    if (globalHargaBbm) {
+      setEditHargaBbm(globalHargaBbm.toString());
+      setBatchHargaBbm(globalHargaBbm.toString());
+    }
+  }, [globalHargaBbm]);
 
   // Manual Form Transport states
   const [manualTransport, setManualTransport] = useState('')
@@ -323,7 +338,7 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
         useRumusBbm: batchUseBbm,
         modeBbmMurni: batchModeBbm === 'MURNI',
         persenTambahan: 20,
-        hargaBBM: parseFloat(batchHargaBbm) || 13900,
+        hargaBBM: parseFloat(batchHargaBbm) || globalHargaBbm || 16300,
         konsumsiKmPerLiter: parseFloat(batchKonsumsi) || 10,
         useBatasMinimum: batchModeBbm !== 'MURNI' && batchUseMin,
         batasMinimumNominal: parseFloat(batchMinNominal) || 120000,
@@ -358,7 +373,7 @@ export function RekapHonorClient({ initialData, fasilitators = [] }: { initialDa
         useRumusBbm: batchUseBbm,
         modeBbmMurni: batchModeBbm === 'MURNI',
         persenTambahan: 20,
-        hargaBBM: parseFloat(batchHargaBbm) || 13900,
+        hargaBBM: parseFloat(batchHargaBbm) || globalHargaBbm || 16300,
         konsumsiKmPerLiter: parseFloat(batchKonsumsi) || 10,
         useBatasMinimum: batchModeBbm !== 'MURNI' && batchUseMin,
         batasMinimumNominal: parseFloat(batchMinNominal) || 120000,
@@ -2241,7 +2256,7 @@ Atas Nama: ${namaLengkap}`;
                 const editJarak = Number(editingTransportRekap.fasilitator?.jarakPPKm) || 0;
                 const editSesi = Number(editingTransportRekap.jumlahSesi) || 4;
                 const editSbm = Number(editingTransportRekap.fasilitator?.besaranTransport) || 120000;
-                const editHarga = parseFloat(editHargaBbm) || 13900;
+                const editHarga = parseFloat(editHargaBbm) || globalHargaBbm || 16300;
                 const editKons = parseFloat(editKonsumsi) || 10;
                 
                 // Rumus BBM Dasar = (Jarak / Konsumsi) * Harga BBM
@@ -2293,9 +2308,14 @@ Atas Nama: ${namaLengkap}`;
                         <Fuel className="w-4 h-4 text-indigo-600" />
                         <span>Kalkulator Rumus BBM &amp; Plafon</span>
                       </div>
-                      <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded">
-                        {editJarak} km PP &bull; {editSesi} Pertemuan
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-semibold text-indigo-900 bg-white border border-indigo-200 px-2 py-0.5 rounded shadow-2xs" title="Harga BBM tersinkron dari Pengaturan Akun">
+                          BBM: Rp {editHarga.toLocaleString('id-ID')}/L
+                        </span>
+                        <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded">
+                          {editJarak} km PP &bull; {editSesi} Pertemuan
+                        </span>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 text-xs">
@@ -2310,7 +2330,7 @@ Atas Nama: ${namaLengkap}`;
                           <span className="text-[10px] font-normal text-slate-500"> / pertemuan</span>
                         </div>
                         <span className="text-[10px] text-slate-500 block mt-0.5">
-                          Dasar: Rp {editBbmDasar.toLocaleString('id-ID')} + 20% ({editJarak} km)
+                          Dasar: ({editJarak} km / 10) &times; Rp {editHarga.toLocaleString('id-ID')} = Rp {editBbmDasar.toLocaleString('id-ID')} (+20%)
                         </span>
                         <div className="mt-1.5 pt-1.5 border-t border-slate-100 text-[11px] text-emerald-700 font-medium">
                           Total {editSesi} pertemuan: <strong>Rp {editTotalBbmMurni.toLocaleString('id-ID')}</strong>
@@ -2731,7 +2751,7 @@ Atas Nama: ${namaLengkap}`;
                       onChange={e => setBatchHargaBbm(e.target.value)} 
                       disabled={!batchUseBbm}
                       className="w-full text-xs font-semibold border rounded px-2 py-1 bg-white disabled:bg-slate-100" 
-                      placeholder="13900"
+                      placeholder={(globalHargaBbm || 16300).toString()}
                     />
                   </div>
 

@@ -9,6 +9,7 @@ import { revalidatePath } from 'next/cache';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { checkAuth } from '@/lib/auth-check';
+import { getAppSetting } from '@/app/actions/rab';
 import { hitungTotalTransportRekap, hitungTransportDenganRumusBBMDanPlafon, TransportFormulaOptions } from '@/lib/transport';
 
 
@@ -1418,13 +1419,19 @@ export async function batchUpdateTransportByFormula(
       return { error: `Tidak ditemukan rekapitulasi pada bulan ${bulan}` };
     }
 
+    let hargaBbm = options.hargaBBM;
+    if (!hargaBbm || hargaBbm <= 0) {
+      const setting = await getAppSetting('harga_pertamax', '16300');
+      hargaBbm = parseFloat(setting) || 16300;
+    }
+
     const updatedList = [];
     for (const r of rekaps) {
       const calc = hitungTransportDenganRumusBBMDanPlafon(r, {
         useRumusBbm: options.useRumusBbm,
         modeBbmMurni: options.modeBbmMurni,
         persenTambahan: options.persenTambahan !== undefined ? options.persenTambahan : 20,
-        hargaBBM: options.hargaBBM,
+        hargaBBM: hargaBbm,
         konsumsiKmPerLiter: options.konsumsiKmPerLiter,
         useBatasMaksimal: options.useBatasMaksimal,
         tipeBatasMaksimal: options.tipeBatasMaksimal,
