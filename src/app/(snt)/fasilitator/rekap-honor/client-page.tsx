@@ -2247,11 +2247,12 @@ Atas Nama: ${namaLengkap}`;
       
       {/* Modal Edit Transport Rekap */}
       {editingTransportRekap && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-            <div className="flex justify-between items-center mb-4 pb-2 border-b">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[92vh] flex flex-col my-auto overflow-hidden">
+            {/* Header Sticky */}
+            <div className="flex justify-between items-center px-5 py-3.5 border-b bg-white shrink-0">
               <div>
-                <h3 className="text-lg font-bold text-slate-900">Edit Biaya Transport Rekap</h3>
+                <h3 className="text-base sm:text-lg font-bold text-slate-900">Edit Biaya Transport Rekap</h3>
                 <p className="text-xs text-slate-500 mt-0.5">
                   {editingTransportRekap.fasilitator?.namaLengkap} &bull; Bulan {editingTransportRekap.bulan}
                 </p>
@@ -2259,28 +2260,29 @@ Atas Nama: ${namaLengkap}`;
               <button 
                 type="button" 
                 onClick={() => setEditingTransportRekap(null)}
-                className="text-slate-400 hover:text-slate-600 text-xl font-bold px-2"
+                className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1 rounded-lg text-lg font-bold transition-colors"
               >
                 &times;
               </button>
             </div>
 
-            <div className="space-y-4">
-              <div className="p-3 bg-slate-50 border rounded-lg text-xs space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Standar Fasilitator:</span>
-                  <span className="font-semibold">{formatCurrency(editingTransportRekap.fasilitator?.besaranTransport || 120000)} / sesi</span>
+            {/* Scrollable Body */}
+            <div className="px-5 py-4 overflow-y-auto space-y-3.5 flex-1">
+              <div className="p-2.5 bg-slate-50 border rounded-lg text-xs grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div>
+                  <span className="text-slate-400 block text-[10.5px]">Standar Fasilitator:</span>
+                  <span className="font-semibold text-slate-800">{formatCurrency(editingTransportRekap.fasilitator?.besaranTransport || 120000)} / sesi</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Jumlah Pertemuan:</span>
-                  <span className="font-semibold">{editingTransportRekap.jumlahSesi || 4} Sesi ({editingTransportRekap.laporan?.length || 0} Terlapor)</span>
+                <div>
+                  <span className="text-slate-400 block text-[10.5px]">Jumlah Pertemuan:</span>
+                  <span className="font-semibold text-slate-800">{editingTransportRekap.jumlahSesi || 4} Sesi ({editingTransportRekap.laporan?.length || 0} Terlapor)</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Jarak Kedudukan ke Lokasi:</span>
+                <div>
+                  <span className="text-slate-400 block text-[10.5px]">Jarak Kedudukan:</span>
                   <span className="font-semibold text-indigo-700">{editingTransportRekap.fasilitator?.jarakPPKm || 0} km Pulang-Pergi</span>
                 </div>
                 {editingTransportRekap.totalTransport !== null && editingTransportRekap.totalTransport !== undefined && (
-                  <div className="text-amber-700 font-medium pt-1 border-t">
+                  <div className="col-span-full text-amber-700 font-medium pt-1 border-t text-[11px]">
                     Status: Nominal saat ini telah disesuaikan manual oleh Admin.
                   </div>
                 )}
@@ -2653,13 +2655,14 @@ Atas Nama: ${namaLengkap}`;
               </div>
             </div>
 
-            <div className="mt-6 pt-3 border-t flex justify-between items-center gap-2">
+            {/* Sticky Footer */}
+            <div className="px-5 py-3.5 border-t flex justify-between items-center gap-2 bg-slate-50 shrink-0">
               {editingTransportRekap.totalTransport !== null && editingTransportRekap.totalTransport !== undefined ? (
                 <button
                   type="button"
                   onClick={handleResetTransportToSystem}
                   disabled={isSavingTransport}
-                  className="text-xs text-red-600 hover:underline"
+                  className="text-xs text-red-600 hover:text-red-700 hover:underline font-medium cursor-pointer"
                 >
                   Reset ke Sistem
                 </button>
@@ -2670,7 +2673,7 @@ Atas Nama: ${namaLengkap}`;
                   type="button"
                   onClick={() => setEditingTransportRekap(null)}
                   disabled={isSavingTransport}
-                  className="px-4 py-2 text-xs text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200"
+                  className="px-4 py-2 text-xs text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 font-medium cursor-pointer transition-colors"
                 >
                   Batal
                 </button>
@@ -2678,7 +2681,7 @@ Atas Nama: ${namaLengkap}`;
                   type="button"
                   onClick={handleSaveTransport}
                   disabled={isSavingTransport}
-                  className="px-4 py-2 text-xs text-white bg-blue-600 rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
+                  className="px-4 py-2 text-xs text-white bg-blue-600 rounded-lg hover:bg-blue-700 font-semibold disabled:opacity-50 cursor-pointer shadow-xs transition-colors flex items-center gap-1.5"
                 >
                   {isSavingTransport ? 'Menyimpan...' : 'Simpan Transport'}
                 </button>
