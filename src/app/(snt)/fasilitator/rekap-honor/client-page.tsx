@@ -27,7 +27,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency, terbilangRupiah } from '@/lib/format'
-import { hitungTotalTransportRekap, hitungDetailTransportRekap, hitungTransportDenganRumusBBMDanPlafon, HARGA_BBM_DEFAULT } from '@/lib/transport'
+import { hitungTotalTransportRekap, hitungDetailTransportRekap, hitungTransportDenganRumusBBMDanPlafon, hitungTransportSesi, HARGA_BBM_DEFAULT } from '@/lib/transport'
 import { useState, useEffect, useMemo } from 'react'
 import { createRekapManual, deleteRekap, generateKwitansiHonor, generateKwitansiTransportBulanan, updateRekapTransport, copyRekapFromPreviousMonth, batchUpdateTransportByFormula } from '@/app/actions/rekap'
 import { adminGenerateInvoiceHonor, uploadBuktiRekap, generateInvoiceHonorRecord } from '@/app/actions/rekap'
@@ -78,6 +78,7 @@ export function RekapHonorClient({
   const [batchTransportBulan, setBatchTransportBulan] = useState('2026-10')
   const [batchUseBbm, setBatchUseBbm] = useState(true)
   const [batchModeBbm, setBatchModeBbm] = useState<'MURNI' | 'COMBINED'>('MURNI')
+  const [batchHormatiLaporan, setBatchHormatiLaporan] = useState(true)
   const [batchHargaBbm, setBatchHargaBbm] = useState((globalHargaBbm || 16300).toString())
   const [batchKonsumsi, setBatchKonsumsi] = useState('10')
   const [batchUseMin, setBatchUseMin] = useState(true)
@@ -337,6 +338,7 @@ export function RekapHonorClient({
       const calc = hitungTransportDenganRumusBBMDanPlafon(r, {
         useRumusBbm: batchUseBbm,
         modeBbmMurni: batchModeBbm === 'MURNI',
+        hormatiLaporan: batchHormatiLaporan,
         persenTambahan: 20,
         hargaBBM: parseFloat(batchHargaBbm) || globalHargaBbm || 16300,
         konsumsiKmPerLiter: parseFloat(batchKonsumsi) || 10,
@@ -360,7 +362,7 @@ export function RekapHonorClient({
         keterangan: calc.keterangan
       };
     });
-  }, [showBatchTransportModal, batchTransportBulan, initialData, batchUseBbm, batchModeBbm, batchHargaBbm, batchKonsumsi, batchUseMin, batchMinNominal, batchUseMax, batchMaxType, batchMaxNominal]);
+  }, [showBatchTransportModal, batchTransportBulan, initialData, batchUseBbm, batchModeBbm, batchHormatiLaporan, batchHargaBbm, batchKonsumsi, batchUseMin, batchMinNominal, batchUseMax, batchMaxType, batchMaxNominal]);
 
   const handleApplyBatchTransport = async () => {
     if (batchPreviewList.length === 0) return;
@@ -372,6 +374,7 @@ export function RekapHonorClient({
       const res = await batchUpdateTransportByFormula(batchTransportBulan, {
         useRumusBbm: batchUseBbm,
         modeBbmMurni: batchModeBbm === 'MURNI',
+        hormatiLaporan: batchHormatiLaporan,
         persenTambahan: 20,
         hargaBBM: parseFloat(batchHargaBbm) || globalHargaBbm || 16300,
         konsumsiKmPerLiter: parseFloat(batchKonsumsi) || 10,
@@ -2258,46 +2261,50 @@ Atas Nama: ${namaLengkap}`;
                 const editSbm = Number(editingTransportRekap.fasilitator?.besaranTransport) || 120000;
                 const editHarga = parseFloat(editHargaBbm) || globalHargaBbm || 16300;
                 const editKons = parseFloat(editKonsumsi) || 10;
+
+                // Data Laporan Mingguan yang Sudah Masuk
+                const laporanList: any[] = editingTransportRekap.laporan || [];
+                const jumlahTerlapor = laporanList.length;
+                const totalTerlapor = laporanList.reduce((sum: number, lap: any) => sum + hitungTransportSesi(lap, editingTransportRekap.fasilitator, editHarga), 0);
+                const jumlahSisa = Math.max(0, editSesi - jumlahTerlapor);
                 
                 // Rumus BBM Dasar = (Jarak / Konsumsi) * Harga BBM
                 const editBbmDasar = Math.round((editJarak / editKons) * editHarga);
                 // Rumus BBM + 20%
                 const editBbmMurniPerSesi = Math.round(editBbmDasar * 1.20);
-                // Total BBM Murni = Hasil BBM (+20%) * Jumlah Pertemuan
-                const editTotalBbmMurni = editBbmMurniPerSesi * editSesi;
+                
+                // 1. Sisa Sesi dihitung BBM Murni atau Standar SBM
+                const totalSisaBbmMurni = jumlahSisa * editBbmMurniPerSesi;
+                const totalSisaSbm = jumlahSisa * editSbm;
 
-                // Opsi BBM + Batas Bawah SBM
-                const editPerSesiWithMin = Math.max(editSbm, editBbmMurniPerSesi);
-                const editTotalWithMin = editPerSesiWithMin * editSesi;
+                // 2. Kombinasi Hibrida: Sesuai Laporan + Sisa Sesi
+                const totalHibridaBbm = totalTerlapor + totalSisaBbmMurni;
+                const totalHibridaSbm = totalTerlapor + totalSisaSbm;
 
-                // Total Standar SBM Lokal
-                const editTotalSbm = editSbm * editSesi;
+                // 3. Flat Penuh (Semua sesi tanpa melihat laporan)
+                const editTotalBbmMurniFlat = editBbmMurniPerSesi * editSesi;
+                const editTotalSbmFlat = editSbm * editSesi;
 
-                let finalBbmMurniTotal = editTotalBbmMurni;
-                let finalCombinedTotal = editTotalWithMin;
-                let isBbmMurniCapped = false;
-                let isCombinedCapped = false;
+                // Plafon Capping
+                let finalHibridaBbm = totalHibridaBbm;
+                let finalHibridaSbm = totalHibridaSbm;
+                let finalFlatBbm = editTotalBbmMurniFlat;
+                let finalFlatSbm = editTotalSbmFlat;
+                let isCapped = false;
 
                 if (editUseMax && editMaxNominal) {
                   const maxVal = parseFloat(editMaxNominal) || 0;
-                  if (editMaxType === 'PER_SESI') {
-                    if (editBbmMurniPerSesi > maxVal) {
-                      finalBbmMurniTotal = maxVal * editSesi;
-                      isBbmMurniCapped = true;
-                    }
-                    if (editPerSesiWithMin > maxVal) {
-                      finalCombinedTotal = maxVal * editSesi;
-                      isCombinedCapped = true;
-                    }
+                  if (editMaxType === 'TOTAL') {
+                    if (finalHibridaBbm > maxVal) { finalHibridaBbm = maxVal; isCapped = true; }
+                    if (finalHibridaSbm > maxVal) { finalHibridaSbm = maxVal; isCapped = true; }
+                    if (finalFlatBbm > maxVal) { finalFlatBbm = maxVal; isCapped = true; }
+                    if (finalFlatSbm > maxVal) { finalFlatSbm = maxVal; isCapped = true; }
                   } else {
-                    if (editTotalBbmMurni > maxVal) {
-                      finalBbmMurniTotal = maxVal;
-                      isBbmMurniCapped = true;
-                    }
-                    if (editTotalWithMin > maxVal) {
-                      finalCombinedTotal = maxVal;
-                      isCombinedCapped = true;
-                    }
+                    const maxTotal = maxVal * editSesi;
+                    if (finalHibridaBbm > maxTotal) { finalHibridaBbm = maxTotal; isCapped = true; }
+                    if (finalHibridaSbm > maxTotal) { finalHibridaSbm = maxTotal; isCapped = true; }
+                    if (finalFlatBbm > maxTotal) { finalFlatBbm = maxTotal; isCapped = true; }
+                    if (finalFlatSbm > maxTotal) { finalFlatSbm = maxTotal; isCapped = true; }
                   }
                 }
 
@@ -2318,6 +2325,24 @@ Atas Nama: ${namaLengkap}`;
                       </div>
                     </div>
 
+                    {/* Banner Deteksi Laporan Mingguan */}
+                    {jumlahTerlapor > 0 && (
+                      <div className="bg-emerald-50/90 border border-emerald-300 rounded-lg p-2.5 text-xs space-y-1 shadow-2xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-emerald-950 flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
+                            Terdeteksi {jumlahTerlapor} Laporan Mingguan
+                          </span>
+                          <span className="text-[11px] font-bold text-emerald-900 bg-white px-2 py-0.5 rounded border border-emerald-200 shadow-2xs">
+                            {jumlahTerlapor} Sesi Terlapor = Rp {totalTerlapor.toLocaleString('id-ID')}
+                          </span>
+                        </div>
+                        <p className="text-[10.5px] text-emerald-800 leading-relaxed">
+                          {jumlahTerlapor} sesi dihitung sesuai laporan (<strong>Rp {totalTerlapor.toLocaleString('id-ID')}</strong>). Sisa <strong>{jumlahSisa} sesi belum ada laporan</strong> dapat dipilih menggunakan tarif BBM Murni atau Standar SBM di bawah.
+                        </p>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       {/* Box 1: BBM Murni (+20%) */}
                       <div className="bg-white p-2.5 rounded-lg border border-emerald-200 shadow-2xs">
@@ -2333,7 +2358,11 @@ Atas Nama: ${namaLengkap}`;
                           Dasar: ({editJarak} km / 10) &times; Rp {editHarga.toLocaleString('id-ID')} = Rp {editBbmDasar.toLocaleString('id-ID')} (+20%)
                         </span>
                         <div className="mt-1.5 pt-1.5 border-t border-slate-100 text-[11px] text-emerald-700 font-medium">
-                          Total {editSesi} pertemuan: <strong>Rp {editTotalBbmMurni.toLocaleString('id-ID')}</strong>
+                          {jumlahSisa > 0 ? (
+                            <span>Sisa {jumlahSisa} sesi = <strong>Rp {totalSisaBbmMurni.toLocaleString('id-ID')}</strong></span>
+                          ) : (
+                            <span>Total {editSesi} sesi = <strong>Rp {editTotalBbmMurniFlat.toLocaleString('id-ID')}</strong></span>
+                          )}
                         </div>
                       </div>
 
@@ -2346,7 +2375,11 @@ Atas Nama: ${namaLengkap}`;
                         </div>
                         <span className="text-[10px] text-slate-400 block mt-0.5">Standar wajar minimum wilayah</span>
                         <div className="mt-1.5 pt-1.5 border-t border-slate-100 text-[11px] text-slate-600 font-medium">
-                          Total {editSesi} pertemuan: <strong>Rp {editTotalSbm.toLocaleString('id-ID')}</strong>
+                          {jumlahSisa > 0 ? (
+                            <span>Sisa {jumlahSisa} sesi = <strong>Rp {totalSisaSbm.toLocaleString('id-ID')}</strong></span>
+                          ) : (
+                            <span>Total {editSesi} sesi = <strong>Rp {editTotalSbmFlat.toLocaleString('id-ID')}</strong></span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -2388,58 +2421,138 @@ Atas Nama: ${namaLengkap}`;
                         </div>
                       )}
 
-                      {(isBbmMurniCapped || isCombinedCapped) && (
+                      {isCapped && (
                         <div className="text-[10.5px] text-amber-800 bg-amber-50 border border-amber-200 rounded p-1.5 font-medium">
-                          ⚠️ Terpotong plafon maksimal: BBM Murni menjadi <strong>Rp {finalBbmMurniTotal.toLocaleString('id-ID')}</strong>.
+                          ⚠️ Terpotong plafon maksimal sesuai batas yang ditentukan.
                         </div>
                       )}
                     </div>
 
                     {/* Tombol Opsi Terapkan */}
-                    <div className="pt-2 space-y-1.5">
-                      <span className="text-[10.5px] font-bold text-slate-600 block">Pilih Opsi Pengisian Cepat:</span>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {/* Tombol 1: BBM MURNI (+20%) DIKALI PERTEMUAN */}
-                        <button
-                          type="button"
-                          onClick={() => setTransportAmountInput(finalBbmMurniTotal.toString())}
-                          className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors cursor-pointer shadow-xs text-left"
-                          title={`Gunakan Rumus BBM Murni: Rp ${editBbmMurniPerSesi.toLocaleString('id-ID')} x ${editSesi} pertemuan = Rp ${finalBbmMurniTotal.toLocaleString('id-ID')}`}
-                        >
-                          <Fuel className="w-4 h-4 shrink-0 text-emerald-200" />
-                          <div className="truncate">
-                            <span className="block text-[10px] text-emerald-100 font-normal">Gunakan BBM Murni (+20%):</span>
-                            <span className="text-sm font-black">Rp {finalBbmMurniTotal.toLocaleString('id-ID')}</span>
-                            <span className="text-[10px] text-emerald-200 font-normal"> ({editSesi} Pertemuan)</span>
-                          </div>
-                        </button>
+                    <div className="pt-2 space-y-2">
+                      {jumlahTerlapor > 0 && jumlahSisa > 0 ? (
+                        <>
+                          <span className="text-[10.5px] font-bold text-slate-700 block">
+                            Pilih Opsi Pengisian Cepat (Sesuai Laporan + Sisa Sesi):
+                          </span>
 
-                        {/* Tombol 2: BBM + BATAS BAWAH SBM */}
-                        <button
-                          type="button"
-                          onClick={() => setTransportAmountInput(finalCombinedTotal.toString())}
-                          className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors cursor-pointer shadow-xs text-left"
-                          title="Gunakan BBM dengan batas bawah minimum SBM lokal"
-                        >
-                          <Sparkles className="w-4 h-4 shrink-0 text-indigo-200" />
-                          <div className="truncate">
-                            <span className="block text-[10px] text-indigo-100 font-normal">BBM + Min SBM:</span>
-                            <span className="text-sm font-bold">Rp {finalCombinedTotal.toLocaleString('id-ID')}</span>
-                            <span className="text-[10px] text-indigo-200 font-normal"> ({editSesi} Pertemuan)</span>
-                          </div>
-                        </button>
-                      </div>
+                          {/* Tombol 1: Hibrida BBM Murni (Rekomendasi Utama) */}
+                          <button
+                            type="button"
+                            onClick={() => setTransportAmountInput(finalHibridaBbm.toString())}
+                            className="w-full flex items-center justify-between p-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-50/90 hover:bg-emerald-100 transition cursor-pointer text-left shadow-2xs group"
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className="p-2 bg-emerald-600 text-white rounded-lg shrink-0">
+                                <Fuel className="w-4 h-4" />
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs font-bold text-emerald-950">
+                                    ⚡ {jumlahTerlapor} Laporan + {jumlahSisa} Sesi BBM Murni (+20%)
+                                  </span>
+                                  <span className="text-[9px] bg-emerald-600 text-white px-1.5 py-0.2 rounded font-bold">Rekomendasi</span>
+                                </div>
+                                <span className="text-[10.5px] text-emerald-800 block">
+                                  {jumlahTerlapor} Laporan (Rp {totalTerlapor.toLocaleString('id-ID')}) + {jumlahSisa} Sisa @ Rp {editBbmMurniPerSesi.toLocaleString('id-ID')} (Rp {totalSisaBbmMurni.toLocaleString('id-ID')})
+                                </span>
+                              </div>
+                            </div>
+                            <div className="text-right pl-2 shrink-0">
+                              <span className="text-sm font-black text-emerald-900 block">
+                                Rp {finalHibridaBbm.toLocaleString('id-ID')}
+                              </span>
+                              <span className="text-[10px] text-emerald-700 font-bold group-hover:underline">Pilih &rarr;</span>
+                            </div>
+                          </button>
 
-                      <div className="flex justify-end pt-1">
-                        <button
-                          type="button"
-                          onClick={() => setTransportAmountInput(editTotalSbm.toString())}
-                          className="text-[11px] text-slate-500 hover:text-slate-800 hover:underline inline-flex items-center gap-1 cursor-pointer"
-                          title="Gunakan Standar SBM Murni tanpa rumus BBM"
-                        >
-                          <span>Atau gunakan Standar SBM: Rp {editTotalSbm.toLocaleString('id-ID')}</span>
-                        </button>
-                      </div>
+                          {/* Tombol 2: Hibrida Standar SBM */}
+                          <button
+                            type="button"
+                            onClick={() => setTransportAmountInput(finalHibridaSbm.toString())}
+                            className="w-full flex items-center justify-between p-2.5 rounded-xl border border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100/80 transition cursor-pointer text-left shadow-2xs group"
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className="p-2 bg-indigo-600 text-white rounded-lg shrink-0">
+                                <Sparkles className="w-4 h-4" />
+                              </div>
+                              <div>
+                                <div className="text-xs font-bold text-indigo-950">
+                                  {jumlahTerlapor} Laporan + {jumlahSisa} Sesi Standar SBM
+                                </div>
+                                <span className="text-[10.5px] text-indigo-800 block">
+                                  {jumlahTerlapor} Laporan (Rp {totalTerlapor.toLocaleString('id-ID')}) + {jumlahSisa} Sisa @ Rp {editSbm.toLocaleString('id-ID')} (Rp {totalSisaSbm.toLocaleString('id-ID')})
+                                </span>
+                              </div>
+                            </div>
+                            <div className="text-right pl-2 shrink-0">
+                              <span className="text-sm font-bold text-indigo-950 block">
+                                Rp {finalHibridaSbm.toLocaleString('id-ID')}
+                              </span>
+                              <span className="text-[10px] text-indigo-700 font-bold group-hover:underline">Pilih &rarr;</span>
+                            </div>
+                          </button>
+
+                          {/* Pilihan Alternatif Flat Penuh */}
+                          <div className="flex flex-wrap items-center justify-between gap-1 pt-1 text-[10.5px] text-slate-500 border-t border-slate-200">
+                            <span>Atau hitung flat seluruh sesi:</span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setTransportAmountInput(finalFlatBbm.toString())}
+                                className="hover:text-emerald-700 hover:underline font-semibold text-slate-700 cursor-pointer"
+                                title="Hitung flat seluruh sesi dikali tarif BBM murni tanpa memperhitungkan nota laporan"
+                              >
+                                BBM Murni Full ({editSesi} Sesi): Rp {finalFlatBbm.toLocaleString('id-ID')}
+                              </button>
+                              <span>&bull;</span>
+                              <button
+                                type="button"
+                                onClick={() => setTransportAmountInput(finalFlatSbm.toString())}
+                                className="hover:text-indigo-700 hover:underline font-semibold text-slate-700 cursor-pointer"
+                                title="Hitung flat seluruh sesi dikali tarif Standar SBM tanpa memperhitungkan nota laporan"
+                              >
+                                Standar SBM Full ({editSesi} Sesi): Rp {finalFlatSbm.toLocaleString('id-ID')}
+                              </button>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-[10.5px] font-bold text-slate-600 block">Pilih Opsi Pengisian Cepat:</span>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {/* Tombol 1: BBM MURNI (+20%) DIKALI PERTEMUAN */}
+                            <button
+                              type="button"
+                              onClick={() => setTransportAmountInput(finalFlatBbm.toString())}
+                              className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors cursor-pointer shadow-xs text-left"
+                              title={`Gunakan Rumus BBM Murni: Rp ${editBbmMurniPerSesi.toLocaleString('id-ID')} x ${editSesi} pertemuan = Rp ${finalFlatBbm.toLocaleString('id-ID')}`}
+                            >
+                              <Fuel className="w-4 h-4 shrink-0 text-emerald-200" />
+                              <div className="truncate">
+                                <span className="block text-[10px] text-emerald-100 font-normal">Gunakan BBM Murni (+20%):</span>
+                                <span className="text-sm font-black">Rp {finalFlatBbm.toLocaleString('id-ID')}</span>
+                                <span className="text-[10px] text-emerald-200 font-normal"> ({editSesi} Pertemuan)</span>
+                              </div>
+                            </button>
+
+                            {/* Tombol 2: STANDAR SBM */}
+                            <button
+                              type="button"
+                              onClick={() => setTransportAmountInput(finalFlatSbm.toString())}
+                              className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors cursor-pointer shadow-xs text-left"
+                              title="Gunakan Standar SBM Lokal"
+                            >
+                              <Sparkles className="w-4 h-4 shrink-0 text-indigo-200" />
+                              <div className="truncate">
+                                <span className="block text-[10px] text-indigo-100 font-normal">Standar SBM:</span>
+                                <span className="text-sm font-bold">Rp {finalFlatSbm.toLocaleString('id-ID')}</span>
+                                <span className="text-[10px] text-indigo-200 font-normal"> ({editSesi} Pertemuan)</span>
+                              </div>
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                 );
@@ -2778,6 +2891,23 @@ Atas Nama: ${namaLengkap}`;
                         />
                         <span>BBM (+20%) + Min SBM (Rp 120rb)</span>
                       </label>
+
+                      <div className="pt-1.5 border-t">
+                        <label className="flex items-center gap-1.5 text-[11px] text-slate-800 font-semibold cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={batchHormatiLaporan} 
+                            onChange={e => setBatchHormatiLaporan(e.target.checked)} 
+                            className="rounded border-slate-300 text-purple-600 focus:ring-purple-500" 
+                          />
+                          <span>Pertahankan Sesi Terlapor</span>
+                        </label>
+                        <span className="text-[9.5px] text-slate-500 block leading-tight mt-0.5">
+                          {batchHormatiLaporan 
+                            ? 'Sesi yang sudah ada laporan dihitung sesuai laporan, sisa sesi belum lapor dihitung rumus.' 
+                            : 'Seluruh sesi dihitung ulang dengan rumus tanpa melihat laporan mingguan.'}
+                        </span>
+                      </div>
                     </div>
                   )}
                 </div>

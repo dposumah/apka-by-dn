@@ -237,16 +237,38 @@ export function hitungDetailTransportRekap(
   let totalTransport = 0;
   if (isCustomAdmin) {
     totalTransport = Number(rekap.totalTransport) || 0;
-    const customPerSesi = targetSesi > 0 ? Math.round(totalTransport / targetSesi) : totalTransport;
-    items.forEach(it => {
-      if (it.metode !== 'DARING' && it.jenisPenggantian !== 'BUKTI_TIKET') {
-        it.biayaDarat = customPerSesi;
-        it.total = customPerSesi;
+    
+    // Hitung total dari sesi yang memiliki laporan
+    const totalDariLaporan = items
+      .slice(0, laporanList.length)
+      .reduce((sum, it) => sum + it.total, 0);
+
+    const sisaCount = items.length - laporanList.length;
+    if (sisaCount > 0 && laporanList.length > 0) {
+      // Sisa sesi yang tidak ada laporan mengambil sisa dari totalTransport
+      const sisaNominal = Math.max(0, totalTransport - totalDariLaporan);
+      const perSesiSisa = Math.round(sisaNominal / sisaCount);
+      for (let i = laporanList.length; i < items.length; i++) {
+        items[i].biayaDarat = perSesiSisa;
+        items[i].total = perSesiSisa;
         if (jarak > 0) {
-          it.keterangan = `Bantuan BBM (+20%) Jarak PP ${jarak} km`;
+          items[i].keterangan = `Bantuan BBM (+20%) Jarak PP ${jarak} km (Sisa Sesi)`;
+        } else {
+          items[i].keterangan = `Bantuan Transport SNT (Sisa Sesi)`;
         }
       }
-    });
+    } else {
+      const customPerSesi = targetSesi > 0 ? Math.round(totalTransport / targetSesi) : totalTransport;
+      items.forEach(it => {
+        if (it.metode !== 'DARING' && it.jenisPenggantian !== 'BUKTI_TIKET') {
+          it.biayaDarat = customPerSesi;
+          it.total = customPerSesi;
+          if (jarak > 0) {
+            it.keterangan = `Bantuan BBM (+20%) Jarak PP ${jarak} km`;
+          }
+        }
+      });
+    }
   } else {
     totalTransport = items.reduce((sum, it) => sum + it.total, 0);
   }
@@ -254,9 +276,17 @@ export function hitungDetailTransportRekap(
   // Ringkasan Keterangan
   let ringkasanKeterangan = '';
   if (isCustomAdmin) {
-    const perSesi = targetSesi > 0 ? Math.round(totalTransport / targetSesi) : totalTransport;
-    const jarakKet = jarak > 0 ? ` - Jarak PP ${jarak} km` : '';
-    ringkasanKeterangan = `${targetSesi} Pertemuan @ Rp ${perSesi.toLocaleString('id-ID')} (Bantuan BBM & Transport${jarakKet})`;
+    const jmlLap = laporanList.length;
+    const jmlSisa = Math.max(0, targetSesi - jmlLap);
+    if (jmlLap > 0 && jmlSisa > 0) {
+      const totLap = items.slice(0, jmlLap).reduce((s, it) => s + it.total, 0);
+      const totSisa = Math.max(0, totalTransport - totLap);
+      ringkasanKeterangan = `${jmlLap} Sesi Terlapor (Rp ${totLap.toLocaleString('id-ID')}) + ${jmlSisa} Sesi Sisa (Rp ${totSisa.toLocaleString('id-ID')})`;
+    } else {
+      const perSesi = targetSesi > 0 ? Math.round(totalTransport / targetSesi) : totalTransport;
+      const jarakKet = jarak > 0 ? ` - Jarak PP ${jarak} km` : '';
+      ringkasanKeterangan = `${targetSesi} Pertemuan @ Rp ${perSesi.toLocaleString('id-ID')} (Bantuan BBM & Transport${jarakKet})`;
+    }
   } else {
     const hasLaut = items.some(it => it.biayaLaut > 0);
     if (hasLaut) {
@@ -288,6 +318,7 @@ export interface TransportFormulaOptions {
   persenTambahan?: number; // default 20%
   useRumusBbm?: boolean;
   modeBbmMurni?: boolean; // Jika true, gunakan hasil BBM murni (diabaikan batas minimum SBM)
+  hormatiLaporan?: boolean; // Default true: jika fasilitator sudah punya laporan mingguan, hitung sesuai laporan untuk sesi terlapor, sisa sesi dihitung dengan BBM murni / standar
   useBatasMaksimal?: boolean;
   tipeBatasMaksimal?: 'PER_SESI' | 'TOTAL';
   batasMaksimalNominal?: number | null;
@@ -303,6 +334,10 @@ export interface HasilKalkulasiTransport {
   perSesiSetelahPlafon: number;
   totalSebelumPlafon: number;
   totalSetelahPlafon: number;
+  jumlahTerlapor: number;
+  totalTerlapor: number;
+  jumlahSisa: number;
+  totalSisa: number;
   isCapped: boolean;
   jarakKm: number;
   sesiCount: number;
@@ -320,13 +355,17 @@ export function hitungTransportDenganRumusBBMDanPlafon(
   const konsumsi = Number(options.konsumsiKmPerLiter) || 10;
   const persenTambahan = options.persenTambahan !== undefined ? Number(options.persenTambahan) : PERSEN_BUFFER_BBM_DEFAULT;
 
+  const laporanList: any[] = rekapOrFasil.laporan || [];
+  const jumlahTerlapor = laporanList.length;
+  const sisaSesi = Math.max(0, sesiCount - jumlahTerlapor);
+
   // 1. Rumus BBM murni per sesi: (Jarak / konsumsi) * hargaBBM
   const bbmMurniDasarPerSesi = Math.round((jarakKm / konsumsi) * hargaBBM);
   // Tambahkan 20% dari hasil
   const bbmMurniPlusBufferPerSesi = Math.round(bbmMurniDasarPerSesi * (1 + persenTambahan / 100));
   const totalBbmMurni = bbmMurniPlusBufferPerSesi * sesiCount;
 
-  // 2. Tentukan per sesi sebelum plafon (Murni atau dengan Minimum SBM)
+  // 2. Tentukan tarif per sesi sisa sebelum plafon (Murni atau dengan Minimum SBM)
   let perSesiSebelumPlafon = bbmMurniPlusBufferPerSesi;
   if (!options.modeBbmMurni && options.useBatasMinimum !== false) {
     const minSBM = options.batasMinimumNominal !== undefined && options.batasMinimumNominal !== null
@@ -335,12 +374,28 @@ export function hitungTransportDenganRumusBBMDanPlafon(
     perSesiSebelumPlafon = Math.max(minSBM, bbmMurniPlusBufferPerSesi);
   }
 
-  let totalSebelumPlafon = perSesiSebelumPlafon * sesiCount;
+  // 3. Hitung sesi terlapor dan sisa
+  let totalTerlapor = 0;
+  let totalSisa = 0;
+  let totalSebelumPlafon = 0;
+
+  const shouldRespectLaporan = options.hormatiLaporan !== false && jumlahTerlapor > 0;
+  if (shouldRespectLaporan) {
+    for (const lap of laporanList) {
+      totalTerlapor += hitungTransportSesi(lap, fasil, hargaBBM);
+    }
+    totalSisa = sisaSesi * perSesiSebelumPlafon;
+    totalSebelumPlafon = totalTerlapor + totalSisa;
+  } else {
+    totalSebelumPlafon = perSesiSebelumPlafon * sesiCount;
+    totalSisa = totalSebelumPlafon;
+  }
+
   let perSesiSetelahPlafon = perSesiSebelumPlafon;
   let totalSetelahPlafon = totalSebelumPlafon;
   let isCapped = false;
 
-  // 3. Batas Maksimal (Plafon / Cap)
+  // 4. Batas Maksimal (Plafon / Cap)
   if (options.useBatasMaksimal && options.batasMaksimalNominal && Number(options.batasMaksimalNominal) > 0) {
     const plafon = Number(options.batasMaksimalNominal);
     if (options.tipeBatasMaksimal === 'TOTAL') {
@@ -351,9 +406,10 @@ export function hitungTransportDenganRumusBBMDanPlafon(
       }
     } else {
       // Default: PER_SESI
-      if (perSesiSebelumPlafon > plafon) {
+      const maxTotal = plafon * sesiCount;
+      if (totalSebelumPlafon > maxTotal) {
+        totalSetelahPlafon = maxTotal;
         perSesiSetelahPlafon = plafon;
-        totalSetelahPlafon = perSesiSetelahPlafon * sesiCount;
         isCapped = true;
       }
     }
@@ -362,6 +418,9 @@ export function hitungTransportDenganRumusBBMDanPlafon(
   let keterangan = '';
   if (isCapped) {
     keterangan = `Dibatasi Maksimal (Plafon Rp ${(options.batasMaksimalNominal || 0).toLocaleString('id-ID')})`;
+  } else if (shouldRespectLaporan && sisaSesi > 0) {
+    const sisaKet = options.modeBbmMurni ? `BBM Murni (${perSesiSebelumPlafon.toLocaleString('id-ID')}/sesi)` : `Standar SBM (${perSesiSebelumPlafon.toLocaleString('id-ID')}/sesi)`;
+    keterangan = `${jumlahTerlapor} Sesi Laporan (Rp ${totalTerlapor.toLocaleString('id-ID')}) + ${sisaSesi} Sesi ${sisaKet}`;
   } else if (options.modeBbmMurni) {
     keterangan = `Rumus BBM Murni (+${persenTambahan}%) Jarak PP ${jarakKm} km (${bbmMurniPlusBufferPerSesi.toLocaleString('id-ID')}/sesi)`;
   } else if (bbmMurniPlusBufferPerSesi > (Number(fasil.besaranTransport) || 120000)) {
@@ -378,6 +437,10 @@ export function hitungTransportDenganRumusBBMDanPlafon(
     perSesiSetelahPlafon,
     totalSebelumPlafon,
     totalSetelahPlafon,
+    jumlahTerlapor,
+    totalTerlapor,
+    jumlahSisa: sisaSesi,
+    totalSisa,
     isCapped,
     jarakKm,
     sesiCount,

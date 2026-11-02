@@ -1393,6 +1393,7 @@ export async function batchUpdateTransportByFormula(
     useRumusBbm: boolean;
     modeBbmMurni?: boolean;
     persenTambahan?: number;
+    hormatiLaporan?: boolean;
     hargaBBM?: number;
     konsumsiKmPerLiter?: number;
     useBatasMaksimal: boolean;
@@ -1430,6 +1431,7 @@ export async function batchUpdateTransportByFormula(
       const calc = hitungTransportDenganRumusBBMDanPlafon(r, {
         useRumusBbm: options.useRumusBbm,
         modeBbmMurni: options.modeBbmMurni,
+        hormatiLaporan: options.hormatiLaporan !== undefined ? options.hormatiLaporan : true,
         persenTambahan: options.persenTambahan !== undefined ? options.persenTambahan : 20,
         hargaBBM: hargaBbm,
         konsumsiKmPerLiter: options.konsumsiKmPerLiter,
