@@ -92,6 +92,7 @@ export default function IyrcClientPage({ initialData }: { initialData: any }) {
   const [letterNumber, setLetterNumber] = useState<string>("088/RE-IYRC/XI/2026");
   const [letterDate, setLetterDate] = useState<string>("10 November 2026");
   const [showItineraryPrintModal, setShowItineraryPrintModal] = useState<boolean>(false);
+  const [showLetterPrintModal, setShowLetterPrintModal] = useState<boolean>(false);
 
   // Penandatangan Dinamis: Default Koordinator Wilayah 2 (Jully Tjindrawan) di sebelah KANAN
   const [signatories, setSignatories] = useState<Array<{ nama: string; jabatan: string; instansi: string }>>([
@@ -116,7 +117,7 @@ export default function IyrcClientPage({ initialData }: { initialData: any }) {
     window.print();
     setTimeout(() => {
       document.body.removeAttribute("data-print-target");
-    }, 500);
+    }, 1000);
   };
 
   const handlePrintItinerary = () => {
@@ -124,7 +125,7 @@ export default function IyrcClientPage({ initialData }: { initialData: any }) {
     window.print();
     setTimeout(() => {
       document.body.removeAttribute("data-print-target");
-    }, 500);
+    }, 1000);
   };
 
   // Handler Terapkan Simulasi ke Database
@@ -296,7 +297,7 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
   return (
     <div className="space-y-6">
       {/* Top Banner & Header */}
-      <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-violet-900 rounded-3xl p-6 md:p-8 text-white shadow-xl relative overflow-hidden">
+      <div className="no-print bg-gradient-to-r from-indigo-900 via-indigo-800 to-violet-900 rounded-3xl p-6 md:p-8 text-white shadow-xl relative overflow-hidden">
         <div className="absolute right-0 top-0 bottom-0 opacity-10 pointer-events-none flex items-center pr-10">
           <Globe size={260} />
         </div>
@@ -942,7 +943,7 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
               <div className="flex items-center gap-2.5">
                 <button
                   type="button"
-                  onClick={handlePrintLetter}
+                  onClick={() => setShowLetterPrintModal(true)}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-all shadow-md shadow-indigo-600/20 flex items-center gap-2"
                 >
                   <Printer size={16} /> Cetak / Download PDF Surat
@@ -1110,7 +1111,7 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
           </div>
 
           {/* PRINT PREVIEW PAPER */}
-          <div className="printable-letter-container bg-white p-8 md:p-12 rounded-2xl border border-slate-300 shadow-lg max-w-4xl mx-auto print:shadow-none print:border-none print:p-0 print:m-0 text-slate-900">
+          <div id="printable-letter" className="printable-letter-container bg-white p-8 md:p-12 rounded-2xl border border-slate-300 shadow-lg max-w-4xl mx-auto print:shadow-none print:border-none print:p-0 print:m-0 text-slate-900">
             {/* KOP SURAT RESMI */}
             <div className="border-b-2 border-slate-900 pb-3 mb-6 flex items-center justify-between">
               <div>
@@ -1135,7 +1136,12 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
               <div className="space-y-4 text-sm leading-relaxed text-slate-800">
                 <div className="flex justify-between text-xs">
                   <div>
-                    <p>Nomor : {letterNumber || "......./RE-IYRC/XI/2026"}</p>
+                    <p className="cursor-pointer group flex items-center gap-1" onClick={() => setShowLetterPrintModal(true)} title="Klik untuk ubah nomor surat">
+                      <span>Nomor : <strong>{letterNumber || "......./RE-IYRC/XI/2026"}</strong></span>
+                      <span className="no-print text-[10px] text-indigo-600 underline font-normal opacity-70 group-hover:opacity-100">
+                        [Ubah Nomor]
+                      </span>
+                    </p>
                     <p>Lampiran : 1 (satu) Berkas Rencana Anggaran & Jadwal Perjalanan</p>
                     <p>Perihal : <strong>Undangan Resmi & Rekomendasi Izin Perjalanan Dinas Luar Negeri</strong></p>
                   </div>
@@ -1213,7 +1219,12 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
               <div className="space-y-4 text-sm leading-relaxed text-slate-800">
                 <div className="flex justify-between text-xs">
                   <div>
-                    <p>Reference No : {letterNumber || "......./RE-IYRC/XI/2026"}</p>
+                    <p className="cursor-pointer group flex items-center gap-1" onClick={() => setShowLetterPrintModal(true)} title="Click to edit reference number">
+                      <span>Reference No : <strong>{letterNumber || "......./RE-IYRC/XI/2026"}</strong></span>
+                      <span className="no-print text-[10px] text-indigo-600 underline font-normal opacity-70 group-hover:opacity-100">
+                        [Edit Number]
+                      </span>
+                    </p>
                     <p>Enclosure : 1 (One) Complete Schedule & Travel Budget Document</p>
                     <p>Subject : <strong>Official Invitation & Clearance Endorsement – The 14th IYRC China 2026</strong></p>
                   </div>
@@ -1570,9 +1581,131 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
         </div>
       )}
 
+      {/* ==================== MODAL PENGISIAN NOMOR SURAT & KONFIRMASI CETAK ==================== */}
+      {showLetterPrintModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 no-print">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                  <Printer size={18} className="text-indigo-600" /> Cetak Surat Undangan Resmi
+                </h3>
+                <p className="text-xs text-slate-500 font-medium">
+                  Peserta: <strong className="text-slate-800">{currentLetterParticipant?.nama}</strong> ({currentLetterParticipant?.sntAsal})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowLetterPrintModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-3.5 text-xs">
+              {/* Nomor Surat */}
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">
+                  Nomor Surat (Wajib / Diisi Manual):
+                </label>
+                <input
+                  type="text"
+                  autoFocus
+                  value={letterNumber}
+                  onChange={(e) => setLetterNumber(e.target.value)}
+                  placeholder="Contoh: 088/RE-IYRC/XI/2026"
+                  className="w-full border-indigo-300 ring-2 ring-indigo-500/20 rounded-xl border p-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                />
+                <p className="text-[10px] text-indigo-600 mt-1 font-semibold">
+                  *Nomor surat ini akan langsung dicetak pada kop surat resmi.
+                </p>
+              </div>
+
+              {/* Tanggal Surat */}
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Tanggal Surat:</label>
+                <input
+                  type="text"
+                  value={letterDate}
+                  onChange={(e) => setLetterDate(e.target.value)}
+                  className="w-full border-slate-300 rounded-xl border p-2 text-xs text-slate-800 font-semibold"
+                />
+              </div>
+
+              {/* Tujuan Surat */}
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Tujuan Surat (Kepada Yth):</label>
+                <input
+                  type="text"
+                  value={letterRecipient}
+                  onChange={(e) => setLetterRecipient(e.target.value)}
+                  placeholder={`Kepala ${currentLetterParticipant?.sntAsal}`}
+                  className="w-full border-slate-300 rounded-xl border p-2 text-xs text-slate-800 font-semibold"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Otomatis disesuaikan ke Kepala {currentLetterParticipant?.sntAsal}
+                </p>
+              </div>
+
+              {/* Bahasa Surat */}
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Bahasa Dokumen:</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setLetterLanguage("id")}
+                    className={`p-2 rounded-xl text-xs font-bold border text-center transition-all ${
+                      letterLanguage === "id"
+                        ? "bg-indigo-50 border-indigo-600 text-indigo-700 shadow-sm"
+                        : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    Bahasa Indonesia
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLetterLanguage("en")}
+                    className={`p-2 rounded-xl text-xs font-bold border text-center transition-all ${
+                      letterLanguage === "en"
+                        ? "bg-indigo-50 border-indigo-600 text-indigo-700 shadow-sm"
+                        : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    English
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t">
+                <button
+                  type="button"
+                  onClick={() => setShowLetterPrintModal(false)}
+                  className="px-4 py-2 border rounded-xl text-slate-600 hover:bg-slate-50 font-semibold"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLetterPrintModal(false);
+                    setTimeout(() => {
+                      handlePrintLetter();
+                    }, 250);
+                  }}
+                  className="px-5 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-bold shadow-md shadow-indigo-600/20 flex items-center gap-1.5"
+                >
+                  <Printer size={14} /> Lanjut Cetak / Unduh PDF
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ==================== MODAL PREVIEW & CETAK ITINERARY DETAIL ==================== */}
       {showItineraryPrintModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto no-print">
           <div className="bg-white rounded-2xl max-w-4xl w-full my-6 shadow-2xl flex flex-col max-h-[92vh]">
             {/* Header Modal Bar (Tidak Ikut Dicetak) */}
             <div className="p-4 border-b flex items-center justify-between bg-slate-50 rounded-t-2xl no-print">
@@ -1603,7 +1736,7 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
             </div>
 
             {/* Dokumen Rencana Perjalanan Siap Cetak (A4) */}
-            <div className="p-6 md:p-10 overflow-y-auto printable-itinerary-container bg-white text-slate-900 space-y-6">
+            <div id="printable-itinerary" className="p-6 md:p-10 overflow-y-auto printable-itinerary-container bg-white text-slate-900 space-y-6">
               {/* KOP SURAT RESMI */}
               <div className="border-b-2 border-slate-900 pb-3 flex items-center justify-between">
                 <div>
@@ -1882,43 +2015,69 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
         @media print {
           @page {
             size: A4 portrait;
-            margin: 12mm 15mm;
+            margin: 15mm 20mm;
           }
-          body {
-            background: white !important;
-            color: black !important;
-          }
-          /* Sembunyikan elemen aplikasi saat cetak */
-          nav, aside, header, footer, .no-print, button, select, input, textarea {
-            display: none !important;
-          }
-          body[data-print-target="letter"] .printable-letter-container {
-            display: block !important;
-            position: absolute !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100% !important;
+          html, body {
+            background: #ffffff !important;
+            color: #000000 !important;
             margin: 0 !important;
             padding: 0 !important;
-            box-shadow: none !important;
-            border: none !important;
-          }
-          body[data-print-target="letter"] .printable-itinerary-container {
-            display: none !important;
-          }
-          body[data-print-target="itinerary"] .printable-itinerary-container {
-            display: block !important;
-            position: absolute !important;
-            top: 0 !important;
-            left: 0 !important;
             width: 100% !important;
+            height: auto !important;
+            overflow: visible !important;
+          }
+          /* 1. Sembunyikan SEMUA elemen body secara default */
+          body * {
+            visibility: hidden !important;
+          }
+          /* 2. Sembunyikan total elemen no-print dan UI layout website */
+          .no-print,
+          .no-print *,
+          nav,
+          aside,
+          header,
+          footer,
+          [role="navigation"] {
+            display: none !important;
+            visibility: hidden !important;
+          }
+          /* 3. Tampilkan hanya dokumen target cetak surat undangan */
+          body[data-print-target="letter"] #printable-letter,
+          body[data-print-target="letter"] #printable-letter * {
+            visibility: visible !important;
+          }
+          body[data-print-target="letter"] #printable-letter {
+            display: block !important;
+            position: fixed !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
-            box-shadow: none !important;
+            background: #ffffff !important;
             border: none !important;
+            box-shadow: none !important;
+            z-index: 9999999 !important;
           }
-          body[data-print-target="itinerary"] .printable-letter-container {
-            display: none !important;
+          /* 4. Tampilkan hanya dokumen target cetak itinerary */
+          body[data-print-target="itinerary"] #printable-itinerary,
+          body[data-print-target="itinerary"] #printable-itinerary * {
+            visibility: visible !important;
+          }
+          body[data-print-target="itinerary"] #printable-itinerary {
+            display: block !important;
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            border: none !important;
+            box-shadow: none !important;
+            z-index: 9999999 !important;
           }
         }
       `}</style>
