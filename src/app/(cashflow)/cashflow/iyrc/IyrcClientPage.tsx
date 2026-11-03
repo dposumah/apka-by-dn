@@ -93,6 +93,7 @@ export default function IyrcClientPage({ initialData }: { initialData: any }) {
   const [letterDate, setLetterDate] = useState<string>("10 November 2026");
   const [showItineraryPrintModal, setShowItineraryPrintModal] = useState<boolean>(false);
   const [showLetterPrintModal, setShowLetterPrintModal] = useState<boolean>(false);
+  const [printBundleOption, setPrintBundleOption] = useState<"bundle" | "id" | "en" | "itinerary">("bundle");
 
   // Penandatangan Dinamis: Default Koordinator Wilayah 2 (Jully Tjindrawan) di sebelah KANAN
   const [signatories, setSignatories] = useState<Array<{ nama: string; jabatan: string; instansi: string }>>([
@@ -103,6 +104,48 @@ export default function IyrcClientPage({ initialData }: { initialData: any }) {
     },
   ]);
 
+  // Render Tanda Tangan Reusable (Utama di KANAN, Tambahan di KIRI)
+  const renderSignatures = () => {
+    if (signatories.length === 1) {
+      return (
+        <div className="pt-8 flex justify-end">
+          <div className="text-center w-64 space-y-16">
+            <p className="text-slate-600 font-semibold text-xs">{signatories[0].instansi}</p>
+            <div>
+              <p className="font-extrabold text-slate-900 underline text-sm">{signatories[0].nama}</p>
+              <p className="text-slate-500 font-medium text-[11px]">{signatories[0].jabatan}</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="pt-8 flex justify-between items-start">
+        {/* Tanda tangan tambahan (index 1 ke atas) di sebelah KIRI */}
+        <div className="flex gap-8">
+          {signatories.slice(1).map((sig, idx) => (
+            <div key={idx} className="text-center w-56 space-y-16">
+              <p className="text-slate-600 font-semibold text-xs">{sig.instansi}</p>
+              <div>
+                <p className="font-extrabold text-slate-900 underline text-sm">{sig.nama}</p>
+                <p className="text-slate-500 font-medium text-[11px]">{sig.jabatan}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Tanda tangan utama (Jully Tjindrawan) di sebelah KANAN */}
+        <div className="text-center w-64 space-y-16">
+          <p className="text-slate-600 font-semibold text-xs">{signatories[0].instansi}</p>
+          <div>
+            <p className="font-extrabold text-slate-900 underline text-sm">{signatories[0].nama}</p>
+            <p className="text-slate-500 font-medium text-[11px]">{signatories[0].jabatan}</p>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Sync tujuan surat otomatis dengan asal SNT peserta yang dipilih
   useEffect(() => {
     const p = participants.find((item) => item.id === selectedLetterParticipant);
@@ -111,22 +154,17 @@ export default function IyrcClientPage({ initialData }: { initialData: any }) {
     }
   }, [selectedLetterParticipant, participants]);
 
-  // Handler Print Khusus (Surat Undangan atau Itinerary)
-  const handlePrintLetter = () => {
-    document.body.setAttribute("data-print-target", "letter");
+  // Handler Print Khusus (Surat Tunggal, Itinerary, atau Paket Lengkap 3 Dokumen Sekaligus)
+  const handlePrint = (target: "letter" | "itinerary" | "bundle") => {
+    document.body.setAttribute("data-print-target", target);
     window.print();
     setTimeout(() => {
       document.body.removeAttribute("data-print-target");
-    }, 1000);
+    }, 1200);
   };
 
-  const handlePrintItinerary = () => {
-    document.body.setAttribute("data-print-target", "itinerary");
-    window.print();
-    setTimeout(() => {
-      document.body.removeAttribute("data-print-target");
-    }, 1000);
-  };
+  const handlePrintLetter = () => handlePrint("letter");
+  const handlePrintItinerary = () => handlePrint("itinerary");
 
   // Handler Terapkan Simulasi ke Database
   const handleApplySimulation = async () => {
@@ -946,7 +984,7 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
                   onClick={() => setShowLetterPrintModal(true)}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-all shadow-md shadow-indigo-600/20 flex items-center gap-2"
                 >
-                  <Printer size={16} /> Cetak / Download PDF Surat
+                  <Printer size={16} /> Cetak Dokumen (Bisa Sekaligus 3 Dokumen)
                 </button>
               </div>
             </div>
@@ -1303,41 +1341,7 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
             )}
 
             {/* TANDA TANGAN DINAMIS: UTAMA DI SEBELAH KANAN, JIKA MENAMBAH TTD MUNCUL DI SEBELAH KIRI */}
-            {signatories.length === 1 ? (
-              <div className="pt-10 flex justify-end">
-                <div className="text-center w-64 space-y-16">
-                  <p className="text-slate-600 font-semibold text-xs">{signatories[0].instansi}</p>
-                  <div>
-                    <p className="font-extrabold text-slate-900 underline text-sm">{signatories[0].nama}</p>
-                    <p className="text-slate-500 font-medium text-[11px]">{signatories[0].jabatan}</p>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="pt-10 flex justify-between items-start">
-                {/* Tanda tangan tambahan (index 1 ke atas) di sebelah KIRI */}
-                <div className="flex gap-8">
-                  {signatories.slice(1).map((sig, idx) => (
-                    <div key={idx} className="text-center w-56 space-y-16">
-                      <p className="text-slate-600 font-semibold text-xs">{sig.instansi}</p>
-                      <div>
-                        <p className="font-extrabold text-slate-900 underline text-sm">{sig.nama}</p>
-                        <p className="text-slate-500 font-medium text-[11px]">{sig.jabatan}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Tanda tangan utama (Jully Tjindrawan) di sebelah KANAN */}
-                <div className="text-center w-64 space-y-16">
-                  <p className="text-slate-600 font-semibold text-xs">{signatories[0].instansi}</p>
-                  <div>
-                    <p className="font-extrabold text-slate-900 underline text-sm">{signatories[0].nama}</p>
-                    <p className="text-slate-500 font-medium text-[11px]">{signatories[0].jabatan}</p>
-                  </div>
-                </div>
-              </div>
-            )}
+            {renderSignatures()}
           </div>
         </div>
       )}
@@ -1588,11 +1592,11 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
       {/* ==================== MODAL PENGISIAN NOMOR SURAT & KONFIRMASI CETAK ==================== */}
       {showLetterPrintModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 no-print">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl border border-slate-200">
+          <div className="bg-white rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between border-b pb-3">
               <div>
                 <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                  <Printer size={18} className="text-indigo-600" /> Cetak Surat Undangan Resmi
+                  <Printer size={18} className="text-indigo-600" /> Cetak Berkas Dokumen Resmi IYRC
                 </h3>
                 <p className="text-xs text-slate-500 font-medium">
                   Peserta: <strong className="text-slate-800">{currentLetterParticipant?.nama}</strong> ({currentLetterParticipant?.sntAsal})
@@ -1607,7 +1611,106 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
               </button>
             </div>
 
-            <div className="space-y-3.5 text-xs">
+            <div className="space-y-4 text-xs">
+              {/* Pilihan Paket Dokumen */}
+              <div>
+                <label className="block text-slate-700 font-bold mb-2">
+                  Pilih Format Dokumen yang Ingin Dicetak:
+                </label>
+                <div className="space-y-2">
+                  <div
+                    onClick={() => setPrintBundleOption("bundle")}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
+                      printBundleOption === "bundle"
+                        ? "bg-indigo-50 border-indigo-600 ring-2 ring-indigo-500/20"
+                        : "bg-white border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="printBundleOption"
+                      checked={printBundleOption === "bundle"}
+                      onChange={() => setPrintBundleOption("bundle")}
+                      className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <div>
+                      <span className="font-extrabold text-slate-900 flex items-center gap-1.5">
+                        🌟 1 Paket Berkas Lengkap Sekaligus (3 Dokumen)
+                        <span className="bg-indigo-600 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">Rekomendasi</span>
+                      </span>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Mencetak sekaligus dalam 1 PDF: Hal. 1 Surat Bahasa Indonesia (Izin Dinas), Hal. 2 Official English Letter (Visa/Kedutaan), dan Hal. 3+ Lampiran Itinerary & Rundown Lomba.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                    <div
+                      onClick={() => setPrintBundleOption("id")}
+                      className={`p-2.5 rounded-xl border cursor-pointer transition-all flex items-start gap-2 ${
+                        printBundleOption === "id"
+                          ? "bg-indigo-50 border-indigo-600 ring-2 ring-indigo-500/20"
+                          : "bg-white border-slate-200 hover:bg-slate-50"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="printBundleOption"
+                        checked={printBundleOption === "id"}
+                        onChange={() => setPrintBundleOption("id")}
+                        className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <div>
+                        <span className="font-bold text-slate-800 block text-xs">Surat Bhs. Indonesia</span>
+                        <span className="text-[10px] text-slate-500">Izin Dinas Pemda</span>
+                      </div>
+                    </div>
+
+                    <div
+                      onClick={() => setPrintBundleOption("en")}
+                      className={`p-2.5 rounded-xl border cursor-pointer transition-all flex items-start gap-2 ${
+                        printBundleOption === "en"
+                          ? "bg-indigo-50 border-indigo-600 ring-2 ring-indigo-500/20"
+                          : "bg-white border-slate-200 hover:bg-slate-50"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="printBundleOption"
+                        checked={printBundleOption === "en"}
+                        onChange={() => setPrintBundleOption("en")}
+                        className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <div>
+                        <span className="font-bold text-slate-800 block text-xs">Official English</span>
+                        <span className="text-[10px] text-slate-500">Imigrasi & Visa</span>
+                      </div>
+                    </div>
+
+                    <div
+                      onClick={() => setPrintBundleOption("itinerary")}
+                      className={`p-2.5 rounded-xl border cursor-pointer transition-all flex items-start gap-2 ${
+                        printBundleOption === "itinerary"
+                          ? "bg-indigo-50 border-indigo-600 ring-2 ring-indigo-500/20"
+                          : "bg-white border-slate-200 hover:bg-slate-50"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="printBundleOption"
+                        checked={printBundleOption === "itinerary"}
+                        onChange={() => setPrintBundleOption("itinerary")}
+                        className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <div>
+                        <span className="font-bold text-slate-800 block text-xs">Hanya Itinerary</span>
+                        <span className="text-[10px] text-slate-500">Jadwal & Rundown</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Nomor Surat */}
               <div>
                 <label className="block text-slate-700 font-bold mb-1">
@@ -1622,62 +1725,32 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
                   className="w-full border-indigo-300 ring-2 ring-indigo-500/20 rounded-xl border p-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-indigo-600"
                 />
                 <p className="text-[10px] text-indigo-600 mt-1 font-semibold">
-                  *Nomor surat ini akan langsung dicetak pada kop surat resmi.
+                  *Nomor surat ini dicetak langsung pada surat resmi dan rujukan lampiran itinerary.
                 </p>
               </div>
 
-              {/* Tanggal Surat */}
-              <div>
-                <label className="block text-slate-700 font-bold mb-1">Tanggal Surat:</label>
-                <input
-                  type="text"
-                  value={letterDate}
-                  onChange={(e) => setLetterDate(e.target.value)}
-                  className="w-full border-slate-300 rounded-xl border p-2 text-xs text-slate-800 font-semibold"
-                />
-              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {/* Tanggal Surat */}
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Tanggal Surat:</label>
+                  <input
+                    type="text"
+                    value={letterDate}
+                    onChange={(e) => setLetterDate(e.target.value)}
+                    className="w-full border-slate-300 rounded-xl border p-2 text-xs text-slate-800 font-semibold"
+                  />
+                </div>
 
-              {/* Tujuan Surat */}
-              <div>
-                <label className="block text-slate-700 font-bold mb-1">Tujuan Surat (Kepada Yth):</label>
-                <input
-                  type="text"
-                  value={letterRecipient}
-                  onChange={(e) => setLetterRecipient(e.target.value)}
-                  placeholder={`Kepala ${currentLetterParticipant?.sntAsal}`}
-                  className="w-full border-slate-300 rounded-xl border p-2 text-xs text-slate-800 font-semibold"
-                />
-                <p className="text-[10px] text-slate-500 mt-1">
-                  Otomatis disesuaikan ke Kepala {currentLetterParticipant?.sntAsal}
-                </p>
-              </div>
-
-              {/* Bahasa Surat */}
-              <div>
-                <label className="block text-slate-700 font-bold mb-1">Bahasa Dokumen:</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setLetterLanguage("id")}
-                    className={`p-2 rounded-xl text-xs font-bold border text-center transition-all ${
-                      letterLanguage === "id"
-                        ? "bg-indigo-50 border-indigo-600 text-indigo-700 shadow-sm"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    Bahasa Indonesia
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLetterLanguage("en")}
-                    className={`p-2 rounded-xl text-xs font-bold border text-center transition-all ${
-                      letterLanguage === "en"
-                        ? "bg-indigo-50 border-indigo-600 text-indigo-700 shadow-sm"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    English
-                  </button>
+                {/* Tujuan Surat */}
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Tujuan Surat:</label>
+                  <input
+                    type="text"
+                    value={letterRecipient}
+                    onChange={(e) => setLetterRecipient(e.target.value)}
+                    placeholder={`Kepala ${currentLetterParticipant?.sntAsal}`}
+                    className="w-full border-slate-300 rounded-xl border p-2 text-xs text-slate-800 font-semibold"
+                  />
                 </div>
               </div>
 
@@ -1694,12 +1767,22 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
                   onClick={() => {
                     setShowLetterPrintModal(false);
                     setTimeout(() => {
-                      handlePrintLetter();
+                      if (printBundleOption === "bundle") {
+                        handlePrint("bundle");
+                      } else if (printBundleOption === "id") {
+                        setLetterLanguage("id");
+                        setTimeout(() => handlePrint("letter"), 120);
+                      } else if (printBundleOption === "en") {
+                        setLetterLanguage("en");
+                        setTimeout(() => handlePrint("letter"), 120);
+                      } else if (printBundleOption === "itinerary") {
+                        handlePrint("itinerary");
+                      }
                     }, 250);
                   }}
-                  className="px-5 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-bold shadow-md shadow-indigo-600/20 flex items-center gap-1.5"
+                  className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-bold shadow-md shadow-indigo-600/20 flex items-center gap-2"
                 >
-                  <Printer size={14} /> Lanjut Cetak / Unduh PDF
+                  <Printer size={15} /> Cetak / Unduh PDF ({printBundleOption === "bundle" ? "3 Dokumen Sekaligus" : "Dokumen Terpilih"})
                 </button>
               </div>
             </div>
@@ -2014,12 +2097,492 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
         </div>
       )}
 
+      {/* ==================== PRINTABLE BUNDLE: 3 DOKUMEN SEKALIGUS (ID + EN + ITINERARY) ==================== */}
+      <div id="printable-bundle" className="print-only-container hidden text-slate-900 bg-white">
+        {/* HALAMAN 1: SURAT BAHASA INDONESIA (IZIN PERJALANAN DINAS LUAR NEGERI) */}
+        <div className="bundle-page">
+          <div>
+            {/* KOP SURAT RESMI */}
+            <div className="border-b-2 border-slate-900 pb-3 mb-5 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-black tracking-wider text-slate-900 uppercase">
+                  PT. JULLY TJINDRAWAN ROBOTIK
+                </h2>
+                <p className="text-xs font-bold text-indigo-700 tracking-wide uppercase">
+                  ROBOTIC EXPLORER · OFFICIAL IYRC INDONESIA REPRESENTATIVE · KORWIL 2 SNT
+                </p>
+                <p className="text-[11px] text-slate-600 mt-1 font-medium">
+                  Greenville Blok AL no 1A-B, Duri Kepa, Kebon Jeruk, Jakarta Barat 11510 · info@worldroboticexplorer.com · 0822-9898-4848
+                </p>
+              </div>
+              <div className="text-right border-l-2 border-indigo-600 pl-4 shrink-0">
+                <span className="text-xs font-black text-indigo-900 uppercase block">IYRC 2026</span>
+                <span className="text-[10px] text-slate-500 font-semibold">Shenzhen, China</span>
+              </div>
+            </div>
+
+            {/* ISI SURAT BAHASA INDONESIA */}
+            <div className="space-y-3.5 text-sm leading-relaxed text-slate-800">
+              <div className="flex justify-between text-xs">
+                <div>
+                  <p>Nomor : <strong>{letterNumber || "......./RE-IYRC/XI/2026"}</strong></p>
+                  <p>Lampiran : 1 (satu) Berkas Rencana Anggaran & Jadwal Perjalanan</p>
+                  <p>Perihal : <strong>Undangan Resmi & Rekomendasi Izin Perjalanan Dinas Luar Negeri</strong></p>
+                </div>
+                <div className="text-right">
+                  <p>Jakarta, {letterDate}</p>
+                </div>
+              </div>
+
+              <div className="pt-1">
+                <p>Kepada Yth,</p>
+                <p className="font-bold text-slate-900">{letterRecipient || `Kepala ${currentLetterParticipant?.sntAsal}`}</p>
+                <p>di Tempat</p>
+              </div>
+
+              <p className="pt-1">Dengan hormat,</p>
+              <p className="text-justify text-xs leading-relaxed">
+                Sehubungan dengan terpilihnya {currentLetterParticipant?.peran === "SISWA" ? "putra/putri terbaik" : "pendidik berprestasi"} dari {currentLetterParticipant?.sntAsal} untuk mewakili kontingen Indonesia pada ajang kompetisi robotika dan kecerdasan buatan (AI) tingkat dunia:
+              </p>
+
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-1">
+                <p className="font-bold text-slate-900">Nama Acara : The 14th IYRC International Youth Robotics and AI Competition</p>
+                <p>Waktu Kegiatan : 12 – 13 Desember 2026 (Periode Perjalanan: 10 – 16 Desember 2026)</p>
+                <p>Tempat Pelaksanaan : Longgang International Arts Center, Shenzhen, Republik Rakyat Tiongkok (RRT)</p>
+                <p>Penerbangan : China Southern Airlines CZ8056 (Jakarta–Shenzhen PP)</p>
+              </div>
+
+              <p className="text-justify text-xs leading-relaxed pt-0.5">
+                Bersama ini kami menerbitkan <strong>Surat Undangan Resmi</strong> serta mengajukan permohonan <strong>Izin Perjalanan Dinas Luar Negeri</strong> dan dispensasi {currentLetterParticipant?.peran === "SISWA" ? "belajar/sekolah" : "tugas kedinasan"} kepada yang bersangkutan:
+              </p>
+
+              {/* TABEL DATA INDIVIDU SISWA / GURU */}
+              <div className="border border-slate-300 rounded-xl overflow-hidden text-xs my-2 bg-white">
+                <table className="min-w-full divide-y divide-slate-200">
+                  <tbody className="divide-y divide-slate-200">
+                    <tr>
+                      <td className="p-2 bg-slate-50 font-bold text-slate-700 w-1/3">Nama Lengkap</td>
+                      <td className="p-2 font-black text-slate-900 uppercase tracking-wide text-sm">
+                        {currentLetterParticipant?.nama}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="p-2 bg-slate-50 font-bold text-slate-700">Peran / Kategori</td>
+                      <td className="p-2 font-bold text-indigo-900">
+                        {currentLetterParticipant?.peran === "SISWA"
+                          ? "Siswa Peserta Kompetisi (Paket A - Robotika & AI)"
+                          : "Guru Pendamping & Pembimbing Teknis Kontingen"}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="p-2 bg-slate-50 font-bold text-slate-700">Asal Program SNT</td>
+                      <td className="p-2 font-bold text-slate-900">{currentLetterParticipant?.sntAsal}</td>
+                    </tr>
+                    {currentLetterParticipant?.peran !== "SISWA" && currentLetterParticipant?.sekolahAsal && (
+                      <tr>
+                        <td className="p-2 bg-slate-50 font-bold text-slate-700">Instansi Asal</td>
+                        <td className="p-2 font-medium">{currentLetterParticipant?.sekolahAsal}</td>
+                      </tr>
+                    )}
+                    {currentLetterParticipant?.nomorPaspor && (
+                      <tr>
+                        <td className="p-2 bg-slate-50 font-bold text-slate-700">Nomor Paspor</td>
+                        <td className="p-2 font-mono">{currentLetterParticipant?.nomorPaspor}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <p className="text-justify text-xs leading-relaxed">
+                Segala persiapan pelatihan intensif, registrasi resmi, dan akomodasi di Shenzhen dikoordinasikan secara penuh di bawah pengawasan PT. Jully Tjindrawan Robotik (Robotic Explorer). Surat ini diterbitkan sebagai dokumen resmi penunjang pengajuan izin dinas luar negeri serta rekomendasi pembuatan dokumen perjalanan (Visa/Paspor).
+              </p>
+
+              <p className="text-xs">Demikian surat undangan dan rekomendasi ini kami sampaikan. Atas perhatian, dukungan, dan kerja sama yang baik, kami ucapkan terima kasih.</p>
+            </div>
+          </div>
+
+          {/* Tanda Tangan */}
+          {renderSignatures()}
+        </div>
+
+        {/* HALAMAN 2: OFFICIAL INVITATION LETTER (ENGLISH) */}
+        <div className="bundle-page">
+          <div>
+            {/* KOP SURAT RESMI */}
+            <div className="border-b-2 border-slate-900 pb-3 mb-5 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-black tracking-wider text-slate-900 uppercase">
+                  PT. JULLY TJINDRAWAN ROBOTIK
+                </h2>
+                <p className="text-xs font-bold text-indigo-700 tracking-wide uppercase">
+                  ROBOTIC EXPLORER · OFFICIAL IYRC INDONESIA REPRESENTATIVE · KORWIL 2 SNT
+                </p>
+                <p className="text-[11px] text-slate-600 mt-1 font-medium">
+                  Greenville Blok AL no 1A-B, Duri Kepa, Kebon Jeruk, Jakarta Barat 11510 · info@worldroboticexplorer.com · 0822-9898-4848
+                </p>
+              </div>
+              <div className="text-right border-l-2 border-indigo-600 pl-4 shrink-0">
+                <span className="text-xs font-black text-indigo-900 uppercase block">IYRC 2026</span>
+                <span className="text-[10px] text-slate-500 font-semibold">Shenzhen, China</span>
+              </div>
+            </div>
+
+            {/* ISI SURAT ENGLISH */}
+            <div className="space-y-3.5 text-sm leading-relaxed text-slate-800">
+              <div className="flex justify-between text-xs">
+                <div>
+                  <p>Reference No : <strong>{letterNumber || "......./RE-IYRC/XI/2026"}</strong></p>
+                  <p>Enclosure : 1 (One) Complete Schedule & Travel Budget Document</p>
+                  <p>Subject : <strong>Official Invitation & Clearance Endorsement – The 14th IYRC China 2026</strong></p>
+                </div>
+                <div className="text-right">
+                  <p>Jakarta, {letterDate}</p>
+                </div>
+              </div>
+
+              <div className="pt-1">
+                <p>To Whom It May Concern,</p>
+                <p className="font-bold text-slate-900">{letterRecipient || `Head of ${currentLetterParticipant?.sntAsal} & Immigration Authorities`}</p>
+                <p>In Indonesia / Embassy of the People's Republic of China</p>
+              </div>
+
+              <p className="text-justify text-xs leading-relaxed pt-1">
+                This official document serves as a formal confirmation and invitation for the delegate from {currentLetterParticipant?.sntAsal} to attend and compete in <strong>The 14th IYRC International Youth Robotics and AI Competition</strong>, held in Shenzhen, People's Republic of China.
+              </p>
+
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-1">
+                <p className="font-bold text-slate-900">Event : The 14th IYRC International Youth Robotics and AI Competition</p>
+                <p>Date of Competition : December 12–13, 2026 (Travel Period: December 10–16, 2026)</p>
+                <p>Venue : Longgang International Arts Center, Shenzhen, China</p>
+                <p>Flight Details : China Southern Airlines CZ8056 (CGK 09:05 → SZX 15:25) / Return CZ8353</p>
+              </div>
+
+              <p className="text-justify text-xs leading-relaxed pt-0.5">
+                We proudly certify that the individual named below has been officially selected and endorsed:
+              </p>
+
+              {/* TABEL DATA INDIVIDU ENGLISH */}
+              <div className="border border-slate-300 rounded-xl overflow-hidden text-xs my-2 bg-white">
+                <table className="min-w-full divide-y divide-slate-200">
+                  <tbody className="divide-y divide-slate-200">
+                    <tr>
+                      <td className="p-2 bg-slate-50 font-bold text-slate-700 w-1/3">Full Name</td>
+                      <td className="p-2 font-black text-slate-900 uppercase tracking-wide text-sm">
+                        {currentLetterParticipant?.nama}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="p-2 bg-slate-50 font-bold text-slate-700">Role / Designation</td>
+                      <td className="p-2 font-bold text-indigo-900">
+                        {currentLetterParticipant?.peran === "SISWA"
+                          ? "Student Competitor (Package A - Robotics & AI)"
+                          : "Official Teacher, Coach & Chaperone"}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="p-2 bg-slate-50 font-bold text-slate-700">SNT Regional Center</td>
+                      <td className="p-2 font-bold text-slate-900">{currentLetterParticipant?.sntAsal}</td>
+                    </tr>
+                    {currentLetterParticipant?.peran !== "SISWA" && currentLetterParticipant?.sekolahAsal && (
+                      <tr>
+                        <td className="p-2 bg-slate-50 font-bold text-slate-700">Institution / Affiliation</td>
+                        <td className="p-2 font-medium">{currentLetterParticipant?.sekolahAsal}</td>
+                      </tr>
+                    )}
+                    {currentLetterParticipant?.nomorPaspor && (
+                      <tr>
+                        <td className="p-2 bg-slate-50 font-bold text-slate-700">Passport Number</td>
+                        <td className="p-2 font-mono">{currentLetterParticipant?.nomorPaspor}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <p className="text-justify text-xs leading-relaxed">
+                All delegation members will be accommodated and supervised during the event period by Robotic Explorer. We kindly request the Embassy and Immigration authorities to grant the necessary entry visa and international travel clearances.
+              </p>
+
+              <p className="text-xs">Thank you for your kind assistance and cooperation.</p>
+            </div>
+          </div>
+
+          {/* Tanda Tangan */}
+          {renderSignatures()}
+        </div>
+
+        {/* HALAMAN 3+: LAMPIRAN ITINERARY & RUNDOWN KEGIATAN LOMBA */}
+        <div className="bundle-page-itinerary space-y-5">
+          <div className="text-right text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+            Lampiran Resmi Surat No: {letterNumber || "......./RE-IYRC/XI/2026"}
+          </div>
+
+          {/* KOP SURAT RESMI */}
+          <div className="border-b-2 border-slate-900 pb-3 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-black tracking-wider text-slate-900 uppercase">
+                PT. JULLY TJINDRAWAN ROBOTIK
+              </h2>
+              <p className="text-xs font-bold text-indigo-700 tracking-wide uppercase">
+                ROBOTIC EXPLORER · OFFICIAL IYRC INDONESIA REPRESENTATIVE · KORWIL 2 SNT
+              </p>
+              <p className="text-[11px] text-slate-600 mt-1 font-medium">
+                Greenville Blok AL no 1A-B, Duri Kepa, Kebon Jeruk, Jakarta Barat 11510 · info@worldroboticexplorer.com · 0822-9898-4848
+              </p>
+            </div>
+            <div className="text-right border-l-2 border-indigo-600 pl-4 shrink-0">
+              <span className="text-xs font-black text-indigo-900 uppercase block">IYRC 2026</span>
+              <span className="text-[10px] text-slate-500 font-semibold">Shenzhen, China</span>
+            </div>
+          </div>
+
+          {/* JUDUL DOKUMEN */}
+          <div className="text-center space-y-1">
+            <h1 className="text-base font-extrabold text-slate-900 uppercase tracking-wide">
+              RENCANA PERJALANAN DETAIL & JADWAL KEGIATAN LOMBA (ITINERARY)
+            </h1>
+            <p className="text-xs font-bold text-indigo-700">
+              THE 14th IYRC INTERNATIONAL YOUTH ROBOTICS AND AI COMPETITION 2026
+            </p>
+            <p className="text-[11px] text-slate-500">
+              Lokasi: Longgang International Arts Center, Shenzhen, RRT · Periode: 10 – 16 Desember 2026
+            </p>
+          </div>
+
+          {/* 1. INFORMASI PENERBANGAN RESMI */}
+          <div className="space-y-2">
+            <h4 className="text-xs font-black uppercase text-indigo-900 border-b border-indigo-200 pb-1">
+              1. JADWAL PENERBANGAN RESMI (FLIGHT SCHEDULE)
+            </h4>
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                <span className="font-bold text-indigo-800 block mb-0.5">🛫 Penerbangan Berangkat (Jumat, 11 Des 2026)</span>
+                <p className="font-semibold text-slate-800">China Southern Airlines CZ8056</p>
+                <p className="text-slate-600 text-[11px]">Jakarta (CGK T3) 09:05 WIB &rarr; Shenzhen (SZX T3) 15:25 CST</p>
+                <p className="text-[10px] text-slate-500">Pesawat: Airbus A320neo · Bagasi Terdaftar: 23 kg/orang</p>
+              </div>
+              <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                <span className="font-bold text-violet-800 block mb-0.5">🛬 Penerbangan Kepulangan (Selasa, 15 Des 2026)</span>
+                <p className="font-semibold text-slate-800">China Southern Airlines CZ8353 (Estimasi)</p>
+                <p className="text-slate-600 text-[11px]">Shenzhen (SZX) 19:05 CST &rarr; Jakarta (CGK T3) 23:20 WIB</p>
+                <p className="text-[10px] text-slate-500">Penerbangan Malam Langsung · Tiba di Jakarta 23:20 WIB</p>
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-600 italic">
+              *Catatan Domestik: Seluruh peserta daerah tiba di Jakarta pada 10 Des 2026 dan terbang kembali ke daerah asal pada 16 Des 2026.
+            </p>
+          </div>
+
+          {/* 2. SUSUNAN KONTINGEN RESMI SNT WILAYAH 2 */}
+          <div className="space-y-2">
+            <h4 className="text-xs font-black uppercase text-indigo-900 border-b border-indigo-200 pb-1">
+              2. SUSUNAN KONTINGEN RESMI SNT WILAYAH 2
+            </h4>
+            <table className="min-w-full divide-y divide-slate-200 border border-slate-200 text-xs">
+              <thead className="bg-slate-100 font-bold text-slate-700">
+                <tr>
+                  <th className="p-1.5 text-center w-8">No</th>
+                  <th className="p-1.5 text-left">Nama Lengkap</th>
+                  <th className="p-1.5 text-left">Peran</th>
+                  <th className="p-1.5 text-left">Asal SNT</th>
+                  <th className="p-1.5 text-left">Sekolah / Instansi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 bg-white">
+                {participants.map((p, idx) => (
+                  <tr key={p.id}>
+                    <td className="p-1.5 text-center">{idx + 1}</td>
+                    <td className="p-1.5 font-bold text-slate-900">{p.nama}</td>
+                    <td className="p-1.5 text-indigo-900 font-medium">
+                      {p.peran === "SISWA" ? "Siswa Peserta Paket A" : "Guru Pendamping Kontingen"}
+                    </td>
+                    <td className="p-1.5">{p.sntAsal}</td>
+                    <td className="p-1.5 text-slate-600">{p.peran === "SISWA" ? "-" : (p.sekolahAsal || "-")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* 3. RUNDOWN KEGIATAN LENGKAP */}
+          <div className="space-y-2">
+            <h4 className="text-xs font-black uppercase text-indigo-900 border-b border-indigo-200 pb-1">
+              3. JADWAL DETAIL & RUNDOWN KEGIATAN LOMBA (10–16 DESEMBER 2026)
+            </h4>
+            <table className="min-w-full divide-y divide-slate-200 border border-slate-200 text-xs">
+              <thead className="bg-slate-100 font-bold text-slate-700">
+                <tr>
+                  <th className="p-1.5 text-left w-24">Tanggal & Hari</th>
+                  <th className="p-1.5 text-left w-24">Waktu</th>
+                  <th className="p-1.5 text-left">Rincian Agenda & Lokasi Kegiatan</th>
+                  <th className="p-1.5 text-left w-32">Keterangan</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 bg-white">
+                <tr>
+                  <td className="p-1.5 font-bold text-slate-800" rowSpan={3}>
+                    10 Des 2026<br /><span className="text-[10px] text-slate-500 font-normal">Kamis</span>
+                  </td>
+                  <td className="p-1.5 font-semibold">08:00 – 16:00</td>
+                  <td className="p-1.5">Penerbangan domestik delegasi dari bandara daerah asal (Kupang, Tidore, Tanjabtim) menuju Jakarta (CGK).</td>
+                  <td className="p-1.5 text-[10px] text-slate-600">Pakaian bebas rapi</td>
+                </tr>
+                <tr>
+                  <td className="p-1.5 font-semibold">17:00 – 19:00</td>
+                  <td className="p-1.5">Pertemuan koordinasi delegasi di area Terminal 3 CGK, cek kit robot & kelengkapan paspor.</td>
+                  <td className="p-1.5 text-[10px] text-slate-600">Briefing Korwil 2</td>
+                </tr>
+                <tr>
+                  <td className="p-1.5 font-semibold">20:00 – Selesai</td>
+                  <td className="p-1.5">Istirahat transit di hotel bandara Soetta tanpa keluar area bandara.</td>
+                  <td className="p-1.5 text-[10px] text-slate-600">Istirahat</td>
+                </tr>
+
+                <tr className="bg-slate-50/50">
+                  <td className="p-1.5 font-bold text-indigo-900" rowSpan={4}>
+                    11 Des 2026<br /><span className="text-[10px] text-slate-500 font-normal">Jumat</span>
+                  </td>
+                  <td className="p-1.5 font-semibold">06:00 – 08:00</td>
+                  <td className="p-1.5">Check-in penerbangan China Southern CZ8056 di T3 CGK & proses imigrasi Indonesia.</td>
+                  <td className="p-1.5 text-[10px] text-slate-600">Seragam Kontingen SNT</td>
+                </tr>
+                <tr className="bg-slate-50/50">
+                  <td className="p-1.5 font-semibold">09:05 – 15:25</td>
+                  <td className="p-1.5">Penerbangan langsung Jakarta (CGK) menuju Shenzhen (SZX). Durasi ±5 jam 20 menit.</td>
+                  <td className="p-1.5 text-[10px] text-slate-600">Flight CZ8056</td>
+                </tr>
+                <tr className="bg-slate-50/50">
+                  <td className="p-1.5 font-semibold">15:25 – 17:30</td>
+                  <td className="p-1.5">Mendarat di Shenzhen (SZX T3), imigrasi RRT, penjemputan van menuju hotel resmi kompetisi.</td>
+                  <td className="p-1.5 text-[10px] text-slate-600">Van jemputan resmi</td>
+                </tr>
+                <tr className="bg-slate-50/50">
+                  <td className="p-1.5 font-semibold">18:00 – 21:00</td>
+                  <td className="p-1.5">Check-in hotel paket resmi Longgang, pengambilan ID card, makan malam, & uji coba robot.</td>
+                  <td className="p-1.5 text-[10px] text-slate-600">Hotel Paket (Malam 1)</td>
+                </tr>
+
+                <tr className="bg-amber-50/30">
+                  <td className="p-1.5 font-bold text-amber-900" rowSpan={4}>
+                    12 Des 2026<br /><span className="text-[10px] text-amber-700 font-bold">Sabtu (Lomba 1)</span>
+                  </td>
+                  <td className="p-1.5 font-semibold">07:00 – 08:30</td>
+                  <td className="p-1.5">Sarapan pagi di hotel dan transfer menuju venue <strong>Longgang International Arts Center</strong>.</td>
+                  <td className="p-1.5 text-[10px] text-slate-600">Kit robot & toolkit</td>
+                </tr>
+                <tr className="bg-amber-50/30">
+                  <td className="p-1.5 font-semibold">09:00 – 10:30</td>
+                  <td className="p-1.5"><strong>Opening Ceremony The 14th IYRC China 2026</strong> & parade kontingen dunia.</td>
+                  <td className="p-1.5 text-[10px] text-slate-600">Seragam Resmi</td>
+                </tr>
+                <tr className="bg-amber-50/30">
+                  <td className="p-1.5 font-semibold">10:30 – 16:30</td>
+                  <td className="p-1.5"><strong>Babak Penyisihan & Penjurian:</strong> Creative Robot, AI Challenge, Coding Robot.</td>
+                  <td className="p-1.5 text-[10px] text-slate-600">Makan siang di venue</td>
+                </tr>
+                <tr className="bg-amber-50/30">
+                  <td className="p-1.5 font-semibold">17:30 – 20:30</td>
+                  <td className="p-1.5">Penutupan hari 1, evaluasi teknis robot oleh guru pendamping, dan makan malam.</td>
+                  <td className="p-1.5 text-[10px] text-slate-600">Hotel Paket (Malam 2)</td>
+                </tr>
+
+                <tr className="bg-emerald-50/30">
+                  <td className="p-1.5 font-bold text-emerald-900" rowSpan={4}>
+                    13 Des 2026<br /><span className="text-[10px] text-emerald-700 font-bold">Minggu (Lomba 2)</span>
+                  </td>
+                  <td className="p-1.5 font-semibold">07:00 – 08:30</td>
+                  <td className="p-1.5">Sarapan pagi di hotel dan transfer kontingen ke Longgang International Arts Center.</td>
+                  <td className="p-1.5 text-[10px] text-slate-600">Seragam Kontingen</td>
+                </tr>
+                <tr className="bg-emerald-50/30">
+                  <td className="p-1.5 font-semibold">09:00 – 12:30</td>
+                  <td className="p-1.5"><strong>Babak Final & Grand Exhibition:</strong> Demonstrasi final robot karya peserta terbaik.</td>
+                  <td className="p-1.5 text-[10px] text-slate-600">Penjurian final</td>
+                </tr>
+                <tr className="bg-emerald-50/30">
+                  <td className="p-1.5 font-semibold">14:00 – 17:00</td>
+                  <td className="p-1.5"><strong>Awarding & Closing Ceremony:</strong> Pengumuman pemenang, penyerahan medali & piala.</td>
+                  <td className="p-1.5 text-[10px] text-slate-600">Medali & sertifikat</td>
+                </tr>
+                <tr className="bg-emerald-50/30">
+                  <td className="p-1.5 font-semibold">18:00 – 21:00</td>
+                  <td className="p-1.5">Gala dinner & farewell reception kontingen seluruh negara partisipan.</td>
+                  <td className="p-1.5 text-[10px] text-slate-600">Hotel Paket (Malam 3)</td>
+                </tr>
+
+                <tr>
+                  <td className="p-1.5 font-bold text-slate-800" rowSpan={3}>
+                    14 Des 2026<br /><span className="text-[10px] text-slate-500 font-normal">Senin</span>
+                  </td>
+                  <td className="p-1.5 font-semibold">08:00 – 10:00</td>
+                  <td className="p-1.5">Paket IYRC selesai. Check-out hotel Longgang dan transfer menuju hotel di pusat kota Shenzhen.</td>
+                  <td className="p-1.5 text-[10px] text-slate-600">Transfer van & bagasi</td>
+                </tr>
+                <tr>
+                  <td className="p-1.5 font-semibold">11:00 – 17:00</td>
+                  <td className="p-1.5">Kunjungan edukatif terarah: Ekosistem inovasi hardware & AI global di Shenzhen.</td>
+                  <td className="p-1.5 text-[10px] text-slate-600">Eksplorasi edukasi</td>
+                </tr>
+                <tr>
+                  <td className="p-1.5 font-semibold">18:30 – 21:00</td>
+                  <td className="p-1.5">Makan malam bersama dan persiapan akhir packing bagasi untuk kepulangan.</td>
+                  <td className="p-1.5 text-[10px] text-slate-600">Hotel Kota (Malam 4)</td>
+                </tr>
+
+                <tr className="bg-violet-50/30">
+                  <td className="p-1.5 font-bold text-violet-900" rowSpan={3}>
+                    15 Des 2026<br /><span className="text-[10px] text-slate-500 font-normal">Selasa</span>
+                  </td>
+                  <td className="p-1.5 font-semibold">09:00 – 13:00</td>
+                  <td className="p-1.5">Check-out hotel Shenzhen, free program singkat di sekitar hotel dan makan siang.</td>
+                  <td className="p-1.5 text-[10px] text-slate-600">Persiapan dokumen</td>
+                </tr>
+                <tr>
+                  <td className="p-1.5 font-semibold">14:30 – 17:00</td>
+                  <td className="p-1.5">Transfer menuju Shenzhen Airport (SZX), check-in CZ8353 & imigrasi keluar China.</td>
+                  <td className="p-1.5 text-[10px] text-slate-600">Standby bandara</td>
+                </tr>
+                <tr>
+                  <td className="p-1.5 font-semibold">19:05 – 23:20</td>
+                  <td className="p-1.5">Penerbangan CZ8353 menuju Jakarta (CGK T3). Tiba 23:20 WIB. Transit bandara.</td>
+                  <td className="p-1.5 text-[10px] text-slate-600">Tiba Jakarta</td>
+                </tr>
+
+                <tr>
+                  <td className="p-1.5 font-bold text-slate-800">
+                    16 Des 2026<br /><span className="text-[10px] text-slate-500 font-normal">Rabu</span>
+                  </td>
+                  <td className="p-1.5 font-semibold">06:00 – Selesai</td>
+                  <td className="p-1.5">Penerbangan domestik dari Jakarta (CGK) menuju daerah asal masing-masing (Kupang, Tidore, Tanjabtim).</td>
+                  <td className="p-1.5 text-[10px] text-emerald-700 font-bold">Misi Selesai</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* TANDA TANGAN PENGESAHAN KORWIL 2 */}
+          <div className="pt-6 flex justify-end">
+            <div className="text-center w-72 space-y-14">
+              <p className="text-slate-600 font-semibold text-xs">
+                PT. Jully Tjindrawan Robotik<br />
+                <span className="text-[11px] text-indigo-700 font-bold">Koordinator Wilayah 2 Program SNT</span>
+              </p>
+              <div>
+                <p className="font-extrabold text-slate-900 underline text-sm">Jully Tjindrawan, MBA</p>
+                <p className="text-slate-500 font-medium text-[11px]">Koordinator Wilayah 2 & Founder Robotic Explorer</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* GLOBAL PRINT STYLES */}
       <style jsx global>{`
         @media print {
           @page {
             size: A4 portrait;
-            margin: 15mm 20mm;
+            margin: 12mm 15mm;
           }
           html, body {
             background: #ffffff !important;
@@ -2045,7 +2608,8 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
             display: none !important;
             visibility: hidden !important;
           }
-          /* 3. Tampilkan hanya dokumen target cetak surat undangan */
+
+          /* 3. Tampilkan hanya dokumen target cetak surat undangan tunggal */
           body[data-print-target="letter"] #printable-letter,
           body[data-print-target="letter"] #printable-letter * {
             visibility: visible !important;
@@ -2064,7 +2628,8 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
             box-shadow: none !important;
             z-index: 9999999 !important;
           }
-          /* 4. Tampilkan hanya dokumen target cetak itinerary */
+
+          /* 4. Tampilkan hanya dokumen target cetak itinerary tunggal */
           body[data-print-target="itinerary"] #printable-itinerary,
           body[data-print-target="itinerary"] #printable-itinerary * {
             visibility: visible !important;
@@ -2082,6 +2647,40 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
             border: none !important;
             box-shadow: none !important;
             z-index: 9999999 !important;
+          }
+
+          /* 5. Tampilkan paket berkas lengkap 3 dokumen sekaligus */
+          body[data-print-target="bundle"] #printable-bundle,
+          body[data-print-target="bundle"] #printable-bundle * {
+            visibility: visible !important;
+          }
+          body[data-print-target="bundle"] #printable-bundle {
+            display: block !important;
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            border: none !important;
+            box-shadow: none !important;
+            z-index: 9999999 !important;
+          }
+
+          .bundle-page {
+            page-break-after: always !important;
+            break-after: page !important;
+            min-height: 94vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding-bottom: 20px;
+          }
+          .bundle-page-itinerary {
+            page-break-before: always !important;
+            break-before: page !important;
           }
         }
       `}</style>
