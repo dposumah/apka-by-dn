@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   Sparkles,
   Layers,
+  Globe,
 } from "lucide-react"
 
 interface MenuItem {
@@ -39,6 +40,12 @@ const menuItems: MenuItem[] = [
     title: "Laporan Arus Kas", 
     href: "/cashflow/laporan", 
     icon: ClipboardList 
+  },
+  { 
+    title: "IYRC China 2026", 
+    href: "/cashflow/iyrc", 
+    icon: Globe,
+    badge: "RAB & Kontingen"
   },
 ]
 

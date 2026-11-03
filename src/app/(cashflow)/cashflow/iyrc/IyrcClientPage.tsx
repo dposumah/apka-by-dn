@@ -1,0 +1,1425 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatCurrency } from "@/lib/format";
+import {
+  Globe,
+  Users,
+  Calendar,
+  FileText,
+  Share2,
+  Calculator,
+  Plus,
+  Trash2,
+  Edit2,
+  Printer,
+  Plane,
+  Hotel,
+  ShieldCheck,
+  Clock,
+  ArrowRight,
+  Sparkles,
+  Download,
+  RotateCcw,
+  CheckCircle2,
+  AlertCircle,
+  HelpCircle,
+  Building,
+} from "lucide-react";
+import {
+  addIyrcParticipant,
+  updateIyrcParticipant,
+  deleteIyrcParticipant,
+  syncRabToDatabase,
+  resetIyrcToDefault,
+} from "@/actions/iyrc";
+import { calculateDynamicRab } from "@/lib/iyrc-utils";
+
+export default function IyrcClientPage({ initialData }: { initialData: any }) {
+  const [activeTab, setActiveTab] = useState<"rab" | "kontingen" | "itinerary" | "invitation" | "whatsapp">("rab");
+
+  // State Peserta & Budget Items
+  const [participants, setParticipants] = useState<any[]>(initialData.participants || []);
+  const [budgetItems, setBudgetItems] = useState<any[]>(initialData.budgetItems || []);
+
+  // State Simulasi Dinamis
+  const actualSiswaCount = useMemo(() => participants.filter((p) => p.peran === "SISWA").length, [participants]);
+  const actualPendampingCount = useMemo(() => participants.filter((p) => p.peran === "GURU_PENDAMPING").length, [participants]);
+
+  const [simSiswa, setSimSiswa] = useState<number>(actualSiswaCount);
+  const [simPendamping, setSimPendamping] = useState<number>(actualPendampingCount);
+  const [isApplyingSim, setIsApplyingSim] = useState(false);
+
+  // Kalkulasi Simulasi RAB (Real-time)
+  const currentSimulation = useMemo(() => {
+    return calculateDynamicRab(simSiswa, simPendamping, budgetItems);
+  }, [simSiswa, simPendamping, budgetItems]);
+
+  // Modal State untuk Peserta
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditPaymentModal, setShowEditPaymentModal] = useState(false);
+  const [selectedParticipant, setSelectedParticipant] = useState<any>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [newParticipant, setNewParticipant] = useState({
+    nama: "",
+    peran: "SISWA" as "SISWA" | "GURU_PENDAMPING",
+    sntAsal: "SNT 10 Kupang",
+    sekolahAsal: "",
+    nisnOrNip: "",
+    nomorPaspor: "",
+    catatan: "",
+  });
+
+  const [paymentForm, setPaymentForm] = useState({
+    statusPembayaran: "BELUM_LUNAS" as "BELUM_LUNAS" | "CICILAN" | "LUNAS",
+    nominalTerbayar: 0,
+    catatan: "",
+  });
+
+  // Invitation Letter Generator State
+  const [letterLanguage, setLetterLanguage] = useState<"id" | "en">("id");
+  const [selectedLetterParticipant, setSelectedLetterParticipant] = useState<string>("ALL");
+  const [letterNumber, setLetterNumber] = useState<string>("088/RE-IYRC/XI/2026");
+  const [letterDate, setLetterDate] = useState<string>("10 November 2026");
+
+  // Penandatangan Dinamis
+  const [signatories, setSignatories] = useState<Array<{ nama: string; jabatan: string; instansi: string }>>([
+    {
+      nama: "Jully Tjindrawan, MBA",
+      jabatan: "Koordinator Wilayah 2, Program SNT",
+      instansi: "PT Jully Tjindrawan Robotik (Robotic Explorer)",
+    },
+    {
+      nama: "Galvin Amaris Limbrawan",
+      jabatan: "Program Director IYRC Indonesia",
+      instansi: "Robotic Explorer",
+    },
+  ]);
+
+  // Handler Terapkan Simulasi ke Database
+  const handleApplySimulation = async () => {
+    if (!confirm(`Terapkan simulasi ${simSiswa} Siswa & ${simPendamping} Pendamping ke database resmi?`)) return;
+    setIsApplyingSim(true);
+    try {
+      const res = await syncRabToDatabase(simSiswa, simPendamping);
+      if (res?.error) throw new Error(res.error);
+      alert("Simulasi berhasil diterapkan ke anggaran database!");
+      window.location.reload();
+    } catch (err: any) {
+      alert("Gagal menerapkan simulasi: " + err.message);
+    } finally {
+      setIsApplyingSim(false);
+    }
+  };
+
+  // Handler Reset Default PDF
+  const handleResetDefault = async () => {
+    if (!confirm("Kembalikan data peserta dan RAB ke kondisi awal PDF (3 Siswa & 2 Guru Pendamping)?")) return;
+    setIsSubmitting(true);
+    try {
+      await resetIyrcToDefault();
+      alert("Data berhasil direset ke default PDF!");
+      window.location.reload();
+    } catch (err: any) {
+      alert("Gagal mereset: " + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handler Tambah Peserta
+  const handleAddParticipant = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newParticipant.nama.trim()) return alert("Nama peserta wajib diisi");
+    setIsSubmitting(true);
+    try {
+      const res = await addIyrcParticipant(newParticipant);
+      if (res?.error) throw new Error(res.error);
+      setShowAddModal(false);
+      setNewParticipant({
+        nama: "",
+        peran: "SISWA",
+        sntAsal: "SNT 10 Kupang",
+        sekolahAsal: "",
+        nisnOrNip: "",
+        nomorPaspor: "",
+        catatan: "",
+      });
+      window.location.reload();
+    } catch (err: any) {
+      alert("Gagal menambah peserta: " + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handler Hapus Peserta
+  const handleDeleteParticipant = async (id: string, nama: string) => {
+    if (!confirm(`Hapus peserta ${nama}? Anggaran RAB akan otomatis disesuaikan.`)) return;
+    try {
+      await deleteIyrcParticipant(id);
+      window.location.reload();
+    } catch (err: any) {
+      alert("Gagal menghapus: " + err.message);
+    }
+  };
+
+  // Handler Simpan Status Pembayaran
+  const handleSavePayment = async () => {
+    if (!selectedParticipant) return;
+    setIsSubmitting(true);
+    try {
+      await updateIyrcParticipant(selectedParticipant.id, {
+        statusPembayaran: paymentForm.statusPembayaran,
+        nominalTerbayar: Number(paymentForm.nominalTerbayar) || 0,
+        catatan: paymentForm.catatan,
+      });
+      setShowEditPaymentModal(false);
+      window.location.reload();
+    } catch (err: any) {
+      alert("Gagal memperbarui pembayaran: " + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handler Export CSV RAB
+  const handleExportCsv = () => {
+    const headers = ["Kode", "Kategori", "Uraian", "Volume", "Satuan", "Harga Satuan", "Tanggungan Robotic Explorer", "Tanggungan Peserta / SNT", "Keterangan"];
+    const rows = currentSimulation.items.map((item: any) => [
+      item.code,
+      item.namaKategori.replace(/,/g, " "),
+      item.uraian.replace(/,/g, " "),
+      item.volume,
+      item.satuan,
+      item.hargaSatuan,
+      item.tanggunganRobotic,
+      item.tanggunganPeserta,
+      (item.keterangan || "").replace(/,/g, " "),
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((r: any) => r.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `RAB_IYRC_China_2026_${simSiswa}Siswa_${simPendamping}Pendamping.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Salin Pesan WhatsApp
+  const handleCopyWhatsApp = async () => {
+    const text = `Yth. Bapak/Ibu Guru Pendamping & Orang Tua Siswa SNT,
+
+Berikut kami sampaikan rincian informasi dan jadwal keikutsertaan kontingen pada *The 14th IYRC International Youth Robotics and AI Competition 2026 (Shenzhen, China)*:
+
+📍 *1. JADWAL PENERBANGAN (FLIGHT DETAILS)*
+• *Keberangkatan:* Jumat, 11 Desember 2026
+  China Southern Airlines CZ8056
+  Rute: Jakarta (CGK T3) 09.05 → Shenzhen (SZX T3) 15.25 (Airbus A320neo)
+• *Kepulangan:* Selasa, 15 Desember 2026
+  China Southern Airlines (Estimasi CZ8353)
+  Rute: Shenzhen (SZX) 19.05 → Jakarta (CGK) 23.20
+• *Penerbangan Domestik:* Tiba di Jakarta tgl 10 Des; dan terbang kembali ke daerah asal tgl 16 Des 2026.
+
+🏨 *2. AKOMODASI & HOTEL*
+• *11–14 Des 2026 (4H3M):* Hotel Paket resmi IYRC di Shenzhen (sudah termasuk sarapan & makan harian).
+• *14–15 Des 2026 (1 Malam):* Hotel di luar paket di pusat kota Shenzhen (untuk istirahat sebelum penerbangan pulang tgl 15 malam).
+
+🗓️ *3. ITINERARY KEGIATAN PER HARI*
+• *10 Des (Kam):* Keberangkatan dari daerah asal (Tidore/Kupang/Tanjabtim) menuju Jakarta (Bandara Soetta).
+• *11 Des (Jum):* Penerbangan CGK → SZX, check-in hotel dan registrasi kontingen.
+• *12–13 Des (Sab-Min):* Pelaksanaan Kompetisi IYRC 2026 di Longgang International Arts Center, Shenzhen.
+• *14 Des (Sen):* Paket kompetisi selesai; sesi kunjungan edukatif / robotika Shenzhen, check-in hotel tambahan.
+• *15 Des (Sel):* Check-out hotel, transfer bandara SZX, penerbangan malam menuju Jakarta (tiba 23.20 WIB).
+• *16 Des (Rab):* Penerbangan lanjutan langsung kembali ke daerah asal masing-masing.
+
+📑 *4. TIMELINE & PENGURUSAN VISA CHINA*
+• *Waktu Pengurusan:* Disarankan diproses pada rentang *25 Oktober s.d. 15 November 2026* (±30 hari sebelum keberangkatan).
+• *Persyaratan Wajib:*
+  1. Paspor asli dengan masa berlaku minimal 6 bulan saat keberangkatan (min. Juni 2027).
+  2. Pasfoto resmi latar putih (33mm x 48mm).
+  3. Surat Undangan Resmi (*Invitation Letter*) dari penyelenggara.
+  4. Tiket penerbangan & konfirmasi hotel (disediakan tim).
+• *Pilihan Pengurusan:* Jalur standar online (±Rp 974.000) atau via Agen Visa Resmi (±Rp 1.600.000/orang).
+
+✉️ *5. SURAT UNDANGAN RESMI (INVITATION LETTER)*
+Surat undangan resmi berkop Robotic Explorer & IYRC atas nama siswa yang bersangkutan sudah diterbitkan oleh pihak kami sebagai dasar permohonan *Izin Perjalanan Dinas Luar Negeri* ke Pemda / Dinas Pendidikan / Sekolah.
+
+Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, kami siap membantu. Terima kasih atas dukungan Bapak/Ibu! 🙏🤖`;
+
+    try {
+      await navigator.clipboard.writeText(text);
+      alert("Teks balasan WhatsApp berhasil disalin ke clipboard!");
+    } catch {
+      alert("Gagal menyalin teks.");
+    }
+  };
+
+  // Peserta yang dipilih untuk Invitation Letter
+  const letterParticipants = useMemo(() => {
+    if (selectedLetterParticipant === "ALL") return participants;
+    return participants.filter((p) => p.id === selectedLetterParticipant);
+  }, [participants, selectedLetterParticipant]);
+
+  return (
+    <div className="space-y-6">
+      {/* Top Banner & Header */}
+      <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-violet-900 rounded-3xl p-6 md:p-8 text-white shadow-xl relative overflow-hidden">
+        <div className="absolute right-0 top-0 bottom-0 opacity-10 pointer-events-none flex items-center pr-10">
+          <Globe size={260} />
+        </div>
+
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+          <div className="space-y-2 max-w-2xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur border border-white/20 text-xs font-semibold text-indigo-200">
+              <Sparkles size={13} className="text-amber-300" /> The 14th International Youth Robotics and AI Competition
+            </div>
+            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
+              IYRC China 2026 – Shenzhen
+            </h1>
+            <p className="text-indigo-200 text-sm leading-relaxed">
+              Longgang International Arts Center, Shenzhen · Kompetisi 12–13 Desember 2026 (Kontingen SNT Wilayah 2)
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              onClick={handleCopyWhatsApp}
+              className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2"
+            >
+              <Share2 size={15} /> Salin Format WA
+            </button>
+            <button
+              onClick={handleExportCsv}
+              className="bg-white/10 hover:bg-white/20 text-white border border-white/20 font-semibold text-xs px-4 py-2.5 rounded-xl transition-all flex items-center gap-2"
+            >
+              <Download size={15} /> Export CSV
+            </button>
+            <button
+              onClick={handleResetDefault}
+              disabled={isSubmitting}
+              className="bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-400/30 font-semibold text-xs px-3.5 py-2.5 rounded-xl transition-all flex items-center gap-1.5"
+              title="Kembalikan ke data awal 3 siswa & 2 guru"
+            >
+              <RotateCcw size={14} /> Reset Default
+            </button>
+          </div>
+        </div>
+
+        {/* Quick Tabs Menu */}
+        <div className="flex overflow-x-auto gap-2 pt-6 mt-6 border-t border-white/10 text-xs font-semibold">
+          <button
+            onClick={() => setActiveTab("rab")}
+            className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === "rab" ? "bg-white text-indigo-900 shadow-md font-bold" : "text-white/80 hover:bg-white/10"
+            }`}
+          >
+            <Calculator size={15} /> RAB & Simulasi Dinamis
+          </button>
+          <button
+            onClick={() => setActiveTab("kontingen")}
+            className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === "kontingen" ? "bg-white text-indigo-900 shadow-md font-bold" : "text-white/80 hover:bg-white/10"
+            }`}
+          >
+            <Users size={15} /> Kontingen & Status Peserta ({participants.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("itinerary")}
+            className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === "itinerary" ? "bg-white text-indigo-900 shadow-md font-bold" : "text-white/80 hover:bg-white/10"
+            }`}
+          >
+            <Calendar size={15} /> Itinerary, Penerbangan & Visa
+          </button>
+          <button
+            onClick={() => setActiveTab("invitation")}
+            className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === "invitation" ? "bg-white text-indigo-900 shadow-md font-bold" : "text-white/80 hover:bg-white/10"
+            }`}
+          >
+            <FileText size={15} /> Invitation Letter & Izin Dinas
+          </button>
+          <button
+            onClick={() => setActiveTab("whatsapp")}
+            className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === "whatsapp" ? "bg-white text-indigo-900 shadow-md font-bold" : "text-white/80 hover:bg-white/10"
+            }`}
+          >
+            <Share2 size={15} /> Balasan WhatsApp (1-Klik)
+          </button>
+        </div>
+      </div>
+
+      {/* ==================== TAB 1: RAB & SIMULASI DINAMIS ==================== */}
+      {activeTab === "rab" && (
+        <div className="space-y-6">
+          {/* SIMULATION CONTROLLER CARD */}
+          <div className="bg-white p-6 rounded-2xl border border-indigo-100 shadow-sm flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-indigo-700 font-bold text-sm">
+                <Calculator size={18} />
+                <span>Panel Simulasi Dinamis Peserta & Pendamping</span>
+                {(simSiswa !== actualSiswaCount || simPendamping !== actualPendampingCount) && (
+                  <span className="text-[11px] bg-amber-100 text-amber-800 font-semibold px-2 py-0.5 rounded-full border border-amber-200">
+                    Mode Simulasi Aktif
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500">
+                Ubah jumlah siswa atau pendamping untuk melihat simulasi kalkulasi otomatis seluruh pos anggaran RAB secara langsung.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4">
+              {/* Counter Siswa */}
+              <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
+                <span className="text-xs font-bold text-slate-700">Siswa:</span>
+                <button
+                  onClick={() => setSimSiswa(Math.max(1, simSiswa - 1))}
+                  className="w-7 h-7 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold flex items-center justify-center transition-colors shadow-sm"
+                >
+                  -
+                </button>
+                <span className="w-6 text-center font-extrabold text-sm text-indigo-700">{simSiswa}</span>
+                <button
+                  onClick={() => setSimSiswa(simSiswa + 1)}
+                  className="w-7 h-7 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold flex items-center justify-center transition-colors shadow-sm"
+                >
+                  +
+                </button>
+              </div>
+
+              {/* Counter Pendamping */}
+              <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
+                <span className="text-xs font-bold text-slate-700">Pendamping:</span>
+                <button
+                  onClick={() => setSimPendamping(Math.max(1, simPendamping - 1))}
+                  className="w-7 h-7 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold flex items-center justify-center transition-colors shadow-sm"
+                >
+                  -
+                </button>
+                <span className="w-6 text-center font-extrabold text-sm text-violet-700">{simPendamping}</span>
+                <button
+                  onClick={() => setSimPendamping(simPendamping + 1)}
+                  className="w-7 h-7 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold flex items-center justify-center transition-colors shadow-sm"
+                >
+                  +
+                </button>
+              </div>
+
+              {/* Action Buttons */}
+              <button
+                onClick={handleApplySimulation}
+                disabled={isApplyingSim || (simSiswa === actualSiswaCount && simPendamping === actualPendampingCount)}
+                className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5"
+              >
+                <CheckCircle2 size={15} /> Simpan Simulasi ke RAB
+              </button>
+
+              {(simSiswa !== actualSiswaCount || simPendamping !== actualPendampingCount) && (
+                <button
+                  onClick={() => {
+                    setSimSiswa(actualSiswaCount);
+                    setSimPendamping(actualPendampingCount);
+                  }}
+                  className="text-xs text-slate-500 hover:text-slate-800 underline"
+                >
+                  Batal
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* 4 SUMMARY STAT CARDS */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="border-l-4 border-l-indigo-600 shadow-sm bg-white">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-bold uppercase text-slate-500 flex items-center justify-between">
+                  Tanggungan Robotic Explorer
+                  <Building size={16} className="text-indigo-600" />
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-extrabold text-indigo-700">
+                  {formatCurrency(currentSimulation.totalTanggunganRobotic)}
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Biaya Paket Kompetisi ({simSiswa} Siswa + {simPendamping} Pendamping)
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-l-4 border-l-rose-500 shadow-sm bg-white">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-bold uppercase text-slate-500 flex items-center justify-between">
+                  Tanggungan Peserta / SNT
+                  <Users size={16} className="text-rose-500" />
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-extrabold text-rose-600">
+                  {formatCurrency(currentSimulation.totalTanggunganPeserta)}
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Perjalanan, Dokumen, Tiket CZ8056, Visa ({currentSimulation.totalPersonel} Orang)
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-l-4 border-l-emerald-600 shadow-sm bg-white">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-bold uppercase text-slate-500 flex items-center justify-between">
+                  Beban Per Siswa
+                  <Sparkles size={16} className="text-emerald-600" />
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-extrabold text-emerald-700">
+                  {formatCurrency(currentSimulation.biayaPerSiswa)}
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Kompetisi {formatCurrency(30000000)} + Tiket/Visa {formatCurrency(currentSimulation.perPersonTravelFee)}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-l-4 border-l-violet-600 shadow-sm bg-white">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-bold uppercase text-slate-500 flex items-center justify-between">
+                  Beban Per Guru Pendamping
+                  <Users size={16} className="text-violet-600" />
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-extrabold text-violet-700">
+                  {formatCurrency(currentSimulation.biayaPerPendamping)}
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Paket {formatCurrency(12000000)} + Tiket/Visa {formatCurrency(currentSimulation.perPersonTravelFee)}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* DETAIL RAB TABLE */}
+          <Card className="shadow-sm overflow-hidden border border-slate-200">
+            <CardHeader className="border-b bg-slate-50/70 py-4 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base font-bold text-slate-900">
+                  Rincian Anggaran Biaya (RAB) Lengkap – Bagian A s.d. E
+                </CardTitle>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Simulasi Komposisi: {simSiswa} Siswa (Paket A) + {simPendamping} Guru Pendamping
+                </p>
+              </div>
+              <div className="text-right">
+                <span className="text-xs font-bold text-slate-500 uppercase">Total Keseluruhan:</span>
+                <div className="text-lg font-black text-slate-900">
+                  {formatCurrency(currentSimulation.totalKeseluruhan)}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <thead className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    <tr>
+                      <th className="px-5 py-3 text-left w-12">No</th>
+                      <th className="px-5 py-3 text-left">Uraian Biaya</th>
+                      <th className="px-5 py-3 text-center">Vol</th>
+                      <th className="px-5 py-3 text-center">Satuan</th>
+                      <th className="px-5 py-3 text-right">Harga Satuan</th>
+                      <th className="px-5 py-3 text-right bg-indigo-50/60 text-indigo-900">Tanggungan Robotic Explorer</th>
+                      <th className="px-5 py-3 text-right bg-rose-50/60 text-rose-900">Di Luar Tanggungan (Peserta/SNT)</th>
+                      <th className="px-5 py-3 text-left">Keterangan</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {currentSimulation.items.map((item: any, idx: number) => {
+                      const isFirstOfCategory = idx === 0 || item.kategori !== currentSimulation.items[idx - 1].kategori;
+                      return (
+                        <tr key={item.code} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="px-5 py-3 font-semibold text-slate-700 whitespace-nowrap">{item.code}</td>
+                          <td className="px-5 py-3 font-medium text-slate-900">
+                            {item.uraian}
+                            {isFirstOfCategory && (
+                              <span className="block text-[10px] uppercase font-bold text-indigo-600 mt-0.5">
+                                Pos {item.kategori} · {item.namaKategori}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-5 py-3 text-center font-bold text-slate-700">{item.volume}</td>
+                          <td className="px-5 py-3 text-center text-xs text-slate-500">{item.satuan}</td>
+                          <td className="px-5 py-3 text-right font-medium text-slate-700 whitespace-nowrap">
+                            {formatCurrency(item.hargaSatuan)}
+                          </td>
+                          <td className="px-5 py-3 text-right font-bold text-indigo-700 bg-indigo-50/20 whitespace-nowrap">
+                            {item.tanggunganRobotic > 0 ? formatCurrency(item.tanggunganRobotic) : "-"}
+                          </td>
+                          <td className="px-5 py-3 text-right font-bold text-rose-600 bg-rose-50/20 whitespace-nowrap">
+                            {item.tanggunganPeserta > 0 ? formatCurrency(item.tanggunganPeserta) : "-"}
+                          </td>
+                          <td className="px-5 py-3 text-xs text-slate-500 max-w-xs">{item.keterangan || "-"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot className="bg-slate-100 font-extrabold text-slate-900 text-sm">
+                    <tr>
+                      <td colSpan={5} className="px-5 py-4 text-right uppercase tracking-wider">
+                        Total Anggaran:
+                      </td>
+                      <td className="px-5 py-4 text-right text-indigo-700 bg-indigo-100/60">
+                        {formatCurrency(currentSimulation.totalTanggunganRobotic)}
+                      </td>
+                      <td className="px-5 py-4 text-right text-rose-700 bg-rose-100/60">
+                        {formatCurrency(currentSimulation.totalTanggunganPeserta)}
+                      </td>
+                      <td className="px-5 py-4 text-xs font-semibold text-slate-600">
+                        Total: {formatCurrency(currentSimulation.totalKeseluruhan)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ==================== TAB 2: KONTINGEN & PESERTA ==================== */}
+      {activeTab === "kontingen" && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">Daftar Kontingen & Status Pembayaran</h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Kelola nama siswa dan guru pendamping, nomor paspor/NISN, serta monitoring pelunasan biaya perjalanan.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-2 self-start"
+            >
+              <Plus size={16} /> Tambah Peserta / Pendamping
+            </button>
+          </div>
+
+          <Card className="shadow-sm overflow-hidden border border-slate-200">
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <thead className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    <tr>
+                      <th className="px-5 py-3.5 text-left">Nama Peserta</th>
+                      <th className="px-5 py-3.5 text-center">Peran</th>
+                      <th className="px-5 py-3.5 text-left">SNT & Sekolah Asal</th>
+                      <th className="px-5 py-3.5 text-right">Biaya Kompetisi</th>
+                      <th className="px-5 py-3.5 text-right">Tiket & Visa (Beban SNT)</th>
+                      <th className="px-5 py-3.5 text-center">Status Bayar</th>
+                      <th className="px-5 py-3.5 text-right">Terbayar</th>
+                      <th className="px-5 py-3.5 text-center">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {participants.map((p) => {
+                      const sisa = p.biayaPerjalananVisa - (p.nominalTerbayar || 0);
+                      return (
+                        <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="px-5 py-4 font-bold text-slate-900 whitespace-nowrap">
+                            {p.nama}
+                            <div className="text-xs font-normal text-slate-400 mt-0.5">
+                              Paspor: {p.nomorPaspor || "Belum ada"} · NISN/NIP: {p.nisnOrNip || "-"}
+                            </div>
+                          </td>
+                          <td className="px-5 py-4 text-center whitespace-nowrap">
+                            <span
+                              className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                                p.peran === "SISWA"
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : "bg-indigo-50 text-indigo-700 border border-indigo-200"
+                              }`}
+                            >
+                              {p.peran === "SISWA" ? "Siswa (Paket A)" : "Guru Pendamping"}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 text-slate-700">
+                            <div className="font-semibold text-xs text-indigo-800">{p.sntAsal}</div>
+                            <div className="text-xs text-slate-500">{p.sekolahAsal || "-"}</div>
+                          </td>
+                          <td className="px-5 py-4 text-right font-semibold text-slate-700 whitespace-nowrap">
+                            {formatCurrency(p.biayaKompetisi)}
+                          </td>
+                          <td className="px-5 py-4 text-right font-bold text-rose-600 whitespace-nowrap">
+                            {formatCurrency(p.biayaPerjalananVisa)}
+                          </td>
+                          <td className="px-5 py-4 text-center whitespace-nowrap">
+                            <span
+                              className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                                p.statusPembayaran === "LUNAS"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : p.statusPembayaran === "CICILAN"
+                                  ? "bg-amber-100 text-amber-800"
+                                  : "bg-rose-100 text-rose-800"
+                              }`}
+                            >
+                              {p.statusPembayaran}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 text-right whitespace-nowrap">
+                            <div className="font-bold text-emerald-700">{formatCurrency(p.nominalTerbayar || 0)}</div>
+                            {sisa > 0 && <div className="text-[11px] text-rose-500 font-medium">Sisa: {formatCurrency(sisa)}</div>}
+                          </td>
+                          <td className="px-5 py-4 text-center whitespace-nowrap">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                onClick={() => {
+                                  setSelectedParticipant(p);
+                                  setPaymentForm({
+                                    statusPembayaran: p.statusPembayaran || "BELUM_LUNAS",
+                                    nominalTerbayar: p.nominalTerbayar || 0,
+                                    catatan: p.catatan || "",
+                                  });
+                                  setShowEditPaymentModal(true);
+                                }}
+                                className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                                title="Edit Status Pembayaran"
+                              >
+                                <Edit2 size={15} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteParticipant(p.id, p.nama)}
+                                className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                                title="Hapus Peserta"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ==================== TAB 3: ITINERARY, PENERBANGAN & VISA ==================== */}
+      {activeTab === "itinerary" && (
+        <div className="space-y-6">
+          {/* FLIGHT CARDS */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="border-indigo-200 shadow-sm bg-gradient-to-br from-white to-indigo-50/30">
+              <CardHeader className="pb-3 border-b border-indigo-100">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-indigo-700 bg-indigo-100/70 px-2.5 py-1 rounded-full">
+                    Penerbangan Berangkat
+                  </span>
+                  <span className="text-xs font-semibold text-slate-500">Jumat, 11 Des 2026</span>
+                </div>
+                <CardTitle className="text-lg font-bold text-slate-900 mt-2 flex items-center gap-2">
+                  <Plane size={18} className="text-indigo-600 rotate-45" /> China Southern CZ8056
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-3 text-sm">
+                <div className="flex items-center justify-between font-bold text-slate-800">
+                  <div>
+                    <div className="text-xl font-extrabold text-indigo-700">09.05 WIB</div>
+                    <div className="text-xs text-slate-500">Jakarta (CGK) · T3</div>
+                  </div>
+                  <ArrowRight size={20} className="text-indigo-400" />
+                  <div className="text-right">
+                    <div className="text-xl font-extrabold text-indigo-700">15.25 CST</div>
+                    <div className="text-xs text-slate-500">Shenzhen (SZX) · T3</div>
+                  </div>
+                </div>
+                <div className="pt-2 text-xs text-slate-500 border-t border-indigo-100 flex items-center justify-between">
+                  <span>Pesawat: Airbus A320neo</span>
+                  <span>Durasi: ±5 Jam 20 Menit</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-violet-200 shadow-sm bg-gradient-to-br from-white to-violet-50/30">
+              <CardHeader className="pb-3 border-b border-violet-100">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-violet-700 bg-violet-100/70 px-2.5 py-1 rounded-full">
+                    Penerbangan Kepulangan
+                  </span>
+                  <span className="text-xs font-semibold text-slate-500">Selasa, 15 Des 2026</span>
+                </div>
+                <CardTitle className="text-lg font-bold text-slate-900 mt-2 flex items-center gap-2">
+                  <Plane size={18} className="text-violet-600 -rotate-45" /> China Southern CZ8353 (Estimasi)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-3 text-sm">
+                <div className="flex items-center justify-between font-bold text-slate-800">
+                  <div>
+                    <div className="text-xl font-extrabold text-violet-700">19.05 CST</div>
+                    <div className="text-xs text-slate-500">Shenzhen (SZX)</div>
+                  </div>
+                  <ArrowRight size={20} className="text-violet-400" />
+                  <div className="text-right">
+                    <div className="text-xl font-extrabold text-violet-700">23.20 WIB</div>
+                    <div className="text-xs text-slate-500">Jakarta (CGK) · T3</div>
+                  </div>
+                </div>
+                <div className="pt-2 text-xs text-slate-500 border-t border-violet-100 flex items-center justify-between">
+                  <span>Penerbangan Malam Langsung</span>
+                  <span>Lanjut terbang ke SNT asal tgl 16 Des</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* ITINERARY TIMELINE */}
+          <Card className="shadow-sm border border-slate-200">
+            <CardHeader className="border-b bg-slate-50/60 py-4">
+              <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Calendar size={18} className="text-indigo-600" /> Rencana Perjalanan Lengkap (10–16 Desember 2026)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="relative border-l-2 border-indigo-200 ml-4 space-y-8">
+                <div className="relative pl-6">
+                  <div className="absolute -left-2.5 top-0 w-5 h-5 rounded-full bg-indigo-600 border-4 border-white shadow-sm" />
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded">10 Des 2026 (Kamis)</span>
+                    <span className="text-xs font-semibold text-slate-500">Perjalanan Domestik</span>
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-900 mt-1">Terbang dari Daerah Asal ke Jakarta</h4>
+                  <p className="text-xs text-slate-600 mt-1">
+                    Peserta dan guru pendamping terbang dari bandara asal (Tidore via Ternate, Kupang, Tanjung Jabung Timur via Jambi) menuju Bandara Soekarno-Hatta (CGK). Langsung berkumpul di Jakarta tanpa menginap.
+                  </p>
+                </div>
+
+                <div className="relative pl-6">
+                  <div className="absolute -left-2.5 top-0 w-5 h-5 rounded-full bg-emerald-600 border-4 border-white shadow-sm" />
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">11 Des 2026 (Jumat)</span>
+                    <span className="text-xs font-semibold text-emerald-700 font-bold">Menginap di Hotel Paket</span>
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-900 mt-1">Penerbangan Jakarta → Shenzhen & Registrasi</h4>
+                  <p className="text-xs text-slate-600 mt-1">
+                    Pukul 09.05 WIB terbang dengan CZ8056 menuju Shenzhen (tiba 15.25 CST). Penjemputan van bandara menuju hotel resmi kompetisi, check-in, dan pengambilan kit registrasi peserta.
+                  </p>
+                </div>
+
+                <div className="relative pl-6">
+                  <div className="absolute -left-2.5 top-0 w-5 h-5 rounded-full bg-amber-500 border-4 border-white shadow-sm" />
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded">12–13 Des 2026 (Sabtu–Minggu)</span>
+                    <span className="text-xs font-semibold text-amber-700 font-bold">Menginap di Hotel Paket</span>
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-900 mt-1">Pelaksanaan The 14th IYRC China 2026</h4>
+                  <p className="text-xs text-slate-600 mt-1">
+                    Kompetisi Robotika dan AI bertaraf internasional di Longgang International Arts Center, Shenzhen. Presentasi karya, pertandingan, serta awarding ceremony.
+                  </p>
+                </div>
+
+                <div className="relative pl-6">
+                  <div className="absolute -left-2.5 top-0 w-5 h-5 rounded-full bg-violet-600 border-4 border-white shadow-sm" />
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold bg-violet-100 text-violet-800 px-2 py-0.5 rounded">14 Des 2026 (Senin)</span>
+                    <span className="text-xs font-semibold text-violet-700 font-bold">Menginap di Hotel Shenzhen (Luar Paket)</span>
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-900 mt-1">Paket Selesai & Hari Eksplorasi Edukatif</h4>
+                  <p className="text-xs text-slate-600 mt-1">
+                    Paket resmi berakhir. Kontingen check-out dan pindah ke hotel di pusat kota Shenzhen (3 kamar). Agenda bebas terarah untuk eksplorasi teknologi dan ekosistem inovasi Shenzhen.
+                  </p>
+                </div>
+
+                <div className="relative pl-6">
+                  <div className="absolute -left-2.5 top-0 w-5 h-5 rounded-full bg-indigo-600 border-4 border-white shadow-sm" />
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded">15–16 Des 2026 (Selasa–Rabu)</span>
+                    <span className="text-xs font-semibold text-slate-500">Perjalanan Pulang</span>
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-900 mt-1">Penerbangan Shenzhen → Jakarta → Daerah Asal</h4>
+                  <p className="text-xs text-slate-600 mt-1">
+                    Pukul 19.05 CST terbang kembali dengan CZ8353 menuju Jakarta (tiba 23.20 WIB). Pada 16 Desember pagi langsung melanjutkan penerbangan ke bandara daerah asal masing-masing.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* VISA APPLICATION GUIDE */}
+          <Card className="border-amber-200 bg-amber-50/40 shadow-sm">
+            <CardHeader className="pb-3 border-b border-amber-200">
+              <CardTitle className="text-sm font-bold text-amber-900 flex items-center gap-2">
+                <ShieldCheck size={18} className="text-amber-600" /> Panduan & Jadwal Pengurusan Visa China
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-4 space-y-3 text-xs text-amber-950">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white p-3.5 rounded-xl border border-amber-200 shadow-sm">
+                  <span className="font-bold text-amber-800 block mb-1">⏱️ Waktu Pengurusan:</span>
+                  20 Oktober – 10 November 2026 (30–45 hari sebelum jadwal keberangkatan 11 Des).
+                </div>
+                <div className="bg-white p-3.5 rounded-xl border border-amber-200 shadow-sm">
+                  <span className="font-bold text-amber-800 block mb-1">📋 Dokumen Wajib:</span>
+                  Paspor (berlaku min. 6 bulan), Pasfoto 33x48mm latar putih, Surat Undangan resmi (Invitation Letter), Tiket & Hotel.
+                </div>
+                <div className="bg-white p-3.5 rounded-xl border border-amber-200 shadow-sm">
+                  <span className="font-bold text-amber-800 block mb-1">💰 Opsi Pengurusan:</span>
+                  Jalur standar online (Rp 974.000) atau via Agen Pengurusan Visa (Rp 1.600.000/orang).
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ==================== TAB 4: INVITATION LETTER & IZIN DINAS ==================== */}
+      {activeTab === "invitation" && (
+        <div className="space-y-6">
+          {/* Controls Bar */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b pb-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Konfigurasi Surat Undangan (Invitation Letter)</h3>
+                <p className="text-xs text-slate-500">
+                  Digunakan sebagai dasar permohonan izin dinas luar negeri atau verifikasi Visa China.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2.5">
+                <button
+                  onClick={() => window.print()}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-2"
+                >
+                  <Printer size={16} /> Cetak / Download PDF
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs font-semibold">
+              <div>
+                <label className="block text-slate-600 mb-1">Bahasa Dokumen:</label>
+                <select
+                  value={letterLanguage}
+                  onChange={(e: any) => setLetterLanguage(e.target.value)}
+                  className="w-full border-slate-300 rounded-xl border px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="id">Bahasa Indonesia (Izin Dinas Luar Negeri)</option>
+                  <option value="en">English (Official IYRC Invitation Letter)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-600 mb-1">Target Peserta:</label>
+                <select
+                  value={selectedLetterParticipant}
+                  onChange={(e) => setSelectedLetterParticipant(e.target.value)}
+                  className="w-full border-slate-300 rounded-xl border px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="ALL">Semua Kontingen (5 Orang)</option>
+                  {participants.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nama} ({p.peran === "SISWA" ? "Siswa" : "Guru"}) - {p.sntAsal}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-600 mb-1">Nomor Surat:</label>
+                <input
+                  type="text"
+                  value={letterNumber}
+                  onChange={(e) => setLetterNumber(e.target.value)}
+                  className="w-full border-slate-300 rounded-xl border px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-600 mb-1">Tanggal Surat:</label>
+                <input
+                  type="text"
+                  value={letterDate}
+                  onChange={(e) => setLetterDate(e.target.value)}
+                  className="w-full border-slate-300 rounded-xl border px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+
+            {/* DYNAMIC SIGNATORIES CONTROLLER */}
+            <div className="pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-slate-700">Penandatangan Dokumen (Dapat Diedit & Ditambah):</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSignatories([
+                      ...signatories,
+                      { nama: "Nama Pejabat Baru", jabatan: "Jabatan Pejabat", instansi: "Instansi / Sekolah" },
+                    ])
+                  }
+                  className="text-indigo-600 hover:text-indigo-800 font-bold text-xs flex items-center gap-1"
+                >
+                  <Plus size={13} /> Tambah Penandatangan
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {signatories.map((sig, idx) => (
+                  <div key={idx} className="bg-slate-50 p-3 rounded-xl border border-slate-200 relative text-xs space-y-1.5">
+                    {signatories.length > 1 && (
+                      <button
+                        onClick={() => setSignatories(signatories.filter((_, i) => i !== idx))}
+                        className="absolute top-2 right-2 text-slate-400 hover:text-rose-600"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    )}
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400">Nama Penandatangan {idx + 1}:</span>
+                      <input
+                        type="text"
+                        value={sig.nama}
+                        onChange={(e) => {
+                          const updated = [...signatories];
+                          updated[idx].nama = e.target.value;
+                          setSignatories(updated);
+                        }}
+                        className="w-full border-slate-300 rounded border px-2 py-1 text-xs font-bold text-slate-800"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400">Jabatan:</span>
+                      <input
+                        type="text"
+                        value={sig.jabatan}
+                        onChange={(e) => {
+                          const updated = [...signatories];
+                          updated[idx].jabatan = e.target.value;
+                          setSignatories(updated);
+                        }}
+                        className="w-full border-slate-300 rounded border px-2 py-1 text-xs text-slate-700"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* PRINT PREVIEW PAPER */}
+          <div className="bg-white p-8 md:p-12 rounded-2xl border border-slate-300 shadow-lg max-w-4xl mx-auto print:shadow-none print:border-none print:p-0 print:m-0 text-slate-900">
+            {/* KOP SURAT */}
+            <div className="border-b-2 border-slate-900 pb-4 mb-6 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-black tracking-wider text-slate-900 uppercase">
+                  PT. JULLY TJINDRAWAN ROBOTIK
+                </h2>
+                <p className="text-xs font-bold text-indigo-700 tracking-wide uppercase">
+                  ROBOTIC EXPLORER · OFFICIAL IYRC INDONESIA REPRESENTATIVE
+                </p>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Gedung Graha Robotika, Jl. Raya Pegangsaan Dua No. 88, Jakarta Utara 14250 · Telp: (021) 4587-8899 · Email: info@robotic-explorer.com
+                </p>
+              </div>
+              <div className="text-right border-l-2 border-indigo-600 pl-4">
+                <span className="text-xs font-black text-indigo-900 uppercase block">IYRC 2026</span>
+                <span className="text-[10px] text-slate-500">Shenzhen, China</span>
+              </div>
+            </div>
+
+            {/* ISI SURAT: BAHASA INDONESIA */}
+            {letterLanguage === "id" ? (
+              <div className="space-y-4 text-sm leading-relaxed text-slate-800">
+                <div className="flex justify-between text-xs">
+                  <div>
+                    <p>Nomor : {letterNumber}</p>
+                    <p>Lampiran : 1 (satu) Berkas Rencana Anggaran & Itinerary</p>
+                    <p>Perihal : <strong>Undangan & Rekomendasi Izin Perjalanan Dinas Luar Negeri</strong></p>
+                  </div>
+                  <div className="text-right">
+                    <p>Jakarta, {letterDate}</p>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <p>Kepada Yth,</p>
+                  <p className="font-bold">Bapak / Ibu Kepala Dinas Pendidikan / Pimpinan Instansi / Kepala Sekolah</p>
+                  <p>di Tempat</p>
+                </div>
+
+                <p className="pt-2">Dengan hormat,</p>
+                <p className="text-justify">
+                  Sehubungan dengan terpilihnya putra/putri dan pendidik terbaik dari program Sekolah Nirwana Terpadu (SNT) Wilayah 2 untuk mewakili Indonesia pada ajang kompetisi robotika dan kecerdasan buatan tingkat dunia:
+                </p>
+
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs space-y-1">
+                  <p className="font-bold text-slate-900">Nama Acara : The 14th IYRC International Youth Robotics and AI Competition</p>
+                  <p>Waktu Kegiatan : 12 – 13 Desember 2026 (Periode Perjalanan: 10 – 16 Desember 2026)</p>
+                  <p>Tempat Pelaksanaan : Longgang International Arts Center, Shenzhen, Republik Rakyat Tiongkok (RRT)</p>
+                  <p>Penerbangan : China Southern Airlines (CZ8056 Jakarta–Shenzhen PP)</p>
+                </div>
+
+                <p className="text-justify">
+                  Bersama ini kami mengajukan permohonan <strong>Izin Perjalanan Dinas Luar Negeri</strong> serta dispensasi tugas/belajar bagi kontingen berikut:
+                </p>
+
+                <table className="min-w-full divide-y divide-slate-200 border border-slate-200 text-xs my-2">
+                  <thead className="bg-slate-100 font-bold">
+                    <tr>
+                      <th className="p-2 text-center w-10">No</th>
+                      <th className="p-2 text-left">Nama Lengkap</th>
+                      <th className="p-2 text-left">Peran</th>
+                      <th className="p-2 text-left">Asal SNT / Sekolah</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 bg-white">
+                    {letterParticipants.map((p, idx) => (
+                      <tr key={p.id}>
+                        <td className="p-2 text-center">{idx + 1}</td>
+                        <td className="p-2 font-bold">{p.nama}</td>
+                        <td className="p-2">{p.peran === "SISWA" ? "Siswa Peserta Kompetisi" : "Guru Pendamping"}</td>
+                        <td className="p-2">{p.sntAsal} {p.sekolahAsal ? `(${p.sekolahAsal})` : ""}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <p className="text-justify">
+                  Segala persiapan pelatihan intensif, registrasi resmi, dan akomodasi telah dikoordinasikan di bawah pengawasan PT. Jully Tjindrawan Robotik (Robotic Explorer). Surat ini diterbitkan sebagai dokumen resmi penunjang pengajuan izin dinas luar negeri serta rekomendasi pembuatan dokumen perjalanan (Visa/Paspor).
+                </p>
+
+                <p>Demikian surat undangan dan rekomendasi ini kami sampaikan. Atas perhatian dan kerja sama yang baik, kami ucapkan terima kasih.</p>
+              </div>
+            ) : (
+              /* ISI SURAT: ENGLISH */
+              <div className="space-y-4 text-sm leading-relaxed text-slate-800">
+                <div className="flex justify-between text-xs">
+                  <div>
+                    <p>Reference No : {letterNumber}</p>
+                    <p>Enclosure : 1 (One) Schedule & Travel Budget Plan</p>
+                    <p>Subject : <strong>Official Invitation Letter – The 14th IYRC China 2026</strong></p>
+                  </div>
+                  <div className="text-right">
+                    <p>Jakarta, {letterDate}</p>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <p>To Whom It May Concern,</p>
+                  <p className="font-bold">Embassy of the People's Republic of China / Immigration Authority</p>
+                  <p>In Indonesia</p>
+                </div>
+
+                <p className="text-justify pt-2">
+                  This letter serves as an official confirmation and invitation for the Indonesian delegation to attend and compete in <strong>The 14th IYRC International Youth Robotics and AI Competition</strong>, held in Shenzhen, People's Republic of China.
+                </p>
+
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs space-y-1">
+                  <p className="font-bold text-slate-900">Event : The 14th IYRC International Youth Robotics and AI Competition</p>
+                  <p>Date of Competition : December 12–13, 2026</p>
+                  <p>Travel Period : December 10–16, 2026</p>
+                  <p>Venue : Longgang International Arts Center, Shenzhen, China</p>
+                  <p>Flight Details : China Southern Airlines CZ8056 (CGK 09:05 → SZX 15:25) / Return CZ8353</p>
+                </div>
+
+                <p className="text-justify">
+                  We proudly certify that the following delegates have been selected to participate:
+                </p>
+
+                <table className="min-w-full divide-y divide-slate-200 border border-slate-200 text-xs my-2">
+                  <thead className="bg-slate-100 font-bold">
+                    <tr>
+                      <th className="p-2 text-center w-10">No</th>
+                      <th className="p-2 text-left">Full Name</th>
+                      <th className="p-2 text-left">Designation / Role</th>
+                      <th className="p-2 text-left">School / Institution</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 bg-white">
+                    {letterParticipants.map((p, idx) => (
+                      <tr key={p.id}>
+                        <td className="p-2 text-center">{idx + 1}</td>
+                        <td className="p-2 font-bold">{p.nama}</td>
+                        <td className="p-2">{p.peran === "SISWA" ? "Student Contestant" : "Official Teacher / Coach"}</td>
+                        <td className="p-2">{p.sntAsal} {p.sekolahAsal ? `(${p.sekolahAsal})` : ""}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <p className="text-justify">
+                  All delegation members will be accommodated and supervised during the event period by Robotic Explorer. We kindly request the Embassy and Immigration authorities to grant the necessary entry visa and international travel clearances.
+                </p>
+
+                <p>Thank you for your kind assistance and cooperation.</p>
+              </div>
+            )}
+
+            {/* TANDA TANGAN DINAMIS */}
+            <div className="pt-8 grid grid-cols-2 gap-8 text-xs font-semibold text-center">
+              {signatories.map((sig, idx) => (
+                <div key={idx} className="space-y-16">
+                  <p className="text-slate-600">{sig.instansi}</p>
+                  <div>
+                    <p className="font-extrabold text-slate-900 underline text-sm">{sig.nama}</p>
+                    <p className="text-slate-500 font-medium text-[11px]">{sig.jabatan}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== TAB 5: GENERATOR BALASAN WHATSAPP ==================== */}
+      {activeTab === "whatsapp" && (
+        <div className="space-y-6">
+          <Card className="border-emerald-200 shadow-sm bg-emerald-50/20">
+            <CardHeader className="border-b border-emerald-100 pb-4 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base font-bold text-emerald-950 flex items-center gap-2">
+                  <Share2 size={18} className="text-emerald-600" /> Teks Balasan WhatsApp Siap Kirim (1-Klik Salin)
+                </CardTitle>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Teks ini telah disusun menjawab langsung 5 poin pertanyaan wali murid / guru pendamping pada tangkapan layar chat.
+                </p>
+              </div>
+              <button
+                onClick={handleCopyWhatsApp}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center gap-2"
+              >
+                <Share2 size={15} /> Salin Teks WA
+              </button>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="bg-white p-6 rounded-2xl border border-emerald-200 shadow-inner font-mono text-xs text-slate-800 whitespace-pre-wrap leading-relaxed select-all">
+{`Yth. Bapak/Ibu Guru Pendamping & Orang Tua Siswa SNT,
+
+Berikut kami sampaikan rincian informasi dan jadwal keikutsertaan kontingen pada *The 14th IYRC International Youth Robotics and AI Competition 2026 (Shenzhen, China)*:
+
+📍 *1. JADWAL PENERBANGAN (FLIGHT DETAILS)*
+• *Keberangkatan:* Jumat, 11 Desember 2026
+  China Southern Airlines CZ8056
+  Rute: Jakarta (CGK T3) 09.05 → Shenzhen (SZX T3) 15.25 (Airbus A320neo)
+• *Kepulangan:* Selasa, 15 Desember 2026
+  China Southern Airlines (Estimasi CZ8353)
+  Rute: Shenzhen (SZX) 19.05 → Jakarta (CGK) 23.20
+• *Penerbangan Domestik:* Tiba di Jakarta tgl 10 Des; dan terbang kembali ke daerah asal tgl 16 Des 2026.
+
+🏨 *2. AKOMODASI & HOTEL*
+• *11–14 Des 2026 (4H3M):* Hotel Paket resmi IYRC di Shenzhen (sudah termasuk sarapan & makan harian).
+• *14–15 Des 2026 (1 Malam):* Hotel di luar paket di pusat kota Shenzhen (untuk istirahat sebelum penerbangan pulang tgl 15 malam).
+
+🗓️ *3. ITINERARY KEGIATAN PER HARI*
+• *10 Des (Kam):* Keberangkatan dari daerah asal (Tidore/Kupang/Tanjabtim) menuju Jakarta (Bandara Soetta).
+• *11 Des (Jum):* Penerbangan CGK → SZX, check-in hotel dan registrasi kontingen.
+• *12–13 Des (Sab-Min):* Pelaksanaan Kompetisi IYRC 2026 di Longgang International Arts Center, Shenzhen.
+• *14 Des (Sen):* Paket kompetisi selesai; sesi kunjungan edukatif / robotika Shenzhen, check-in hotel tambahan.
+• *15 Des (Sel):* Check-out hotel, transfer bandara SZX, penerbangan malam menuju Jakarta (tiba 23.20 WIB).
+• *16 Des (Rab):* Penerbangan lanjutan langsung kembali ke daerah asal masing-masing.
+
+📑 *4. TIMELINE & PENGURUSAN VISA CHINA*
+• *Waktu Pengurusan:* Disarankan diproses pada rentang *25 Oktober s.d. 15 November 2026* (±30 hari sebelum keberangkatan).
+• *Persyaratan Wajib:*
+  1. Paspor asli dengan masa berlaku minimal 6 bulan saat keberangkatan (min. Juni 2027).
+  2. Pasfoto resmi latar putih (33mm x 48mm).
+  3. Surat Undangan Resmi (*Invitation Letter*) dari penyelenggara.
+  4. Tiket penerbangan & konfirmasi hotel (disediakan tim).
+• *Pilihan Pengurusan:* Jalur standar online (±Rp 974.000) atau via Agen Visa Resmi (±Rp 1.600.000/orang).
+
+✉️ *5. SURAT UNDANGAN RESMI (INVITATION LETTER)*
+Surat undangan resmi berkop Robotic Explorer & IYRC atas nama siswa yang bersangkutan sudah diterbitkan oleh pihak kami sebagai dasar permohonan *Izin Perjalanan Dinas Luar Negeri* ke Pemda / Dinas Pendidikan / Sekolah.
+
+Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, kami siap membantu. Terima kasih atas dukungan Bapak/Ibu! 🙏🤖`}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ==================== MODAL TAMBAH PESERTA ==================== */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="text-base font-bold text-slate-900">Tambah Peserta / Pendamping IYRC</h3>
+              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+
+            <form onSubmit={handleAddParticipant} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-600 font-semibold mb-1">Nama Lengkap:</label>
+                <input
+                  type="text"
+                  required
+                  value={newParticipant.nama}
+                  onChange={(e) => setNewParticipant({ ...newParticipant, nama: e.target.value })}
+                  placeholder="Contoh: Muhammad Rayhan"
+                  className="w-full border-slate-300 rounded-xl border p-2.5 text-xs text-slate-800 font-semibold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Peran:</label>
+                  <select
+                    value={newParticipant.peran}
+                    onChange={(e: any) => setNewParticipant({ ...newParticipant, peran: e.target.value })}
+                    className="w-full border-slate-300 rounded-xl border p-2.5 text-xs font-semibold text-slate-800"
+                  >
+                    <option value="SISWA">Siswa (Paket A)</option>
+                    <option value="GURU_PENDAMPING">Guru Pendamping</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Asal SNT:</label>
+                  <input
+                    type="text"
+                    required
+                    value={newParticipant.sntAsal}
+                    onChange={(e) => setNewParticipant({ ...newParticipant, sntAsal: e.target.value })}
+                    placeholder="Contoh: SNT 10 Kupang"
+                    className="w-full border-slate-300 rounded-xl border p-2.5 text-xs text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-600 font-semibold mb-1">Sekolah / Instansi Asal:</label>
+                <input
+                  type="text"
+                  value={newParticipant.sekolahAsal}
+                  onChange={(e) => setNewParticipant({ ...newParticipant, sekolahAsal: e.target.value })}
+                  placeholder="Contoh: SMP Negeri 1 Kupang"
+                  className="w-full border-slate-300 rounded-xl border p-2.5 text-xs text-slate-800"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">NISN / NIP:</label>
+                  <input
+                    type="text"
+                    value={newParticipant.nisnOrNip}
+                    onChange={(e) => setNewParticipant({ ...newParticipant, nisnOrNip: e.target.value })}
+                    className="w-full border-slate-300 rounded-xl border p-2.5 text-xs text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Nomor Paspor:</label>
+                  <input
+                    type="text"
+                    value={newParticipant.nomorPaspor}
+                    onChange={(e) => setNewParticipant({ ...newParticipant, nomorPaspor: e.target.value })}
+                    placeholder="Kosongkan jika belum ada"
+                    className="w-full border-slate-300 rounded-xl border p-2.5 text-xs text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="px-4 py-2 border rounded-xl text-slate-600 hover:bg-slate-50 font-semibold"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-5 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-bold shadow-md shadow-indigo-600/20"
+                >
+                  {isSubmitting ? "Menyimpan..." : "Simpan Peserta"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== MODAL EDIT STATUS PEMBAYARAN ==================== */}
+      {showEditPaymentModal && selectedParticipant && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Update Pembayaran Peserta</h3>
+                <p className="text-xs text-slate-500 font-medium">{selectedParticipant.nama}</p>
+              </div>
+              <button onClick={() => setShowEditPaymentModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <span className="text-slate-500 block text-[11px]">Beban Mandiri Peserta (Tiket & Visa):</span>
+                <span className="text-base font-extrabold text-rose-600">
+                  {formatCurrency(selectedParticipant.biayaPerjalananVisa)}
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-slate-600 font-semibold mb-1">Status Pembayaran:</label>
+                <select
+                  value={paymentForm.statusPembayaran}
+                  onChange={(e: any) => setPaymentForm({ ...paymentForm, statusPembayaran: e.target.value })}
+                  className="w-full border-slate-300 rounded-xl border p-2.5 text-xs font-bold text-slate-800"
+                >
+                  <option value="BELUM_LUNAS">BELUM LUNAS</option>
+                  <option value="CICILAN">CICILAN</option>
+                  <option value="LUNAS">LUNAS</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-600 font-semibold mb-1">Nominal Terbayar (Rp):</label>
+                <input
+                  type="number"
+                  value={paymentForm.nominalTerbayar}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, nominalTerbayar: Number(e.target.value) || 0 })}
+                  className="w-full border-slate-300 rounded-xl border p-2.5 text-xs text-slate-800 font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-600 font-semibold mb-1">Catatan Pembayaran:</label>
+                <textarea
+                  value={paymentForm.catatan}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, catatan: e.target.value })}
+                  rows={2}
+                  placeholder="Catatan transfer, bank, atau bukti bayar..."
+                  className="w-full border-slate-300 rounded-xl border p-2 text-xs text-slate-800"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t">
+                <button
+                  type="button"
+                  onClick={() => setShowEditPaymentModal(false)}
+                  className="px-4 py-2 border rounded-xl text-slate-600 hover:bg-slate-50 font-semibold"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSavePayment}
+                  disabled={isSubmitting}
+                  className="px-5 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-bold shadow-md shadow-indigo-600/20"
+                >
+                  {isSubmitting ? "Menyimpan..." : "Simpan Status"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

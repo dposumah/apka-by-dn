@@ -914,3 +914,45 @@ model ItemPengadaanIoT {
 
   @@map("item_pengadaan_iot")
 }
+
+// ==================== IYRC CHINA 2026 MODULE ====================
+
+model IyrcParticipant {
+  id                  String   @id @default(cuid())
+  nama                String
+  peran               String   // "SISWA" atau "GURU_PENDAMPING"
+  sntAsal             String   // "SNT 5 Tidore Kepulauan", "SNT 10 Kupang", "SNT 17 Tanjung Jabung Timur", dll
+  sekolahAsal         String?
+  nisnOrNip           String?
+  nomorPaspor         String?
+  biayaKompetisi      Float    @default(0)
+  biayaPerjalananVisa Float    @default(0)
+  totalBiaya          Float    @default(0)
+  statusPembayaran    String   @default("BELUM_LUNAS") // BELUM_LUNAS, CICILAN, LUNAS
+  nominalTerbayar     Float    @default(0)
+  catatan             String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("iyrc_participants")
+}
+
+model IyrcBudgetItem {
+  id                 String   @id @default(cuid())
+  code               String   // A.1, A.2, B.1, C.1, D.1, E.1, dst.
+  kategori           String   // "A", "B", "C", "D", "E"
+  namaKategori       String   // "PAKET KOMPETISI SISWA", "PAKET GURU PENDAMPING", dst.
+  uraian             String
+  volume             Float    @default(1)
+  satuan             String   @default("orang")
+  hargaSatuan        Float    @default(0)
+  tanggunganRobotic  Float    @default(0)
+  tanggunganPeserta  Float    @default(0)
+  realisasi          Float    @default(0)
+  keterangan         String?
+  urutan             Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("iyrc_budget_items")
+}
