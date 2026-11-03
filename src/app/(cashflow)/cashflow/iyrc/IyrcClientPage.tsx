@@ -1194,10 +1194,12 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
                         <td className="p-2.5 bg-slate-50 font-bold text-slate-700">Asal Program SNT</td>
                         <td className="p-2.5 font-bold text-slate-900">{currentLetterParticipant?.sntAsal}</td>
                       </tr>
-                      <tr>
-                        <td className="p-2.5 bg-slate-50 font-bold text-slate-700">Asal Sekolah / Instansi</td>
-                        <td className="p-2.5 font-medium">{currentLetterParticipant?.sekolahAsal || "-"}</td>
-                      </tr>
+                      {currentLetterParticipant?.peran !== "SISWA" && currentLetterParticipant?.sekolahAsal && (
+                        <tr>
+                          <td className="p-2.5 bg-slate-50 font-bold text-slate-700">Instansi Asal</td>
+                          <td className="p-2.5 font-medium">{currentLetterParticipant?.sekolahAsal}</td>
+                        </tr>
+                      )}
                       {currentLetterParticipant?.nomorPaspor && (
                         <tr>
                           <td className="p-2.5 bg-slate-50 font-bold text-slate-700">Nomor Paspor</td>
@@ -1276,10 +1278,12 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
                         <td className="p-2.5 bg-slate-50 font-bold text-slate-700">SNT Regional Center</td>
                         <td className="p-2.5 font-bold text-slate-900">{currentLetterParticipant?.sntAsal}</td>
                       </tr>
-                      <tr>
-                        <td className="p-2.5 bg-slate-50 font-bold text-slate-700">School / Institution</td>
-                        <td className="p-2.5 font-medium">{currentLetterParticipant?.sekolahAsal || "-"}</td>
-                      </tr>
+                      {currentLetterParticipant?.peran !== "SISWA" && currentLetterParticipant?.sekolahAsal && (
+                        <tr>
+                          <td className="p-2.5 bg-slate-50 font-bold text-slate-700">Institution / Affiliation</td>
+                          <td className="p-2.5 font-medium">{currentLetterParticipant?.sekolahAsal}</td>
+                        </tr>
+                      )}
                       {currentLetterParticipant?.nomorPaspor && (
                         <tr>
                           <td className="p-2.5 bg-slate-50 font-bold text-slate-700">Passport Number</td>
@@ -1817,7 +1821,7 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
                           {p.peran === "SISWA" ? "Siswa Peserta Paket A" : "Guru Pendamping Kontingen"}
                         </td>
                         <td className="p-2">{p.sntAsal}</td>
-                        <td className="p-2">{p.sekolahAsal || "-"}</td>
+                        <td className="p-2 text-slate-600">{p.peran === "SISWA" ? "-" : (p.sekolahAsal || "-")}</td>
                       </tr>
                     ))}
                   </tbody>
