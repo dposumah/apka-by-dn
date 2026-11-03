@@ -93,7 +93,13 @@ export default function IyrcClientPage({ initialData }: { initialData: any }) {
   const [letterDate, setLetterDate] = useState<string>("10 November 2026");
   const [showItineraryPrintModal, setShowItineraryPrintModal] = useState<boolean>(false);
   const [showLetterPrintModal, setShowLetterPrintModal] = useState<boolean>(false);
-  const [printBundleOption, setPrintBundleOption] = useState<"bundle" | "id" | "en" | "itinerary">("bundle");
+  const [selectedDocs, setSelectedDocs] = useState<{ id: boolean; en: boolean; itinerary: boolean }>({
+    id: true,
+    en: true,
+    itinerary: true,
+  });
+  const selectedDocsCount =
+    (selectedDocs.id ? 1 : 0) + (selectedDocs.en ? 1 : 0) + (selectedDocs.itinerary ? 1 : 0);
 
   // Penandatangan Dinamis: Default Koordinator Wilayah 2 (Jully Tjindrawan) di sebelah KANAN
   const [signatories, setSignatories] = useState<Array<{ nama: string; jabatan: string; instansi: string }>>([
@@ -984,7 +990,7 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
                   onClick={() => setShowLetterPrintModal(true)}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-all shadow-md shadow-indigo-600/20 flex items-center gap-2"
                 >
-                  <Printer size={16} /> Cetak Dokumen (Bisa Sekaligus 3 Dokumen)
+                  <Printer size={16} /> Cetak Dokumen (Bisa Pilih 1, 2, atau 3 Dokumen)
                 </button>
               </div>
             </div>
@@ -1612,102 +1618,122 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
             </div>
 
             <div className="space-y-4 text-xs">
-              {/* Pilihan Paket Dokumen */}
+              {/* Checklist Multi-Select Dokumen */}
               <div>
-                <label className="block text-slate-700 font-bold mb-2">
-                  Pilih Format Dokumen yang Ingin Dicetak:
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-slate-800 font-bold text-xs">
+                    Pilih Dokumen yang Ingin Dicetak (Bisa 1, 2, atau Semua):
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDocs({ id: true, en: true, itinerary: true })}
+                      className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 underline"
+                    >
+                      Pilih Semua (3)
+                    </button>
+                    <span className="text-slate-300">|</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDocs({ id: false, en: false, itinerary: false })}
+                      className="text-[11px] font-bold text-slate-500 hover:text-slate-700"
+                    >
+                      Hapus Pilihan
+                    </button>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
+                  {/* Opsi 1: Surat Bahasa Indonesia */}
                   <div
-                    onClick={() => setPrintBundleOption("bundle")}
-                    className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
-                      printBundleOption === "bundle"
-                        ? "bg-indigo-50 border-indigo-600 ring-2 ring-indigo-500/20"
+                    onClick={() => setSelectedDocs((prev) => ({ ...prev, id: !prev.id }))}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 select-none ${
+                      selectedDocs.id
+                        ? "bg-indigo-50/70 border-indigo-500 ring-2 ring-indigo-500/20"
                         : "bg-white border-slate-200 hover:bg-slate-50"
                     }`}
                   >
                     <input
-                      type="radio"
-                      name="printBundleOption"
-                      checked={printBundleOption === "bundle"}
-                      onChange={() => setPrintBundleOption("bundle")}
-                      className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
+                      type="checkbox"
+                      checked={selectedDocs.id}
+                      onChange={(e) => setSelectedDocs((prev) => ({ ...prev, id: e.target.checked }))}
+                      className="mt-0.5 w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 cursor-pointer"
                     />
-                    <div>
-                      <span className="font-extrabold text-slate-900 flex items-center gap-1.5">
-                        🌟 1 Paket Berkas Lengkap Sekaligus (3 Dokumen)
-                        <span className="bg-indigo-600 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">Rekomendasi</span>
-                      </span>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-extrabold text-slate-900 text-xs">1. Surat Undangan Resmi (Bahasa Indonesia)</span>
+                        <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">Izin Dinas Pemda</span>
+                      </div>
                       <p className="text-[11px] text-slate-500 mt-0.5">
-                        Mencetak sekaligus dalam 1 PDF: Hal. 1 Surat Bahasa Indonesia (Izin Dinas), Hal. 2 Official English Letter (Visa/Kedutaan), dan Hal. 3+ Lampiran Itinerary & Rundown Lomba.
+                        Dasar permohonan izin dinas luar negeri & dispensasi sekolah ke Pemda / Dinas Pendidikan.
                       </p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
-                    <div
-                      onClick={() => setPrintBundleOption("id")}
-                      className={`p-2.5 rounded-xl border cursor-pointer transition-all flex items-start gap-2 ${
-                        printBundleOption === "id"
-                          ? "bg-indigo-50 border-indigo-600 ring-2 ring-indigo-500/20"
-                          : "bg-white border-slate-200 hover:bg-slate-50"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="printBundleOption"
-                        checked={printBundleOption === "id"}
-                        onChange={() => setPrintBundleOption("id")}
-                        className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
-                      />
-                      <div>
-                        <span className="font-bold text-slate-800 block text-xs">Surat Bhs. Indonesia</span>
-                        <span className="text-[10px] text-slate-500">Izin Dinas Pemda</span>
+                  {/* Opsi 2: Official English Letter */}
+                  <div
+                    onClick={() => setSelectedDocs((prev) => ({ ...prev, en: !prev.en }))}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 select-none ${
+                      selectedDocs.en
+                        ? "bg-indigo-50/70 border-indigo-500 ring-2 ring-indigo-500/20"
+                        : "bg-white border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedDocs.en}
+                      onChange={(e) => setSelectedDocs((prev) => ({ ...prev, en: e.target.checked }))}
+                      className="mt-0.5 w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 cursor-pointer"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-extrabold text-slate-900 text-xs">2. Official Invitation Letter (English)</span>
+                        <span className="text-[10px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">Visa & Imigrasi</span>
                       </div>
-                    </div>
-
-                    <div
-                      onClick={() => setPrintBundleOption("en")}
-                      className={`p-2.5 rounded-xl border cursor-pointer transition-all flex items-start gap-2 ${
-                        printBundleOption === "en"
-                          ? "bg-indigo-50 border-indigo-600 ring-2 ring-indigo-500/20"
-                          : "bg-white border-slate-200 hover:bg-slate-50"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="printBundleOption"
-                        checked={printBundleOption === "en"}
-                        onChange={() => setPrintBundleOption("en")}
-                        className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
-                      />
-                      <div>
-                        <span className="font-bold text-slate-800 block text-xs">Official English</span>
-                        <span className="text-[10px] text-slate-500">Imigrasi & Visa</span>
-                      </div>
-                    </div>
-
-                    <div
-                      onClick={() => setPrintBundleOption("itinerary")}
-                      className={`p-2.5 rounded-xl border cursor-pointer transition-all flex items-start gap-2 ${
-                        printBundleOption === "itinerary"
-                          ? "bg-indigo-50 border-indigo-600 ring-2 ring-indigo-500/20"
-                          : "bg-white border-slate-200 hover:bg-slate-50"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="printBundleOption"
-                        checked={printBundleOption === "itinerary"}
-                        onChange={() => setPrintBundleOption("itinerary")}
-                        className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
-                      />
-                      <div>
-                        <span className="font-bold text-slate-800 block text-xs">Hanya Itinerary</span>
-                        <span className="text-[10px] text-slate-500">Jadwal & Rundown</span>
-                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Dokumen berbahasa Inggris resmi untuk Kedutaan Besar RRT & verifikasi imigrasi China.
+                      </p>
                     </div>
                   </div>
+
+                  {/* Opsi 3: Lampiran Itinerary */}
+                  <div
+                    onClick={() => setSelectedDocs((prev) => ({ ...prev, itinerary: !prev.itinerary }))}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 select-none ${
+                      selectedDocs.itinerary
+                        ? "bg-indigo-50/70 border-indigo-500 ring-2 ring-indigo-500/20"
+                        : "bg-white border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedDocs.itinerary}
+                      onChange={(e) => setSelectedDocs((prev) => ({ ...prev, itinerary: e.target.checked }))}
+                      className="mt-0.5 w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 cursor-pointer"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-extrabold text-slate-900 text-xs">3. Lampiran Rencana Perjalanan Detail (Itinerary)</span>
+                        <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Jadwal 10–16 Des 2026</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Rincian penerbangan China Southern, hotel, daftar kontingen, dan rundown lengkap jam demi jam.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status Terpilih */}
+                <div className="mt-2 flex items-center justify-between">
+                  {selectedDocsCount === 0 ? (
+                    <span className="text-[11px] font-bold text-rose-500">
+                      ⚠️ Pilih minimal 1 dokumen untuk dicetak.
+                    </span>
+                  ) : (
+                    <span className="text-[11px] font-semibold text-slate-600">
+                      Dokumen terpilih: <strong className="text-indigo-600">{selectedDocsCount} dari 3 dokumen</strong>
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -1764,25 +1790,21 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
                 </button>
                 <button
                   type="button"
+                  disabled={selectedDocsCount === 0}
                   onClick={() => {
+                    if (selectedDocsCount === 0) return;
                     setShowLetterPrintModal(false);
                     setTimeout(() => {
-                      if (printBundleOption === "bundle") {
-                        handlePrint("bundle");
-                      } else if (printBundleOption === "id") {
-                        setLetterLanguage("id");
-                        setTimeout(() => handlePrint("letter"), 120);
-                      } else if (printBundleOption === "en") {
-                        setLetterLanguage("en");
-                        setTimeout(() => handlePrint("letter"), 120);
-                      } else if (printBundleOption === "itinerary") {
-                        handlePrint("itinerary");
-                      }
+                      handlePrint("bundle");
                     }, 250);
                   }}
-                  className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-bold shadow-md shadow-indigo-600/20 flex items-center gap-2"
+                  className={`px-5 py-2.5 rounded-xl font-bold transition-all shadow-md flex items-center gap-2 ${
+                    selectedDocsCount === 0
+                      ? "bg-slate-300 text-slate-500 cursor-not-allowed"
+                      : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/20"
+                  }`}
                 >
-                  <Printer size={15} /> Cetak / Unduh PDF ({printBundleOption === "bundle" ? "3 Dokumen Sekaligus" : "Dokumen Terpilih"})
+                  <Printer size={15} /> Cetak / Unduh PDF ({selectedDocsCount} Dokumen Terpilih)
                 </button>
               </div>
             </div>
@@ -2097,11 +2119,12 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
         </div>
       )}
 
-      {/* ==================== PRINTABLE BUNDLE: 3 DOKUMEN SEKALIGUS (ID + EN + ITINERARY) ==================== */}
+      {/* ==================== PRINTABLE BUNDLE: PILIHAN DINAMIS (ID / EN / ITINERARY) ==================== */}
       <div id="printable-bundle" className="print-only-container hidden text-slate-900 bg-white">
-        {/* HALAMAN 1: SURAT BAHASA INDONESIA (IZIN PERJALANAN DINAS LUAR NEGERI) */}
-        <div className="bundle-page">
-          <div>
+        {/* DOKUMEN 1: SURAT BAHASA INDONESIA (IZIN PERJALANAN DINAS LUAR NEGERI) */}
+        {selectedDocs.id && (
+          <div className={`bundle-page ${selectedDocs.en || selectedDocs.itinerary ? "bundle-page-break" : ""}`}>
+            <div>
             {/* KOP SURAT RESMI */}
             <div className="border-b-2 border-slate-900 pb-3 mb-5 flex items-center justify-between">
               <div>
@@ -2205,9 +2228,11 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
           {/* Tanda Tangan */}
           {renderSignatures()}
         </div>
+        )}
 
-        {/* HALAMAN 2: OFFICIAL INVITATION LETTER (ENGLISH) */}
-        <div className="bundle-page">
+        {/* DOKUMEN 2: OFFICIAL INVITATION LETTER (ENGLISH) */}
+        {selectedDocs.en && (
+        <div className={`bundle-page ${selectedDocs.itinerary ? "bundle-page-break" : ""}`}>
           <div>
             {/* KOP SURAT RESMI */}
             <div className="border-b-2 border-slate-900 pb-3 mb-5 flex items-center justify-between">
@@ -2311,8 +2336,10 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
           {/* Tanda Tangan */}
           {renderSignatures()}
         </div>
+        )}
 
-        {/* HALAMAN 3+: LAMPIRAN ITINERARY & RUNDOWN KEGIATAN LOMBA */}
+        {/* DOKUMEN 3: LAMPIRAN ITINERARY & RUNDOWN KEGIATAN LOMBA */}
+        {selectedDocs.itinerary && (
         <div className="bundle-page-itinerary space-y-5">
           <div className="text-right text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
             Lampiran Resmi Surat No: {letterNumber || "......./RE-IYRC/XI/2026"}
@@ -2575,6 +2602,7 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
             </div>
           </div>
         </div>
+        )}
       </div>
 
       {/* GLOBAL PRINT STYLES */}
@@ -2649,7 +2677,7 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
             z-index: 9999999 !important;
           }
 
-          /* 5. Tampilkan paket berkas lengkap 3 dokumen sekaligus */
+          /* 5. Tampilkan paket berkas dokumen terpilih */
           body[data-print-target="bundle"] #printable-bundle,
           body[data-print-target="bundle"] #printable-bundle * {
             visibility: visible !important;
@@ -2670,17 +2698,18 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
           }
 
           .bundle-page {
-            page-break-after: always !important;
-            break-after: page !important;
             min-height: 94vh;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
             padding-bottom: 20px;
           }
+          .bundle-page-break {
+            page-break-after: always !important;
+            break-after: page !important;
+          }
           .bundle-page-itinerary {
-            page-break-before: always !important;
-            break-before: page !important;
+            /* Ditampilkan rapi melanjutkan dokumen sebelumnya atau langsung di awal */
           }
         }
       `}</style>
