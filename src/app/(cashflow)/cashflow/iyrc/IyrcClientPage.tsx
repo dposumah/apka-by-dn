@@ -29,6 +29,9 @@ import {
   FileDown,
   User,
   X,
+  GraduationCap,
+  RefreshCw,
+  Landmark,
 } from "lucide-react";
 import {
   addIyrcParticipant,
@@ -36,11 +39,25 @@ import {
   deleteIyrcParticipant,
   syncRabToDatabase,
   resetIyrcToDefault,
+  syncIyrcToLatestData,
 } from "@/actions/iyrc";
-import { calculateDynamicRab } from "@/lib/iyrc-utils";
+import {
+  calculateDynamicRab,
+  calculateJakartaHotel,
+  terbilang,
+  IYRC_INFO,
+  IYRC_DATA_VERSION,
+  JAKARTA_HOTEL_OPTIONS,
+  JAKARTA_TRAINING_STAY,
+  TRAINING_WEEKS,
+  VISA_TIMELINE,
+  VISA_DOCUMENTS,
+  MAIN_ITINERARY,
+  STUDY_TOUR_ITINERARY,
+} from "@/lib/iyrc-utils";
 
 export default function IyrcClientPage({ initialData }: { initialData: any }) {
-  const [activeTab, setActiveTab] = useState<"rab" | "kontingen" | "itinerary" | "invitation" | "whatsapp">("rab");
+  const [activeTab, setActiveTab] = useState<"rab" | "kontingen" | "pelatihan" | "itinerary" | "invitation" | "whatsapp">("rab");
 
   // State Peserta & Budget Items
   const [participants, setParticipants] = useState<any[]>(initialData.participants || []);
@@ -53,11 +70,19 @@ export default function IyrcClientPage({ initialData }: { initialData: any }) {
   const [simSiswa, setSimSiswa] = useState<number>(actualSiswaCount);
   const [simPendamping, setSimPendamping] = useState<number>(actualPendampingCount);
   const [isApplyingSim, setIsApplyingSim] = useState(false);
+  const [studyTour, setStudyTour] = useState<boolean>(false);
 
   // Kalkulasi Simulasi RAB (Real-time)
   const currentSimulation = useMemo(() => {
-    return calculateDynamicRab(simSiswa, simPendamping, budgetItems);
-  }, [simSiswa, simPendamping, budgetItems]);
+    return calculateDynamicRab(simSiswa, simPendamping, budgetItems, { studyTour });
+  }, [simSiswa, simPendamping, budgetItems, studyTour]);
+
+  // Perbandingan hotel pelatihan Jakarta
+  const jakartaHotelComparison = useMemo(() => {
+    const rows = JAKARTA_HOTEL_OPTIONS.map((h) => ({ ...h, calc: calculateJakartaHotel(h) }));
+    const sorted = [...rows].sort((a, b) => a.calc.total - b.calc.total);
+    return rows.map((r) => ({ ...r, peringkat: sorted.findIndex((s) => s.key === r.key) + 1 }));
+  }, []);
 
   // Modal State untuk Peserta
   const [showAddModal, setShowAddModal] = useState(false);
@@ -76,6 +101,11 @@ export default function IyrcClientPage({ initialData }: { initialData: any }) {
   });
 
   const [paymentForm, setPaymentForm] = useState({
+    nama: "",
+    sntAsal: "",
+    sekolahAsal: "",
+    nisnOrNip: "",
+    nomorPaspor: "",
     statusPembayaran: "BELUM_LUNAS" as "BELUM_LUNAS" | "CICILAN" | "LUNAS",
     nominalTerbayar: 0,
     catatan: "",
@@ -90,7 +120,7 @@ export default function IyrcClientPage({ initialData }: { initialData: any }) {
     initialData.participants?.[0] ? `Kepala ${initialData.participants[0].sntAsal}` : "Kepala SNT"
   );
   const [letterNumber, setLetterNumber] = useState<string>("088/RE-IYRC/XI/2026");
-  const [letterDate, setLetterDate] = useState<string>("10 November 2026");
+  const [letterDate, setLetterDate] = useState<string>("5 November 2026");
   const [showItineraryPrintModal, setShowItineraryPrintModal] = useState<boolean>(false);
   const [showLetterPrintModal, setShowLetterPrintModal] = useState<boolean>(false);
   const [selectedDocs, setSelectedDocs] = useState<{ id: boolean; en: boolean; itinerary: boolean }>({
@@ -190,14 +220,34 @@ export default function IyrcClientPage({ initialData }: { initialData: any }) {
 
   // Handler Reset Default PDF
   const handleResetDefault = async () => {
-    if (!confirm("Kembalikan data peserta dan RAB ke kondisi awal PDF (3 Siswa & 2 Guru Pendamping)?")) return;
+    if (!confirm("Reset TOTAL data peserta dan RAB ke dokumen terbaru (4 Siswa & 2 Guru Pendamping, versi 5 Nov 2026)?\n\nPERHATIAN: status pembayaran & nomor paspor yang sudah diisi akan terhapus. Gunakan 'Sinkron Data 5 Nov' bila ingin mempertahankannya.")) return;
     setIsSubmitting(true);
     try {
       await resetIyrcToDefault();
-      alert("Data berhasil direset ke default PDF!");
+      alert("Data berhasil direset ke dokumen terbaru!");
       window.location.reload();
     } catch (err: any) {
       alert("Gagal mereset: " + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handler Sinkron ke Data Terbaru (mempertahankan pembayaran)
+  const handleSyncLatest = async () => {
+    if (!confirm(`Sinkronkan RAB & peserta ke dokumen terbaru (${IYRC_DATA_VERSION})?\n\n• Item RAB diganti sesuai PDF (A.1–A.5, B.1, C–E)\n• Siswa ke-4 (SNT 15 Buton Tengah) & Bapak Farid A. M ditambahkan\n• Status pembayaran, paspor & catatan yang sudah diisi TETAP dipertahankan`)) return;
+    setIsSubmitting(true);
+    try {
+      const res: any = await syncIyrcToLatestData();
+      if (res?.error) throw new Error(res.error);
+      let msg = `Sinkronisasi berhasil: ${res.countSiswa} siswa & ${res.countPendamping} pendamping.`;
+      if (res.keptReplaced?.length) {
+        msg += `\n\nCatatan: ${res.keptReplaced.join(", ")} tidak dihapus karena sudah memiliki pembayaran. Silakan hapus manual bila perlu.`;
+      }
+      alert(msg);
+      window.location.reload();
+    } catch (err: any) {
+      alert("Gagal sinkronisasi: " + err.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -240,12 +290,18 @@ export default function IyrcClientPage({ initialData }: { initialData: any }) {
     }
   };
 
-  // Handler Simpan Status Pembayaran
+  // Handler Simpan Identitas & Status Pembayaran Peserta
   const handleSavePayment = async () => {
     if (!selectedParticipant) return;
+    if (!paymentForm.nama.trim()) return alert("Nama peserta tidak boleh kosong");
     setIsSubmitting(true);
     try {
       await updateIyrcParticipant(selectedParticipant.id, {
+        nama: paymentForm.nama.trim(),
+        sntAsal: paymentForm.sntAsal.trim(),
+        sekolahAsal: paymentForm.sekolahAsal.trim(),
+        nisnOrNip: paymentForm.nisnOrNip.trim(),
+        nomorPaspor: paymentForm.nomorPaspor.trim(),
         statusPembayaran: paymentForm.statusPembayaran,
         nominalTerbayar: Number(paymentForm.nominalTerbayar) || 0,
         catatan: paymentForm.catatan,
@@ -253,7 +309,7 @@ export default function IyrcClientPage({ initialData }: { initialData: any }) {
       setShowEditPaymentModal(false);
       window.location.reload();
     } catch (err: any) {
-      alert("Gagal memperbarui pembayaran: " + err.message);
+      alert("Gagal memperbarui data peserta: " + err.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -261,7 +317,7 @@ export default function IyrcClientPage({ initialData }: { initialData: any }) {
 
   // Handler Export CSV RAB
   const handleExportCsv = () => {
-    const headers = ["Kode", "Kategori", "Uraian", "Volume", "Satuan", "Harga Satuan", "Tanggungan Robotic Explorer", "Tanggungan Peserta / SNT", "Keterangan"];
+    const headers = ["Kode", "Kategori", "Uraian", "Volume", "Satuan", "Harga Satuan", "Rincian I (Robotic Explorer)", "Rincian II (Kemendikdasmen)", "Keterangan"];
     const rows = currentSimulation.items.map((item: any) => [
       item.code,
       item.namaKategori.replace(/,/g, " "),
@@ -284,49 +340,55 @@ export default function IyrcClientPage({ initialData }: { initialData: any }) {
     document.body.removeChild(link);
   };
 
+  // Teks WhatsApp Resmi (Versi 5 November 2026)
+  const whatsappText = `Yth. Bapak/Ibu Guru Pendamping & Orang Tua Siswa SNT,
+
+Berikut kami sampaikan pembaruan resmi rincian informasi dan jadwal keikutsertaan kontingen SNT Wilayah 2 pada *The 14th IYRC International Youth Robotics and AI Competition 2026 (Shenzhen, China)* (Versi 5 November 2026):
+
+🎓 *1. PELATIHAN INTENSIF SISWA DI JAKARTA*
+• *Periode:* Minggu, 15 November – Rabu, 9 Desember 2026 (4 pekan · 19 sesi @ 4 jam)
+• *Lokasi:* Robotic Explorer Center, Greenville Blok AL No. 1A–B, Jakarta Barat
+• *Akomodasi Siswa:* Hotel area Grogol/Jakarta Barat (Check-in Minggu, 15 Nov – Check-out Jumat, 11 Des 2026 · 26 malam / 2 kamar Twin, ditanggung Robotic Explorer).
+• *Catatan:* Guru pendamping & pendamping kementerian tiba di Jakarta pada *Kamis, 10 Desember 2026*.
+
+📍 *2. JADWAL PENERBANGAN INTERNASIONAL (CHINA SOUTHERN)*
+• *Keberangkatan:* Jumat, 11 Desember 2026
+  China Southern Airlines *CZ8056* (Airbus A320neo)
+  Rute: Jakarta (CGK T3) *09.05 WIB* → Shenzhen (SZX T3) *15.25 CST*
+• *Kepulangan (Tanpa Study Tour):* Senin, 14 Desember 2026
+  China Southern Airlines *CZ8353* (Airbus A321neo)
+  Rute: Shenzhen (SZX T3) *19.05 CST* → Jakarta (CGK T3) *23.20 WIB*
+  *(Lanjut penerbangan domestik subuh Selasa, 15 Des 2026 ke daerah asal)*
+• *Opsi Tambahan Study Tour (14–16 Des):* Bila memilih opsi Study Tour (+Rp6.500.000/orang), kepulangan pada *Rabu, 16 Desember 2026* melalui Bandara Guangzhou Baiyun (CAN).
+
+🏨 *3. HOTEL RESMI DI SHENZHEN (11–14 DES 2026)*
+• *Zhongbao International Hotel (深圳中保国际酒店)*
+• *Alamat:* No. 21 Donghuan 2nd Road, Longhua District, Shenzhen (±15 km / 25–30 menit ke venue Longgang International Arts Center).
+• Sudah termasuk sarapan, makan siang, makan malam & bus shuttle selama kompetisi (3 malam).
+
+🗓️ *4. RINGKASAN ITINERARY KOMPETISI*
+• *10 Des (Kam):* Guru pendamping terbang dari daerah asal ke Jakarta; pengumpulan akhir paspor & visa.
+• *11 Des (Jum):* Penerbangan CGK → SZX (CZ8056), check-in Zhongbao International Hotel & registrasi peserta.
+• *12 Des (Sab):* Opening Ceremony & Kompetisi Hari Pertama (Jurassic Explorer, Sumo, Creative).
+• *13 Des (Min):* Kompetisi Hari Kedua, Final Creative, Awarding & Closing Ceremony.
+• *14 Des (Sen):* Check-out hotel (12.00 CST), transfer ke Bandara SZX, penerbangan CZ8353 pukul 19.05 CST → tiba CGK 23.20 WIB.
+• *15 Des (Sel):* Penerbangan domestik subuh kembali ke daerah asal masing-masing.
+
+📑 *5. TIMELINE PENGURUSAN VISA CHINA (CVASC JAKARTA)*
+• *Batas Paspor & Dokumen Digital:* Selasa, 10 Nov 2026
+• *Pengisian Form COVA Online:* 11–13 Nov 2026
+• *Submit Berkas Fisik & Biometrik CVASC Jakarta:* *16–20 Nov 2026* (dilakukan saat siswa sudah berada di Jakarta untuk pelatihan)
+• *Estimasi Visa Terbit:* 27 Nov – 2 Des 2026
+
+✉️ *6. SURAT UNDANGAN RESMI (INVITATION LETTER)*
+Surat undangan resmi berkop PT Jully Tjindrawan Robotik (Robotic Explorer) untuk masing-masing peserta telah disiapkan sebagai dasar permohonan *Izin Perjalanan Dinas Luar Negeri*.
+
+Demikian kami sampaikan. Terima kasih atas kerja sama dan dukungan Bapak/Ibu! 🙏🤖`;
+
   // Salin Pesan WhatsApp
   const handleCopyWhatsApp = async () => {
-    const text = `Yth. Bapak/Ibu Guru Pendamping & Orang Tua Siswa SNT,
-
-Berikut kami sampaikan rincian informasi dan jadwal keikutsertaan kontingen pada *The 14th IYRC International Youth Robotics and AI Competition 2026 (Shenzhen, China)*:
-
-📍 *1. JADWAL PENERBANGAN (FLIGHT DETAILS)*
-• *Keberangkatan:* Jumat, 11 Desember 2026
-  China Southern Airlines CZ8056
-  Rute: Jakarta (CGK T3) 09.05 → Shenzhen (SZX T3) 15.25 (Airbus A320neo)
-• *Kepulangan:* Selasa, 15 Desember 2026
-  China Southern Airlines (Estimasi CZ8353)
-  Rute: Shenzhen (SZX) 19.05 → Jakarta (CGK) 23.20
-• *Penerbangan Domestik:* Tiba di Jakarta tgl 10 Des; dan terbang kembali ke daerah asal tgl 16 Des 2026.
-
-🏨 *2. AKOMODASI & HOTEL*
-• *11–14 Des 2026 (4H3M):* Hotel Paket resmi IYRC di Shenzhen (sudah termasuk sarapan & makan harian).
-• *14–15 Des 2026 (1 Malam):* Hotel di luar paket di pusat kota Shenzhen (untuk istirahat sebelum penerbangan pulang tgl 15 malam).
-
-🗓️ *3. ITINERARY KEGIATAN PER HARI*
-• *10 Des (Kam):* Keberangkatan dari daerah asal (Tidore/Kupang/Tanjabtim) menuju Jakarta (Bandara Soetta).
-• *11 Des (Jum):* Penerbangan CGK → SZX, check-in hotel dan registrasi kontingen.
-• *12–13 Des (Sab-Min):* Pelaksanaan Kompetisi IYRC 2026 di Longgang International Arts Center, Shenzhen.
-• *14 Des (Sen):* Paket kompetisi selesai; sesi kunjungan edukatif / robotika Shenzhen, check-in hotel tambahan.
-• *15 Des (Sel):* Check-out hotel, transfer bandara SZX, penerbangan malam menuju Jakarta (tiba 23.20 WIB).
-• *16 Des (Rab):* Penerbangan lanjutan langsung kembali ke daerah asal masing-masing.
-
-📑 *4. TIMELINE & PENGURUSAN VISA CHINA*
-• *Waktu Pengurusan:* Disarankan diproses pada rentang *25 Oktober s.d. 15 November 2026* (±30 hari sebelum keberangkatan).
-• *Persyaratan Wajib:*
-  1. Paspor asli dengan masa berlaku minimal 6 bulan saat keberangkatan (min. Juni 2027).
-  2. Pasfoto resmi latar putih (33mm x 48mm).
-  3. Surat Undangan Resmi (*Invitation Letter*) dari penyelenggara.
-  4. Tiket penerbangan & konfirmasi hotel (disediakan tim).
-• *Pilihan Pengurusan:* Jalur standar online (±Rp 974.000) atau via Agen Visa Resmi (±Rp 1.600.000/orang).
-
-✉️ *5. SURAT UNDANGAN RESMI (INVITATION LETTER)*
-Surat undangan resmi berkop Robotic Explorer & IYRC atas nama siswa yang bersangkutan sudah diterbitkan oleh pihak kami sebagai dasar permohonan *Izin Perjalanan Dinas Luar Negeri* ke Pemda / Dinas Pendidikan / Sekolah.
-
-Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, kami siap membantu. Terima kasih atas dukungan Bapak/Ibu! 🙏🤖`;
-
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(whatsappText);
       alert("Teks balasan WhatsApp berhasil disalin ke clipboard!");
     } catch {
       alert("Gagal menyalin teks.");
@@ -348,18 +410,31 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
           <div className="space-y-2 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur border border-white/20 text-xs font-semibold text-indigo-200">
-              <Sparkles size={13} className="text-amber-300" /> The 14th International Youth Robotics and AI Competition
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur border border-white/20 text-xs font-semibold text-indigo-200">
+                <Sparkles size={13} className="text-amber-300" /> The 14th International Youth Robotics and AI Competition
+              </div>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-400/20 border border-amber-300/40 text-[11px] font-bold text-amber-200">
+                Dokumen Resmi: {IYRC_DATA_VERSION}
+              </span>
             </div>
             <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-              IYRC China 2026 – Shenzhen
+              IYRC China 2026 – Shenzhen (SNT Wilayah 2)
             </h1>
             <p className="text-indigo-200 text-sm leading-relaxed">
-              Longgang International Arts Center, Shenzhen · Kompetisi 12–13 Desember 2026 (Kontingen SNT Wilayah 2)
+              Longgang International Arts Center, Shenzhen · Kompetisi 12–13 Des 2026 · 4 Siswa (2 SMP & 2 SMA) + 2 Guru Pendamping
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              onClick={handleSyncLatest}
+              disabled={isSubmitting}
+              className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-lg shadow-amber-500/20 transition-all flex items-center gap-2"
+              title="Sinkronkan database ke dokumen terbaru 5 Nov 2026 tanpa menghapus pembayaran"
+            >
+              <RefreshCw size={15} /> Sinkron Data 5 Nov
+            </button>
             <button
               onClick={handleCopyWhatsApp}
               className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2"
@@ -376,7 +451,7 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
               onClick={handleResetDefault}
               disabled={isSubmitting}
               className="bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-400/30 font-semibold text-xs px-3.5 py-2.5 rounded-xl transition-all flex items-center gap-1.5"
-              title="Kembalikan ke data awal 3 siswa & 2 guru"
+              title="Reset penuh ke default 4 siswa & 2 guru (5 Nov 2026)"
             >
               <RotateCcw size={14} /> Reset Default
             </button>
@@ -399,7 +474,15 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
               activeTab === "kontingen" ? "bg-white text-indigo-900 shadow-md font-bold" : "text-white/80 hover:bg-white/10"
             }`}
           >
-            <Users size={15} /> Kontingen & Status Peserta ({participants.length})
+            <Users size={15} /> Kontingen & Peserta ({participants.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("pelatihan")}
+            className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === "pelatihan" ? "bg-white text-indigo-900 shadow-md font-bold" : "text-white/80 hover:bg-white/10"
+            }`}
+          >
+            <Hotel size={15} /> Pelatihan & Hotel Jakarta (3 Opsi)
           </button>
           <button
             onClick={() => setActiveTab("itinerary")}
@@ -434,21 +517,21 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
           {/* SIMULATION CONTROLLER CARD */}
           <div className="bg-white p-6 rounded-2xl border border-indigo-100 shadow-sm flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
             <div className="space-y-1">
-              <div className="flex items-center gap-2 text-indigo-700 font-bold text-sm">
+              <div className="flex flex-wrap items-center gap-2 text-indigo-700 font-bold text-sm">
                 <Calculator size={18} />
-                <span>Panel Simulasi Dinamis Peserta & Pendamping</span>
-                {(simSiswa !== actualSiswaCount || simPendamping !== actualPendampingCount) && (
+                <span>Panel Simulasi Dinamis Peserta, Pendamping & Opsi Study Tour</span>
+                {(simSiswa !== actualSiswaCount || simPendamping !== actualPendampingCount || studyTour) && (
                   <span className="text-[11px] bg-amber-100 text-amber-800 font-semibold px-2 py-0.5 rounded-full border border-amber-200">
                     Mode Simulasi Aktif
                   </span>
                 )}
               </div>
               <p className="text-xs text-slate-500">
-                Ubah jumlah siswa atau pendamping untuk melihat simulasi kalkulasi otomatis seluruh pos anggaran RAB secara langsung.
+                Ubah jumlah siswa, pendamping, atau aktifkan toggle <strong>Opsi Study Tour (14–16 Des)</strong> untuk melihat kalkulasi otomatis Rincian I & II.
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-4">
+            <div className="flex flex-wrap items-center gap-3.5">
               {/* Counter Siswa */}
               <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
                 <span className="text-xs font-bold text-slate-700">Siswa:</span>
@@ -485,6 +568,26 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
                 </button>
               </div>
 
+              {/* Toggle Study Tour 14-16 Des */}
+              <label
+                className={`flex items-center gap-2.5 px-3.5 py-2 rounded-xl border cursor-pointer transition-all select-none ${
+                  studyTour
+                    ? "bg-amber-50 border-amber-400 text-amber-900 shadow-sm"
+                    : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={studyTour}
+                  onChange={(e) => setStudyTour(e.target.checked)}
+                  className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-slate-300"
+                />
+                <div className="text-xs">
+                  <span className="font-extrabold block leading-tight">Opsi Study Tour (14–16 Des)</span>
+                  <span className="text-[10px] text-slate-500">+Rp6.500.000/orang (Pulang 16 Des via CAN)</span>
+                </div>
+              </label>
+
               {/* Action Buttons */}
               <button
                 onClick={handleApplySimulation}
@@ -494,15 +597,16 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
                 <CheckCircle2 size={15} /> Simpan Simulasi ke RAB
               </button>
 
-              {(simSiswa !== actualSiswaCount || simPendamping !== actualPendampingCount) && (
+              {(simSiswa !== actualSiswaCount || simPendamping !== actualPendampingCount || studyTour) && (
                 <button
                   onClick={() => {
                     setSimSiswa(actualSiswaCount);
                     setSimPendamping(actualPendampingCount);
+                    setStudyTour(false);
                   }}
                   className="text-xs text-slate-500 hover:text-slate-800 underline"
                 >
-                  Batal
+                  Reset Simulasi
                 </button>
               )}
             </div>
@@ -513,16 +617,18 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
             <Card className="border-l-4 border-l-indigo-600 shadow-sm bg-white">
               <CardHeader className="pb-2">
                 <CardTitle className="text-xs font-bold uppercase text-slate-500 flex items-center justify-between">
-                  Tanggungan Robotic Explorer
+                  Rincian I · Transfer ke Robotic Explorer
                   <Building size={16} className="text-indigo-600" />
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-xl font-extrabold text-indigo-700">
-                  {formatCurrency(currentSimulation.totalTanggunganRobotic)}
+                  {formatCurrency(currentSimulation.totalTransferRobotic)}
                 </div>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Biaya Paket Kompetisi ({simSiswa} Siswa + {simPendamping} Pendamping)
+                <p className="text-[11px] text-slate-500 mt-1">
+                  {studyTour
+                    ? `Termasuk Add-on Study Tour +${formatCurrency(currentSimulation.subtotalStudyTour)}`
+                    : `Paket Kompetisi (${simSiswa} Siswa + ${simPendamping} Pendamping) · Tanpa Study Tour`}
                 </p>
               </CardContent>
             </Card>
@@ -530,7 +636,7 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
             <Card className="border-l-4 border-l-rose-500 shadow-sm bg-white">
               <CardHeader className="pb-2">
                 <CardTitle className="text-xs font-bold uppercase text-slate-500 flex items-center justify-between">
-                  Tanggungan Peserta / SNT
+                  Rincian II · Estimasi Kemendikdasmen
                   <Users size={16} className="text-rose-500" />
                 </CardTitle>
               </CardHeader>
@@ -538,8 +644,8 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
                 <div className="text-xl font-extrabold text-rose-600">
                   {formatCurrency(currentSimulation.totalTanggunganPeserta)}
                 </div>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Perjalanan, Dokumen, Tiket CZ8056, Visa ({currentSimulation.totalPersonel} Orang)
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Tiket Domestik, CZ8056/CZ8353 & Visa ({currentSimulation.totalPersonel} Orang · Tidak Ditransfer)
                 </p>
               </CardContent>
             </Card>
@@ -547,7 +653,7 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
             <Card className="border-l-4 border-l-emerald-600 shadow-sm bg-white">
               <CardHeader className="pb-2">
                 <CardTitle className="text-xs font-bold uppercase text-slate-500 flex items-center justify-between">
-                  Beban Per Siswa
+                  Estimasi Total Per Siswa
                   <Sparkles size={16} className="text-emerald-600" />
                 </CardTitle>
               </CardHeader>
@@ -555,8 +661,8 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
                 <div className="text-xl font-extrabold text-emerald-700">
                   {formatCurrency(currentSimulation.biayaPerSiswa)}
                 </div>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Kompetisi {formatCurrency(30000000)} + Tiket/Visa {formatCurrency(currentSimulation.perPersonTravelFee)}
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Kompetisi {formatCurrency(currentSimulation.biayaKompetisiPerSiswa)} + Perjalanan {formatCurrency(currentSimulation.perPersonTravelFee)}
                 </p>
               </CardContent>
             </Card>
@@ -564,7 +670,7 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
             <Card className="border-l-4 border-l-violet-600 shadow-sm bg-white">
               <CardHeader className="pb-2">
                 <CardTitle className="text-xs font-bold uppercase text-slate-500 flex items-center justify-between">
-                  Beban Per Guru Pendamping
+                  Estimasi Total Per Pendamping
                   <Users size={16} className="text-violet-600" />
                 </CardTitle>
               </CardHeader>
@@ -572,26 +678,164 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
                 <div className="text-xl font-extrabold text-violet-700">
                   {formatCurrency(currentSimulation.biayaPerPendamping)}
                 </div>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Paket {formatCurrency(12000000)} + Tiket/Visa {formatCurrency(currentSimulation.perPersonTravelFee)}
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Paket {formatCurrency(currentSimulation.biayaKompetisiPerPendamping)} + Perjalanan {formatCurrency(currentSimulation.perPersonTravelFee)}
                 </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* REKENING TRANSFER & PERBANDINGAN STUDY TOUR + POS AKOMODASI PELATIHAN JAKARTA */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            {/* Rekening Transfer & Perbandingan Opsi Study Tour */}
+            <Card className="lg:col-span-7 border-indigo-200 bg-gradient-to-br from-indigo-50/50 via-white to-white shadow-sm">
+              <CardHeader className="pb-3 border-b border-indigo-100 flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm font-extrabold text-indigo-950 flex items-center gap-2">
+                    <Landmark size={17} className="text-indigo-600" /> Informasi Rekening Transfer (Rincian I – Biaya Kompetisi)
+                  </CardTitle>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Rekening resmi pembayaran Biaya Kompetisi kepada penyelenggara / Koordinator Wilayah 2
+                  </p>
+                </div>
+                <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-800">
+                  {IYRC_INFO.bankTransfer.bank} · {IYRC_INFO.bankTransfer.accountNumber}
+                </span>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-4 text-xs">
+                <div className="bg-white p-3.5 rounded-xl border border-indigo-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <div className="text-[11px] text-slate-500 font-semibold">Transfer ke Rekening {IYRC_INFO.bankTransfer.bank}:</div>
+                    <div className="text-base font-black text-slate-900 tracking-wide">
+                      {IYRC_INFO.bankTransfer.accountNumber} <span className="font-bold text-indigo-700">a.n. {IYRC_INFO.bankTransfer.accountHolder}</span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 italic mt-0.5">
+                      Terbilang: {terbilang(currentSimulation.totalTransferRobotic)}
+                    </div>
+                  </div>
+                  <div className="text-left sm:text-right shrink-0">
+                    <span className="text-[10px] font-bold uppercase text-indigo-600 block">Nominal Transfer Aktif</span>
+                    <span className="text-lg font-black text-indigo-700">{formatCurrency(currentSimulation.totalTransferRobotic)}</span>
+                  </div>
+                </div>
+
+                {/* Tabel Ringkas Tanpa vs Dengan Study Tour */}
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-xs border border-slate-200 rounded-xl overflow-hidden">
+                    <thead className="bg-slate-100 text-slate-700 font-bold">
+                      <tr>
+                        <th className="p-2 text-left">Komponen Simulasi ({simSiswa} Siswa + {simPendamping} Guru)</th>
+                        <th className={`p-2 text-right ${!studyTour ? "bg-indigo-100/80 text-indigo-950" : ""}`}>
+                          Tanpa Study Tour (11–14 Des)
+                        </th>
+                        <th className={`p-2 text-right ${studyTour ? "bg-amber-100/80 text-amber-950" : ""}`}>
+                          Dengan Study Tour (11–16 Des)
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 bg-white">
+                      <tr>
+                        <td className="p-2 font-semibold text-slate-700">Total Ditransfer ke Robotic Explorer (Rincian I)</td>
+                        <td className={`p-2 text-right font-bold ${!studyTour ? "bg-indigo-50/50 text-indigo-800" : "text-slate-700"}`}>
+                          {formatCurrency(currentSimulation.totalTanggunganRobotic)}
+                        </td>
+                        <td className={`p-2 text-right font-bold ${studyTour ? "bg-amber-50/60 text-amber-900" : "text-slate-700"}`}>
+                          {formatCurrency(currentSimulation.totalTanggunganRobotic + (simSiswa + simPendamping) * IYRC_PACKAGE.studyTourAddOn)}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="p-2 text-slate-600">Estimasi Perjalanan & Dokumen (Rincian II – Kemendikdasmen)</td>
+                        <td className="p-2 text-right text-slate-600">{formatCurrency(currentSimulation.totalTanggunganPeserta)}</td>
+                        <td className="p-2 text-right text-slate-600">{formatCurrency(currentSimulation.totalTanggunganPeserta)}</td>
+                      </tr>
+                      <tr className="bg-slate-50 font-extrabold text-slate-900">
+                        <td className="p-2">Total Kebutuhan Anggaran (I + II)</td>
+                        <td className={`p-2 text-right ${!studyTour ? "text-indigo-700" : ""}`}>
+                          {formatCurrency(currentSimulation.totalTanggunganRobotic + currentSimulation.totalTanggunganPeserta)}
+                        </td>
+                        <td className={`p-2 text-right ${studyTour ? "text-amber-800" : ""}`}>
+                          {formatCurrency(currentSimulation.totalTanggunganRobotic + (simSiswa + simPendamping) * IYRC_PACKAGE.studyTourAddOn + currentSimulation.totalTanggunganPeserta)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Pos Terpisah: Akomodasi Pelatihan Siswa di Jakarta */}
+            <Card className="lg:col-span-5 border-emerald-200 bg-gradient-to-br from-emerald-50/40 via-white to-white shadow-sm">
+              <CardHeader className="pb-3 border-b border-emerald-100 flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm font-extrabold text-emerald-950 flex items-center gap-2">
+                    <Hotel size={17} className="text-emerald-600" /> Pos Terpisah: Akomodasi Pelatihan Jakarta
+                  </CardTitle>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Tanggungan Robotic Explorer · 2 Kamar Twin × 26 Malam ({JAKARTA_TRAINING_STAY.checkIn} – {JAKARTA_TRAINING_STAY.checkOut})
+                  </p>
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                  Perbandingan (Belum Dipilih)
+                </span>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-2.5 text-xs">
+                {jakartaHotelComparison.map((h) => (
+                  <div
+                    key={h.id}
+                    className={`p-2.5 rounded-xl border flex items-center justify-between ${
+                      h.rekomendasi
+                        ? "bg-emerald-50/70 border-emerald-300"
+                        : "bg-white border-slate-200"
+                    }`}
+                  >
+                    <div>
+                      <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                        <span>Opsi {h.opsi}: {h.nama} ({h.bintang}★)</span>
+                        {h.rekomendasi && (
+                          <span className="text-[10px] bg-emerald-600 text-white px-1.5 py-0.2 rounded font-bold">
+                            Hemat
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-slate-500">
+                        {h.jarakKeVenue} ke Greenville · {formatCurrency(h.tarifDasarMalam)}/malam (+21% pajak/service)
+                      </div>
+                    </div>
+                    <div className="text-right font-extrabold text-slate-900 whitespace-nowrap pl-2">
+                      {formatCurrency(h.totalBiaya)}
+                      <span className="block text-[10px] font-normal text-slate-500">
+                        {formatCurrency(h.perSiswa)}/siswa
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                <div className="pt-1 flex items-center justify-between text-[11px] text-slate-500">
+                  <span>Periode digeser 1 hari (15 Nov–11 Des) agar malam H-1 terbang ter-cover.</span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("pelatihan")}
+                    className="text-emerald-700 hover:text-emerald-900 font-bold underline shrink-0 ml-2"
+                  >
+                    Lihat Detail &rarr;
+                  </button>
+                </div>
               </CardContent>
             </Card>
           </div>
 
           {/* DETAIL RAB TABLE */}
           <Card className="shadow-sm overflow-hidden border border-slate-200">
-            <CardHeader className="border-b bg-slate-50/70 py-4 flex flex-row items-center justify-between">
+            <CardHeader className="border-b bg-slate-50/70 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div>
                 <CardTitle className="text-base font-bold text-slate-900">
-                  Rincian Anggaran Biaya (RAB) Lengkap – Bagian A s.d. E
+                  Rincian Anggaran Biaya (RAB) Lengkap – Rincian I (Bagian A & B) & Rincian II (Bagian C, D, E)
                 </CardTitle>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Simulasi Komposisi: {simSiswa} Siswa (Paket A) + {simPendamping} Guru Pendamping
+                  Komposisi: {simSiswa} Siswa (Paket A · 3 Kategori Lomba) + {simPendamping} Guru Pendamping {studyTour ? "· Termasuk Opsi Study Tour (14–16 Des)" : "· Tanpa Study Tour (11–14 Des)"}
                 </p>
               </div>
-              <div className="text-right">
-                <span className="text-xs font-bold text-slate-500 uppercase">Total Keseluruhan:</span>
+              <div className="text-left sm:text-right">
+                <span className="text-xs font-bold text-slate-500 uppercase">Total Estimasi Kebutuhan (I + II):</span>
                 <div className="text-lg font-black text-slate-900">
                   {formatCurrency(currentSimulation.totalKeseluruhan)}
                 </div>
@@ -602,63 +846,137 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
                 <table className="min-w-full divide-y divide-slate-200 text-sm">
                   <thead className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                     <tr>
-                      <th className="px-5 py-3 text-left w-12">No</th>
-                      <th className="px-5 py-3 text-left">Uraian Biaya</th>
-                      <th className="px-5 py-3 text-center">Vol</th>
-                      <th className="px-5 py-3 text-center">Satuan</th>
-                      <th className="px-5 py-3 text-right">Harga Satuan</th>
-                      <th className="px-5 py-3 text-right bg-indigo-50/60 text-indigo-900">Tanggungan Robotic Explorer</th>
-                      <th className="px-5 py-3 text-right bg-rose-50/60 text-rose-900">Di Luar Tanggungan (Peserta/SNT)</th>
-                      <th className="px-5 py-3 text-left">Keterangan</th>
+                      <th className="px-4 py-3 text-left w-12">Kode</th>
+                      <th className="px-4 py-3 text-left">Uraian Komponen Biaya</th>
+                      <th className="px-4 py-3 text-center">Vol</th>
+                      <th className="px-4 py-3 text-center">Satuan</th>
+                      <th className="px-4 py-3 text-right">Harga Satuan</th>
+                      <th className="px-4 py-3 text-right bg-indigo-50/60 text-indigo-900">Rincian I · Transfer ke Robotic Explorer</th>
+                      <th className="px-4 py-3 text-right bg-rose-50/60 text-rose-900">Rincian II · Disiapkan Kemendikdasmen</th>
+                      <th className="px-4 py-3 text-left">Keterangan</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
                     {currentSimulation.items.map((item: any, idx: number) => {
                       const isFirstOfCategory = idx === 0 || item.kategori !== currentSimulation.items[idx - 1].kategori;
+                      const isRincianI = item.kategori === "A" || item.kategori === "B";
                       return (
                         <tr key={item.code} className="hover:bg-slate-50/60 transition-colors">
-                          <td className="px-5 py-3 font-semibold text-slate-700 whitespace-nowrap">{item.code}</td>
-                          <td className="px-5 py-3 font-medium text-slate-900">
+                          <td className="px-4 py-3 font-semibold text-slate-700 whitespace-nowrap">{item.code}</td>
+                          <td className="px-4 py-3 font-medium text-slate-900">
                             {item.uraian}
                             {isFirstOfCategory && (
-                              <span className="block text-[10px] uppercase font-bold text-indigo-600 mt-0.5">
-                                Pos {item.kategori} · {item.namaKategori}
+                              <span
+                                className={`block text-[10px] uppercase font-bold mt-0.5 ${
+                                  isRincianI ? "text-indigo-600" : "text-rose-600"
+                                }`}
+                              >
+                                {isRincianI ? "Rincian I" : "Rincian II"} · Bagian {item.kategori} — {item.namaKategori}
                               </span>
                             )}
                           </td>
-                          <td className="px-5 py-3 text-center font-bold text-slate-700">{item.volume}</td>
-                          <td className="px-5 py-3 text-center text-xs text-slate-500">{item.satuan}</td>
-                          <td className="px-5 py-3 text-right font-medium text-slate-700 whitespace-nowrap">
+                          <td className="px-4 py-3 text-center font-bold text-slate-700">{item.volume}</td>
+                          <td className="px-4 py-3 text-center text-xs text-slate-500">{item.satuan}</td>
+                          <td className="px-4 py-3 text-right font-medium text-slate-700 whitespace-nowrap">
                             {formatCurrency(item.hargaSatuan)}
                           </td>
-                          <td className="px-5 py-3 text-right font-bold text-indigo-700 bg-indigo-50/20 whitespace-nowrap">
+                          <td className="px-4 py-3 text-right font-bold text-indigo-700 bg-indigo-50/20 whitespace-nowrap">
                             {item.tanggunganRobotic > 0 ? formatCurrency(item.tanggunganRobotic) : "-"}
                           </td>
-                          <td className="px-5 py-3 text-right font-bold text-rose-600 bg-rose-50/20 whitespace-nowrap">
-                            {item.tanggunganPeserta > 0 ? formatCurrency(item.tanggunganPeserta) : "-"}
+                          <td className="px-4 py-3 text-right font-bold text-rose-600 bg-rose-50/20 whitespace-nowrap">
+                            {item.tanggunganPeserta > 0 ? formatCurrency(item.tanggunganPeserta) : item.hargaSatuan === 0 && !isRincianI ? "Rp 0" : "-"}
                           </td>
-                          <td className="px-5 py-3 text-xs text-slate-500 max-w-xs">{item.keterangan || "-"}</td>
+                          <td className="px-4 py-3 text-xs text-slate-500 max-w-xs">{item.keterangan || "-"}</td>
                         </tr>
                       );
                     })}
+
+                    {/* Baris Opsi Study Tour bila diaktifkan */}
+                    {studyTour && (
+                      <>
+                        <tr className="bg-amber-50/50 hover:bg-amber-50 transition-colors">
+                          <td className="px-4 py-3 font-semibold text-amber-900 whitespace-nowrap">F.1</td>
+                          <td className="px-4 py-3 font-medium text-slate-900">
+                            Add-on Study Tour Siswa (14–16 Des 2026)
+                            <span className="block text-[10px] uppercase font-bold text-amber-700 mt-0.5">
+                              Opsi Tambahan · Hotel, makan, bus & tiket wisata (kembali 16 Des via Guangzhou CAN)
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center font-bold text-slate-700">{simSiswa}</td>
+                          <td className="px-4 py-3 text-center text-xs text-slate-500">siswa</td>
+                          <td className="px-4 py-3 text-right font-medium text-slate-700 whitespace-nowrap">
+                            {formatCurrency(IYRC_PACKAGE.studyTourAddOn)}
+                          </td>
+                          <td className="px-4 py-3 text-right font-bold text-amber-800 bg-amber-100/50 whitespace-nowrap">
+                            {formatCurrency(simSiswa * IYRC_PACKAGE.studyTourAddOn)}
+                          </td>
+                          <td className="px-4 py-3 text-right text-slate-400">-</td>
+                          <td className="px-4 py-3 text-xs text-slate-600 max-w-xs">
+                            Opsi Study Tour 2 hari tambahan setelah kompetisi
+                          </td>
+                        </tr>
+                        <tr className="bg-amber-50/50 hover:bg-amber-50 transition-colors">
+                          <td className="px-4 py-3 font-semibold text-amber-900 whitespace-nowrap">F.2</td>
+                          <td className="px-4 py-3 font-medium text-slate-900">
+                            Add-on Study Tour Guru Pendamping (14–16 Des 2026)
+                          </td>
+                          <td className="px-4 py-3 text-center font-bold text-slate-700">{simPendamping}</td>
+                          <td className="px-4 py-3 text-center text-xs text-slate-500">orang</td>
+                          <td className="px-4 py-3 text-right font-medium text-slate-700 whitespace-nowrap">
+                            {formatCurrency(IYRC_PACKAGE.studyTourAddOn)}
+                          </td>
+                          <td className="px-4 py-3 text-right font-bold text-amber-800 bg-amber-100/50 whitespace-nowrap">
+                            {formatCurrency(simPendamping * IYRC_PACKAGE.studyTourAddOn)}
+                          </td>
+                          <td className="px-4 py-3 text-right text-slate-400">-</td>
+                          <td className="px-4 py-3 text-xs text-slate-600 max-w-xs">
+                            Opsi Study Tour guru pendamping
+                          </td>
+                        </tr>
+                      </>
+                    )}
                   </tbody>
                   <tfoot className="bg-slate-100 font-extrabold text-slate-900 text-sm">
                     <tr>
-                      <td colSpan={5} className="px-5 py-4 text-right uppercase tracking-wider">
-                        Total Anggaran:
+                      <td colSpan={5} className="px-4 py-4 text-right uppercase tracking-wider">
+                        Total Anggaran {studyTour ? "(Dengan Study Tour)" : "(Tanpa Study Tour)"}:
                       </td>
-                      <td className="px-5 py-4 text-right text-indigo-700 bg-indigo-100/60">
-                        {formatCurrency(currentSimulation.totalTanggunganRobotic)}
+                      <td className="px-4 py-4 text-right text-indigo-700 bg-indigo-100/60 whitespace-nowrap">
+                        {formatCurrency(currentSimulation.totalTransferRobotic)}
                       </td>
-                      <td className="px-5 py-4 text-right text-rose-700 bg-rose-100/60">
+                      <td className="px-4 py-4 text-right text-rose-700 bg-rose-100/60 whitespace-nowrap">
                         {formatCurrency(currentSimulation.totalTanggunganPeserta)}
                       </td>
-                      <td className="px-5 py-4 text-xs font-semibold text-slate-600">
-                        Total: {formatCurrency(currentSimulation.totalKeseluruhan)}
+                      <td className="px-4 py-4 text-xs font-semibold text-slate-700 whitespace-nowrap">
+                        Total I + II: {formatCurrency(currentSimulation.totalKeseluruhan)}
                       </td>
                     </tr>
                   </tfoot>
                 </table>
+              </div>
+
+              {/* Catatan & Pengesahan Dokumen RAB */}
+              <div className="p-5 bg-slate-50 border-t border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-600">
+                <div className="space-y-1">
+                  <p className="font-bold text-slate-800">Catatan Resmi RAB (5 November 2026):</p>
+                  <ul className="list-disc pl-4 space-y-0.5 text-[11px]">
+                    <li>Harga tiket pesawat internasional mengacu pada tarif grup China Southern Airlines per Oktober 2026 (CZ8056 & CZ8353) dan dapat berubah sesuai ketersediaan kursi saat penerbitan tiket.</li>
+                    <li>Biaya pendaftaran kategori kompetisi (A.5 = 3 kategori × USD 250) menggunakan kurs acuan USD 1 = Rp18.000.</li>
+                    <li>Rincian II (Bagian C, D, dan E) merupakan estimasi untuk keperluan penganggaran internal Kemendikdasmen dan tidak ditransfer ke Robotic Explorer.</li>
+                  </ul>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-6 text-right">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Disusun Oleh</span>
+                    <span className="font-bold text-slate-800">{IYRC_INFO.preparedBy.nama}</span>
+                    <span className="block text-[11px] text-slate-500">{IYRC_INFO.preparedBy.jabatan}</span>
+                  </div>
+                  <div className="border-l border-slate-200 pl-6">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Menyetujui</span>
+                    <span className="font-bold text-slate-800">{IYRC_INFO.approvedBy.nama}</span>
+                    <span className="block text-[11px] text-slate-500">{IYRC_INFO.approvedBy.jabatan}</span>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -670,17 +988,40 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h2 className="text-xl font-bold text-slate-900">Daftar Kontingen & Status Pembayaran</h2>
+              <h2 className="text-xl font-bold text-slate-900">Daftar Kontingen & Status Peserta ({participants.length} Orang)</h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Kelola nama siswa dan guru pendamping, nomor paspor/NISN, serta monitoring pelunasan biaya perjalanan.
+                Komposisi Resmi RAB 5 Nov 2026: 4 Siswa (2 SMP & 2 SMA) + 2 Guru Pendamping. Klik ikon pensil untuk mengubah nama (termasuk placeholder SNT 15 Buton Tengah), paspor, atau status pembayaran.
               </p>
             </div>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-2 self-start"
-            >
-              <Plus size={16} /> Tambah Peserta / Pendamping
-            </button>
+            <div className="flex items-center gap-2 self-start">
+              <button
+                onClick={handleSyncLatest}
+                disabled={isSubmitting}
+                className="bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold text-xs px-3.5 py-2.5 rounded-xl transition-all flex items-center gap-1.5"
+              >
+                <RefreshCw size={14} /> Sinkron Data 5 Nov
+              </button>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-2"
+              >
+                <Plus size={16} /> Tambah Peserta / Pendamping
+              </button>
+            </div>
+          </div>
+
+          {/* Catatan Pendamping Kementerian (A4) */}
+          <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-amber-950">
+            <div className="space-y-0.5">
+              <div className="font-extrabold flex items-center gap-2 text-amber-900">
+                <ShieldCheck size={16} className="text-amber-600" />
+                <span>Catatan Pendamping Kementerian (Kemendikdasmen) & Pergantian Pendamping</span>
+              </div>
+              <p className="text-[11px] text-amber-800 leading-relaxed">
+                • Dalam dokumen <em>Informasi Perjalanan Delegasi</em> tercantum 1 slot opsional <strong>[Nama – bila ada] (Pendamping Kementerian – Kemendikdasmen)</strong>. Sesuai keputusan, slot ini belum dimasukkan ke perhitungan RAB 6 orang dan ditampilkan sebagai catatan informasi.<br />
+                • Guru Pendamping SNT 5 Tidore Kepulauan telah diperbarui menjadi <strong>Farid A. M, S.Sos., M.M.</strong> (Kepala Sekolah), menggantikan Dr. Almindo H. Ginting.
+              </p>
+            </div>
           </div>
 
           <Card className="shadow-sm overflow-hidden border border-slate-200">
@@ -690,10 +1031,10 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
                   <thead className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                     <tr>
                       <th className="px-5 py-3.5 text-left">Nama Peserta</th>
-                      <th className="px-5 py-3.5 text-center">Peran</th>
-                      <th className="px-5 py-3.5 text-left">SNT & Sekolah Asal</th>
-                      <th className="px-5 py-3.5 text-right">Biaya Kompetisi</th>
-                      <th className="px-5 py-3.5 text-right">Tiket & Visa (Beban SNT)</th>
+                      <th className="px-5 py-3.5 text-center">Peran & Jenjang</th>
+                      <th className="px-5 py-3.5 text-left">SNT & Keterangan</th>
+                      <th className="px-5 py-3.5 text-right">Biaya Kompetisi (Rincian I)</th>
+                      <th className="px-5 py-3.5 text-right">Estimasi Perjalanan (Rincian II)</th>
                       <th className="px-5 py-3.5 text-center">Status Bayar</th>
                       <th className="px-5 py-3.5 text-right">Terbayar</th>
                       <th className="px-5 py-3.5 text-center">Aksi</th>
@@ -702,12 +1043,20 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
                   <tbody className="divide-y divide-slate-100 bg-white">
                     {participants.map((p) => {
                       const sisa = p.biayaPerjalananVisa - (p.nominalTerbayar || 0);
+                      const isPlaceholder = p.nama.includes("[");
                       return (
-                        <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
+                        <tr key={p.id} className={`hover:bg-slate-50/60 transition-colors ${isPlaceholder ? "bg-amber-50/30" : ""}`}>
                           <td className="px-5 py-4 font-bold text-slate-900 whitespace-nowrap">
-                            {p.nama}
+                            <div className="flex items-center gap-2">
+                              <span>{p.nama}</span>
+                              {isPlaceholder && (
+                                <span className="text-[10px] bg-amber-100 text-amber-800 border border-amber-300 px-2 py-0.5 rounded-full font-bold">
+                                  Klik Edit untuk Isi Nama
+                                </span>
+                              )}
+                            </div>
                             <div className="text-xs font-normal text-slate-400 mt-0.5">
-                              Paspor: {p.nomorPaspor || "Belum ada"} · NISN/NIP: {p.nisnOrNip || "-"}
+                              Paspor: {p.nomorPaspor || "Belum diisi"} · NISN/NIP: {p.nisnOrNip || "-"}
                             </div>
                           </td>
                           <td className="px-5 py-4 text-center whitespace-nowrap">
@@ -725,7 +1074,7 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
                             <div className="font-semibold text-xs text-indigo-800">{p.sntAsal}</div>
                             <div className="text-xs text-slate-500">{p.sekolahAsal || "-"}</div>
                           </td>
-                          <td className="px-5 py-4 text-right font-semibold text-slate-700 whitespace-nowrap">
+                          <td className="px-5 py-4 text-right font-semibold text-indigo-700 whitespace-nowrap">
                             {formatCurrency(p.biayaKompetisi)}
                           </td>
                           <td className="px-5 py-4 text-right font-bold text-rose-600 whitespace-nowrap">
@@ -754,6 +1103,11 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
                                 onClick={() => {
                                   setSelectedParticipant(p);
                                   setPaymentForm({
+                                    nama: p.nama || "",
+                                    sntAsal: p.sntAsal || "",
+                                    sekolahAsal: p.sekolahAsal || "",
+                                    nisnOrNip: p.nisnOrNip || "",
+                                    nomorPaspor: p.nomorPaspor || "",
                                     statusPembayaran: p.statusPembayaran || "BELUM_LUNAS",
                                     nominalTerbayar: p.nominalTerbayar || 0,
                                     catatan: p.catatan || "",
@@ -761,7 +1115,7 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
                                   setShowEditPaymentModal(true);
                                 }}
                                 className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
-                                title="Edit Status Pembayaran"
+                                title="Edit Nama, Identitas & Status Pembayaran"
                               >
                                 <Edit2 size={15} />
                               </button>
@@ -785,17 +1139,165 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
         </div>
       )}
 
-      {/* ==================== TAB 3: ITINERARY, PENERBANGAN & VISA ==================== */}
+      {/* ==================== TAB 3: PELATIHAN & HOTEL JAKARTA (3 OPSI) ==================== */}
+      {activeTab === "pelatihan" && (
+        <div className="space-y-6">
+          {/* Header Ringkasan Akomodasi Pelatihan */}
+          <div className="bg-white p-6 rounded-2xl border border-emerald-200 shadow-sm space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-100 pb-4">
+              <div>
+                <div className="inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 mb-2">
+                  <Hotel size={14} /> Pos Terpisah · Tanggungan Robotic Explorer
+                </div>
+                <h2 className="text-xl font-extrabold text-slate-900">
+                  RAB Akomodasi Hotel Pelatihan Intensif Siswa di Jakarta
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Perbandingan 3 opsi hotel sekitar <strong>{JAKARTA_TRAINING_STAY.lokasiPelatihan}</strong> (Status: <strong>Belum Dipilih – Menampilkan Perbandingan</strong>)
+                </p>
+              </div>
+              <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl p-3.5 text-xs space-y-1 shrink-0">
+                <div className="font-extrabold text-emerald-950">Parameter Menginap (Disinkronkan):</div>
+                <div className="text-slate-700">• Check-in: <strong>{JAKARTA_TRAINING_STAY.checkIn}</strong></div>
+                <div className="text-slate-700">• Check-out: <strong>{JAKARTA_TRAINING_STAY.checkOut}</strong></div>
+                <div className="text-slate-700">• Volume: <strong>{JAKARTA_TRAINING_STAY.jumlahKamar} Kamar Twin × {JAKARTA_TRAINING_STAY.jumlahMalam} Malam = {JAKARTA_TRAINING_STAY.totalKamarMalam} Kamar-Malam</strong></div>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-950 flex items-start gap-2.5">
+              <Sparkles size={16} className="text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <strong>Catatan Penyesuaian Tanggal ({JAKARTA_TRAINING_STAY.checkIn} – {JAKARTA_TRAINING_STAY.checkOut}):</strong>{" "}
+                {JAKARTA_TRAINING_STAY.catatanSinkronisasi}
+              </div>
+            </div>
+
+            {/* 3 Kartu Perbandingan Hotel Grogol */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 pt-2">
+              {jakartaHotelComparison.map((h) => (
+                <Card
+                  key={h.id}
+                  className={`shadow-sm overflow-hidden transition-all ${
+                    h.rekomendasi
+                      ? "border-2 border-emerald-500 ring-2 ring-emerald-500/10"
+                      : "border border-slate-200"
+                  }`}
+                >
+                  <CardHeader className={`${h.rekomendasi ? "bg-emerald-50/70" : "bg-slate-50/70"} border-b pb-3`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-extrabold uppercase tracking-wider text-slate-600">
+                        Opsi {h.opsi} · Bintang {h.bintang} ({h.bintang}★)
+                      </span>
+                      {h.rekomendasi && (
+                        <span className="text-[10px] font-extrabold bg-emerald-600 text-white px-2.5 py-0.5 rounded-full">
+                          Rekomendasi Efisiensi
+                        </span>
+                      )}
+                    </div>
+                    <CardTitle className="text-base font-extrabold text-slate-900 mt-1">{h.nama}</CardTitle>
+                    <p className="text-[11px] text-slate-500">{h.alamat}</p>
+                  </CardHeader>
+                  <CardContent className="pt-4 space-y-3 text-xs">
+                    <div className="flex items-center justify-between text-slate-600 border-b pb-2">
+                      <span>Jarak ke Tempat Pelatihan:</span>
+                      <strong className="text-slate-900">{h.jarakKeVenue}</strong>
+                    </div>
+                    <div className="flex items-center justify-between text-slate-600 border-b pb-2">
+                      <span>Tipe Kamar:</span>
+                      <strong className="text-slate-900">{h.tipeKamar}</strong>
+                    </div>
+                    <div className="space-y-1.5 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">1.1 Sewa Kamar ({h.kamarMalam} kmr-mlm × {formatCurrency(h.tarifDasarMalam)}):</span>
+                        <span className="font-bold text-slate-800">{formatCurrency(h.sewaKamar)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">1.2 Service Charge (10%):</span>
+                        <span className="font-semibold text-slate-700">{formatCurrency(h.serviceCharge)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">1.3 Pajak Hotel / PBJT (10%):</span>
+                        <span className="font-semibold text-slate-700">{formatCurrency(h.pajakPbjt)}</span>
+                      </div>
+                      <div className="flex justify-between pt-2 border-t border-slate-200 text-sm font-black text-indigo-900">
+                        <span>Total 26 Malam (2 Kamar):</span>
+                        <span>{formatCurrency(h.totalBiaya)}</span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center bg-indigo-50/50 p-2.5 rounded-xl border border-indigo-100">
+                      <div>
+                        <span className="text-[10px] text-slate-500 block">Nett/Kamar/Mlm</span>
+                        <span className="font-extrabold text-slate-800 text-[11px]">{formatCurrency(h.tarifEfektifKamarMalam)}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 block">Per Siswa (26 mlm)</span>
+                        <span className="font-extrabold text-indigo-700 text-[11px]">{formatCurrency(h.perSiswa)}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 block">Per Siswa/Mlm</span>
+                        <span className="font-extrabold text-slate-800 text-[11px]">{formatCurrency(h.perSiswaPerMalam)}</span>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-slate-500 italic leading-relaxed">{h.catatan}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+
+          {/* Jadwal Pelatihan Intensif 4 Pekan (15 Nov - 9 Des 2026) */}
+          <Card className="shadow-sm border border-slate-200">
+            <CardHeader className="border-b bg-slate-50/70 py-4">
+              <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <GraduationCap size={18} className="text-indigo-600" /> Program Pelatihan Intensif Siswa di Jakarta (15 November – 9 Desember 2026)
+              </CardTitle>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Total 4 Pekan · 19 Sesi @ 4 Jam · Lokasi: Robotic Explorer Center, Greenville Blok AL No. 1A–B, Jakarta Barat
+              </p>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200 text-xs">
+                  <thead className="bg-slate-50 font-bold text-slate-600 uppercase">
+                    <tr>
+                      <th className="px-5 py-3 text-left w-28">Pekan</th>
+                      <th className="px-5 py-3 text-left w-48">Periode Tanggal</th>
+                      <th className="px-5 py-3 text-center w-28">Jumlah Sesi</th>
+                      <th className="px-5 py-3 text-left">Fokus Materi & Persiapan Lomba (3 Kategori)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {TRAINING_WEEKS.map((w) => (
+                      <tr key={w.minggu} className="hover:bg-slate-50/60">
+                        <td className="px-5 py-3.5 font-extrabold text-indigo-800 whitespace-nowrap">{w.minggu}</td>
+                        <td className="px-5 py-3.5 font-semibold text-slate-800 whitespace-nowrap">{w.periode}</td>
+                        <td className="px-5 py-3.5 text-center">
+                          <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 font-bold border border-indigo-200">
+                            {w.jumlahSesi}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3.5 text-slate-700 leading-relaxed">{w.fokusMateri}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ==================== TAB 4: ITINERARY, PENERBANGAN & VISA ==================== */}
       {activeTab === "itinerary" && (
         <div className="space-y-6">
           {/* HEADER ACTION BANNER */}
           <div className="bg-white p-5 rounded-2xl border border-indigo-100 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Calendar size={18} className="text-indigo-600" /> Rencana Perjalanan & Jadwal Kegiatan Lomba
+                <Calendar size={18} className="text-indigo-600" /> Informasi Perjalanan Delegasi & Jadwal Kegiatan Lomba (Versi 5 Nov 2026)
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Rundown lengkap penerbangan (CZ8056 & CZ8353), hotel, venue kompetisi di Longgang Shenzhen, dan timeline harian kontingen.
+                Rundown resmi penerbangan China Southern (CZ8056 & CZ8353), Zhongbao International Hotel Shenzhen, timeline Visa CVASC, serta Opsi Study Tour (14–16 Des).
               </p>
             </div>
             <button
@@ -807,8 +1309,8 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
             </button>
           </div>
 
-          {/* FLIGHT CARDS */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* FLIGHT & HOTEL CARDS */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             <Card className="border-indigo-200 shadow-sm bg-gradient-to-br from-white to-indigo-50/30">
               <CardHeader className="pb-3 border-b border-indigo-100">
                 <div className="flex items-center justify-between">
@@ -817,25 +1319,25 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
                   </span>
                   <span className="text-xs font-semibold text-slate-500">Jumat, 11 Des 2026</span>
                 </div>
-                <CardTitle className="text-lg font-bold text-slate-900 mt-2 flex items-center gap-2">
+                <CardTitle className="text-base font-bold text-slate-900 mt-2 flex items-center gap-2">
                   <Plane size={18} className="text-indigo-600 rotate-45" /> China Southern CZ8056
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-4 space-y-3 text-sm">
                 <div className="flex items-center justify-between font-bold text-slate-800">
                   <div>
-                    <div className="text-xl font-extrabold text-indigo-700">09.05 WIB</div>
+                    <div className="text-lg font-extrabold text-indigo-700">09.05 WIB</div>
                     <div className="text-xs text-slate-500">Jakarta (CGK) · T3</div>
                   </div>
-                  <ArrowRight size={20} className="text-indigo-400" />
+                  <ArrowRight size={18} className="text-indigo-400" />
                   <div className="text-right">
-                    <div className="text-xl font-extrabold text-indigo-700">15.25 CST</div>
+                    <div className="text-lg font-extrabold text-indigo-700">15.25 CST</div>
                     <div className="text-xs text-slate-500">Shenzhen (SZX) · T3</div>
                   </div>
                 </div>
                 <div className="pt-2 text-xs text-slate-500 border-t border-indigo-100 flex items-center justify-between">
-                  <span>Pesawat: Airbus A320neo</span>
-                  <span>Durasi: ±5 Jam 20 Menit</span>
+                  <span>Airbus A320neo · Non-stop</span>
+                  <span>Durasi: 5j 20m</span>
                 </div>
               </CardContent>
             </Card>
@@ -844,130 +1346,193 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
               <CardHeader className="pb-3 border-b border-violet-100">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-violet-700 bg-violet-100/70 px-2.5 py-1 rounded-full">
-                    Penerbangan Kepulangan
+                    Kepulangan (Tanpa Study Tour)
                   </span>
-                  <span className="text-xs font-semibold text-slate-500">Selasa, 15 Des 2026</span>
+                  <span className="text-xs font-semibold text-slate-500">Senin, 14 Des 2026</span>
                 </div>
-                <CardTitle className="text-lg font-bold text-slate-900 mt-2 flex items-center gap-2">
-                  <Plane size={18} className="text-violet-600 -rotate-45" /> China Southern CZ8353 (Estimasi)
+                <CardTitle className="text-base font-bold text-slate-900 mt-2 flex items-center gap-2">
+                  <Plane size={18} className="text-violet-600 -rotate-45" /> China Southern CZ8353
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-4 space-y-3 text-sm">
                 <div className="flex items-center justify-between font-bold text-slate-800">
                   <div>
-                    <div className="text-xl font-extrabold text-violet-700">19.05 CST</div>
-                    <div className="text-xs text-slate-500">Shenzhen (SZX)</div>
+                    <div className="text-lg font-extrabold text-violet-700">19.05 CST</div>
+                    <div className="text-xs text-slate-500">Shenzhen (SZX) · T3</div>
                   </div>
-                  <ArrowRight size={20} className="text-violet-400" />
+                  <ArrowRight size={18} className="text-violet-400" />
                   <div className="text-right">
-                    <div className="text-xl font-extrabold text-violet-700">23.20 WIB</div>
+                    <div className="text-lg font-extrabold text-violet-700">23.20 WIB</div>
                     <div className="text-xs text-slate-500">Jakarta (CGK) · T3</div>
                   </div>
                 </div>
                 <div className="pt-2 text-xs text-slate-500 border-t border-violet-100 flex items-center justify-between">
-                  <span>Penerbangan Malam Langsung</span>
-                  <span>Lanjut terbang ke SNT asal tgl 16 Des</span>
+                  <span>Airbus A321neo · 5j 15m</span>
+                  <span>Subuh 15 Des ke daerah asal</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-emerald-200 shadow-sm bg-gradient-to-br from-white to-emerald-50/30">
+              <CardHeader className="pb-3 border-b border-emerald-100">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100/70 px-2.5 py-1 rounded-full">
+                    Hotel Resmi Shenzhen
+                  </span>
+                  <span className="text-xs font-semibold text-slate-500">11–14 Des (3 Malam)</span>
+                </div>
+                <CardTitle className="text-base font-bold text-slate-900 mt-2 flex items-center gap-2">
+                  <Hotel size={18} className="text-emerald-600" /> Zhongbao International Hotel
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-2 text-xs text-slate-600">
+                <div className="font-bold text-slate-900">深圳中保国际酒店 · Longhua District</div>
+                <div>No. 21 Donghuan 2nd Road, Longhua District, Shenzhen, Guangdong</div>
+                <div className="pt-2 border-t border-emerald-100 flex items-center justify-between text-slate-500">
+                  <span>±15 km ke Venue Longgang</span>
+                  <span className="font-semibold text-emerald-700">Paket A.4 & B.1</span>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* ITINERARY TIMELINE */}
+          {/* ITINERARY UTAMA (10-15 DESEMBER 2026) */}
           <Card className="shadow-sm border border-slate-200">
-            <CardHeader className="border-b bg-slate-50/60 py-4">
-              <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Calendar size={18} className="text-indigo-600" /> Rencana Perjalanan Lengkap (10–16 Desember 2026)
-              </CardTitle>
+            <CardHeader className="border-b bg-slate-50/60 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div>
+                <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Calendar size={18} className="text-indigo-600" /> Rencana Perjalanan Utama (Kamis, 10 Des – Selasa, 15 Des 2026)
+                </CardTitle>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Jadwal resmi keberangkatan, kompetisi di Longgang International Arts Center, dan kepulangan reguler (Tanpa Study Tour)
+                </p>
+              </div>
+              <span className="text-xs font-bold bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full">
+                Paket Utama · 4H3M di Shenzhen
+              </span>
             </CardHeader>
-            <CardContent className="p-6">
-              <div className="relative border-l-2 border-indigo-200 ml-4 space-y-8">
-                <div className="relative pl-6">
-                  <div className="absolute -left-2.5 top-0 w-5 h-5 rounded-full bg-indigo-600 border-4 border-white shadow-sm" />
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded">10 Des 2026 (Kamis)</span>
-                    <span className="text-xs font-semibold text-slate-500">Perjalanan Domestik</span>
-                  </div>
-                  <h4 className="text-sm font-bold text-slate-900 mt-1">Terbang dari Daerah Asal ke Jakarta</h4>
-                  <p className="text-xs text-slate-600 mt-1">
-                    Peserta dan guru pendamping terbang dari bandara asal (Tidore via Ternate, Kupang, Tanjung Jabung Timur via Jambi) menuju Bandara Soekarno-Hatta (CGK). Langsung berkumpul di Jakarta tanpa menginap.
-                  </p>
-                </div>
-
-                <div className="relative pl-6">
-                  <div className="absolute -left-2.5 top-0 w-5 h-5 rounded-full bg-emerald-600 border-4 border-white shadow-sm" />
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">11 Des 2026 (Jumat)</span>
-                    <span className="text-xs font-semibold text-emerald-700 font-bold">Menginap di Hotel Paket</span>
-                  </div>
-                  <h4 className="text-sm font-bold text-slate-900 mt-1">Penerbangan Jakarta → Shenzhen & Registrasi</h4>
-                  <p className="text-xs text-slate-600 mt-1">
-                    Pukul 09.05 WIB terbang dengan CZ8056 menuju Shenzhen (tiba 15.25 CST). Penjemputan van bandara menuju hotel resmi kompetisi, check-in, dan pengambilan kit registrasi peserta.
-                  </p>
-                </div>
-
-                <div className="relative pl-6">
-                  <div className="absolute -left-2.5 top-0 w-5 h-5 rounded-full bg-amber-500 border-4 border-white shadow-sm" />
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded">12–13 Des 2026 (Sabtu–Minggu)</span>
-                    <span className="text-xs font-semibold text-amber-700 font-bold">Menginap di Hotel Paket</span>
-                  </div>
-                  <h4 className="text-sm font-bold text-slate-900 mt-1">Pelaksanaan The 14th IYRC China 2026</h4>
-                  <p className="text-xs text-slate-600 mt-1">
-                    Kompetisi Robotika dan AI bertaraf internasional di Longgang International Arts Center, Shenzhen. Presentasi karya, pertandingan, serta awarding ceremony.
-                  </p>
-                </div>
-
-                <div className="relative pl-6">
-                  <div className="absolute -left-2.5 top-0 w-5 h-5 rounded-full bg-violet-600 border-4 border-white shadow-sm" />
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold bg-violet-100 text-violet-800 px-2 py-0.5 rounded">14 Des 2026 (Senin)</span>
-                    <span className="text-xs font-semibold text-violet-700 font-bold">Menginap di Hotel Shenzhen (Luar Paket)</span>
-                  </div>
-                  <h4 className="text-sm font-bold text-slate-900 mt-1">Paket Selesai & Hari Eksplorasi Edukatif</h4>
-                  <p className="text-xs text-slate-600 mt-1">
-                    Paket resmi berakhir. Kontingen check-out dan pindah ke hotel di pusat kota Shenzhen (3 kamar). Agenda bebas terarah untuk eksplorasi teknologi dan ekosistem inovasi Shenzhen.
-                  </p>
-                </div>
-
-                <div className="relative pl-6">
-                  <div className="absolute -left-2.5 top-0 w-5 h-5 rounded-full bg-indigo-600 border-4 border-white shadow-sm" />
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded">15–16 Des 2026 (Selasa–Rabu)</span>
-                    <span className="text-xs font-semibold text-slate-500">Perjalanan Pulang</span>
-                  </div>
-                  <h4 className="text-sm font-bold text-slate-900 mt-1">Penerbangan Shenzhen → Jakarta → Daerah Asal</h4>
-                  <p className="text-xs text-slate-600 mt-1">
-                    Pukul 19.05 CST terbang kembali dengan CZ8353 menuju Jakarta (tiba 23.20 WIB). Pada 16 Desember pagi langsung melanjutkan penerbangan ke bandara daerah asal masing-masing.
-                  </p>
-                </div>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200 text-xs">
+                  <thead className="bg-slate-50 font-bold text-slate-600 uppercase">
+                    <tr>
+                      <th className="px-4 py-3 text-left w-36">Hari / Tanggal</th>
+                      <th className="px-4 py-3 text-left w-28">Waktu</th>
+                      <th className="px-4 py-3 text-left">Kegiatan</th>
+                      <th className="px-4 py-3 text-left w-56">Lokasi / Keterangan</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {MAIN_ITINERARY.map((row, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/60">
+                        <td className="px-4 py-3 font-bold text-indigo-900 whitespace-nowrap">{row.hariTanggal}</td>
+                        <td className="px-4 py-3 font-semibold text-slate-700 whitespace-nowrap">{row.waktu}</td>
+                        <td className="px-4 py-3 text-slate-800">{row.kegiatan}</td>
+                        <td className="px-4 py-3 text-slate-500">{row.lokasiKeterangan}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </CardContent>
           </Card>
 
-          {/* VISA APPLICATION GUIDE */}
-          <Card className="border-amber-200 bg-amber-50/40 shadow-sm">
-            <CardHeader className="pb-3 border-b border-amber-200">
-              <CardTitle className="text-sm font-bold text-amber-900 flex items-center gap-2">
-                <ShieldCheck size={18} className="text-amber-600" /> Panduan & Jadwal Pengurusan Visa China
-              </CardTitle>
+          {/* OPSI TAMBAHAN STUDY TOUR (14-16 DESEMBER 2026) */}
+          <Card className="shadow-sm border border-amber-200 bg-amber-50/20">
+            <CardHeader className="border-b border-amber-200 bg-amber-50/60 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div>
+                <CardTitle className="text-base font-bold text-amber-950 flex items-center gap-2">
+                  <Sparkles size={18} className="text-amber-600" /> Opsi Tambahan: Program Study Tour Shenzhen (Senin, 14 Des – Rabu, 16 Des 2026)
+                </CardTitle>
+                <p className="text-xs text-amber-800 mt-0.5">
+                  Biaya Tambahan: <strong>+Rp6.500.000 / orang</strong> (+Rp39.000.000 untuk 6 orang) · Kepulangan melalui Bandara Guangzhou Baiyun (CAN)
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setStudyTour(!studyTour);
+                  setActiveTab("rab");
+                }}
+                className="text-xs font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 px-3.5 py-2 rounded-xl transition-all shrink-0"
+              >
+                {studyTour ? "Study Tour Aktif di Simulasi RAB" : "Simulasikan Study Tour di RAB"}
+              </button>
             </CardHeader>
-            <CardContent className="pt-4 space-y-3 text-xs text-amber-950">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white p-3.5 rounded-xl border border-amber-200 shadow-sm">
-                  <span className="font-bold text-amber-800 block mb-1">⏱️ Waktu Pengurusan:</span>
-                  20 Oktober – 10 November 2026 (30–45 hari sebelum jadwal keberangkatan 11 Des).
-                </div>
-                <div className="bg-white p-3.5 rounded-xl border border-amber-200 shadow-sm">
-                  <span className="font-bold text-amber-800 block mb-1">📋 Dokumen Wajib:</span>
-                  Paspor (berlaku min. 6 bulan), Pasfoto 33x48mm latar putih, Surat Undangan resmi (Invitation Letter), Tiket & Hotel.
-                </div>
-                <div className="bg-white p-3.5 rounded-xl border border-amber-200 shadow-sm">
-                  <span className="font-bold text-amber-800 block mb-1">💰 Opsi Pengurusan:</span>
-                  Jalur standar online (Rp 974.000) atau via Agen Pengurusan Visa (Rp 1.600.000/orang).
-                </div>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-amber-200/70 text-xs">
+                  <thead className="bg-amber-100/50 font-bold text-amber-900 uppercase">
+                    <tr>
+                      <th className="px-4 py-2.5 text-left w-36">Hari / Tanggal</th>
+                      <th className="px-4 py-2.5 text-left w-28">Waktu</th>
+                      <th className="px-4 py-2.5 text-left">Kegiatan Study Tour</th>
+                      <th className="px-4 py-2.5 text-left w-56">Lokasi / Keterangan</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-amber-100 bg-white">
+                    {STUDY_TOUR_ITINERARY.map((row, idx) => (
+                      <tr key={idx} className="hover:bg-amber-50/40">
+                        <td className="px-4 py-2.5 font-bold text-amber-900 whitespace-nowrap">{row.hariTanggal}</td>
+                        <td className="px-4 py-2.5 font-semibold text-slate-700 whitespace-nowrap">{row.waktu}</td>
+                        <td className="px-4 py-2.5 text-slate-800">{row.kegiatan}</td>
+                        <td className="px-4 py-2.5 text-slate-500">{row.lokasiKeterangan}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </CardContent>
           </Card>
+
+          {/* VISA APPLICATION TIMELINE & DOCUMENTS */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader className="pb-3 border-b bg-slate-50/60">
+                <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <ShieldCheck size={18} className="text-indigo-600" /> Timeline Pengurusan Visa China (CVASC Jakarta)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <table className="min-w-full divide-y divide-slate-200 text-xs">
+                  <thead className="bg-slate-50 font-bold text-slate-600">
+                    <tr>
+                      <th className="p-3 text-left">Tahapan</th>
+                      <th className="p-3 text-left">Target Waktu</th>
+                      <th className="p-3 text-left">PIC / Pelaksana</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {VISA_TIMELINE.map((v, i) => (
+                      <tr key={i}>
+                        <td className="p-3 font-semibold text-slate-800">{v.tahap}</td>
+                        <td className="p-3 font-bold text-indigo-700 whitespace-nowrap">{v.targetWaktu}</td>
+                        <td className="p-3 text-slate-500">{v.penanggungJawab}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </CardContent>
+            </Card>
+
+            <Card className="border-amber-200 bg-amber-50/30 shadow-sm">
+              <CardHeader className="pb-3 border-b border-amber-200">
+                <CardTitle className="text-sm font-bold text-amber-950 flex items-center gap-2">
+                  <FileText size={18} className="text-amber-600" /> Kelengkapan Dokumen Visa China (Wajib)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-2.5 text-xs text-slate-800">
+                <ul className="space-y-2">
+                  {VISA_DOCUMENTS.map((doc, idx) => (
+                    <li key={idx} className="flex items-start gap-2 bg-white p-2.5 rounded-xl border border-amber-200/80 shadow-sm">
+                      <CheckCircle2 size={15} className="text-emerald-600 shrink-0 mt-0.5" />
+                      <span>{doc}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
 
@@ -1207,9 +1772,10 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
 
                 <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs space-y-1">
                   <p className="font-bold text-slate-900">Nama Acara : The 14th IYRC International Youth Robotics and AI Competition</p>
-                  <p>Waktu Kegiatan : 12 – 13 Desember 2026 (Periode Perjalanan: 10 – 16 Desember 2026)</p>
+                  <p>Waktu Kegiatan : 12 – 13 Desember 2026 (Periode Perjalanan: 10 – 15 Desember 2026)</p>
                   <p>Tempat Pelaksanaan : Longgang International Arts Center, Shenzhen, Republik Rakyat Tiongkok (RRT)</p>
-                  <p>Penerbangan : China Southern Airlines CZ8056 (Jakarta–Shenzhen PP)</p>
+                  <p>Akomodasi Hotel : Zhongbao International Hotel (深圳中保国际酒店), Longhua District, Shenzhen</p>
+                  <p>Penerbangan : China Southern Airlines CZ8056 (11 Des) & CZ8353 (14 Des)</p>
                 </div>
 
                 <p className="text-justify pt-1">
@@ -1255,7 +1821,7 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
                 </div>
 
                 <p className="text-justify">
-                  Segala persiapan pelatihan intensif, registrasi resmi, dan akomodasi di Shenzhen dikoordinasikan secara penuh di bawah pengawasan PT. Jully Tjindrawan Robotik (Robotic Explorer). Surat ini diterbitkan sebagai dokumen resmi penunjang pengajuan izin dinas luar negeri serta rekomendasi pembuatan dokumen perjalanan (Visa/Paspor).
+                  Segala persiapan pelatihan intensif (15 November – 9 Desember 2026 di Jakarta), registrasi resmi, dan akomodasi di Shenzhen dikoordinasikan secara penuh di bawah pengawasan PT. Jully Tjindrawan Robotik (Robotic Explorer). Surat ini diterbitkan sebagai dokumen resmi penunjang pengajuan izin dinas luar negeri serta rekomendasi pembuatan dokumen perjalanan (Visa/Paspor).
                 </p>
 
                 <p>Demikian surat undangan dan rekomendasi ini kami sampaikan. Atas perhatian, dukungan, dan kerja sama yang baik, kami ucapkan terima kasih.</p>
@@ -1291,9 +1857,10 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
 
                 <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs space-y-1">
                   <p className="font-bold text-slate-900">Event : The 14th IYRC International Youth Robotics and AI Competition</p>
-                  <p>Date of Competition : December 12–13, 2026 (Travel Period: December 10–16, 2026)</p>
+                  <p>Date of Competition : December 12–13, 2026 (Travel Period: December 10–15, 2026)</p>
                   <p>Venue : Longgang International Arts Center, Shenzhen, China</p>
-                  <p>Flight Details : China Southern Airlines CZ8056 (CGK 09:05 → SZX 15:25) / Return CZ8353</p>
+                  <p>Official Hotel : Zhongbao International Hotel (深圳中保国际酒店), No. 21 Donghuan 2nd Rd, Longhua, Shenzhen</p>
+                  <p>Flight Details : China Southern Airlines CZ8056 (Dec 11, CGK 09:05 → SZX 15:25) / Return CZ8353 (Dec 14, SZX 19:05 → CGK 23:20)</p>
                 </div>
 
                 <p className="text-justify pt-1">
@@ -1359,10 +1926,10 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
             <CardHeader className="border-b border-emerald-100 pb-4 flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="text-base font-bold text-emerald-950 flex items-center gap-2">
-                  <Share2 size={18} className="text-emerald-600" /> Teks Balasan WhatsApp Siap Kirim (1-Klik Salin)
+                  <Share2 size={18} className="text-emerald-600" /> Teks Balasan WhatsApp Siap Kirim (1-Klik Salin · Versi 5 Nov 2026)
                 </CardTitle>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Teks ini telah disusun menjawab langsung 5 poin pertanyaan wali murid / guru pendamping pada tangkapan layar chat.
+                  Teks ini telah disinkronkan dengan dokumen terbaru (Pelatihan Jakarta 15 Nov–9 Des, Hotel Zhongbao Longhua, Flight CZ8056/CZ8353, dan Timeline Visa CVASC).
                 </p>
               </div>
               <button
@@ -1374,44 +1941,7 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
             </CardHeader>
             <CardContent className="pt-6">
               <div className="bg-white p-6 rounded-2xl border border-emerald-200 shadow-inner font-mono text-xs text-slate-800 whitespace-pre-wrap leading-relaxed select-all">
-{`Yth. Bapak/Ibu Guru Pendamping & Orang Tua Siswa SNT,
-
-Berikut kami sampaikan rincian informasi dan jadwal keikutsertaan kontingen pada *The 14th IYRC International Youth Robotics and AI Competition 2026 (Shenzhen, China)*:
-
-📍 *1. JADWAL PENERBANGAN (FLIGHT DETAILS)*
-• *Keberangkatan:* Jumat, 11 Desember 2026
-  China Southern Airlines CZ8056
-  Rute: Jakarta (CGK T3) 09.05 → Shenzhen (SZX T3) 15.25 (Airbus A320neo)
-• *Kepulangan:* Selasa, 15 Desember 2026
-  China Southern Airlines (Estimasi CZ8353)
-  Rute: Shenzhen (SZX) 19.05 → Jakarta (CGK) 23.20
-• *Penerbangan Domestik:* Tiba di Jakarta tgl 10 Des; dan terbang kembali ke daerah asal tgl 16 Des 2026.
-
-🏨 *2. AKOMODASI & HOTEL*
-• *11–14 Des 2026 (4H3M):* Hotel Paket resmi IYRC di Shenzhen (sudah termasuk sarapan & makan harian).
-• *14–15 Des 2026 (1 Malam):* Hotel di luar paket di pusat kota Shenzhen (untuk istirahat sebelum penerbangan pulang tgl 15 malam).
-
-🗓️ *3. ITINERARY KEGIATAN PER HARI*
-• *10 Des (Kam):* Keberangkatan dari daerah asal (Tidore/Kupang/Tanjabtim) menuju Jakarta (Bandara Soetta).
-• *11 Des (Jum):* Penerbangan CGK → SZX, check-in hotel dan registrasi kontingen.
-• *12–13 Des (Sab-Min):* Pelaksanaan Kompetisi IYRC 2026 di Longgang International Arts Center, Shenzhen.
-• *14 Des (Sen):* Paket kompetisi selesai; sesi kunjungan edukatif / robotika Shenzhen, check-in hotel tambahan.
-• *15 Des (Sel):* Check-out hotel, transfer bandara SZX, penerbangan malam menuju Jakarta (tiba 23.20 WIB).
-• *16 Des (Rab):* Penerbangan lanjutan langsung kembali ke daerah asal masing-masing.
-
-📑 *4. TIMELINE & PENGURUSAN VISA CHINA*
-• *Waktu Pengurusan:* Disarankan diproses pada rentang *25 Oktober s.d. 15 November 2026* (±30 hari sebelum keberangkatan).
-• *Persyaratan Wajib:*
-  1. Paspor asli dengan masa berlaku minimal 6 bulan saat keberangkatan (min. Juni 2027).
-  2. Pasfoto resmi latar putih (33mm x 48mm).
-  3. Surat Undangan Resmi (*Invitation Letter*) dari penyelenggara.
-  4. Tiket penerbangan & konfirmasi hotel (disediakan tim).
-• *Pilihan Pengurusan:* Jalur standar online (±Rp 974.000) atau via Agen Visa Resmi (±Rp 1.600.000/orang).
-
-✉️ *5. SURAT UNDANGAN RESMI (INVITATION LETTER)*
-Surat undangan resmi berkop Robotic Explorer & IYRC atas nama siswa yang bersangkutan sudah diterbitkan oleh pihak kami sebagai dasar permohonan *Izin Perjalanan Dinas Luar Negeri* ke Pemda / Dinas Pendidikan / Sekolah.
-
-Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, kami siap membantu. Terima kasih atas dukungan Bapak/Ibu! 🙏🤖`}
+                {whatsappText}
               </div>
             </CardContent>
           </Card>
@@ -1459,19 +1989,19 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
                     required
                     value={newParticipant.sntAsal}
                     onChange={(e) => setNewParticipant({ ...newParticipant, sntAsal: e.target.value })}
-                    placeholder="Contoh: SNT 10 Kupang"
+                    placeholder="Contoh: SNT 15 Buton Tengah"
                     className="w-full border-slate-300 rounded-xl border p-2.5 text-xs text-slate-800"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-slate-600 font-semibold mb-1">Sekolah / Instansi Asal:</label>
+                <label className="block text-slate-600 font-semibold mb-1">Jenjang / Jabatan / Keterangan:</label>
                 <input
                   type="text"
                   value={newParticipant.sekolahAsal}
                   onChange={(e) => setNewParticipant({ ...newParticipant, sekolahAsal: e.target.value })}
-                  placeholder="Contoh: SMP Negeri 1 Kupang"
+                  placeholder="Contoh: Siswa SMA / Kepala Sekolah"
                   className="w-full border-slate-300 rounded-xl border p-2.5 text-xs text-slate-800"
                 />
               </div>
@@ -1519,56 +2049,121 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
         </div>
       )}
 
-      {/* ==================== MODAL EDIT STATUS PEMBAYARAN ==================== */}
+      {/* ==================== MODAL EDIT DATA & PEMBAYARAN PESERTA ==================== */}
       {showEditPaymentModal && selectedParticipant && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl">
+          <div className="bg-white rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-2xl max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b pb-3">
               <div>
-                <h3 className="text-base font-bold text-slate-900">Update Pembayaran Peserta</h3>
-                <p className="text-xs text-slate-500 font-medium">{selectedParticipant.nama}</p>
+                <h3 className="text-base font-bold text-slate-900">Edit Identitas & Status Pembayaran Peserta</h3>
+                <p className="text-xs text-slate-500 font-medium">
+                  Anda dapat mengubah nama lengkap (mis. mengisi nama siswa SNT 15 Buton Tengah), paspor, maupun status pembayaran.
+                </p>
               </div>
               <button onClick={() => setShowEditPaymentModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
             </div>
 
             <div className="space-y-3 text-xs">
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                <span className="text-slate-500 block text-[11px]">Beban Mandiri Peserta (Tiket & Visa):</span>
-                <span className="text-base font-extrabold text-rose-600">
-                  {formatCurrency(selectedParticipant.biayaPerjalananVisa)}
-                </span>
-              </div>
-
               <div>
-                <label className="block text-slate-600 font-semibold mb-1">Status Pembayaran:</label>
-                <select
-                  value={paymentForm.statusPembayaran}
-                  onChange={(e: any) => setPaymentForm({ ...paymentForm, statusPembayaran: e.target.value })}
-                  className="w-full border-slate-300 rounded-xl border p-2.5 text-xs font-bold text-slate-800"
-                >
-                  <option value="BELUM_LUNAS">BELUM LUNAS</option>
-                  <option value="CICILAN">CICILAN</option>
-                  <option value="LUNAS">LUNAS</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-slate-600 font-semibold mb-1">Nominal Terbayar (Rp):</label>
+                <label className="block text-slate-700 font-bold mb-1">Nama Lengkap Peserta / Pendamping:</label>
                 <input
-                  type="number"
-                  value={paymentForm.nominalTerbayar}
-                  onChange={(e) => setPaymentForm({ ...paymentForm, nominalTerbayar: Number(e.target.value) || 0 })}
-                  className="w-full border-slate-300 rounded-xl border p-2.5 text-xs text-slate-800 font-bold"
+                  type="text"
+                  value={paymentForm.nama}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, nama: e.target.value })}
+                  className="w-full border-indigo-300 rounded-xl border p-2.5 text-xs text-slate-900 font-bold"
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Asal SNT:</label>
+                  <input
+                    type="text"
+                    value={paymentForm.sntAsal}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, sntAsal: e.target.value })}
+                    className="w-full border-slate-300 rounded-xl border p-2 text-xs text-slate-800 font-semibold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Jenjang / Jabatan:</label>
+                  <input
+                    type="text"
+                    value={paymentForm.sekolahAsal}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, sekolahAsal: e.target.value })}
+                    className="w-full border-slate-300 rounded-xl border p-2 text-xs text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Nomor Paspor:</label>
+                  <input
+                    type="text"
+                    value={paymentForm.nomorPaspor}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, nomorPaspor: e.target.value })}
+                    placeholder="Isi nomor paspor"
+                    className="w-full border-slate-300 rounded-xl border p-2 text-xs text-slate-800 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">NISN / NIP:</label>
+                  <input
+                    type="text"
+                    value={paymentForm.nisnOrNip}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, nisnOrNip: e.target.value })}
+                    className="w-full border-slate-300 rounded-xl border p-2 text-xs text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between">
+                <div>
+                  <span className="text-slate-500 block text-[11px]">Biaya Kompetisi (Rincian I):</span>
+                  <span className="text-sm font-extrabold text-indigo-700">
+                    {formatCurrency(selectedParticipant.biayaKompetisi)}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-slate-500 block text-[11px]">Estimasi Perjalanan & Visa (Rincian II):</span>
+                  <span className="text-sm font-extrabold text-rose-600">
+                    {formatCurrency(selectedParticipant.biayaPerjalananVisa)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Status Pembayaran:</label>
+                  <select
+                    value={paymentForm.statusPembayaran}
+                    onChange={(e: any) => setPaymentForm({ ...paymentForm, statusPembayaran: e.target.value })}
+                    className="w-full border-slate-300 rounded-xl border p-2.5 text-xs font-bold text-slate-800"
+                  >
+                    <option value="BELUM_LUNAS">BELUM LUNAS</option>
+                    <option value="CICILAN">CICILAN</option>
+                    <option value="LUNAS">LUNAS</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Nominal Terbayar (Rp):</label>
+                  <input
+                    type="number"
+                    value={paymentForm.nominalTerbayar}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, nominalTerbayar: Number(e.target.value) || 0 })}
+                    className="w-full border-slate-300 rounded-xl border p-2.5 text-xs text-slate-800 font-bold"
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="block text-slate-600 font-semibold mb-1">Catatan Pembayaran:</label>
+                <label className="block text-slate-600 font-semibold mb-1">Catatan:</label>
                 <textarea
                   value={paymentForm.catatan}
                   onChange={(e) => setPaymentForm({ ...paymentForm, catatan: e.target.value })}
                   rows={2}
-                  placeholder="Catatan transfer, bank, atau bukti bayar..."
+                  placeholder="Catatan peserta, status paspor, atau bukti bayar..."
                   className="w-full border-slate-300 rounded-xl border p-2 text-xs text-slate-800"
                 />
               </div>
@@ -1587,7 +2182,7 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
                   disabled={isSubmitting}
                   className="px-5 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-bold shadow-md shadow-indigo-600/20"
                 >
-                  {isSubmitting ? "Menyimpan..." : "Simpan Status"}
+                  {isSubmitting ? "Menyimpan..." : "Simpan Perubahan"}
                 </button>
               </div>
             </div>
@@ -1868,44 +2463,50 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
               {/* JUDUL DOKUMEN */}
               <div className="text-center space-y-1">
                 <h1 className="text-base font-extrabold text-slate-900 uppercase tracking-wide">
-                  RENCANA PERJALANAN DETAIL & JADWAL KEGIATAN LOMBA (ITINERARY)
+                  INFORMASI PERJALANAN DELEGASI & JADWAL KEGIATAN LOMBA (ITINERARY)
                 </h1>
                 <p className="text-xs font-bold text-indigo-700">
                   THE 14th IYRC INTERNATIONAL YOUTH ROBOTICS AND AI COMPETITION 2026
                 </p>
                 <p className="text-[11px] text-slate-500">
-                  Lokasi: Longgang International Arts Center, Shenzhen, RRT · Periode: 10 – 16 Desember 2026
+                  Lokasi: Longgang International Arts Center, Shenzhen, RRT · Periode Utama: 10 – 15 Desember 2026 (Versi 5 Nov 2026)
                 </p>
               </div>
 
-              {/* 1. INFORMASI PENERBANGAN RESMI */}
+              {/* 1. INFORMASI PENERBANGAN & HOTEL RESMI */}
               <div className="space-y-2">
                 <h4 className="text-xs font-black uppercase text-indigo-900 border-b border-indigo-200 pb-1">
-                  1. JADWAL PENERBANGAN RESMI (FLIGHT SCHEDULE)
+                  1. JADWAL PENERBANGAN RESMI & AKOMODASI HOTEL DI SHENZHEN
                 </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                    <span className="font-bold text-indigo-800 block mb-1">🛫 Penerbangan Berangkat (Jumat, 11 Des 2026)</span>
+                    <span className="font-bold text-indigo-800 block mb-1">🛫 Keberangkatan (Jumat, 11 Des 2026)</span>
                     <p className="font-semibold text-slate-800">China Southern Airlines CZ8056</p>
-                    <p className="text-slate-600 text-[11px]">Jakarta (CGK Terminal 3) 09:05 WIB &rarr; Shenzhen (SZX Terminal 3) 15:25 CST</p>
-                    <p className="text-[10px] text-slate-500">Pesawat: Airbus A320neo · Bagasi Terdaftar: 23 kg / orang</p>
+                    <p className="text-slate-600 text-[11px]">Jakarta (CGK T3) 09:05 WIB &rarr; Shenzhen (SZX T3) 15:25 CST</p>
+                    <p className="text-[10px] text-slate-500">Pesawat: Airbus A320neo · Non-stop (5j 20m)</p>
                   </div>
                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                    <span className="font-bold text-violet-800 block mb-1">🛬 Penerbangan Kepulangan (Selasa, 15 Des 2026)</span>
-                    <p className="font-semibold text-slate-800">China Southern Airlines CZ8353 (Estimasi)</p>
-                    <p className="text-slate-600 text-[11px]">Shenzhen (SZX) 19:05 CST &rarr; Jakarta (CGK Terminal 3) 23:20 WIB</p>
-                    <p className="text-[10px] text-slate-500">Penerbangan Malam Langsung · Tiba di Jakarta 23:20 WIB</p>
+                    <span className="font-bold text-violet-800 block mb-1">🛬 Kepulangan (Senin, 14 Des 2026)</span>
+                    <p className="font-semibold text-slate-800">China Southern Airlines CZ8353</p>
+                    <p className="text-slate-600 text-[11px]">Shenzhen (SZX T3) 19:05 CST &rarr; Jakarta (CGK T3) 23:20 WIB</p>
+                    <p className="text-[10px] text-slate-500">Pesawat: Airbus A321neo · Lanjut subuh 15 Des ke daerah asal</p>
+                  </div>
+                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                    <span className="font-bold text-emerald-800 block mb-1">🏨 Hotel Resmi (11–14 Des · 3 Malam)</span>
+                    <p className="font-semibold text-slate-800">Zhongbao International Hotel (深圳中保国际酒店)</p>
+                    <p className="text-slate-600 text-[11px]">No. 21 Donghuan 2nd Road, Longhua District, Shenzhen</p>
+                    <p className="text-[10px] text-slate-500">±15 km ke Venue Longgang · Termasuk makan & shuttle</p>
                   </div>
                 </div>
                 <p className="text-[11px] text-slate-600 italic">
-                  *Catatan Domestik: Seluruh peserta daerah tiba di Jakarta pada 10 Des 2026 dan terbang kembali ke daerah asal pada 16 Des 2026.
+                  *Catatan Pelatihan & Domestik: Siswa mengikuti pelatihan intensif di Jakarta pada 15 Nov – 9 Des 2026; Guru Pendamping tiba di Jakarta pada Kamis, 10 Des 2026; seluruh delegasi kembali ke daerah asal pada Selasa, 15 Des 2026 subuh (atau Rabu, 16 Des via Guangzhou CAN bila mengambil Opsi Study Tour).
                 </p>
               </div>
 
               {/* 2. SUSUNAN DELEGASI KONTINGEN SNT WILAYAH 2 */}
               <div className="space-y-2">
                 <h4 className="text-xs font-black uppercase text-indigo-900 border-b border-indigo-200 pb-1">
-                  2. SUSUNAN KONTINGEN RESMI SNT WILAYAH 2
+                  2. SUSUNAN KONTINGEN RESMI SNT WILAYAH 2 (4 SISWA & 2 GURU PENDAMPING)
                 </h4>
                 <table className="min-w-full divide-y divide-slate-200 border border-slate-200 text-xs">
                   <thead className="bg-slate-100 font-bold text-slate-700">
@@ -1914,7 +2515,7 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
                       <th className="p-2 text-left">Nama Lengkap</th>
                       <th className="p-2 text-left">Peran</th>
                       <th className="p-2 text-left">Asal SNT</th>
-                      <th className="p-2 text-left">Sekolah / Instansi</th>
+                      <th className="p-2 text-left">Keterangan</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 bg-white">
@@ -1931,186 +2532,58 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
                     ))}
                   </tbody>
                 </table>
+                <p className="text-[10px] text-slate-500 italic">
+                  *Catatan: Slot Pendamping Kementerian (Kemendikdasmen – bila ada) akan disesuaikan terpisah sesuai penugasan resmi.
+                </p>
               </div>
 
-              {/* 3. RUNDOWN KEGIATAN LENGKAP HARI DEMI HARI */}
-              <div className="space-y-3">
+              {/* 3. RUNDOWN KEGIATAN UTAMA (10–15 DESEMBER 2026) */}
+              <div className="space-y-2">
                 <h4 className="text-xs font-black uppercase text-indigo-900 border-b border-indigo-200 pb-1">
-                  3. JADWAL DETAIL & RUNDOWN KEGIATAN LOMBA (10–16 DESEMBER 2026)
+                  3. JADWAL DETAIL & RUNDOWN KEGIATAN UTAMA (10–15 DESEMBER 2026)
                 </h4>
                 <table className="min-w-full divide-y divide-slate-200 border border-slate-200 text-xs">
                   <thead className="bg-slate-100 font-bold text-slate-700">
                     <tr>
-                      <th className="p-2 text-left w-28">Tanggal & Hari</th>
-                      <th className="p-2 text-left w-24">Waktu</th>
-                      <th className="p-2 text-left">Rincian Agenda & Lokasi Kegiatan</th>
-                      <th className="p-2 text-left w-36">Keterangan / Dresscode</th>
+                      <th className="p-2 text-left w-32">Hari / Tanggal</th>
+                      <th className="p-2 text-left w-28">Waktu</th>
+                      <th className="p-2 text-left">Rincian Kegiatan</th>
+                      <th className="p-2 text-left w-48">Lokasi / Keterangan</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 bg-white">
-                    <tr>
-                      <td className="p-2 font-bold text-slate-800" rowSpan={3}>
-                        10 Des 2026<br /><span className="text-[10px] text-slate-500 font-normal">Kamis</span>
-                      </td>
-                      <td className="p-2 font-semibold">08:00 – 16:00</td>
-                      <td className="p-2">
-                        Penerbangan domestik delegasi dari bandara daerah asal (Kupang KOE, Tidore via Ternate TTE, Tanjabtim via Jambi DJB) menuju Bandara Soekarno-Hatta (CGK) Jakarta.
-                      </td>
-                      <td className="p-2 text-[11px] text-slate-600">Pakaian bebas rapi / jaket perjalanan</td>
-                    </tr>
-                    <tr>
-                      <td className="p-2 font-semibold">17:00 – 19:00</td>
-                      <td className="p-2">
-                        Pertemuan koordinasi delegasi di area Terminal 3 CGK, pengecekan akhir kit robot CodeSpark 3 Creator & kelengkapan paspor, visa, dan asuransi.
-                      </td>
-                      <td className="p-2 text-[11px] text-slate-600">Briefing teknis Korwil 2</td>
-                    </tr>
-                    <tr>
-                      <td className="p-2 font-semibold">20:00 – Selesai</td>
-                      <td className="p-2">Istirahat transit di hotel bandara Soetta tanpa keluar area bandara.</td>
-                      <td className="p-2 text-[11px] text-slate-600">Istirahat optimal</td>
-                    </tr>
-
-                    <tr className="bg-slate-50/50">
-                      <td className="p-2 font-bold text-indigo-900" rowSpan={4}>
-                        11 Des 2026<br /><span className="text-[10px] text-slate-500 font-normal">Jumat</span>
-                      </td>
-                      <td className="p-2 font-semibold">06:00 – 08:00</td>
-                      <td className="p-2">Check-in penerbangan internasional China Southern Airlines CZ8056 di T3 CGK, drop bagasi, dan proses imigrasi Indonesia.</td>
-                      <td className="p-2 text-[11px] text-slate-600">Seragam Kontingen SNT Indonesia</td>
-                    </tr>
-                    <tr className="bg-slate-50/50">
-                      <td className="p-2 font-semibold">09:05 – 15:25</td>
-                      <td className="p-2">Penerbangan langsung Jakarta (CGK) menuju Shenzhen (SZX). Durasi penerbangan ±5 jam 20 menit.</td>
-                      <td className="p-2 text-[11px] text-slate-600">Flight CZ8056</td>
-                    </tr>
-                    <tr className="bg-slate-50/50">
-                      <td className="p-2 font-semibold">15:25 – 17:30</td>
-                      <td className="p-2">Mendarat di Shenzhen Bao'an (SZX T3), proses imigrasi RRT, klaim bagasi, dan penjemputan van delegasi menuju hotel resmi kompetisi.</td>
-                      <td className="p-2 text-[11px] text-slate-600">Van jemputan resmi</td>
-                    </tr>
-                    <tr className="bg-slate-50/50">
-                      <td className="p-2 font-semibold">18:00 – 21:00</td>
-                      <td className="p-2">Check-in hotel paket resmi IYRC Longgang, pengambilan ID card resmi, verifikasi nomor peserta, makan malam, dan uji coba robot.</td>
-                      <td className="p-2 text-[11px] text-slate-600">Hotel Paket IYRC (Malam 1)</td>
-                    </tr>
-
-                    <tr className="bg-amber-50/30">
-                      <td className="p-2 font-bold text-amber-900" rowSpan={4}>
-                        12 Des 2026<br /><span className="text-[10px] text-amber-700 font-bold">Sabtu (Lomba 1)</span>
-                      </td>
-                      <td className="p-2 font-semibold">07:00 – 08:30</td>
-                      <td className="p-2">Sarapan pagi di hotel dan transfer menuju venue <strong>Longgang International Arts Center</strong>.</td>
-                      <td className="p-2 text-[11px] text-slate-600">Membawa Robot Kit & Toolkit</td>
-                    </tr>
-                    <tr className="bg-amber-50/30">
-                      <td className="p-2 font-semibold">09:00 – 10:30</td>
-                      <td className="p-2"><strong>Opening Ceremony The 14th IYRC China 2026</strong>, parade kontingen negara, dan sambutan komite internasional.</td>
-                      <td className="p-2 text-[11px] text-slate-600">Seragam Resmi Kontingen</td>
-                    </tr>
-                    <tr className="bg-amber-50/30">
-                      <td className="p-2 font-semibold">10:30 – 16:30</td>
-                      <td className="p-2">
-                        <strong>Babak Penyisihan & Penjurian Proyek:</strong> Pertandingan kategori Creative Robot, AI Challenge, dan Coding Robot. Presentasi karya di hadapan dewan juri internasional.
-                      </td>
-                      <td className="p-2 text-[11px] text-slate-600">Makan siang disediakan di venue</td>
-                    </tr>
-                    <tr className="bg-amber-50/30">
-                      <td className="p-2 font-semibold">17:30 – 20:30</td>
-                      <td className="p-2">Penutupan sesi hari ke-1, transfer kembali ke hotel, evaluasi teknis robot oleh guru pendamping, dan makan malam.</td>
-                      <td className="p-2 text-[11px] text-slate-600">Hotel Paket IYRC (Malam 2)</td>
-                    </tr>
-
-                    <tr className="bg-emerald-50/30">
-                      <td className="p-2 font-bold text-emerald-900" rowSpan={4}>
-                        13 Des 2026<br /><span className="text-[10px] text-emerald-700 font-bold">Minggu (Lomba 2)</span>
-                      </td>
-                      <td className="p-2 font-semibold">07:00 – 08:30</td>
-                      <td className="p-2">Sarapan pagi di hotel dan transfer kontingen ke Longgang International Arts Center.</td>
-                      <td className="p-2 text-[11px] text-slate-600">Seragam Kontingen Indonesia</td>
-                    </tr>
-                    <tr className="bg-emerald-50/30">
-                      <td className="p-2 font-semibold">09:00 – 12:30</td>
-                      <td className="p-2"><strong>Babak Final & Grand Exhibition:</strong> Demonstrasi final karya peserta terbaik dan pameran inovasi robotika dunia.</td>
-                      <td className="p-2 text-[11px] text-slate-600">Sesi Penjurian Final</td>
-                    </tr>
-                    <tr className="bg-emerald-50/30">
-                      <td className="p-2 font-semibold">14:00 – 17:00</td>
-                      <td className="p-2">
-                        <strong>Awarding & Closing Ceremony:</strong> Pengumuman pemenang, penyerahan medali internasional, piala penghargaan, dan sertifikat resmi IYRC.
-                      </td>
-                      <td className="p-2 text-[11px] text-slate-600">Pemberian Medali & Piagam</td>
-                    </tr>
-                    <tr className="bg-emerald-50/30">
-                      <td className="p-2 font-semibold">18:00 – 21:00</td>
-                      <td className="p-2">Gala dinner & farewell reception kontingen seluruh negara partisipan. Transfer kembali ke hotel.</td>
-                      <td className="p-2 text-[11px] text-slate-600">Hotel Paket IYRC (Malam 3)</td>
-                    </tr>
-
-                    <tr>
-                      <td className="p-2 font-bold text-slate-800" rowSpan={3}>
-                        14 Des 2026<br /><span className="text-[10px] text-slate-500 font-normal">Senin</span>
-                      </td>
-                      <td className="p-2 font-semibold">08:00 – 10:00</td>
-                      <td className="p-2">Paket resmi IYRC berakhir. Check-out dari hotel paket Longgang dan transfer kontingen menuju hotel di pusat kota Shenzhen.</td>
-                      <td className="p-2 text-[11px] text-slate-600">Transfer van & bagasi</td>
-                    </tr>
-                    <tr>
-                      <td className="p-2 font-semibold">11:00 – 17:00</td>
-                      <td className="p-2">
-                        Check-in hotel tambahan (3 kamar). Program edukatif terarah: Kunjungan ekosistem inovasi hardware & AI global di Shenzhen (Huaqiangbei & Science Tech Park).
-                      </td>
-                      <td className="p-2 text-[11px] text-slate-600">Eksplorasi teknologi edukatif</td>
-                    </tr>
-                    <tr>
-                      <td className="p-2 font-semibold">18:30 – 21:00</td>
-                      <td className="p-2">Makan malam bersama dan persiapan akhir packing bagasi untuk kepulangan esok hari.</td>
-                      <td className="p-2 text-[11px] text-slate-600">Hotel Pusat Kota (Malam 4)</td>
-                    </tr>
-
-                    <tr className="bg-violet-50/30">
-                      <td className="p-2 font-bold text-violet-900" rowSpan={3}>
-                        15 Des 2026<br /><span className="text-[10px] text-slate-500 font-normal">Selasa</span>
-                      </td>
-                      <td className="p-2 font-semibold">09:00 – 13:00</td>
-                      <td className="p-2">Check-out hotel Shenzhen, free program singkat di sekitar hotel dan makan siang.</td>
-                      <td className="p-2 text-[11px] text-slate-600">Persiapan dokumen kepulangan</td>
-                    </tr>
-                    <tr>
-                      <td className="p-2 font-semibold">14:30 – 17:00</td>
-                      <td className="p-2">Transfer menuju Shenzhen Bao'an International Airport (SZX), proses check-in CZ8353, baggage drop, dan imigrasi keluar China.</td>
-                      <td className="p-2 text-[11px] text-slate-600">Standby bandara 3 jam sebelumnya</td>
-                    </tr>
-                    <tr>
-                      <td className="p-2 font-semibold">19:05 – 23:20</td>
-                      <td className="p-2">Penerbangan CZ8353 kembali ke Jakarta. Mendarat di Bandara Soekarno-Hatta (CGK T3) pukul 23:20 WIB. Bermalam transit di area bandara.</td>
-                      <td className="p-2 text-[11px] text-slate-600">Tiba Jakarta 23:20 WIB</td>
-                    </tr>
-
-                    <tr>
-                      <td className="p-2 font-bold text-slate-800">
-                        16 Des 2026<br /><span className="text-[10px] text-slate-500 font-normal">Rabu</span>
-                      </td>
-                      <td className="p-2 font-semibold">06:00 – Selesai</td>
-                      <td className="p-2">
-                        Penerbangan lanjutan domestik dari Jakarta (CGK) menuju bandara daerah asal masing-masing (Kupang, Tidore, Tanjabtim). Delegasi kembali ke rumah dan sekolah. Perjalanan selesai.
-                      </td>
-                      <td className="p-2 text-[11px] text-emerald-700 font-bold">Misi Selesai</td>
-                    </tr>
+                    {MAIN_ITINERARY.map((item, idx) => (
+                      <tr key={idx}>
+                        <td className="p-2 font-bold text-slate-800 whitespace-nowrap">{item.hariTanggal}</td>
+                        <td className="p-2 font-semibold text-slate-700 whitespace-nowrap">{item.waktu}</td>
+                        <td className="p-2 text-slate-800">{item.kegiatan}</td>
+                        <td className="p-2 text-[11px] text-slate-600">{item.lokasiKeterangan}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
 
-              {/* TANDA TANGAN PENGESAHAN KORWIL 2 (DI SEBELAH KANAN) */}
-              <div className="pt-8 flex justify-end">
-                <div className="text-center w-72 space-y-16">
-                  <p className="text-slate-600 font-semibold text-xs">
-                    PT. Jully Tjindrawan Robotik<br />
+              {/* TANDA TANGAN PENGESAHAN */}
+              <div className="pt-6 flex justify-between items-start text-xs">
+                <div className="text-center w-64 space-y-14">
+                  <p className="text-slate-600 font-semibold">
+                    Disusun Oleh,<br />
+                    <span className="text-[11px] text-slate-500">{IYRC_INFO.preparedBy.instansi}</span>
+                  </p>
+                  <div>
+                    <p className="font-extrabold text-slate-900 underline text-sm">{IYRC_INFO.preparedBy.nama}</p>
+                    <p className="text-slate-500 font-medium text-[11px]">{IYRC_INFO.preparedBy.jabatan}</p>
+                  </div>
+                </div>
+                <div className="text-center w-64 space-y-14">
+                  <p className="text-slate-600 font-semibold">
+                    Menyetujui,<br />
                     <span className="text-[11px] text-indigo-700 font-bold">Koordinator Wilayah 2 Program SNT</span>
                   </p>
                   <div>
-                    <p className="font-extrabold text-slate-900 underline text-sm">Jully Tjindrawan, MBA</p>
-                    <p className="text-slate-500 font-medium text-[11px]">Koordinator Wilayah 2 & Founder Robotic Explorer</p>
+                    <p className="font-extrabold text-slate-900 underline text-sm">{IYRC_INFO.approvedBy.nama}</p>
+                    <p className="text-slate-500 font-medium text-[11px]">{IYRC_INFO.approvedBy.jabatan}</p>
                   </div>
                 </div>
               </div>
@@ -2170,9 +2643,10 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
 
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-1">
                 <p className="font-bold text-slate-900">Nama Acara : The 14th IYRC International Youth Robotics and AI Competition</p>
-                <p>Waktu Kegiatan : 12 – 13 Desember 2026 (Periode Perjalanan: 10 – 16 Desember 2026)</p>
+                <p>Waktu Kegiatan : 12 – 13 Desember 2026 (Periode Perjalanan: 10 – 15 Desember 2026)</p>
                 <p>Tempat Pelaksanaan : Longgang International Arts Center, Shenzhen, Republik Rakyat Tiongkok (RRT)</p>
-                <p>Penerbangan : China Southern Airlines CZ8056 (Jakarta–Shenzhen PP)</p>
+                <p>Akomodasi Hotel : Zhongbao International Hotel (深圳中保国际酒店), Longhua District, Shenzhen</p>
+                <p>Penerbangan : China Southern Airlines CZ8056 (11 Des) & CZ8353 (14 Des)</p>
               </div>
 
               <p className="text-justify text-xs leading-relaxed pt-0.5">
@@ -2218,7 +2692,7 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
               </div>
 
               <p className="text-justify text-xs leading-relaxed">
-                Segala persiapan pelatihan intensif, registrasi resmi, dan akomodasi di Shenzhen dikoordinasikan secara penuh di bawah pengawasan PT. Jully Tjindrawan Robotik (Robotic Explorer). Surat ini diterbitkan sebagai dokumen resmi penunjang pengajuan izin dinas luar negeri serta rekomendasi pembuatan dokumen perjalanan (Visa/Paspor).
+                Segala persiapan pelatihan intensif (15 November – 9 Desember 2026 di Jakarta), registrasi resmi, dan akomodasi di Shenzhen dikoordinasikan secara penuh di bawah pengawasan PT. Jully Tjindrawan Robotik (Robotic Explorer). Surat ini diterbitkan sebagai dokumen resmi penunjang pengajuan izin dinas luar negeri serta rekomendasi pembuatan dokumen perjalanan (Visa/Paspor).
               </p>
 
               <p className="text-xs">Demikian surat undangan dan rekomendasi ini kami sampaikan. Atas perhatian, dukungan, dan kerja sama yang baik, kami ucapkan terima kasih.</p>
@@ -2278,9 +2752,10 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
 
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-1">
                 <p className="font-bold text-slate-900">Event : The 14th IYRC International Youth Robotics and AI Competition</p>
-                <p>Date of Competition : December 12–13, 2026 (Travel Period: December 10–16, 2026)</p>
+                <p>Date of Competition : December 12–13, 2026 (Travel Period: December 10–15, 2026)</p>
                 <p>Venue : Longgang International Arts Center, Shenzhen, China</p>
-                <p>Flight Details : China Southern Airlines CZ8056 (CGK 09:05 → SZX 15:25) / Return CZ8353</p>
+                <p>Official Hotel : Zhongbao International Hotel (深圳中保国际酒店), No. 21 Donghuan 2nd Rd, Longhua, Shenzhen</p>
+                <p>Flight Details : China Southern Airlines CZ8056 (Dec 11, CGK 09:05 → SZX 15:25) / Return CZ8353 (Dec 14, SZX 19:05 → CGK 23:20)</p>
               </div>
 
               <p className="text-justify text-xs leading-relaxed pt-0.5">
@@ -2340,7 +2815,7 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
 
         {/* DOKUMEN 3: LAMPIRAN ITINERARY & RUNDOWN KEGIATAN LOMBA */}
         {selectedDocs.itinerary && (
-        <div className="bundle-page-itinerary space-y-5">
+        <div className="bundle-page-itinerary space-y-4">
           <div className="text-right text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
             Lampiran Resmi Surat No: {letterNumber || "......./RE-IYRC/XI/2026"}
           </div>
@@ -2367,42 +2842,42 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
           {/* JUDUL DOKUMEN */}
           <div className="text-center space-y-1">
             <h1 className="text-base font-extrabold text-slate-900 uppercase tracking-wide">
-              RENCANA PERJALANAN DETAIL & JADWAL KEGIATAN LOMBA (ITINERARY)
+              INFORMASI PERJALANAN DELEGASI & JADWAL KEGIATAN LOMBA (ITINERARY)
             </h1>
             <p className="text-xs font-bold text-indigo-700">
               THE 14th IYRC INTERNATIONAL YOUTH ROBOTICS AND AI COMPETITION 2026
             </p>
             <p className="text-[11px] text-slate-500">
-              Lokasi: Longgang International Arts Center, Shenzhen, RRT · Periode: 10 – 16 Desember 2026
+              Lokasi: Longgang International Arts Center, Shenzhen, RRT · Periode Utama: 10 – 15 Desember 2026
             </p>
           </div>
 
-          {/* 1. INFORMASI PENERBANGAN RESMI */}
+          {/* 1. INFORMASI PENERBANGAN & HOTEL RESMI */}
           <div className="space-y-2">
             <h4 className="text-xs font-black uppercase text-indigo-900 border-b border-indigo-200 pb-1">
-              1. JADWAL PENERBANGAN RESMI (FLIGHT SCHEDULE)
+              1. JADWAL PENERBANGAN RESMI & AKOMODASI HOTEL DI SHENZHEN
             </h4>
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                <span className="font-bold text-indigo-800 block mb-0.5">🛫 Penerbangan Berangkat (Jumat, 11 Des 2026)</span>
-                <p className="font-semibold text-slate-800">China Southern Airlines CZ8056</p>
-                <p className="text-slate-600 text-[11px]">Jakarta (CGK T3) 09:05 WIB &rarr; Shenzhen (SZX T3) 15:25 CST</p>
-                <p className="text-[10px] text-slate-500">Pesawat: Airbus A320neo · Bagasi Terdaftar: 23 kg/orang</p>
+            <div className="grid grid-cols-3 gap-2.5 text-xs">
+              <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
+                <span className="font-bold text-indigo-800 block mb-0.5">🛫 Berangkat (11 Des 2026)</span>
+                <p className="font-semibold text-slate-800">China Southern CZ8056</p>
+                <p className="text-slate-600 text-[10px]">CGK T3 (09:05) &rarr; SZX T3 (15:25)</p>
               </div>
-              <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                <span className="font-bold text-violet-800 block mb-0.5">🛬 Penerbangan Kepulangan (Selasa, 15 Des 2026)</span>
-                <p className="font-semibold text-slate-800">China Southern Airlines CZ8353 (Estimasi)</p>
-                <p className="text-slate-600 text-[11px]">Shenzhen (SZX) 19:05 CST &rarr; Jakarta (CGK T3) 23:20 WIB</p>
-                <p className="text-[10px] text-slate-500">Penerbangan Malam Langsung · Tiba di Jakarta 23:20 WIB</p>
+              <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
+                <span className="font-bold text-violet-800 block mb-0.5">🛬 Pulang (14 Des 2026)</span>
+                <p className="font-semibold text-slate-800">China Southern CZ8353</p>
+                <p className="text-slate-600 text-[10px]">SZX T3 (19:05) &rarr; CGK T3 (23:20)</p>
+              </div>
+              <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
+                <span className="font-bold text-emerald-800 block mb-0.5">🏨 Hotel (11–14 Des 2026)</span>
+                <p className="font-semibold text-slate-800">Zhongbao Int'l Hotel</p>
+                <p className="text-slate-600 text-[10px]">Longhua District, Shenzhen</p>
               </div>
             </div>
-            <p className="text-[10px] text-slate-600 italic">
-              *Catatan Domestik: Seluruh peserta daerah tiba di Jakarta pada 10 Des 2026 dan terbang kembali ke daerah asal pada 16 Des 2026.
-            </p>
           </div>
 
           {/* 2. SUSUNAN KONTINGEN RESMI SNT WILAYAH 2 */}
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <h4 className="text-xs font-black uppercase text-indigo-900 border-b border-indigo-200 pb-1">
               2. SUSUNAN KONTINGEN RESMI SNT WILAYAH 2
             </h4>
@@ -2413,7 +2888,7 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
                   <th className="p-1.5 text-left">Nama Lengkap</th>
                   <th className="p-1.5 text-left">Peran</th>
                   <th className="p-1.5 text-left">Asal SNT</th>
-                  <th className="p-1.5 text-left">Sekolah / Instansi</th>
+                  <th className="p-1.5 text-left">Keterangan</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 bg-white">
@@ -2433,171 +2908,52 @@ Demikian kami sampaikan. Jika ada hal yang ingin dikoordinasikan lebih lanjut, k
           </div>
 
           {/* 3. RUNDOWN KEGIATAN LENGKAP */}
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <h4 className="text-xs font-black uppercase text-indigo-900 border-b border-indigo-200 pb-1">
-              3. JADWAL DETAIL & RUNDOWN KEGIATAN LOMBA (10–16 DESEMBER 2026)
+              3. JADWAL DETAIL & RUNDOWN KEGIATAN UTAMA (10–15 DESEMBER 2026)
             </h4>
-            <table className="min-w-full divide-y divide-slate-200 border border-slate-200 text-xs">
+            <table className="min-w-full divide-y divide-slate-200 border border-slate-200 text-[11px]">
               <thead className="bg-slate-100 font-bold text-slate-700">
                 <tr>
-                  <th className="p-1.5 text-left w-24">Tanggal & Hari</th>
+                  <th className="p-1.5 text-left w-28">Hari / Tanggal</th>
                   <th className="p-1.5 text-left w-24">Waktu</th>
-                  <th className="p-1.5 text-left">Rincian Agenda & Lokasi Kegiatan</th>
-                  <th className="p-1.5 text-left w-32">Keterangan</th>
+                  <th className="p-1.5 text-left">Rincian Kegiatan</th>
+                  <th className="p-1.5 text-left w-44">Lokasi / Keterangan</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 bg-white">
-                <tr>
-                  <td className="p-1.5 font-bold text-slate-800" rowSpan={3}>
-                    10 Des 2026<br /><span className="text-[10px] text-slate-500 font-normal">Kamis</span>
-                  </td>
-                  <td className="p-1.5 font-semibold">08:00 – 16:00</td>
-                  <td className="p-1.5">Penerbangan domestik delegasi dari bandara daerah asal (Kupang, Tidore, Tanjabtim) menuju Jakarta (CGK).</td>
-                  <td className="p-1.5 text-[10px] text-slate-600">Pakaian bebas rapi</td>
-                </tr>
-                <tr>
-                  <td className="p-1.5 font-semibold">17:00 – 19:00</td>
-                  <td className="p-1.5">Pertemuan koordinasi delegasi di area Terminal 3 CGK, cek kit robot & kelengkapan paspor.</td>
-                  <td className="p-1.5 text-[10px] text-slate-600">Briefing Korwil 2</td>
-                </tr>
-                <tr>
-                  <td className="p-1.5 font-semibold">20:00 – Selesai</td>
-                  <td className="p-1.5">Istirahat transit di hotel bandara Soetta tanpa keluar area bandara.</td>
-                  <td className="p-1.5 text-[10px] text-slate-600">Istirahat</td>
-                </tr>
-
-                <tr className="bg-slate-50/50">
-                  <td className="p-1.5 font-bold text-indigo-900" rowSpan={4}>
-                    11 Des 2026<br /><span className="text-[10px] text-slate-500 font-normal">Jumat</span>
-                  </td>
-                  <td className="p-1.5 font-semibold">06:00 – 08:00</td>
-                  <td className="p-1.5">Check-in penerbangan China Southern CZ8056 di T3 CGK & proses imigrasi Indonesia.</td>
-                  <td className="p-1.5 text-[10px] text-slate-600">Seragam Kontingen SNT</td>
-                </tr>
-                <tr className="bg-slate-50/50">
-                  <td className="p-1.5 font-semibold">09:05 – 15:25</td>
-                  <td className="p-1.5">Penerbangan langsung Jakarta (CGK) menuju Shenzhen (SZX). Durasi ±5 jam 20 menit.</td>
-                  <td className="p-1.5 text-[10px] text-slate-600">Flight CZ8056</td>
-                </tr>
-                <tr className="bg-slate-50/50">
-                  <td className="p-1.5 font-semibold">15:25 – 17:30</td>
-                  <td className="p-1.5">Mendarat di Shenzhen (SZX T3), imigrasi RRT, penjemputan van menuju hotel resmi kompetisi.</td>
-                  <td className="p-1.5 text-[10px] text-slate-600">Van jemputan resmi</td>
-                </tr>
-                <tr className="bg-slate-50/50">
-                  <td className="p-1.5 font-semibold">18:00 – 21:00</td>
-                  <td className="p-1.5">Check-in hotel paket resmi Longgang, pengambilan ID card, makan malam, & uji coba robot.</td>
-                  <td className="p-1.5 text-[10px] text-slate-600">Hotel Paket (Malam 1)</td>
-                </tr>
-
-                <tr className="bg-amber-50/30">
-                  <td className="p-1.5 font-bold text-amber-900" rowSpan={4}>
-                    12 Des 2026<br /><span className="text-[10px] text-amber-700 font-bold">Sabtu (Lomba 1)</span>
-                  </td>
-                  <td className="p-1.5 font-semibold">07:00 – 08:30</td>
-                  <td className="p-1.5">Sarapan pagi di hotel dan transfer menuju venue <strong>Longgang International Arts Center</strong>.</td>
-                  <td className="p-1.5 text-[10px] text-slate-600">Kit robot & toolkit</td>
-                </tr>
-                <tr className="bg-amber-50/30">
-                  <td className="p-1.5 font-semibold">09:00 – 10:30</td>
-                  <td className="p-1.5"><strong>Opening Ceremony The 14th IYRC China 2026</strong> & parade kontingen dunia.</td>
-                  <td className="p-1.5 text-[10px] text-slate-600">Seragam Resmi</td>
-                </tr>
-                <tr className="bg-amber-50/30">
-                  <td className="p-1.5 font-semibold">10:30 – 16:30</td>
-                  <td className="p-1.5"><strong>Babak Penyisihan & Penjurian:</strong> Creative Robot, AI Challenge, Coding Robot.</td>
-                  <td className="p-1.5 text-[10px] text-slate-600">Makan siang di venue</td>
-                </tr>
-                <tr className="bg-amber-50/30">
-                  <td className="p-1.5 font-semibold">17:30 – 20:30</td>
-                  <td className="p-1.5">Penutupan hari 1, evaluasi teknis robot oleh guru pendamping, dan makan malam.</td>
-                  <td className="p-1.5 text-[10px] text-slate-600">Hotel Paket (Malam 2)</td>
-                </tr>
-
-                <tr className="bg-emerald-50/30">
-                  <td className="p-1.5 font-bold text-emerald-900" rowSpan={4}>
-                    13 Des 2026<br /><span className="text-[10px] text-emerald-700 font-bold">Minggu (Lomba 2)</span>
-                  </td>
-                  <td className="p-1.5 font-semibold">07:00 – 08:30</td>
-                  <td className="p-1.5">Sarapan pagi di hotel dan transfer kontingen ke Longgang International Arts Center.</td>
-                  <td className="p-1.5 text-[10px] text-slate-600">Seragam Kontingen</td>
-                </tr>
-                <tr className="bg-emerald-50/30">
-                  <td className="p-1.5 font-semibold">09:00 – 12:30</td>
-                  <td className="p-1.5"><strong>Babak Final & Grand Exhibition:</strong> Demonstrasi final robot karya peserta terbaik.</td>
-                  <td className="p-1.5 text-[10px] text-slate-600">Penjurian final</td>
-                </tr>
-                <tr className="bg-emerald-50/30">
-                  <td className="p-1.5 font-semibold">14:00 – 17:00</td>
-                  <td className="p-1.5"><strong>Awarding & Closing Ceremony:</strong> Pengumuman pemenang, penyerahan medali & piala.</td>
-                  <td className="p-1.5 text-[10px] text-slate-600">Medali & sertifikat</td>
-                </tr>
-                <tr className="bg-emerald-50/30">
-                  <td className="p-1.5 font-semibold">18:00 – 21:00</td>
-                  <td className="p-1.5">Gala dinner & farewell reception kontingen seluruh negara partisipan.</td>
-                  <td className="p-1.5 text-[10px] text-slate-600">Hotel Paket (Malam 3)</td>
-                </tr>
-
-                <tr>
-                  <td className="p-1.5 font-bold text-slate-800" rowSpan={3}>
-                    14 Des 2026<br /><span className="text-[10px] text-slate-500 font-normal">Senin</span>
-                  </td>
-                  <td className="p-1.5 font-semibold">08:00 – 10:00</td>
-                  <td className="p-1.5">Paket IYRC selesai. Check-out hotel Longgang dan transfer menuju hotel di pusat kota Shenzhen.</td>
-                  <td className="p-1.5 text-[10px] text-slate-600">Transfer van & bagasi</td>
-                </tr>
-                <tr>
-                  <td className="p-1.5 font-semibold">11:00 – 17:00</td>
-                  <td className="p-1.5">Kunjungan edukatif terarah: Ekosistem inovasi hardware & AI global di Shenzhen.</td>
-                  <td className="p-1.5 text-[10px] text-slate-600">Eksplorasi edukasi</td>
-                </tr>
-                <tr>
-                  <td className="p-1.5 font-semibold">18:30 – 21:00</td>
-                  <td className="p-1.5">Makan malam bersama dan persiapan akhir packing bagasi untuk kepulangan.</td>
-                  <td className="p-1.5 text-[10px] text-slate-600">Hotel Kota (Malam 4)</td>
-                </tr>
-
-                <tr className="bg-violet-50/30">
-                  <td className="p-1.5 font-bold text-violet-900" rowSpan={3}>
-                    15 Des 2026<br /><span className="text-[10px] text-slate-500 font-normal">Selasa</span>
-                  </td>
-                  <td className="p-1.5 font-semibold">09:00 – 13:00</td>
-                  <td className="p-1.5">Check-out hotel Shenzhen, free program singkat di sekitar hotel dan makan siang.</td>
-                  <td className="p-1.5 text-[10px] text-slate-600">Persiapan dokumen</td>
-                </tr>
-                <tr>
-                  <td className="p-1.5 font-semibold">14:30 – 17:00</td>
-                  <td className="p-1.5">Transfer menuju Shenzhen Airport (SZX), check-in CZ8353 & imigrasi keluar China.</td>
-                  <td className="p-1.5 text-[10px] text-slate-600">Standby bandara</td>
-                </tr>
-                <tr>
-                  <td className="p-1.5 font-semibold">19:05 – 23:20</td>
-                  <td className="p-1.5">Penerbangan CZ8353 menuju Jakarta (CGK T3). Tiba 23:20 WIB. Transit bandara.</td>
-                  <td className="p-1.5 text-[10px] text-slate-600">Tiba Jakarta</td>
-                </tr>
-
-                <tr>
-                  <td className="p-1.5 font-bold text-slate-800">
-                    16 Des 2026<br /><span className="text-[10px] text-slate-500 font-normal">Rabu</span>
-                  </td>
-                  <td className="p-1.5 font-semibold">06:00 – Selesai</td>
-                  <td className="p-1.5">Penerbangan domestik dari Jakarta (CGK) menuju daerah asal masing-masing (Kupang, Tidore, Tanjabtim).</td>
-                  <td className="p-1.5 text-[10px] text-emerald-700 font-bold">Misi Selesai</td>
-                </tr>
+                {MAIN_ITINERARY.map((item, idx) => (
+                  <tr key={idx}>
+                    <td className="p-1.5 font-bold text-slate-800 whitespace-nowrap">{item.hariTanggal}</td>
+                    <td className="p-1.5 font-semibold text-slate-700 whitespace-nowrap">{item.waktu}</td>
+                    <td className="p-1.5 text-slate-800">{item.kegiatan}</td>
+                    <td className="p-1.5 text-[10px] text-slate-600">{item.lokasiKeterangan}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
 
           {/* TANDA TANGAN PENGESAHAN KORWIL 2 */}
-          <div className="pt-6 flex justify-end">
-            <div className="text-center w-72 space-y-14">
-              <p className="text-slate-600 font-semibold text-xs">
-                PT. Jully Tjindrawan Robotik<br />
+          <div className="pt-4 flex justify-between items-start text-xs">
+            <div className="text-center w-64 space-y-12">
+              <p className="text-slate-600 font-semibold">
+                Disusun Oleh,<br />
+                <span className="text-[11px] text-slate-500">{IYRC_INFO.preparedBy.instansi}</span>
+              </p>
+              <div>
+                <p className="font-extrabold text-slate-900 underline text-sm">{IYRC_INFO.preparedBy.nama}</p>
+                <p className="text-slate-500 font-medium text-[11px]">{IYRC_INFO.preparedBy.jabatan}</p>
+              </div>
+            </div>
+            <div className="text-center w-64 space-y-12">
+              <p className="text-slate-600 font-semibold">
+                Menyetujui,<br />
                 <span className="text-[11px] text-indigo-700 font-bold">Koordinator Wilayah 2 Program SNT</span>
               </p>
               <div>
-                <p className="font-extrabold text-slate-900 underline text-sm">Jully Tjindrawan, MBA</p>
-                <p className="text-slate-500 font-medium text-[11px]">Koordinator Wilayah 2 & Founder Robotic Explorer</p>
+                <p className="font-extrabold text-slate-900 underline text-sm">{IYRC_INFO.approvedBy.nama}</p>
+                <p className="text-slate-500 font-medium text-[11px]">{IYRC_INFO.approvedBy.jabatan}</p>
               </div>
             </div>
           </div>

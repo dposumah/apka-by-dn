@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import {
   DEFAULT_IYRC_PARTICIPANTS,
   DEFAULT_IYRC_BUDGET_ITEMS,
+  REPLACED_IYRC_PARTICIPANTS,
   calculateDynamicRab,
 } from "@/lib/iyrc-utils";
 
@@ -36,6 +37,15 @@ export async function getIyrcData() {
     if (budgetItems.length === 0) {
       await prisma.iyrcBudgetItem.createMany({
         data: DEFAULT_IYRC_BUDGET_ITEMS,
+      });
+      budgetItems = await prisma.iyrcBudgetItem.findMany({
+        orderBy: { urutan: "asc" },
+      });
+    } else if (!budgetItems.some((item) => item.code === "A.5")) {
+      // Otomatis migrasi ke versi 5 Nov 2026 jika item A.5 belum ada di database (tetap menjaga status pembayaran)
+      await syncIyrcToLatestData(true);
+      participants = await prisma.iyrcParticipant.findMany({
+        orderBy: [{ peran: "asc" }, { nama: "asc" }],
       });
       budgetItems = await prisma.iyrcBudgetItem.findMany({
         orderBy: { urutan: "asc" },
@@ -71,10 +81,14 @@ export async function getIyrcData() {
 /**
  * Sinkronkan nilai RAB di database dengan jumlah peserta aktual saat ini
  */
-export async function syncRabToDatabase(countSiswa: number, countPendamping: number) {
+export async function syncRabToDatabase(countSiswa: number, countPendamping: number, skipRevalidate = false) {
   try {
     const currentItems = await prisma.iyrcBudgetItem.findMany({ orderBy: { urutan: "asc" } });
-    const { items, perPersonTravelFee } = calculateDynamicRab(countSiswa, countPendamping, currentItems);
+    const { items, perPersonTravelFee, biayaKompetisiPerSiswa, biayaKompetisiPerPendamping } = calculateDynamicRab(
+      countSiswa,
+      countPendamping,
+      currentItems
+    );
 
     for (const item of items) {
       await prisma.iyrcBudgetItem.update({
@@ -90,7 +104,7 @@ export async function syncRabToDatabase(countSiswa: number, countPendamping: num
     // Update biaya beban peserta aktual
     const allParticipants = await prisma.iyrcParticipant.findMany();
     for (const p of allParticipants) {
-      const biayaKompetisi = p.peran === "SISWA" ? 30000000 : 12000000;
+      const biayaKompetisi = p.peran === "SISWA" ? biayaKompetisiPerSiswa : biayaKompetisiPerPendamping;
       const totalBiaya = biayaKompetisi + perPersonTravelFee;
       await prisma.iyrcParticipant.update({
         where: { id: p.id },
@@ -102,7 +116,7 @@ export async function syncRabToDatabase(countSiswa: number, countPendamping: num
       });
     }
 
-    revalidatePath("/cashflow/iyrc");
+    if (!skipRevalidate) revalidatePath("/cashflow/iyrc");
     return { success: true };
   } catch (error: any) {
     console.error("Error syncing RAB:", error);
@@ -123,14 +137,13 @@ export async function addIyrcParticipant(data: {
   catatan?: string;
 }) {
   try {
-    const biayaKompetisi = data.peran === "SISWA" ? 30000000 : 12000000;
-    
     // Hitung proyeksi biaya perjalanan saat peserta bertambah
     const allP = await prisma.iyrcParticipant.findMany();
     const newSiswa = allP.filter((p) => p.peran === "SISWA").length + (data.peran === "SISWA" ? 1 : 0);
     const newPendamping = allP.filter((p) => p.peran === "GURU_PENDAMPING").length + (data.peran === "GURU_PENDAMPING" ? 1 : 0);
     
-    const { perPersonTravelFee } = calculateDynamicRab(newSiswa, newPendamping);
+    const { perPersonTravelFee, biayaKompetisiPerSiswa, biayaKompetisiPerPendamping } = calculateDynamicRab(newSiswa, newPendamping);
+    const biayaKompetisi = data.peran === "SISWA" ? biayaKompetisiPerSiswa : biayaKompetisiPerPendamping;
 
     await prisma.iyrcParticipant.create({
       data: {
@@ -225,7 +238,7 @@ export async function deleteIyrcParticipant(id: string) {
 }
 
 /**
- * Reset Data ke Format Awal PDF (3 Siswa & 2 Guru Pendamping)
+ * Reset Data ke Format Terbaru PDF (4 Siswa & 2 Guru Pendamping – versi 5 Nov 2026)
  */
 export async function resetIyrcToDefault() {
   try {
@@ -243,6 +256,63 @@ export async function resetIyrcToDefault() {
     return { success: true };
   } catch (error: any) {
     console.error("Error resetting IYRC data:", error);
+    return { error: error.message };
+  }
+}
+
+/**
+ * Sinkronkan data IYRC ke dokumen terbaru (RAB & Informasi Perjalanan versi 5 Nov 2026)
+ * tanpa menghapus status pembayaran / nominal terbayar / paspor yang sudah diisi.
+ * - Item RAB diganti seluruhnya sesuai PDF (nilai realisasi dipertahankan per kode).
+ * - Peserta default ditambahkan / diperbarui berdasarkan nama.
+ * - Peserta lama yang digantikan dihapus hanya jika belum ada pembayaran.
+ */
+export async function syncIyrcToLatestData(skipRevalidate = false) {
+  try {
+    // 1. Item RAB
+    const oldItems = await prisma.iyrcBudgetItem.findMany();
+    const realisasiByCode = new Map(oldItems.map((i) => [i.code, i.realisasi || 0]));
+    await prisma.iyrcBudgetItem.deleteMany();
+    await prisma.iyrcBudgetItem.createMany({
+      data: DEFAULT_IYRC_BUDGET_ITEMS.map((i) => ({ ...i, realisasi: realisasiByCode.get(i.code) || 0 })),
+    });
+
+    // 2. Peserta
+    const existing = await prisma.iyrcParticipant.findMany();
+    const keptReplaced: string[] = [];
+
+    for (const oldName of REPLACED_IYRC_PARTICIPANTS) {
+      const p = existing.find((e) => e.nama === oldName);
+      if (!p) continue;
+      if ((p.nominalTerbayar || 0) > 0) {
+        keptReplaced.push(p.nama);
+      } else {
+        await prisma.iyrcParticipant.delete({ where: { id: p.id } });
+      }
+    }
+
+    for (const d of DEFAULT_IYRC_PARTICIPANTS) {
+      const match = existing.find((e) => e.nama.trim().toLowerCase() === d.nama.trim().toLowerCase());
+      if (match) {
+        await prisma.iyrcParticipant.update({
+          where: { id: match.id },
+          data: { peran: d.peran, sntAsal: d.sntAsal, sekolahAsal: d.sekolahAsal },
+        });
+      } else {
+        await prisma.iyrcParticipant.create({ data: d });
+      }
+    }
+
+    // 3. Hitung ulang volume & beban per peserta
+    const allP = await prisma.iyrcParticipant.findMany();
+    const countSiswa = allP.filter((p) => p.peran === "SISWA").length;
+    const countPendamping = allP.filter((p) => p.peran === "GURU_PENDAMPING").length;
+    await syncRabToDatabase(countSiswa, countPendamping, skipRevalidate);
+
+    if (!skipRevalidate) revalidatePath("/cashflow/iyrc");
+    return { success: true, countSiswa, countPendamping, keptReplaced };
+  } catch (error: any) {
+    console.error("Error syncing IYRC to latest data:", error);
     return { error: error.message };
   }
 }
