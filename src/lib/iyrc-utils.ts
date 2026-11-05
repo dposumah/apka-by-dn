@@ -23,8 +23,26 @@ export const IYRC_INFO = {
   flightOut: "China Southern CZ8056 · Jumat, 11 Des 2026 · CGK T3 09.05 → SZX T3 15.25 (A320neo)",
   flightBack: "China Southern CZ8353 · Senin, 14 Des 2026 · SZX T3 19.05 → CGK T3 23.20 (A321neo)",
   bankAccount: "BCA 7040827000 a.n. PT Jully Tjindrawan Robotik",
-  preparedBy: { nama: "Galvin Amaris Limbrawan", jabatan: "Program Director Robotic Explorer" },
-  approvedBy: { nama: "Jully Tjindrawan, MBA", jabatan: "Koordinator Wilayah 2" },
+  bankTransfer: {
+    bank: "BCA",
+    accountNumber: "7040827000",
+    accountHolder: "PT Jully Tjindrawan Robotik",
+  },
+  kopSurat: {
+    alamat: "Greenville Blok AL no 1A-B, Duri Kepa, Kebon Jeruk, Jakarta Barat 11510",
+    email: "info@worldroboticexplorer.com",
+    telepon: "0822-9898-4848",
+  },
+  preparedBy: {
+    nama: "Galvin Amaris Limbrawan",
+    jabatan: "Program Director Robotic Explorer",
+    instansi: "PT Jully Tjindrawan Robotik",
+  },
+  approvedBy: {
+    nama: "Jully Tjindrawan, MBA",
+    jabatan: "Koordinator Wilayah 2",
+    instansi: "PT Jully Tjindrawan Robotik",
+  },
   usdRate: 18000,
 };
 
@@ -34,6 +52,7 @@ export const IYRC_PACKAGE = {
   categoryFeeUsd: 250,
   categoryCount: 3, // Jurassic Explorer, Sumo, Creative – masing-masing 1 tim
   studyTourPerPerson: 6500000, // F.1 / F.2
+  studyTourAddOn: 6500000, // Alias
 };
 
 export const DEFAULT_IYRC_PARTICIPANTS = [
@@ -155,108 +174,316 @@ export const JAKARTA_TRAINING_STAY = {
   location: "Kec. Grogol Petamburan, Jakarta Barat",
   note:
     "Periode digeser dari 14 Nov–10 Des menjadi 15 Nov–11 Des agar malam 10 Des (sebelum terbang 11 Des pukul 09.05) tercakup. Jumlah malam tetap 26 sehingga biaya sama.",
+  // Alias keys for compatibility with various components
+  lokasiPelatihan: "Kec. Grogol Petamburan, Jakarta Barat",
+  jumlahKamar: 2,
+  jumlahMalam: 26,
+  totalKamarMalam: 52,
+  catatanSinkronisasi:
+    "Periode digeser dari 14 Nov–10 Des menjadi 15 Nov–11 Des agar malam 10 Des (sebelum terbang 11 Des pukul 09.05) tercakup. Jumlah malam tetap 26 sehingga biaya sama.",
 };
 
 export const JAKARTA_HOTEL_OPTIONS = [
   {
+    id: "social-hub",
     key: "social-hub",
+    opsi: "I",
     nama: "Social Hub by TwoSpaces",
     bintang: 3,
+    jarakKeVenue: "±1,6 km (±5-7 mnt)",
+    tipeKamar: "Standard Twin Room (2 Single Beds)",
     alamat: "Jl. Sosial No. 52, Kec. Grogol Petamburan, Kota Jakarta Barat, DKI Jakarta 11460",
     tarifDasar: 235700,
+    tarifDasarMalam: 235700,
     servicePct: 0,
     pajakPct: 0,
     tarifInklusif: true,
+    rekomendasi: true,
     sarapan: "Tidak termasuk (Rp65.000/orang/hari)",
     fasilitas: "46 kamar ber-AC, Wi-Fi gratis, resepsionis 24 jam, restoran/kafe, parkir gratis; tidak ada lift",
     sumber: "Expedia – mulai US$13/malam (±Rp235.700), sudah termasuk pajak & fee",
-    catatan: "Termurah, namun beberapa platform mencatat hanya menerima pembayaran tunai – pastikan invoice/kuitansi resmi untuk SPJ.",
+    catatan: "Paling hemat dan efisien. Area tenang dengan kafe & Wi-Fi memadai untuk persiapan peserta setelah pelatihan.",
   },
   {
+    id: "maple",
     key: "maple",
+    opsi: "II",
     nama: "Maple Hotel Grogol",
     bintang: 3,
+    jarakKeVenue: "±2,1 km (±7-10 mnt)",
+    tipeKamar: "Superior Twin Room (2 Single Beds)",
     alamat: "Jl. Kali Sekretaris Dalam No. 55, RT.5/RW.1, Tj. Duren Utara, Kec. Grogol Petamburan, Jakarta Barat 11470 · Telp. +62 21 2256 1234",
     tarifDasar: 247604,
+    tarifDasarMalam: 247604,
     servicePct: 10,
     pajakPct: 10,
     tarifInklusif: false,
+    rekomendasi: false,
     sarapan: "Tidak termasuk (opsional, biaya tambahan)",
     fasilitas: "Restoran, bar, Wi-Fi gratis di kamar, brankas kamar, ruang konferensi, parkir gratis; ±6 menit jalan kaki ke Mal Ciputra",
     sumber: "Trivago – mulai Rp247.604/malam, belum termasuk pajak & service",
-    catatan: "Selisih ±Rp3,3 jt dari termurah; invoice resmi lebih mudah untuk pertanggungjawaban.",
+    catatan: "Alternatif hotel representatif di Tanjung Duren, kemudahan invoice korporat resmi untuk pertanggungjawaban SPJ.",
   },
   {
+    id: "mercure",
     key: "mercure",
+    opsi: "III",
     nama: "Mercure Jakarta Grogol",
     bintang: 4,
+    jarakKeVenue: "±2,8 km (±10-15 mnt)",
+    tipeKamar: "Superior Twin Room (2 Single Beds)",
     alamat: "Jl. Daan Mogot No. 50 B, Wijaya Kusuma, Kec. Grogol Petamburan, Kota Jakarta Barat 11460",
     tarifDasar: 523000,
+    tarifDasarMalam: 523000,
     servicePct: 10,
     pajakPct: 10,
     tarifInklusif: false,
+    rekomendasi: false,
     sarapan: "Tidak termasuk (restoran tersedia, berbayar)",
     fasilitas: "95 kamar & suite; kolam renang outdoor, spa, gym, restoran, 7 ruang rapat, parkir & Wi-Fi gratis",
     sumber: "Trip.com – mulai S$39/malam (±Rp523.000), belum termasuk pajak & service",
-    catatan: "Opsi termahal (+Rp20,6 jt dari termurah).",
+    catatan: "Opsi fasilitas terlengkap standar bintang 4 internasional (Accor), cocok bila membutuhkan ruang pertemuan internal.",
   },
 ];
 
 /** Hitung rincian biaya hotel pelatihan Jakarta (service 10% × sewa; PBJT 10% × (sewa + service)) */
-export function calculateJakartaHotel(option: (typeof JAKARTA_HOTEL_OPTIONS)[number], nights = JAKARTA_TRAINING_STAY.nights, rooms = JAKARTA_TRAINING_STAY.rooms) {
+export function calculateJakartaHotel(
+  option: (typeof JAKARTA_HOTEL_OPTIONS)[number] | any,
+  nights = 26,
+  rooms = 2,
+  siswaCount = 4
+) {
   const roomNights = nights * rooms;
-  const sewa = roomNights * option.tarifDasar;
-  const service = Math.round(sewa * (option.servicePct / 100));
-  const pajak = Math.round((sewa + service) * (option.pajakPct / 100));
-  const total = sewa + service + pajak;
-  const perKamarMalam = roomNights > 0 ? total / roomNights : 0;
-  return { roomNights, sewa, service, pajak, total, perKamarMalam, perMalamSemuaKamar: perKamarMalam * rooms };
+  const tarifDasarMalam = option?.tarifDasarMalam || option?.tarifDasar || 0;
+  const sewaKamar = roomNights * tarifDasarMalam;
+  const serviceCharge = option?.tarifInklusif ? 0 : Math.round(sewaKamar * ((option?.servicePct || 0) / 100));
+  const pajakPbjt = option?.tarifInklusif ? 0 : Math.round((sewaKamar + serviceCharge) * ((option?.pajakPct || 0) / 100));
+  const totalBiaya = sewaKamar + serviceCharge + pajakPbjt;
+  const tarifEfektifKamarMalam = roomNights > 0 ? Math.round(totalBiaya / roomNights) : 0;
+  const perSiswa = siswaCount > 0 ? Math.round(totalBiaya / siswaCount) : 0;
+  const perSiswaPerMalam = (siswaCount > 0 && nights > 0) ? Math.round(totalBiaya / (siswaCount * nights)) : 0;
+
+  return {
+    roomNights,
+    kamarMalam: roomNights,
+    sewa: sewaKamar,
+    sewaKamar,
+    service: serviceCharge,
+    serviceCharge,
+    pajak: pajakPbjt,
+    pajakPbjt,
+    total: totalBiaya,
+    totalBiaya,
+    perKamarMalam: tarifEfektifKamarMalam,
+    tarifEfektifKamarMalam,
+    perSiswa,
+    perSiswaPerMalam,
+    perMalamSemuaKamar: tarifEfektifKamarMalam * rooms,
+  };
 }
 
-/** Ringkasan pelatihan siswa di Jakarta */
+/** Ringkasan pelatihan siswa di Jakarta (4 Pekan · 19 Sesi) */
 export const TRAINING_WEEKS = [
-  { pekan: "Pekan 1", tanggal: "16 – 22 Nov", fokus: "Pengenalan CodeSpark 3, perakitan robot line tracing & remote control, latihan misi Jurassic Survival, integrasi awal dua robot (Sesi 1–7)" },
-  { pekan: "Pekan 2", tanggal: "23 – 29 Nov", fokus: "Perbaikan & integrasi dua robot Jurassic, riset tema dan penentuan ide Creative Design, mulai bangun prototipe, Simulasi Kompetisi I (Sesi 8–10)" },
-  { pekan: "Pekan 3", tanggal: "30 Nov – 6 Des", fokus: "Prototipe & pemrograman Creative Design, naskah presentasi bahasa Inggris, poster & manual, Simulasi Kompetisi II–III, pembekuan program Jurassic (Sesi 11–16)" },
-  { pekan: "Pekan 4", tanggal: "7 – 9 Des", fokus: "Final check, packing kit untuk perjalanan udara, briefing keberangkatan, cek alat Creative dan presentasi latihan (Sesi 17–19)" },
+  {
+    minggu: "Pekan 1",
+    pekan: "Pekan 1",
+    periode: "16 – 22 Nov 2026",
+    tanggal: "16 – 22 Nov 2026",
+    jumlahSesi: "7 Sesi",
+    fokusMateri: "Pengenalan CodeSpark 3, perakitan robot line tracing & remote control, latihan misi Jurassic Survival, integrasi awal dua robot (Sesi 1–7)",
+    fokus: "Pengenalan CodeSpark 3, perakitan robot line tracing & remote control, latihan misi Jurassic Survival, integrasi awal dua robot (Sesi 1–7)",
+  },
+  {
+    minggu: "Pekan 2",
+    pekan: "Pekan 2",
+    periode: "23 – 29 Nov 2026",
+    tanggal: "23 – 29 Nov 2026",
+    jumlahSesi: "3 Sesi",
+    fokusMateri: "Perbaikan & integrasi dua robot Jurassic, riset tema dan penentuan ide Creative Design, mulai bangun prototipe, Simulasi Kompetisi I (Sesi 8–10)",
+    fokus: "Perbaikan & integrasi dua robot Jurassic, riset tema dan penentuan ide Creative Design, mulai bangun prototipe, Simulasi Kompetisi I (Sesi 8–10)",
+  },
+  {
+    minggu: "Pekan 3",
+    pekan: "Pekan 3",
+    periode: "30 Nov – 6 Des 2026",
+    tanggal: "30 Nov – 6 Des 2026",
+    jumlahSesi: "6 Sesi",
+    fokusMateri: "Prototipe & pemrograman Creative Design, naskah presentasi bahasa Inggris, poster & manual, Simulasi Kompetisi II–III, pembekuan program Jurassic (Sesi 11–16)",
+    fokus: "Prototipe & pemrograman Creative Design, naskah presentasi bahasa Inggris, poster & manual, Simulasi Kompetisi II–III, pembekuan program Jurassic (Sesi 11–16)",
+  },
+  {
+    minggu: "Pekan 4",
+    pekan: "Pekan 4",
+    periode: "7 – 9 Des 2026",
+    tanggal: "7 – 9 Des 2026",
+    jumlahSesi: "3 Sesi",
+    fokusMateri: "Final check, packing kit untuk perjalanan udara, briefing keberangkatan, cek alat Creative dan presentasi latihan (Sesi 17–19)",
+    fokus: "Final check, packing kit untuk perjalanan udara, briefing keberangkatan, cek alat Creative dan presentasi latihan (Sesi 17–19)",
+  },
 ];
 
-/** Rencana pengurusan visa */
+/** Rencana pengurusan visa China (CVASC Jakarta) */
 export const VISA_TIMELINE = [
-  { waktu: "4 Nov", kegiatan: "Invitation letter dari IYRA & My Robot Time (SZ) Co., Ltd. sudah diterima (lampiran Appendix A daftar peserta); diteruskan ke Direktorat sebagai dasar izin Perjalanan Dinas LN (Direktur ST → Sekjen → Setneg). Appendix A sedang diperbarui karena pergantian guru pendamping SNT 5 Tidore Kepulauan (Bapak Farid A. M).", pj: "Robotic Explorer → Direktorat" },
-  { waktu: "4–13 Nov", kegiatan: "Pengumpulan scan paspor, pas foto, dan dokumen pendukung visa peserta", pj: "Robotic Explorer & SNT" },
-  { waktu: "Segera", kegiatan: "Pengurusan paspor bagi yang belum memiliki (biaya paspor & asuransi ditanggung kota/daerah masing-masing)", pj: "Kota/daerah masing-masing" },
-  { waktu: "16–20 Nov", kegiatan: "Pengajuan visa di Chinese Visa Application Service Center Jakarta (invitation letter, booking tiket & hotel). Siswa sudah di Jakarta sejak 15 Nov untuk rekam sidik jari; guru pendamping mengatur jadwal masing-masing.", pj: "Peserta/SNT" },
-  { waktu: "s.d. ±27 Nov", kegiatan: "Visa terbit (proses reguler ±4 hari kerja setelah pengajuan)", pj: "–" },
-  { waktu: "s.d. 11 Des", kegiatan: "Waktu cadangan bila ada dokumen tambahan atau proses lebih lama", pj: "–" },
+  {
+    tahap: "1. Surat Undangan Resmi IYRC",
+    targetWaktu: "4 Nov 2026 (Selesai)",
+    penanggungJawab: "Robotic Explorer → Direktorat",
+    waktu: "4 Nov 2026",
+    kegiatan: "Official Invitation Letter dari IYRA & My Robot Time Co., Ltd. telah diterima (lampiran Appendix A daftar nama). Diteruskan ke Direktorat sebagai dasar permohonan Izin Perjalanan Dinas LN (Direktur ST → Sekjen → Setneg).",
+    pj: "Robotic Explorer → Direktorat",
+  },
+  {
+    tahap: "2. Pengumpulan Berkas Peserta",
+    targetWaktu: "4 – 13 Nov 2026",
+    penanggungJawab: "Robotic Explorer & Tim SNT",
+    waktu: "4 – 13 Nov 2026",
+    kegiatan: "Pengumpulan scan paspor (masa berlaku min. 6 bulan), pas foto latar putih 33×48mm, KTP, Kartu Keluarga, dan surat izin orang tua untuk siswa.",
+    pj: "Robotic Explorer & Tim SNT",
+  },
+  {
+    tahap: "3. Paspor & Asuransi Perjalanan",
+    targetWaktu: "Segera (Bulan Nov)",
+    penanggungJawab: "Pemerintah Daerah / SNT Masing-masing",
+    waktu: "Segera",
+    kegiatan: "Penerbitan paspor bagi peserta yang belum memiliki serta asuransi perjalanan internasional (ditanggung daerah masing-masing sesuai RAB Rincian II C.2 & C.3).",
+    pj: "Kota/daerah masing-masing",
+  },
+  {
+    tahap: "4. Pengajuan Visa di CVASC Jakarta",
+    targetWaktu: "16 – 20 Nov 2026",
+    penanggungJawab: "Robotic Explorer & Peserta",
+    waktu: "16 – 20 Nov 2026",
+    kegiatan: "Pengajuan berkas visa ke Chinese Visa Application Service Center (CVASC) Jakarta. Siswa sudah berada di Jakarta sejak 15 Nov untuk perekaman biometrik / sidik jari.",
+    pj: "Peserta/SNT & Robotic Explorer",
+  },
+  {
+    tahap: "5. Penerbitan Visa China",
+    targetWaktu: "s.d. 27 Nov 2026",
+    penanggungJawab: "Kedutaan Besar RRT / CVASC",
+    waktu: "s.d. ±27 Nov 2026",
+    kegiatan: "Penerbitan visa reguler (estimasi 4 hari kerja setelah verifikasi berkas lengkap di CVASC).",
+    pj: "Kedutaan Besar RRT / CVASC",
+  },
+  {
+    tahap: "6. Buffer / Waktu Cadangan",
+    targetWaktu: "28 Nov – 10 Des 2026",
+    penanggungJawab: "Tim Delegasi",
+    waktu: "s.d. 11 Des 2026",
+    kegiatan: "Periode aman mitigasi jika terdapat permintaan dokumen tambahan atau verifikasi lanjutan sebelum keberangkatan 11 Des.",
+    pj: "Tim Delegasi",
+  },
 ];
 
 export const VISA_DOCUMENTS = [
-  "Paspor asli (masa berlaku minimal 6 bulan) dan pas foto sesuai ketentuan",
-  "Invitation letter dari panitia IYRC (sudah diterima 4 Nov)",
-  "Bukti booking tiket pesawat pulang-pergi dan booking hotel",
-  "Siswa di bawah 18 tahun: akta kelahiran, Kartu Keluarga, dan surat izin orang tua",
-  "Pemohon usia 14 tahun ke atas umumnya wajib hadir untuk rekam sidik jari",
+  "Paspor asli (masa berlaku minimal 6 bulan) dan pas foto sesuai ketentuan visa China (33×48 mm latar putih)",
+  "Invitation letter resmi dari panitia IYRC (sudah diterima 4 Nov 2026)",
+  "Bukti booking tiket pesawat pulang-pergi (China Southern CZ8056/CZ8353) dan booking hotel resmi Shenzhen",
+  "Siswa di bawah 18 tahun: akta kelahiran, Kartu Keluarga, dan surat izin orang tua/wali bermeterai",
+  "Pemohon usia 14 tahun ke atas wajib hadir untuk perekaman biometrik (sidik jari) di CVASC Jakarta",
 ];
 
-/** Itinerary utama (tanpa study tour) */
+/** Itinerary utama (10–15 Desember 2026 – tanpa study tour) */
 export const MAIN_ITINERARY = [
-  { tanggal: "Minggu, 15 Nov", kegiatan: "Siswa terbang dari daerah asal ke Jakarta", menginap: "Akomodasi pelatihan siswa (dibiayai)" },
-  { tanggal: "16 Nov – 9 Des", kegiatan: "Pelatihan intensif di Robotic Explorer, Jakarta: 19 sesi bersama pelatih (@ 4 jam) diselingi latihan mandiri", menginap: "Akomodasi pelatihan siswa (dibiayai)" },
-  { tanggal: "Kamis, 10 Des", kegiatan: "Guru pendamping tiba di Jakarta; persiapan akhir keberangkatan", menginap: "Siswa: akomodasi pelatihan · Pendamping: tidak dibiayai" },
-  { tanggal: "Jumat, 11 Des", kegiatan: "05.30 kumpul di CGK Terminal 3 · 09.05 terbang CZ8056 · 15.25 tiba di Shenzhen · transfer ke hotel · check-in & registrasi peserta", menginap: "Zhongbao International Hotel" },
-  { tanggal: "Sabtu, 12 Des", kegiatan: "Hari kompetisi 1 di Longgang International Arts Center", menginap: "Zhongbao International Hotel" },
-  { tanggal: "Minggu, 13 Des", kegiatan: "Hari kompetisi 2", menginap: "Zhongbao International Hotel" },
-  { tanggal: "Senin, 14 Des", kegiatan: "Check-out hotel · transfer ke Bandara Shenzhen Bao'an · 19.05 terbang CZ8353 · 23.20 tiba di Jakarta · menunggu penerbangan lanjutan subuh di bandara", menginap: "– (transit di bandara)" },
-  { tanggal: "Selasa, 15 Des", kegiatan: "Subuh: terbang dari Jakarta langsung ke daerah asal masing-masing", menginap: "–" },
+  {
+    hariTanggal: "Minggu, 15 Nov 2026",
+    tanggal: "Minggu, 15 Nov 2026",
+    waktu: "Tentatif (Pagi/Siang)",
+    kegiatan: "Siswa delegasi tiba di Jakarta dari daerah asal masing-masing (SNT 5 Tidore, SNT 10 Kupang, SNT 15 Buton Tengah, SNT 17 Tanjabtim)",
+    lokasiKeterangan: "Bandara Soekarno-Hatta (CGK) → Akomodasi Pelatihan (Grogol, Jakarta Barat)",
+    menginap: "Akomodasi pelatihan siswa di Jakarta",
+  },
+  {
+    hariTanggal: "16 Nov – 9 Des 2026",
+    tanggal: "16 Nov – 9 Des 2026",
+    waktu: "19 Sesi (@ 4 Jam)",
+    kegiatan: "Pelatihan intensif robotika & AI IYRC di Robotic Explorer Center: pemrograman CodeSpark 3, misi Jurassic Survival, Sumo, prototipe Creative Design, presentasi bahasa Inggris",
+    lokasiKeterangan: "Robotic Explorer Center, Greenville Blok AL No. 1A–B, Jakarta Barat",
+    menginap: "Akomodasi pelatihan siswa di Jakarta",
+  },
+  {
+    hariTanggal: "Kamis, 10 Des 2026",
+    tanggal: "Kamis, 10 Des 2026",
+    waktu: "Sepanjang Hari",
+    kegiatan: "Kedatangan guru pendamping di Jakarta dari daerah asal; briefing teknis keberangkatan rombongan delegasi & pengecekan akhir dokumen/kit",
+    lokasiKeterangan: "Robotic Explorer Center / Bandara Soekarno-Hatta (CGK)",
+    menginap: "Siswa: akomodasi pelatihan · Pendamping: mandiri / sesuai koordinasi",
+  },
+  {
+    hariTanggal: "Jumat, 11 Des 2026",
+    tanggal: "Jumat, 11 Des 2026",
+    waktu: "05.30 – 18.00 CST",
+    kegiatan: "Berkumpul di Bandara Soekarno-Hatta Terminal 3 (05.30 WIB). Penerbangan China Southern CZ8056 (09.05 WIB) → Tiba di Shenzhen Bao'an SZX T3 (15.25 CST). Penjemputan van ke Zhongbao International Hotel, check-in & registrasi tim",
+    lokasiKeterangan: "CGK T3 → Penerbangan CZ8056 → SZX T3 → Zhongbao International Hotel",
+    menginap: "Zhongbao International Hotel, Longhua, Shenzhen",
+  },
+  {
+    hariTanggal: "Sabtu, 12 Des 2026",
+    tanggal: "Sabtu, 12 Des 2026",
+    waktu: "08.00 – 17.30 CST",
+    kegiatan: "Hari Kompetisi I The 14th IYRC: Opening Ceremony, Technical Inspection, Pertandingan Babak Penyisihan Kategori Jurassic Explorer & Sumo Robot",
+    lokasiKeterangan: "Longgang International Arts Center, Shenzhen",
+    menginap: "Zhongbao International Hotel, Longhua, Shenzhen",
+  },
+  {
+    hariTanggal: "Minggu, 13 Des 2026",
+    tanggal: "Minggu, 13 Des 2026",
+    waktu: "08.30 – 18.00 CST",
+    kegiatan: "Hari Kompetisi II The 14th IYRC: Babak Final, Penjurian & Presentasi Creative Design AI Robot, Awarding & Closing Ceremony, Pembagian Medali & Sertifikat Juara",
+    lokasiKeterangan: "Longgang International Arts Center, Shenzhen",
+    menginap: "Zhongbao International Hotel, Longhua, Shenzhen",
+  },
+  {
+    hariTanggal: "Senin, 14 Des 2026",
+    tanggal: "Senin, 14 Des 2026",
+    waktu: "12.00 – 23.20 WIB",
+    kegiatan: "Check-out Zhongbao Hotel (12.00 CST). Transfer van ke Bandara Shenzhen Bao'an SZX T3 (16.00 CST). Penerbangan kepulangan China Southern CZ8353 (19.05 CST) → Tiba di Jakarta CGK T3 (23.20 WIB)",
+    lokasiKeterangan: "Zhongbao Hotel → SZX T3 → Penerbangan CZ8353 → Bandara Soekarno-Hatta (CGK) T3",
+    menginap: "Transit Bandara Soekarno-Hatta (menunggu jadwal penerbangan subuh)",
+  },
+  {
+    hariTanggal: "Selasa, 15 Des 2026",
+    tanggal: "Selasa, 15 Des 2026",
+    waktu: "Subuh / Pagi Hari",
+    kegiatan: "Penerbangan domestik lanjutan dari Jakarta kembali ke daerah asal masing-masing siswa dan pendamping (Tidore, Kupang, Buton Tengah, Jambi)",
+    lokasiKeterangan: "Bandara Soekarno-Hatta (CGK) → Bandara Daerah Asal",
+    menginap: "–",
+  },
 ];
 
-/** Itinerary opsi study tour (14–16 Des) */
+/** Itinerary opsi study tour (14–17 Des 2026) */
 export const STUDY_TOUR_ITINERARY = [
-  { tanggal: "Senin, 14 Des", kegiatan: "Check-out hotel paket kompetisi · program study tour & pertukaran edukasi", menginap: "Sesuai program study tour" },
-  { tanggal: "Selasa, 15 Des", kegiatan: "Program study tour & pertukaran edukasi", menginap: "Sesuai program study tour" },
-  { tanggal: "Rabu, 16 Des", kegiatan: "Program berakhir · transfer ke Bandara Guangzhou Baiyun (CAN) · terbang ke Jakarta [nomor & jam penerbangan menyusul]", menginap: "–" },
-  { tanggal: "Kamis, 17 Des", kegiatan: "Lanjut terbang dari Jakarta ke daerah asal masing-masing", menginap: "–" },
+  {
+    hariTanggal: "Senin, 14 Des 2026",
+    tanggal: "Senin, 14 Des 2026",
+    waktu: "12.00 – 18.00 CST",
+    kegiatan: "Check-out dari Zhongbao Hotel paket kompetisi. Pindah ke akomodasi study tour & orientasi program kunjungan teknologi Shenzhen",
+    lokasiKeterangan: "Shenzhen High-Tech Industrial Park & Akomodasi Study Tour",
+    menginap: "Hotel Program Study Tour Shenzhen",
+  },
+  {
+    hariTanggal: "Selasa, 15 Des 2026",
+    tanggal: "Selasa, 15 Des 2026",
+    waktu: "09.00 – 17.00 CST",
+    kegiatan: "Kunjungan edukasi industri robotika, pusat inovasi sains & teknologi Shenzhen, pertukaran pelajar internasional & workshop AI lanjutan",
+    lokasiKeterangan: "Pusat Sains & Pusat Robotika Shenzhen",
+    menginap: "Hotel Program Study Tour Shenzhen",
+  },
+  {
+    hariTanggal: "Rabu, 16 Des 2026",
+    tanggal: "Rabu, 16 Des 2026",
+    waktu: "Tentatif (Siang/Sore)",
+    kegiatan: "Penutupan program study tour, transfer rombongan ke Bandara Internasional Guangzhou Baiyun (CAN), penerbangan kepulangan ke Jakarta (CGK)",
+    lokasiKeterangan: "Shenzhen → Bandara Guangzhou Baiyun (CAN) → Jakarta (CGK)",
+    menginap: "Transit Bandara Soekarno-Hatta",
+  },
+  {
+    hariTanggal: "Kamis, 17 Des 2026",
+    tanggal: "Kamis, 17 Des 2026",
+    waktu: "Pagi / Siang",
+    kegiatan: "Penerbangan domestik lanjutan dari Jakarta kembali ke daerah asal masing-masing siswa dan pendamping",
+    lokasiKeterangan: "Bandara Soekarno-Hatta (CGK) → Daerah Asal",
+    menginap: "–",
+  },
 ];
 
 /**

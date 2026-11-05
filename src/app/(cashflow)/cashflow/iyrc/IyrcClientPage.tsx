@@ -46,6 +46,7 @@ import {
   calculateJakartaHotel,
   terbilang,
   IYRC_INFO,
+  IYRC_PACKAGE,
   IYRC_DATA_VERSION,
   JAKARTA_HOTEL_OPTIONS,
   JAKARTA_TRAINING_STAY,
@@ -56,16 +57,16 @@ import {
   STUDY_TOUR_ITINERARY,
 } from "@/lib/iyrc-utils";
 
-export default function IyrcClientPage({ initialData }: { initialData: any }) {
+export default function IyrcClientPage({ initialData }: { initialData?: any }) {
   const [activeTab, setActiveTab] = useState<"rab" | "kontingen" | "pelatihan" | "itinerary" | "invitation" | "whatsapp">("rab");
 
   // State Peserta & Budget Items
-  const [participants, setParticipants] = useState<any[]>(initialData.participants || []);
-  const [budgetItems, setBudgetItems] = useState<any[]>(initialData.budgetItems || []);
+  const [participants, setParticipants] = useState<any[]>(initialData?.participants || []);
+  const [budgetItems, setBudgetItems] = useState<any[]>(initialData?.budgetItems || []);
 
   // State Simulasi Dinamis
-  const actualSiswaCount = useMemo(() => participants.filter((p) => p.peran === "SISWA").length, [participants]);
-  const actualPendampingCount = useMemo(() => participants.filter((p) => p.peran === "GURU_PENDAMPING").length, [participants]);
+  const actualSiswaCount = useMemo(() => (participants || []).filter((p) => p.peran === "SISWA").length, [participants]);
+  const actualPendampingCount = useMemo(() => (participants || []).filter((p) => p.peran === "GURU_PENDAMPING").length, [participants]);
 
   const [simSiswa, setSimSiswa] = useState<number>(actualSiswaCount);
   const [simPendamping, setSimPendamping] = useState<number>(actualPendampingCount);
@@ -79,9 +80,16 @@ export default function IyrcClientPage({ initialData }: { initialData: any }) {
 
   // Perbandingan hotel pelatihan Jakarta
   const jakartaHotelComparison = useMemo(() => {
-    const rows = JAKARTA_HOTEL_OPTIONS.map((h) => ({ ...h, calc: calculateJakartaHotel(h) }));
-    const sorted = [...rows].sort((a, b) => a.calc.total - b.calc.total);
-    return rows.map((r) => ({ ...r, peringkat: sorted.findIndex((s) => s.key === r.key) + 1 }));
+    const rows = JAKARTA_HOTEL_OPTIONS.map((h) => {
+      const calc = calculateJakartaHotel(h);
+      return {
+        ...h,
+        ...calc,
+        calc,
+      };
+    });
+    const sorted = [...rows].sort((a, b) => (a.totalBiaya || 0) - (b.totalBiaya || 0));
+    return rows.map((r) => ({ ...r, peringkat: sorted.findIndex((s) => s.id === r.id) + 1 }));
   }, []);
 
   // Modal State untuk Peserta
@@ -699,15 +707,16 @@ Demikian kami sampaikan. Terima kasih atas kerja sama dan dukungan Bapak/Ibu! ðŸ
                   </p>
                 </div>
                 <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-800">
-                  {IYRC_INFO.bankTransfer.bank} Â· {IYRC_INFO.bankTransfer.accountNumber}
+                  {IYRC_INFO?.bankTransfer?.bank || "BCA"} Â· {IYRC_INFO?.bankTransfer?.accountNumber || "7040827000"}
                 </span>
               </CardHeader>
               <CardContent className="pt-4 space-y-4 text-xs">
                 <div className="bg-white p-3.5 rounded-xl border border-indigo-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div>
-                    <div className="text-[11px] text-slate-500 font-semibold">Transfer ke Rekening {IYRC_INFO.bankTransfer.bank}:</div>
+                    <div className="text-[11px] text-slate-500 font-semibold">Transfer ke Rekening {IYRC_INFO?.bankTransfer?.bank || "BCA"}:</div>
                     <div className="text-base font-black text-slate-900 tracking-wide">
-                      {IYRC_INFO.bankTransfer.accountNumber} <span className="font-bold text-indigo-700">a.n. {IYRC_INFO.bankTransfer.accountHolder}</span>
+                      {IYRC_INFO?.bankTransfer?.accountNumber || "7040827000"}{" "}
+                      <span className="font-bold text-indigo-700">a.n. {IYRC_INFO?.bankTransfer?.accountHolder || "PT Jully Tjindrawan Robotik"}</span>
                     </div>
                     <div className="text-[11px] text-slate-500 italic mt-0.5">
                       Terbilang: {terbilang(currentSimulation.totalTransferRobotic)}
@@ -740,7 +749,7 @@ Demikian kami sampaikan. Terima kasih atas kerja sama dan dukungan Bapak/Ibu! ðŸ
                           {formatCurrency(currentSimulation.totalTanggunganRobotic)}
                         </td>
                         <td className={`p-2 text-right font-bold ${studyTour ? "bg-amber-50/60 text-amber-900" : "text-slate-700"}`}>
-                          {formatCurrency(currentSimulation.totalTanggunganRobotic + (simSiswa + simPendamping) * IYRC_PACKAGE.studyTourAddOn)}
+                          {formatCurrency(currentSimulation.totalTanggunganRobotic + (simSiswa + simPendamping) * (IYRC_PACKAGE?.studyTourAddOn || 6500000))}
                         </td>
                       </tr>
                       <tr>
@@ -754,7 +763,7 @@ Demikian kami sampaikan. Terima kasih atas kerja sama dan dukungan Bapak/Ibu! ðŸ
                           {formatCurrency(currentSimulation.totalTanggunganRobotic + currentSimulation.totalTanggunganPeserta)}
                         </td>
                         <td className={`p-2 text-right ${studyTour ? "text-amber-800" : ""}`}>
-                          {formatCurrency(currentSimulation.totalTanggunganRobotic + (simSiswa + simPendamping) * IYRC_PACKAGE.studyTourAddOn + currentSimulation.totalTanggunganPeserta)}
+                          {formatCurrency(currentSimulation.totalTanggunganRobotic + (simSiswa + simPendamping) * (IYRC_PACKAGE?.studyTourAddOn || 6500000) + currentSimulation.totalTanggunganPeserta)}
                         </td>
                       </tr>
                     </tbody>
@@ -905,10 +914,10 @@ Demikian kami sampaikan. Terima kasih atas kerja sama dan dukungan Bapak/Ibu! ðŸ
                           <td className="px-4 py-3 text-center font-bold text-slate-700">{simSiswa}</td>
                           <td className="px-4 py-3 text-center text-xs text-slate-500">siswa</td>
                           <td className="px-4 py-3 text-right font-medium text-slate-700 whitespace-nowrap">
-                            {formatCurrency(IYRC_PACKAGE.studyTourAddOn)}
+                            {formatCurrency(IYRC_PACKAGE?.studyTourAddOn || 6500000)}
                           </td>
                           <td className="px-4 py-3 text-right font-bold text-amber-800 bg-amber-100/50 whitespace-nowrap">
-                            {formatCurrency(simSiswa * IYRC_PACKAGE.studyTourAddOn)}
+                            {formatCurrency(simSiswa * (IYRC_PACKAGE?.studyTourAddOn || 6500000))}
                           </td>
                           <td className="px-4 py-3 text-right text-slate-400">-</td>
                           <td className="px-4 py-3 text-xs text-slate-600 max-w-xs">
@@ -923,10 +932,10 @@ Demikian kami sampaikan. Terima kasih atas kerja sama dan dukungan Bapak/Ibu! ðŸ
                           <td className="px-4 py-3 text-center font-bold text-slate-700">{simPendamping}</td>
                           <td className="px-4 py-3 text-center text-xs text-slate-500">orang</td>
                           <td className="px-4 py-3 text-right font-medium text-slate-700 whitespace-nowrap">
-                            {formatCurrency(IYRC_PACKAGE.studyTourAddOn)}
+                            {formatCurrency(IYRC_PACKAGE?.studyTourAddOn || 6500000)}
                           </td>
                           <td className="px-4 py-3 text-right font-bold text-amber-800 bg-amber-100/50 whitespace-nowrap">
-                            {formatCurrency(simPendamping * IYRC_PACKAGE.studyTourAddOn)}
+                            {formatCurrency(simPendamping * (IYRC_PACKAGE?.studyTourAddOn || 6500000))}
                           </td>
                           <td className="px-4 py-3 text-right text-slate-400">-</td>
                           <td className="px-4 py-3 text-xs text-slate-600 max-w-xs">
@@ -968,13 +977,13 @@ Demikian kami sampaikan. Terima kasih atas kerja sama dan dukungan Bapak/Ibu! ðŸ
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-6 text-right">
                   <div>
                     <span className="text-[10px] uppercase font-bold text-slate-400 block">Disusun Oleh</span>
-                    <span className="font-bold text-slate-800">{IYRC_INFO.preparedBy.nama}</span>
-                    <span className="block text-[11px] text-slate-500">{IYRC_INFO.preparedBy.jabatan}</span>
+                    <span className="font-bold text-slate-800">{IYRC_INFO?.preparedBy?.nama || "Galvin Amaris Limbrawan"}</span>
+                    <span className="block text-[11px] text-slate-500">{IYRC_INFO?.preparedBy?.jabatan || "Program Director Robotic Explorer"}</span>
                   </div>
                   <div className="border-l border-slate-200 pl-6">
                     <span className="text-[10px] uppercase font-bold text-slate-400 block">Menyetujui</span>
-                    <span className="font-bold text-slate-800">{IYRC_INFO.approvedBy.nama}</span>
-                    <span className="block text-[11px] text-slate-500">{IYRC_INFO.approvedBy.jabatan}</span>
+                    <span className="font-bold text-slate-800">{IYRC_INFO?.approvedBy?.nama || "Jully Tjindrawan, MBA"}</span>
+                    <span className="block text-[11px] text-slate-500">{IYRC_INFO?.approvedBy?.jabatan || "Koordinator Wilayah 2"}</span>
                   </div>
                 </div>
               </div>
@@ -1072,7 +1081,9 @@ Demikian kami sampaikan. Terima kasih atas kerja sama dan dukungan Bapak/Ibu! ðŸ
                           </td>
                           <td className="px-5 py-4 text-slate-700">
                             <div className="font-semibold text-xs text-indigo-800">{p.sntAsal}</div>
-                            <div className="text-xs text-slate-500">{p.sekolahAsal || "-"}</div>
+                            {p.peran !== "SISWA" && p.sekolahAsal && (
+                              <div className="text-xs text-slate-500">{p.sekolahAsal}</div>
+                            )}
                           </td>
                           <td className="px-5 py-4 text-right font-semibold text-indigo-700 whitespace-nowrap">
                             {formatCurrency(p.biayaKompetisi)}
@@ -2569,11 +2580,11 @@ Demikian kami sampaikan. Terima kasih atas kerja sama dan dukungan Bapak/Ibu! ðŸ
                 <div className="text-center w-64 space-y-14">
                   <p className="text-slate-600 font-semibold">
                     Disusun Oleh,<br />
-                    <span className="text-[11px] text-slate-500">{IYRC_INFO.preparedBy.instansi}</span>
+                    <span className="text-[11px] text-slate-500">{IYRC_INFO?.preparedBy?.instansi || "PT Jully Tjindrawan Robotik"}</span>
                   </p>
                   <div>
-                    <p className="font-extrabold text-slate-900 underline text-sm">{IYRC_INFO.preparedBy.nama}</p>
-                    <p className="text-slate-500 font-medium text-[11px]">{IYRC_INFO.preparedBy.jabatan}</p>
+                    <p className="font-extrabold text-slate-900 underline text-sm">{IYRC_INFO?.preparedBy?.nama || "Galvin Amaris Limbrawan"}</p>
+                    <p className="text-slate-500 font-medium text-[11px]">{IYRC_INFO?.preparedBy?.jabatan || "Program Director Robotic Explorer"}</p>
                   </div>
                 </div>
                 <div className="text-center w-64 space-y-14">
@@ -2582,8 +2593,8 @@ Demikian kami sampaikan. Terima kasih atas kerja sama dan dukungan Bapak/Ibu! ðŸ
                     <span className="text-[11px] text-indigo-700 font-bold">Koordinator Wilayah 2 Program SNT</span>
                   </p>
                   <div>
-                    <p className="font-extrabold text-slate-900 underline text-sm">{IYRC_INFO.approvedBy.nama}</p>
-                    <p className="text-slate-500 font-medium text-[11px]">{IYRC_INFO.approvedBy.jabatan}</p>
+                    <p className="font-extrabold text-slate-900 underline text-sm">{IYRC_INFO?.approvedBy?.nama || "Jully Tjindrawan, MBA"}</p>
+                    <p className="text-slate-500 font-medium text-[11px]">{IYRC_INFO?.approvedBy?.jabatan || "Koordinator Wilayah 2"}</p>
                   </div>
                 </div>
               </div>
@@ -2939,11 +2950,11 @@ Demikian kami sampaikan. Terima kasih atas kerja sama dan dukungan Bapak/Ibu! ðŸ
             <div className="text-center w-64 space-y-12">
               <p className="text-slate-600 font-semibold">
                 Disusun Oleh,<br />
-                <span className="text-[11px] text-slate-500">{IYRC_INFO.preparedBy.instansi}</span>
+                <span className="text-[11px] text-slate-500">{IYRC_INFO?.preparedBy?.instansi || "PT Jully Tjindrawan Robotik"}</span>
               </p>
               <div>
-                <p className="font-extrabold text-slate-900 underline text-sm">{IYRC_INFO.preparedBy.nama}</p>
-                <p className="text-slate-500 font-medium text-[11px]">{IYRC_INFO.preparedBy.jabatan}</p>
+                <p className="font-extrabold text-slate-900 underline text-sm">{IYRC_INFO?.preparedBy?.nama || "Galvin Amaris Limbrawan"}</p>
+                <p className="text-slate-500 font-medium text-[11px]">{IYRC_INFO?.preparedBy?.jabatan || "Program Director Robotic Explorer"}</p>
               </div>
             </div>
             <div className="text-center w-64 space-y-12">
@@ -2952,8 +2963,8 @@ Demikian kami sampaikan. Terima kasih atas kerja sama dan dukungan Bapak/Ibu! ðŸ
                 <span className="text-[11px] text-indigo-700 font-bold">Koordinator Wilayah 2 Program SNT</span>
               </p>
               <div>
-                <p className="font-extrabold text-slate-900 underline text-sm">{IYRC_INFO.approvedBy.nama}</p>
-                <p className="text-slate-500 font-medium text-[11px]">{IYRC_INFO.approvedBy.jabatan}</p>
+                <p className="font-extrabold text-slate-900 underline text-sm">{IYRC_INFO?.approvedBy?.nama || "Jully Tjindrawan, MBA"}</p>
+                <p className="text-slate-500 font-medium text-[11px]">{IYRC_INFO?.approvedBy?.jabatan || "Koordinator Wilayah 2"}</p>
               </div>
             </div>
           </div>
