@@ -537,12 +537,19 @@ export function RekapHonorClient({
       );
 
       const isLandscape = exportOrientation === 'landscape';
-      const widthPx = isLandscape ? 1123 : 794;
+      const widthPx = isLandscape ? 1080 : 740;
 
       const wrapper = document.createElement('div');
       wrapper.innerHTML = htmlString;
+      wrapper.style.position = 'fixed';
+      wrapper.style.left = '0';
+      wrapper.style.top = '0';
       wrapper.style.width = `${widthPx}px`;
       wrapper.style.backgroundColor = '#ffffff';
+      wrapper.style.zIndex = '-9999';
+      wrapper.style.opacity = '0';
+      wrapper.style.pointerEvents = 'none';
+      document.body.appendChild(wrapper);
 
       let html2pdf: any; 
       try { 
@@ -553,15 +560,31 @@ export function RekapHonorClient({
 
       const filename = `Rekap_Kebutuhan_Honor_${exportSelectedBulan}_${exportOrientation}.pdf`;
       const opt = {
-        margin: isLandscape ? [8, 8, 8, 8] : [10, 8, 10, 8],
+        margin: [6, 6, 6, 6],
         filename,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, windowWidth: widthPx },
+        html2canvas: { 
+          scale: 2, 
+          useCORS: true, 
+          windowWidth: widthPx,
+          width: widthPx,
+          scrollX: 0,
+          scrollY: 0
+        },
         jsPDF: { unit: 'mm', format: 'a4', orientation: exportOrientation },
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+        pagebreak: { 
+          mode: ['css', 'legacy'],
+          avoid: ['tr', '.avoid-break']
+        }
       };
 
-      await html2pdf().set(opt).from(wrapper).save();
+      try {
+        await html2pdf().set(opt).from(wrapper).save();
+      } finally {
+        if (wrapper.parentNode) {
+          wrapper.parentNode.removeChild(wrapper);
+        }
+      }
       setShowExportMonthlyModal(false);
     } catch (err: any) {
       console.error('GENERATE MONTHLY REPORT PDF ERROR', err);
