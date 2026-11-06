@@ -21,7 +21,8 @@ import {
   History,
   Sparkles,
   Fuel,
-  Sliders
+  Sliders,
+  FileDown
 } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -31,7 +32,7 @@ import { hitungTotalTransportRekap, hitungDetailTransportRekap, hitungTransportD
 import { useState, useEffect, useMemo } from 'react'
 import { createRekapManual, deleteRekap, generateKwitansiHonor, generateKwitansiTransportBulanan, updateRekapTransport, copyRekapFromPreviousMonth, batchUpdateTransportByFormula } from '@/app/actions/rekap'
 import { adminGenerateInvoiceHonor, uploadBuktiRekap, generateInvoiceHonorRecord } from '@/app/actions/rekap'
-import { getInvoiceHtml, getKwitansiHtml } from './pdf-generator'
+import { getInvoiceHtml, getKwitansiHtml, getMonthlyRekapReportHtml } from './pdf-generator'
 import { useRouter } from 'next/navigation'
 import { useModal } from '@/components/modal-provider';
 
@@ -98,6 +99,15 @@ export function RekapHonorClient({
 
   // Manual Form Transport states
   const [manualTransport, setManualTransport] = useState('')
+
+  // Export Rekap Bulanan States
+  const [showExportMonthlyModal, setShowExportMonthlyModal] = useState(false)
+  const [exportSelectedBulan, setExportSelectedBulan] = useState<string>('')
+  const [exportKopType, setExportKopType] = useState<'maleo' | 'robotic' | 'none'>('maleo')
+  const [exportOrientation, setExportOrientation] = useState<'landscape' | 'portrait'>('landscape')
+  const [exportStatusFilter, setExportStatusFilter] = useState<'ALL' | 'LUNAS' | 'UNPAID'>('ALL')
+  const [exportTanggalDokumen, setExportTanggalDokumen] = useState<string>('')
+  const [isGeneratingReportPdf, setIsGeneratingReportPdf] = useState(false)
 
   const openEditTransportModal = (rekap: any) => {
     setEditingTransportRekap(rekap)
@@ -431,6 +441,135 @@ export function RekapHonorClient({
     const bulanName = namaBulan[monthNum - 1] || parts[1]
     return `${bulanName} ${year}`
   }
+
+  // Live Preview Data for Export PDF
+  const exportPreviewData = useMemo(() => {
+    if (!exportSelectedBulan) return null;
+    let list = initialData.filter((r: any) => r.bulan === exportSelectedBulan);
+    if (exportStatusFilter === 'LUNAS') {
+      list = list.filter((r: any) => {
+        const st = getRekapPaymentStatus(r);
+        return st === 'LUNAS' || st === 'SEBAGIAN';
+      });
+    } else if (exportStatusFilter === 'UNPAID') {
+      list = list.filter((r: any) => {
+        const st = getRekapPaymentStatus(r);
+        return st === 'BELUM_BAYAR';
+      });
+    }
+
+    const totalFasilitator = list.length;
+    let totalJP = 0;
+    let totalHonor = 0;
+    let totalTransport = 0;
+    let grandTotal = 0;
+    let lunasCount = 0;
+    let unpaidCount = 0;
+
+    list.forEach((r: any) => {
+      totalJP += (r.totalJP || 0);
+      totalHonor += (r.totalHonor || 0);
+      const t = hitungTotalTransportRekap(r);
+      totalTransport += t;
+      grandTotal += ((r.totalHonor || 0) + t);
+      const st = getRekapPaymentStatus(r);
+      if (st === 'LUNAS' || st === 'SEBAGIAN') lunasCount++;
+      else unpaidCount++;
+    });
+
+    return {
+      items: list,
+      totalFasilitator,
+      totalJP,
+      totalHonor,
+      totalTransport,
+      grandTotal,
+      lunasCount,
+      unpaidCount
+    };
+  }, [initialData, exportSelectedBulan, exportStatusFilter]);
+
+  const handleOpenExportModal = (bulan?: string) => {
+    const targetBulan = bulan || filterBulan || availableRekapMonths[0] || '2026-10';
+    setExportSelectedBulan(targetBulan);
+    setExportKopType('maleo');
+    setExportOrientation('landscape');
+    setExportStatusFilter('ALL');
+    const tzoffset = (new Date()).getTimezoneOffset() * 60000;
+    const localISOTime = (new Date(Date.now() - tzoffset)).toISOString().slice(0, 10);
+    setExportTanggalDokumen(localISOTime);
+    setShowExportMonthlyModal(true);
+  };
+
+  const handleGenerateMonthlyReportPdf = async () => {
+    if (!exportSelectedBulan) {
+      alert("Silakan pilih bulan rekapitulasi terlebih dahulu.");
+      return;
+    }
+
+    if (!exportPreviewData || exportPreviewData.items.length === 0) {
+      alert(`Tidak ada data rekapitulasi untuk bulan ${formatBulanIndo(exportSelectedBulan)}.`);
+      return;
+    }
+
+    setIsGeneratingReportPdf(true);
+    try {
+      const sortedItems = [...exportPreviewData.items].sort((a: any, b: any) => 
+        (a.fasilitator?.namaLengkap || '').localeCompare(b.fasilitator?.namaLengkap || '')
+      );
+
+      let tanggalFormatted = '';
+      if (exportTanggalDokumen) {
+        const d = new Date(exportTanggalDokumen);
+        tanggalFormatted = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+      }
+
+      const htmlString = getMonthlyRekapReportHtml(
+        {
+          bulan: exportSelectedBulan,
+          items: sortedItems,
+          kopType: exportKopType,
+          tanggalDokumen: tanggalFormatted,
+          orientation: exportOrientation,
+          filterStatus: exportStatusFilter
+        },
+        terbilangRupiah
+      );
+
+      const isLandscape = exportOrientation === 'landscape';
+      const widthPx = isLandscape ? 1123 : 794;
+
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = htmlString;
+      wrapper.style.width = `${widthPx}px`;
+      wrapper.style.backgroundColor = '#ffffff';
+
+      let html2pdf: any; 
+      try { 
+        html2pdf = require('html2pdf.js'); 
+      } catch (e) { 
+        html2pdf = (window as any).html2pdf; 
+      }
+
+      const filename = `Rekap_Kebutuhan_Honor_${exportSelectedBulan}_${exportOrientation}.pdf`;
+      const opt = {
+        margin: isLandscape ? [8, 8, 8, 8] : [10, 8, 10, 8],
+        filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, windowWidth: widthPx },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: exportOrientation },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+      };
+
+      await html2pdf().set(opt).from(wrapper).save();
+      setShowExportMonthlyModal(false);
+    } catch (err: any) {
+      console.error('GENERATE MONTHLY REPORT PDF ERROR', err);
+      alert("Gagal generate PDF: " + (err.message || 'Unknown error'));
+    } finally {
+      setIsGeneratingReportPdf(false);
+    }
+  };
 
   // Active Tab & View Mode
   const [activeTab, setActiveTab] = useState<'ALL' | 'UNPAID' | 'PAID'>('PAID')
@@ -1159,6 +1298,16 @@ Atas Nama: ${namaLengkap}`;
         <div className="flex items-center gap-2 flex-wrap">
           <button 
             type="button"
+            onClick={() => handleOpenExportModal()}
+            className="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-2 rounded-md text-xs font-bold inline-flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+            title="Export PDF Rincian dan Kebutuhan Honorarium & Transport per Bulan"
+          >
+            <FileDown className="w-4 h-4" />
+            <span>Export PDF Bulanan</span>
+          </button>
+
+          <button 
+            type="button"
             onClick={() => {
               setBatchTransportBulan(availableRekapMonths[0] || '2026-10');
               setShowBatchTransportModal(true);
@@ -1645,6 +1794,20 @@ Atas Nama: ${namaLengkap}`;
                             <span className="text-sm font-black text-emerald-950 font-mono">{formatCurrency(group.grandTotal)}</span>
                           </div>
                         </div>
+
+                        {/* Tombol Export PDF Bulan Ini */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenExportModal(group.bulan);
+                          }}
+                          className="px-2.5 py-1.5 bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+                          title={`Export PDF Rincian & Kebutuhan untuk bulan ${group.labelBulan}`}
+                        >
+                          <FileDown className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="hidden sm:inline">Export PDF</span>
+                        </button>
 
                         <div className="p-1 rounded-md text-slate-500">
                           {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
@@ -3155,6 +3318,283 @@ Atas Nama: ${namaLengkap}`;
                     <>
                       <Fuel className="w-3.5 h-3.5" />
                       <span>Terapkan ke {batchPreviewList.length} Fasilitator</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Export PDF Rincian & Kebutuhan Bulanan */}
+      {showExportMonthlyModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl max-w-xl w-full max-h-[92vh] flex flex-col my-auto overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Header Sticky */}
+            <div className="flex justify-between items-center px-5 py-4 border-b bg-emerald-50/70 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-emerald-600 text-white rounded-lg shadow-2xs">
+                  <FileDown className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-emerald-950">
+                    Export PDF Rincian &amp; Kebutuhan Bulanan
+                  </h3>
+                  <p className="text-xs text-emerald-800/80 mt-0.5">
+                    Unduh laporan PDF rekapitulasi kebutuhan dana honorarium dan transport per bulan
+                  </p>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setShowExportMonthlyModal(false)}
+                className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1 rounded-lg text-lg font-bold transition-colors"
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Scrollable Body */}
+            <div className="px-5 py-4 overflow-y-auto space-y-4 flex-1">
+              
+              {/* 1. Pilihan Periode Bulan */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1.5">
+                  1. Pilih Periode Bulan Rekapitulasi:
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <select
+                    value={exportSelectedBulan}
+                    onChange={(e) => setExportSelectedBulan(e.target.value)}
+                    className="w-full text-xs font-bold border border-slate-300 rounded-lg p-2.5 bg-white text-slate-900 focus:ring-2 focus:ring-emerald-500"
+                  >
+                    {availableRekapMonths.map(m => {
+                      const count = initialData.filter((r: any) => r.bulan === m).length;
+                      return (
+                        <option key={m} value={m}>
+                          Bulan {formatBulanIndo(m)} ({count} Fasilitator)
+                        </option>
+                      );
+                    })}
+                  </select>
+
+                  <input
+                    type="month"
+                    value={exportSelectedBulan}
+                    onChange={(e) => setExportSelectedBulan(e.target.value)}
+                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-white text-slate-700 focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                <span className="text-[11px] text-slate-500 mt-1 block">
+                  Pilih bulan yang ingin diekspor dari daftar rekap aktif atau tentukan periode bulan secara manual.
+                </span>
+              </div>
+
+              {/* 2. Live Preview Ringkasan Kebutuhan */}
+              {exportPreviewData && exportPreviewData.totalFasilitator > 0 ? (
+                <div className="bg-linear-to-br from-emerald-50/80 via-teal-50/40 to-slate-50 border border-emerald-200 rounded-xl p-3.5 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
+                      Ringkasan Kebutuhan Dana Bulan {formatBulanIndo(exportSelectedBulan)}
+                    </span>
+                    <span className="text-[11px] font-bold text-emerald-800 bg-white border border-emerald-200 px-2 py-0.5 rounded shadow-2xs">
+                      {exportPreviewData.totalFasilitator} Fasilitator Terdata
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs">
+                      <span className="text-[10px] text-slate-400 block font-semibold uppercase">Total JP Mengajar</span>
+                      <span className="text-sm font-bold text-slate-800">{exportPreviewData.totalJP} JP</span>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs">
+                      <span className="text-[10px] text-blue-700 block font-semibold uppercase">Kebutuhan Honor</span>
+                      <span className="text-sm font-bold text-blue-900">{formatCurrency(exportPreviewData.totalHonor)}</span>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs">
+                      <span className="text-[10px] text-amber-700 block font-semibold uppercase">Bantuan Transport</span>
+                      <span className="text-sm font-bold text-amber-900">{formatCurrency(exportPreviewData.totalTransport)}</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-emerald-600 text-white p-3 rounded-lg flex items-center justify-between shadow-xs">
+                    <div>
+                      <span className="text-[10.5px] uppercase tracking-wider text-emerald-100 font-bold block">
+                        Estimasi Total Kebutuhan Dana:
+                      </span>
+                      <span className="text-base sm:text-lg font-black font-mono">
+                        {formatCurrency(exportPreviewData.grandTotal)}
+                      </span>
+                    </div>
+                    <div className="text-right text-[11px] text-emerald-100">
+                      <span className="block font-semibold">{exportPreviewData.lunasCount} Lunas</span>
+                      <span className="block opacity-90">{exportPreviewData.unpaidCount} Menunggu Bayar</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-800 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Belum ada data rekapitulasi honorarium untuk bulan {formatBulanIndo(exportSelectedBulan)}.</span>
+                </div>
+              )}
+
+              {/* 3. Pilihan Kop Surat */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1.5">
+                  2. Pilihan Kop Surat / Lembaga:
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                  <label className={`p-2.5 border rounded-lg flex items-start gap-2 cursor-pointer transition-all ${
+                    exportKopType === 'maleo' ? 'border-emerald-500 bg-emerald-50/60 font-semibold text-emerald-950' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}>
+                    <input 
+                      type="radio" 
+                      name="exportKopType" 
+                      checked={exportKopType === 'maleo'} 
+                      onChange={() => setExportKopType('maleo')}
+                      className="mt-0.5 text-emerald-600"
+                    />
+                    <div>
+                      <span className="block">Yayasan Maleo</span>
+                      <span className="text-[10px] text-slate-500 font-normal block">Maleo Talenta Cendekia</span>
+                    </div>
+                  </label>
+
+                  <label className={`p-2.5 border rounded-lg flex items-start gap-2 cursor-pointer transition-all ${
+                    exportKopType === 'robotic' ? 'border-emerald-500 bg-emerald-50/60 font-semibold text-emerald-950' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}>
+                    <input 
+                      type="radio" 
+                      name="exportKopType" 
+                      checked={exportKopType === 'robotic'} 
+                      onChange={() => setExportKopType('robotic')}
+                      className="mt-0.5 text-emerald-600"
+                    />
+                    <div>
+                      <span className="block">PT Robotik</span>
+                      <span className="text-[10px] text-slate-500 font-normal block">Jully Tjindrawan Robotik</span>
+                    </div>
+                  </label>
+
+                  <label className={`p-2.5 border rounded-lg flex items-start gap-2 cursor-pointer transition-all ${
+                    exportKopType === 'none' ? 'border-emerald-500 bg-emerald-50/60 font-semibold text-emerald-950' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}>
+                    <input 
+                      type="radio" 
+                      name="exportKopType" 
+                      checked={exportKopType === 'none'} 
+                      onChange={() => setExportKopType('none')}
+                      className="mt-0.5 text-emerald-600"
+                    />
+                    <div>
+                      <span className="block">Tanpa Gambar Kop</span>
+                      <span className="text-[10px] text-slate-500 font-normal block">Header Teks Formal SNT</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* 4. Orientasi & Filter Status */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 mb-1.5">
+                    3. Orientasi Kertas:
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <label className={`p-2 border rounded-lg flex items-center gap-1.5 cursor-pointer text-center justify-center transition-all ${
+                      exportOrientation === 'landscape' ? 'border-emerald-500 bg-emerald-50/60 font-bold text-emerald-900' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}>
+                      <input 
+                        type="radio" 
+                        name="exportOrientation" 
+                        checked={exportOrientation === 'landscape'} 
+                        onChange={() => setExportOrientation('landscape')}
+                        className="text-emerald-600"
+                      />
+                      <span>Landscape (Lebar)</span>
+                    </label>
+
+                    <label className={`p-2 border rounded-lg flex items-center gap-1.5 cursor-pointer text-center justify-center transition-all ${
+                      exportOrientation === 'portrait' ? 'border-emerald-500 bg-emerald-50/60 font-bold text-emerald-900' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}>
+                      <input 
+                        type="radio" 
+                        name="exportOrientation" 
+                        checked={exportOrientation === 'portrait'} 
+                        onChange={() => setExportOrientation('portrait')}
+                        className="text-emerald-600"
+                      />
+                      <span>Portrait (Tegak)</span>
+                    </label>
+                  </div>
+                  <span className="text-[10px] text-slate-400 mt-1 block">
+                    *Landscape sangat direkomendasikan agar seluruh kolom rincian dan nomor rekening tidak terhimpit.
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 mb-1.5">
+                    4. Filter Status Data:
+                  </label>
+                  <select
+                    value={exportStatusFilter}
+                    onChange={(e: any) => setExportStatusFilter(e.target.value)}
+                    className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white text-slate-800 font-medium"
+                  >
+                    <option value="ALL">Semua Data Fasilitator</option>
+                    <option value="UNPAID">Hanya Yang Belum Dibayar / Proses</option>
+                    <option value="LUNAS">Hanya Yang Sudah Selesai Dibayar (Lunas)</option>
+                  </select>
+
+                  <div className="mt-2">
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                      Tanggal Dokumen:
+                    </label>
+                    <input 
+                      type="date"
+                      value={exportTanggalDokumen}
+                      onChange={e => setExportTanggalDokumen(e.target.value)}
+                      className="w-full text-xs border border-slate-300 rounded-lg p-1.5 bg-white text-slate-800"
+                    />
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Sticky Footer */}
+            <div className="px-5 py-3.5 border-t flex justify-between items-center gap-2 bg-slate-50 shrink-0">
+              <span className="text-xs text-slate-500">
+                Dokumen PDF akan langsung terunduh secara otomatis.
+              </span>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowExportMonthlyModal(false)}
+                  disabled={isGeneratingReportPdf}
+                  className="px-4 py-2 text-xs text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 font-medium cursor-pointer transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGenerateMonthlyReportPdf}
+                  disabled={isGeneratingReportPdf || !exportPreviewData || exportPreviewData.totalFasilitator === 0}
+                  className="px-4 py-2 text-xs text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 font-semibold disabled:opacity-50 cursor-pointer shadow-xs transition-colors flex items-center gap-1.5"
+                >
+                  {isGeneratingReportPdf ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Membuat PDF...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileDown className="w-3.5 h-3.5" />
+                      <span>Download PDF Rekap</span>
                     </>
                   )}
                 </button>
