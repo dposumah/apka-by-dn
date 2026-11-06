@@ -479,8 +479,8 @@ export const getMonthlyRekapReportHtml = (
                 ${row.nikNpwp ? `<div style="font-size: 9px; color: #64748b; font-mono: monospace;">NPWP/NIK: ${row.nikNpwp}</div>` : ''}
               </td>
               <td style="padding: 6px 8px; border: 1px solid #cbd5e1; color: #334155;">
-                <div style="font-weight: 600;">${row.lokasi.split(' - ')[0] || row.lokasi}</div>
-                ${row.lokasi.split(' - ')[1] ? `<div style="font-size: 9.5px; color: #64748b;">${row.lokasi.split(' - ')[1]}</div>` : ''}
+                <div style="font-weight: 600;">${(row.lokasi && typeof row.lokasi === 'string') ? (row.lokasi.split(' - ')[0] || row.lokasi) : (row.lokasi || '-')}</div>
+                ${(row.lokasi && typeof row.lokasi === 'string' && row.lokasi.split(' - ')[1]) ? `<div style="font-size: 9.5px; color: #64748b;">${row.lokasi.split(' - ')[1]}</div>` : ''}
               </td>
               <td style="padding: 6px 8px; border: 1px solid #cbd5e1;">
                 <div style="font-weight: 600; color: #0f172a;">${row.bankName} - ${row.bankAccount}</div>

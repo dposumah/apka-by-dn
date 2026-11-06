@@ -235,6 +235,7 @@ export function hitungDetailTransportRekap(
 
   // Hitung total keseluruhan
   let totalTransport = 0;
+  let ringkasanKeterangan = '';
   if (isCustomAdmin) {
     totalTransport = Number(rekap.totalTransport) || 0;
     
