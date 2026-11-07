@@ -39,8 +39,8 @@ export const getInvoiceHtml = (rekap: any, kopType: 'maleo' | 'robotic', invoice
           <tr><td style="width: 32%; padding: 5px 0;">Nama fasilitator</td><td style="width: 3%;">:</td><td style="width: 65%; border-bottom: 1px solid #000;">${rekap.fasilitator?.namaLengkap || '-'}</td></tr>
           <tr><td style="padding: 5px 0;">Nama program/kegiatan</td><td>:</td><td style="border-bottom: 1px solid #000;">KKA Sekolah Nasional Terintegrasi (SNT)</td></tr>
           <tr><td style="padding: 5px 0;">Periode / sesi honor</td><td>:</td><td style="border-bottom: 1px solid #000;">${formatBulan(rekap.bulan)}</td></tr>
-          <tr><td style="padding: 5px 0;">Jumlah sesi / JP</td><td>:</td><td style="border-bottom: 1px solid #000;">${(rekap.totalJPIntra > 0 && rekap.totalJPEkstra > 0) ? `${rekap.totalJP} JP (Intra: ${rekap.totalJPIntra} JP + Ekstra: ${rekap.totalJPEkstra} JP)` : `${rekap.totalJP} JP`}</td></tr>
-          <tr><td style="padding: 5px 0;">Honor per JP</td><td>:</td><td style="border-bottom: 1px solid #000;">Rp ${(Math.round(totalHonor / (rekap.totalJP || 1))).toLocaleString('id-ID')}</td></tr>
+          <tr><td style="padding: 5px 0;">Jumlah sesi / JP</td><td>:</td><td style="border-bottom: 1px solid #000;">${(rekap.fasilitator?.namaLengkap || '').toLowerCase().includes('hanif') ? `${rekap.totalJP || '-'} JP (Kesepakatan Khusus)` : ((rekap.totalJPIntra > 0 && rekap.totalJPEkstra > 0) ? `${rekap.totalJP} JP (Intra: ${rekap.totalJPIntra} JP + Ekstra: ${rekap.totalJPEkstra} JP)` : `${rekap.totalJP} JP`)}</td></tr>
+          <tr><td style="padding: 5px 0;">Honor per JP</td><td>:</td><td style="border-bottom: 1px solid #000;">${(rekap.fasilitator?.namaLengkap || '').toLowerCase().includes('hanif') ? 'Sesuai Kesepakatan (Manual Khusus)' : `Rp ${(Math.round(totalHonor / (rekap.totalJP || 1))).toLocaleString('id-ID')}`}</td></tr>
           <tr><td style="padding: 5px 0;">Subtotal Honor</td><td>:</td><td style="border-bottom: 1px solid #000; font-weight: bold;">Rp ${totalHonor.toLocaleString('id-ID')}</td></tr>
           <tr>
             <td style="padding: 5px 0; vertical-align: top;">Bantuan Biaya Transport</td>
@@ -200,7 +200,7 @@ export const getKwitansiHtml = (rekap: any, record: any, type: 'HONOR' | 'TRANSP
               <tr><td style="padding: 6px 0;">Nama program/kegiatan</td><td>:</td><td style="border-bottom: 1px solid #cbd5e1;">KKA Sekolah Nasional Terintegrasi (SNT)</td></tr>
               <tr><td style="padding: 6px 0;">Periode / sesi honor</td><td>:</td><td style="border-bottom: 1px solid #cbd5e1;">${formatBulan(rekap.bulan)}</td></tr>
               <tr><td style="padding: 6px 0;">(bulan / tanggal pelaksanaan)</td><td>:</td><td style="border-bottom: 1px solid #cbd5e1;">${formatBulan(rekap.bulan)}</td></tr>
-              <tr><td style="padding: 6px 0;">Jumlah sesi / JP</td><td>:</td><td style="border-bottom: 1px solid #cbd5e1;">${(rekap.totalJPIntra > 0 && rekap.totalJPEkstra > 0) ? `${rekap.totalJP} JP (Intra: ${rekap.totalJPIntra} JP + Ekstra: ${rekap.totalJPEkstra} JP)` : `${rekap.totalJP} JP`}</td></tr>
+              <tr><td style="padding: 6px 0;">Jumlah sesi / JP</td><td>:</td><td style="border-bottom: 1px solid #cbd5e1;">${(rekap.fasilitator?.namaLengkap || '').toLowerCase().includes('hanif') ? `${rekap.totalJP || '-'} JP (Kesepakatan Khusus)` : ((rekap.totalJPIntra > 0 && rekap.totalJPEkstra > 0) ? `${rekap.totalJP} JP (Intra: ${rekap.totalJPIntra} JP + Ekstra: ${rekap.totalJPEkstra} JP)` : `${rekap.totalJP} JP`)}</td></tr>
               <tr><td style="padding: 6px 0;">Total Honor</td><td>:</td><td style="border-bottom: 1px solid #cbd5e1; font-weight: bold;">Rp ${(rekap.totalHonor || 0).toLocaleString('id-ID')}</td></tr>
               <tr><td style="padding: 6px 0;">Lokasi pelaksanaan</td><td>:</td><td style="border-bottom: 1px solid #cbd5e1;">${rekap.fasilitator?.lokasiSNT ? rekap.fasilitator.lokasiSNT : '-'}</td></tr>
             </table>
@@ -251,7 +251,7 @@ export const getKwitansiHtml = (rekap: any, record: any, type: 'HONOR' | 'TRANSP
       <div style="padding: 0 50px;">
         <div style="text-align: center; margin-bottom: 40px;">
           <h2>KWITANSI</h2>
-          <p>Tanda Terima ${type === 'HONOR' ? 'Honor' : 'Transport'} Fasilitator</p>
+          <p>Tanda Terima Transport Fasilitator</p>
         </div>
         <div style="display: flex; justify-content: space-between; margin-bottom: 40px;">
           <div>No. Kuitansi : <strong>${noKwitansi}</strong></div>

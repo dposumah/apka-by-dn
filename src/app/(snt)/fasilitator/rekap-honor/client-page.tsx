@@ -22,7 +22,8 @@ import {
   Sparkles,
   Fuel,
   Sliders,
-  FileDown
+  FileDown,
+  Save
 } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -30,7 +31,7 @@ import { Badge } from '@/components/ui/badge'
 import { formatCurrency, terbilangRupiah } from '@/lib/format'
 import { hitungTotalTransportRekap, hitungDetailTransportRekap, hitungTransportDenganRumusBBMDanPlafon, hitungTransportSesi, HARGA_BBM_DEFAULT } from '@/lib/transport'
 import { useState, useEffect, useMemo } from 'react'
-import { createRekapManual, deleteRekap, generateKwitansiHonor, generateKwitansiTransportBulanan, updateRekapTransport, copyRekapFromPreviousMonth, batchUpdateTransportByFormula } from '@/app/actions/rekap'
+import { createRekapManual, deleteRekap, generateKwitansiHonor, generateKwitansiTransportBulanan, updateRekapTransport, updateRekapHonorManual, copyRekapFromPreviousMonth, batchUpdateTransportByFormula } from '@/app/actions/rekap'
 import { adminGenerateInvoiceHonor, uploadBuktiRekap, generateInvoiceHonorRecord } from '@/app/actions/rekap'
 import { getInvoiceHtml, getKwitansiHtml, getMonthlyRekapReportHtml } from './pdf-generator'
 import { useRouter } from 'next/navigation'
@@ -158,6 +159,55 @@ export function RekapHonorClient({
       setIsSavingTransport(false)
     }
   }
+
+  // Helper identifikasi Fasilitator Muh. Hanifudin H, S.Pd
+  const isFasilHanifudin = (nama?: string | null) => {
+    if (!nama) return false;
+    const n = nama.toLowerCase();
+    return n.includes('hanifudin') || n.includes('hanif');
+  };
+
+  // State Modal Edit Honor Manual Khusus
+  const [showEditHonorModal, setShowEditHonorModal] = useState(false);
+  const [editingHonorRekap, setEditingHonorRekap] = useState<any | null>(null);
+  const [honorAmountInput, setHonorAmountInput] = useState<string>('');
+  const [honorZeroTransport, setHonorZeroTransport] = useState<boolean>(true);
+  const [isSavingHonor, setIsSavingHonor] = useState<boolean>(false);
+
+  const openEditHonorModal = (rekap: any) => {
+    setEditingHonorRekap(rekap);
+    setHonorAmountInput((rekap.totalHonor || 0).toString());
+    setHonorZeroTransport(rekap.totalTransport === 0 || rekap.totalTransport === null || isFasilHanifudin(rekap.fasilitator?.namaLengkap));
+    setShowEditHonorModal(true);
+  };
+
+  const handleSaveHonorManual = async () => {
+    if (!editingHonorRekap) return;
+    const val = parseFloat(honorAmountInput);
+    if (isNaN(val) || val < 0) {
+      await alert("Masukkan nominal honor yang valid");
+      return;
+    }
+
+    setIsSavingHonor(true);
+    try {
+      const res = await updateRekapHonorManual(editingHonorRekap.id, val, {
+        setZeroTransport: honorZeroTransport
+      });
+      if (res?.error) {
+        await alert("Gagal memperbarui honor: " + res.error);
+        return;
+      }
+      setShowEditHonorModal(false);
+      await alert(`Berhasil memperbarui honor manual untuk ${editingHonorRekap.fasilitator?.namaLengkap || 'Fasilitator'} menjadi ${formatCurrency(val)}!`);
+      router.refresh();
+    } catch (err: any) {
+      await alert("Terjadi kesalahan: " + (err.message || err));
+    } finally {
+      setIsSavingHonor(false);
+    }
+  };
+
   const [manualFasilId, setManualFasilId] = useState('')
   const [manualBulan, setManualBulan] = useState(() => {
     const d = new Date();
@@ -174,7 +224,9 @@ export function RekapHonorClient({
     
   // Computed values
   const computedTotalJP = (parseInt(manualJPIntra) || 0) + (parseInt(manualJPEkstra) || 0);
-  const computedTotalHonor = computedTotalJP * (parseInt(manualRate) || 0);
+  const computedTotalHonor = (manualHonor !== '' && !isNaN(Number(manualHonor)))
+    ? parseFloat(manualHonor)
+    : computedTotalJP * (parseInt(manualRate) || 0);
 
   // Previous Month Helper State for Manual Form
   const [lastCopiedPrev, setLastCopiedPrev] = useState<{
@@ -774,24 +826,24 @@ export function RekapHonorClient({
   
   
   const handleSync = async (id: string) => {
-    if (confirm('Tautkan semua laporan telat di bulan ini ke rekap ini? (Angka Honor tidak akan berubah)')) {
+    if (await confirm('Tautkan semua laporan telat di bulan ini ke rekap ini? (Angka Honor tidak akan berubah)')) {
       try {
         const count = await syncLaporanToRekap(id)
-        alert(`Berhasil menautkan ${count} laporan.`)
+        await alert(`Berhasil menautkan ${count} laporan.`)
         router.refresh()
       } catch (e: any) {
-        alert(e.message)
+        await alert(e.message)
       }
     }
   }
 
   const handleDelete = async (id: string) => {
-    if (confirm('Yakin ingin menghapus rekap ini?')) {
+    if (await confirm('Yakin ingin menghapus rekap ini?')) {
       try {
         await deleteRekap(id)
         router.refresh()
       } catch (e: any) {
-        alert(e.message)
+        await alert(e.message)
       }
     }
   }
@@ -1078,6 +1130,12 @@ Atas Nama: ${namaLengkap}`;
                 {/* 1. Fasilitator */}
                 <td className="py-3 px-3 align-top">
                   <div className="font-semibold text-slate-900 leading-snug">{rekap.fasilitator?.namaLengkap}</div>
+                  {isFasilHanifudin(rekap.fasilitator?.namaLengkap) && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200 mt-1">
+                      <Sparkles className="w-2.5 h-2.5 text-purple-600" />
+                      <span>Fitur Khusus: Honor Manual</span>
+                    </span>
+                  )}
                   {(rekap.fasilitator?.bankName || rekap.fasilitator?.bankAccount) ? (
                     <div className="text-[11px] text-slate-400 mt-1 font-mono">
                       {rekap.fasilitator.bankName} {rekap.fasilitator.bankAccount ? `• ${rekap.fasilitator.bankAccount}` : ''}
@@ -1116,13 +1174,41 @@ Atas Nama: ${namaLengkap}`;
                 <td className="py-3 px-2 align-top text-center whitespace-nowrap">
                   <span className="font-bold text-slate-800 text-sm">{rekap.totalJP}</span>
                   <span className="text-[10px] text-slate-400 block font-medium">JP</span>
+                  {isFasilHanifudin(rekap.fasilitator?.namaLengkap) && (
+                    <span className="text-[9px] text-purple-600 font-semibold block mt-0.5">
+                      (Abaikan Jam)
+                    </span>
+                  )}
                 </td>
 
                 {/* 5. Total Honor */}
                 <td className="py-3 px-3 align-top text-right whitespace-nowrap">
-                  <div className="font-bold text-slate-900 text-sm">
-                    {formatCurrency(rekap.totalHonor)}
+                  <div className="flex items-center justify-end gap-1.5">
+                    <div className={`font-bold text-sm ${isFasilHanifudin(rekap.fasilitator?.namaLengkap) ? 'text-purple-950 font-black' : 'text-slate-900'}`}>
+                      {formatCurrency(rekap.totalHonor)}
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => openEditHonorModal(rekap)}
+                      className={`p-1 rounded transition-colors cursor-pointer border ${
+                        isFasilHanifudin(rekap.fasilitator?.namaLengkap)
+                          ? 'hover:bg-purple-100 bg-purple-50 text-purple-700 border-purple-300 shadow-xs'
+                          : 'hover:bg-indigo-100 bg-indigo-50 text-indigo-700 border-indigo-200'
+                      }`}
+                      title={
+                        isFasilHanifudin(rekap.fasilitator?.namaLengkap)
+                          ? "Edit Honor Manual (Fitur Khusus Hanifudin - Tanpa Jam & Transport)"
+                          : "Edit Honor Manual"
+                      }
+                    >
+                      <Edit className="w-3 h-3" />
+                    </button>
                   </div>
+                  {isFasilHanifudin(rekap.fasilitator?.namaLengkap) ? (
+                    <span className="inline-block text-[10px] bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 rounded mt-0.5">
+                      Manual Khusus
+                    </span>
+                  ) : null}
                 </td>
 
                 {/* 6. Status */}
@@ -1148,7 +1234,11 @@ Atas Nama: ${namaLengkap}`;
                       <Edit className="w-3 h-3" />
                     </button>
                   </div>
-                  {hitungTotalTransportRekap(rekap) === 0 ? (
+                  {isFasilHanifudin(rekap.fasilitator?.namaLengkap) && hitungTotalTransportRekap(rekap) === 0 ? (
+                    <span className="inline-block text-[10px] bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 rounded mt-0.5">
+                      Tanpa Transport (Rp 0)
+                    </span>
+                  ) : hitungTotalTransportRekap(rekap) === 0 ? (
                     <span className="inline-block text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded mt-0.5">
                       Daring (Rp 0)
                     </span>
@@ -1403,8 +1493,14 @@ Atas Nama: ${namaLengkap}`;
                     className="w-full border rounded p-2" 
                     value={manualFasilId} 
                     onChange={e => {
-                      setManualFasilId(e.target.value);
+                      const val = e.target.value;
+                      setManualFasilId(val);
                       setLastCopiedPrev(null);
+                      const fObj = fasilitators.find((f: any) => f.id === val);
+                      if (isFasilHanifudin(fObj?.namaLengkap)) {
+                        setManualTransport('0');
+                        if (!manualHonor) setManualHonor('3120000');
+                      }
                     }}
                   >
                     <option value="">Pilih Fasilitator...</option>
@@ -1428,6 +1524,23 @@ Atas Nama: ${namaLengkap}`;
                   />
                 </div>
               </div>
+
+              {/* SPECIAL BANNER FOR MUH. HANIFUDIN H, S.PD */}
+              {(() => {
+                const fObj = fasilitators.find((f: any) => f.id === manualFasilId);
+                if (!isFasilHanifudin(fObj?.namaLengkap)) return null;
+                return (
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-3.5 text-xs text-purple-900 shadow-xs flex items-center gap-2.5">
+                    <Sparkles className="w-5 h-5 text-purple-600 shrink-0" />
+                    <div>
+                      <div className="font-bold text-sm text-purple-950">Fitur Khusus Aktif: Muh. Hanifudin H, S.Pd</div>
+                      <div className="text-purple-800 mt-0.5 leading-relaxed">
+                        Anda dapat langsung mengisi jumlah honor yang akan dibayarkan pada kolom <strong>Total Honor (Rp)</strong> secara manual tanpa melihat/terikat jam mengajar (JP). Bantuan transport otomatis diset <strong>Rp 0 (Tanpa Transport)</strong>.
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* HELPER BOX: DATA BULAN SEBELUMNYA */}
               {previousRekapForSelectedFasil && (
@@ -1532,8 +1645,40 @@ Atas Nama: ${namaLengkap}`;
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Total Honor (Rp)</label>
-                  <input type="number" min="0" required value={computedTotalHonor} readOnly className="w-full border rounded p-2 bg-slate-100 font-bold text-slate-900" />
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium">Total Honor (Rp)</label>
+                    {(() => {
+                      const fObj = fasilitators.find((f: any) => f.id === manualFasilId);
+                      return isFasilHanifudin(fObj?.namaLengkap) ? (
+                        <span className="text-[10px] bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 rounded">
+                          Khusus Manual
+                        </span>
+                      ) : null;
+                    })()}
+                  </div>
+                  <input 
+                    type="number" 
+                    min="0" 
+                    required 
+                    value={manualHonor !== '' ? manualHonor : computedTotalHonor} 
+                    onChange={e => setManualHonor(e.target.value)}
+                    className={`w-full border rounded p-2 font-bold ${
+                      (() => {
+                        const fObj = fasilitators.find((f: any) => f.id === manualFasilId);
+                        return isFasilHanifudin(fObj?.namaLengkap)
+                          ? 'border-purple-400 bg-purple-50/50 text-purple-950 focus:ring-purple-500'
+                          : 'border-slate-300 bg-slate-100 text-slate-900';
+                      })()
+                    }`} 
+                  />
+                  {(() => {
+                    const fObj = fasilitators.find((f: any) => f.id === manualFasilId);
+                    return isFasilHanifudin(fObj?.namaLengkap) ? (
+                      <span className="text-[10px] text-purple-700 font-medium block mt-1">
+                        💡 Khusus Muh. Hanifudin: Masukkan jumlah honor manual langsung (bebas dari jam).
+                      </span>
+                    ) : null;
+                  })()}
                 </div>
 
                 <div>
@@ -2051,8 +2196,8 @@ Atas Nama: ${namaLengkap}`;
                         <span className="text-[11px] text-blue-800/80">Nomor ini telah dibooking permanen.</span>
                         <button
                           type="button"
-                          onClick={() => {
-                            if (confirm("Peringatan: Membuat nomor baru akan menghubungi webhook Google Sheets dan menambah baris baru di sheet. Apakah Anda yakin ingin membuka kunci?")) {
+                          onClick={async () => {
+                            if (await confirm("Peringatan: Membuat nomor baru akan menghubungi webhook Google Sheets dan menambah baris baru di sheet. Apakah Anda yakin ingin membuka kunci?")) {
                               setIsUnlockedInvoice(true);
                             }
                           }}
@@ -2105,8 +2250,8 @@ Atas Nama: ${namaLengkap}`;
                         <span className="text-[11px] text-emerald-800/80">Nomor ini telah dibooking permanen.</span>
                         <button
                           type="button"
-                          onClick={() => {
-                            if (confirm("Peringatan: Membuat nomor baru akan menghubungi webhook Google Sheets dan menambah baris baru di sheet. Apakah Anda yakin ingin membuka kunci?")) {
+                          onClick={async () => {
+                            if (await confirm("Peringatan: Membuat nomor baru akan menghubungi webhook Google Sheets dan menambah baris baru di sheet. Apakah Anda yakin ingin membuka kunci?")) {
                               setIsUnlockedHonor(true);
                             }
                           }}
@@ -2159,8 +2304,8 @@ Atas Nama: ${namaLengkap}`;
                         <span className="text-[11px] text-emerald-800/80">Nomor ini telah dibooking permanen.</span>
                         <button
                           type="button"
-                          onClick={() => {
-                            if (confirm("Peringatan: Membuat nomor baru akan menghubungi webhook Google Sheets dan menambah baris baru di sheet. Apakah Anda yakin ingin membuka kunci?")) {
+                          onClick={async () => {
+                            if (await confirm("Peringatan: Membuat nomor baru akan menghubungi webhook Google Sheets dan menambah baris baru di sheet. Apakah Anda yakin ingin membuka kunci?")) {
                               setIsUnlockedTransport(true);
                             }
                           }}
@@ -2430,6 +2575,153 @@ Atas Nama: ${namaLengkap}`;
             </div>
           </div>
         )}
+      
+      {/* Modal Edit Honor Manual Khusus */}
+      {showEditHonorModal && editingHonorRekap && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[92vh] flex flex-col my-auto overflow-hidden">
+            {/* Header Sticky */}
+            <div className="flex justify-between items-center px-5 py-3.5 border-b bg-purple-50/70 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-purple-700 text-white rounded-lg">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900">
+                    Edit Honor Manual {isFasilHanifudin(editingHonorRekap.fasilitator?.namaLengkap) ? '(Fitur Khusus)' : ''}
+                  </h3>
+                  <p className="text-xs text-purple-700 font-semibold mt-0.5">
+                    {editingHonorRekap.fasilitator?.namaLengkap} &bull; Bulan {editingHonorRekap.bulan}
+                  </p>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setShowEditHonorModal(false)}
+                className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg text-lg font-bold transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content Scrollable */}
+            <div className="p-5 space-y-4 overflow-y-auto flex-1">
+              {/* Highlight Info Box */}
+              <div className="p-3.5 bg-purple-50 border border-purple-200 rounded-xl space-y-1.5">
+                <div className="flex items-center gap-1.5 font-bold text-purple-950 text-xs">
+                  <Sparkles className="w-4 h-4 text-purple-600 shrink-0" />
+                  <span>Pengisian Honor Manual Tanpa Terikat Jam &amp; Transport</span>
+                </div>
+                <p className="text-[11px] text-purple-800 leading-relaxed">
+                  {isFasilHanifudin(editingHonorRekap.fasilitator?.namaLengkap)
+                    ? 'Fitur khusus untuk Fasil Muh. Hanifudin H, S.Pd: Admin dapat langsung mengisi jumlah nominal honor yang akan dibayarkan secara manual. Perhitungan jam mengajar (JP) dilewati dan biaya transport otomatis diset Rp 0.'
+                    : 'Admin dapat mengubah nominal total honor secara manual sesuai kesepakatan khusus.'}
+                </p>
+              </div>
+
+              {/* Data Rekap Saat Ini */}
+              <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+                <div>
+                  <span className="text-slate-500 block">Jam Terdaftar (JP):</span>
+                  <span className="font-bold text-slate-800">
+                    {editingHonorRekap.totalJP} JP ({editingHonorRekap.totalJPIntra || 0} Intra / {editingHonorRekap.totalJPEkstra || 0} Ekstra)
+                  </span>
+                  <span className="text-[10px] text-purple-600 font-medium block mt-0.5">💡 Tidak mempengaruhi honor</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block">Jumlah Sesi &amp; Lokasi:</span>
+                  <span className="font-bold text-slate-800">{editingHonorRekap.jumlahSesi || 4} Sesi</span>
+                  <span className="text-[10px] text-slate-500 block mt-0.5">{editingHonorRekap.fasilitator?.lokasiSNT || '-'}</span>
+                </div>
+              </div>
+
+              {/* Input Nominal Honor */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-800">
+                  Nominal Total Honor yang Akan Dibayarkan (Rp) <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 font-bold text-xs">
+                    Rp
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    required
+                    value={honorAmountInput}
+                    onChange={(e) => setHonorAmountInput(e.target.value)}
+                    placeholder="Contoh: 3120000"
+                    className="w-full pl-9 pr-3 py-2.5 text-sm font-mono font-bold text-slate-900 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:outline-none bg-purple-50/20"
+                  />
+                </div>
+                {honorAmountInput && !isNaN(Number(honorAmountInput)) && (
+                  <div className="p-2.5 bg-slate-100 rounded-lg text-xs text-slate-700 font-medium space-y-0.5">
+                    <div>Format: <strong className="text-purple-900 font-mono text-sm">{formatCurrency(Number(honorAmountInput))}</strong></div>
+                    <div className="text-[11px] text-slate-500 italic">Terbilang: {terbilangRupiah(Number(honorAmountInput))}</div>
+                  </div>
+                )}
+              </div>
+
+              {/* Quick Presets */}
+              <div className="space-y-1">
+                <span className="text-[11px] font-semibold text-slate-500 block">Pilihan Cepat Nominal:</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {[2500000, 3000000, 3120000, 3500000, 4000000].map(amt => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => setHonorAmountInput(amt.toString())}
+                      className="px-2.5 py-1 text-xs font-mono font-semibold bg-slate-100 hover:bg-purple-100 hover:text-purple-900 text-slate-700 rounded border border-slate-200 transition-colors cursor-pointer"
+                    >
+                      {formatCurrency(amt)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Opsi Tanpa Transport */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={honorZeroTransport}
+                    onChange={(e) => setHonorZeroTransport(e.target.checked)}
+                    className="w-4 h-4 mt-0.5 text-purple-600 rounded border-gray-300 focus:ring-purple-500 cursor-pointer"
+                  />
+                  <div className="text-xs">
+                    <span className="font-bold text-slate-900 block">Tanpa Transport (Tetapkan Bantuan Transport Rp 0)</span>
+                    <span className="text-[11px] text-slate-500 leading-relaxed block mt-0.5">
+                      Fasilitator hanya menerima honor murni tanpa bantuan transport. Kwitansi transport tidak akan dibuat.
+                    </span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* Footer Sticky */}
+            <div className="px-5 py-3.5 border-t bg-slate-50 flex items-center justify-between shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowEditHonorModal(false)}
+                disabled={isSavingHonor}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 rounded-lg hover:bg-slate-200/60 transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveHonorManual}
+                disabled={isSavingHonor}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold shadow-sm transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {isSavingHonor ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                <span>Simpan Honor Manual</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Modal Edit Transport Rekap */}
       {editingTransportRekap && (

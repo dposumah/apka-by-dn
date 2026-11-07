@@ -1393,6 +1393,62 @@ export async function updateRekapTransport(rekapId: string, totalTransport: numb
   }
 }
 
+export async function updateRekapHonorManual(
+  rekapId: string, 
+  totalHonor: number,
+  options?: {
+    setZeroTransport?: boolean;
+    catatan?: string;
+  }
+) {
+  try {
+    const { error: authError, session } = await checkAuth(['ADMIN', 'SUPER_ADMIN']);
+    if (authError || !session) return { error: authError || "Unauthorized" };
+
+    const honorVal = Math.round(parseFloat(totalHonor.toString()) || 0);
+
+    const dataToUpdate: any = {
+      totalHonor: honorVal
+    };
+
+    if (options?.setZeroTransport) {
+      dataToUpdate.totalTransport = 0;
+    }
+
+    const updated = await prisma.rekapHonorarium.update({
+      where: { id: rekapId },
+      data: dataToUpdate,
+      include: { fasilitator: true, laporan: true, kwitansiRecord: true, invoiceRecord: true }
+    });
+
+    if (options?.setZeroTransport) {
+      await prisma.kwitansiRecord.deleteMany({
+        where: { rekapId, tipeKwitansi: 'TRANSPORT' }
+      });
+    }
+
+    // Update Kwitansi Honor record if already exists
+    await prisma.kwitansiRecord.updateMany({
+      where: { rekapId, tipeKwitansi: 'HONOR' },
+      data: { nominal: honorVal }
+    });
+
+    // Update Invoice record if already exists
+    await prisma.invoiceRecord.updateMany({
+      where: { rekapId },
+      data: { nominal: honorVal }
+    });
+
+    await syncSingleRekapToRabExpenses(rekapId);
+    revalidatePath('/fasilitator/rekap-honor');
+    revalidatePath('/portal/rekap');
+    return { success: true, rekap: JSON.parse(JSON.stringify(updated)) };
+  } catch (error: any) {
+    console.error('Error in updateRekapHonorManual:', error);
+    return { error: error.message || 'Unknown error' };
+  }
+}
+
 export async function batchUpdateTransportByFormula(
   bulan: string,
   options: {
@@ -1434,6 +1490,11 @@ export async function batchUpdateTransportByFormula(
 
     const updatedList = [];
     for (const r of rekaps) {
+      // Fasilitator khusus Hanifudin dikecualikan dari batch transport (tetap Rp 0 / tanpa transport)
+      if (r.fasilitator?.namaLengkap?.toLowerCase().includes('hanif')) {
+        continue;
+      }
+
       const calc = hitungTransportDenganRumusBBMDanPlafon(r, {
         useRumusBbm: options.useRumusBbm,
         modeBbmMurni: options.modeBbmMurni,
