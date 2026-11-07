@@ -2202,3 +2202,243 @@ export function generateLaporanLengkapIotHtml(paket: any, items: any[]): string 
     </html>
   `
 }
+
+
+export function generateBukuKasIotHtml(data: {
+  projectName?: string
+  totalMasuk: number
+  totalKeluar: number
+  sisaSaldo: number
+  transactions: any[]
+}): string {
+  const currentDateStr = new Date().toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  })
+
+  // Sort ascending for chronological report
+  const sorted = [...data.transactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+  const rows = sorted.map((t, idx) => {
+    const isIncome = t.type === 'INCOME'
+    const dateFormatted = new Date(t.date).toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    })
+
+    return `
+      <tr style="border-bottom: 1px solid #e2e8f0; font-size: 9pt;">
+        <td style="padding: 7px 8px; text-align: center; color: #64748b; font-family: monospace;">${idx + 1}</td>
+        <td style="padding: 7px 8px; white-space: nowrap; font-family: monospace;">${dateFormatted}</td>
+        <td style="padding: 7px 8px;">
+          <div style="font-weight: bold; color: #0f172a;">${t.category || (isIncome ? 'Penerimaan' : 'Belanja')}</div>
+          <div style="font-size: 8pt; color: #475569; margin-top: 1px;">${t.description}</div>
+          ${t.journalEntryNumber ? `<div style="font-size: 7.5pt; color: #2563eb; font-family: monospace; margin-top: 2px;">Ref Akuntansi: ${t.journalEntryNumber} (POSTED)</div>` : ''}
+        </td>
+        <td style="padding: 7px 8px; font-size: 8pt; color: #334155; white-space: nowrap;">${t.paymentMethod || 'Bank BCA'}</td>
+        <td style="padding: 7px 8px; text-align: right; font-weight: bold; color: #166534; font-family: monospace;">
+          ${isIncome ? formatCurrency(t.amount) : '–'}
+        </td>
+        <td style="padding: 7px 8px; text-align: right; font-weight: bold; color: #991b1b; font-family: monospace;">
+          ${!isIncome ? formatCurrency(t.amount) : '–'}
+        </td>
+        <td style="padding: 7px 8px; text-align: right; font-weight: bold; color: #0f172a; font-family: monospace;">
+          ${formatCurrency(t.runningBalance || 0)}
+        </td>
+      </tr>
+    `
+  }).join('')
+
+  return `
+    <!DOCTYPE html>
+    <html lang="id">
+    <head>
+      <meta charset="utf-8" />
+      <title>Laporan Buku Kas Keluar Masuk Proyek IoT 100 Kits</title>
+      <style>
+        @page {
+          size: A4 portrait;
+          margin: 10mm 12mm;
+        }
+        body {
+          font-family: Arial, Helvetica, sans-serif;
+          color: #0f172a;
+          font-size: 10pt;
+          line-height: 1.35;
+          margin: 0;
+          padding: 10px;
+        }
+        .header-kop {
+          display: flex;
+          align-items: center;
+          border-bottom: 2px solid #0f172a;
+          padding-bottom: 10px;
+          margin-bottom: 16px;
+        }
+        .kop-text {
+          flex: 1;
+        }
+        .kop-text h1 {
+          font-size: 14pt;
+          font-weight: 800;
+          margin: 0 0 2px 0;
+          color: #0f172a;
+          letter-spacing: 0.5px;
+        }
+        .kop-text p {
+          font-size: 8.5pt;
+          color: #475569;
+          margin: 1px 0;
+        }
+        .doc-title {
+          text-align: center;
+          margin-bottom: 16px;
+        }
+        .doc-title h2 {
+          font-size: 13pt;
+          font-weight: 800;
+          margin: 0 0 4px 0;
+          color: #0f172a;
+          text-transform: uppercase;
+        }
+        .doc-title p {
+          font-size: 9pt;
+          color: #475569;
+          margin: 0;
+        }
+        .summary-cards {
+          display: flex;
+          gap: 12px;
+          margin-bottom: 16px;
+        }
+        .summary-card {
+          flex: 1;
+          border: 1px solid #cbd5e1;
+          border-radius: 6px;
+          padding: 8px 12px;
+          background-color: #f8fafc;
+        }
+        .card-label {
+          font-size: 8pt;
+          font-weight: 700;
+          text-transform: uppercase;
+          color: #64748b;
+          margin-bottom: 2px;
+        }
+        .card-val {
+          font-size: 12pt;
+          font-weight: 800;
+          font-family: monospace;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 20px;
+        }
+        th {
+          background-color: #0f172a;
+          color: #ffffff;
+          padding: 8px;
+          font-size: 8.5pt;
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
+        }
+        .sig-container {
+          display: flex;
+          justify-content: space-between;
+          margin-top: 24px;
+          page-break-inside: avoid;
+        }
+        .sig-box {
+          width: 45%;
+          text-align: center;
+          font-size: 9pt;
+        }
+        .sig-space {
+          height: 60px;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header-kop">
+        <div class="kop-text">
+          <h1>YAYASAN MALEO TALENTA CENDEKIA</h1>
+          <p>Intermark Indonesia, Ruko Alfresco Dining No.8, Jl. Lingkar Timur BSD City, Tangerang Selatan, Banten 15310</p>
+          <p>Telepon: 08119661017 | Email: maleotalentacendekia@gmail.com | Website: www.maleo.org</p>
+        </div>
+      </div>
+
+      <div class="doc-title">
+        <h2>Laporan Buku Kas Keluar-Masuk Proyek 100 Kits</h2>
+        <p>Proyek: <strong>Pengadaan Starter Kit IoT (100 Kit - 5 Wilayah)</strong> &bull; Per Tanggal: ${currentDateStr}</p>
+        <p style="font-size: 8pt; color: #2563eb; margin-top: 2px;">Tersinkronisasi Otomatis dengan Akuntansi Utama (Rekening Bank BCA 111.11.101 &amp; Akun Jurnal Umum)</p>
+      </div>
+
+      <div class="summary-cards">
+        <div class="summary-card" style="border-left: 4px solid #16a34a; background-color: #f0fdf4;">
+          <div class="card-label" style="color: #166534;">Total Kas Masuk (SP2D)</div>
+          <div class="card-val" style="color: #14532d;">${formatCurrency(data.totalMasuk)}</div>
+          <div style="font-size: 7.5pt; color: #166534; margin-top: 2px;">2 SP2D Ditjen PAUD Dikdas Dikmen</div>
+        </div>
+        <div class="summary-card" style="border-left: 4px solid #dc2626; background-color: #fef2f2;">
+          <div class="card-label" style="color: #991b1b;">Total Kas Keluar (Belanja)</div>
+          <div class="card-val" style="color: #7f1d1d;">${formatCurrency(data.totalKeluar)}</div>
+          <div style="font-size: 7.5pt; color: #991b1b; margin-top: 2px;">Realisasi Pembelian 4 Pos Kategori F</div>
+        </div>
+        <div class="summary-card" style="border-left: 4px solid #2563eb; background-color: #eff6ff;">
+          <div class="card-label" style="color: #1e40af;">Sisa Saldo Kas Proyek</div>
+          <div class="card-val" style="color: #1e3a8a;">${formatCurrency(data.sisaSaldo)}</div>
+          <div style="font-size: 7.5pt; color: #1e40af; margin-top: 2px;">Posisi Kas/Bank Tersedia</div>
+        </div>
+      </div>
+
+      <div style="background-color: #f1f5f9; padding: 6px 12px; border-radius: 4px; font-size: 8pt; margin-bottom: 12px; border: 1px solid #cbd5e1;">
+        <strong>Terbilang Sisa Saldo:</strong> <em>${terbilangRupiah(Math.max(0, data.sisaSaldo))}</em>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 30px; text-align: center;">No</th>
+            <th style="width: 80px; text-align: left;">Tanggal</th>
+            <th style="text-align: left;">Uraian &amp; Referensi Dokumen</th>
+            <th style="width: 90px; text-align: left;">Akun Kas</th>
+            <th style="width: 105px; text-align: right;">Masuk (Rp)</th>
+            <th style="width: 105px; text-align: right;">Keluar (Rp)</th>
+            <th style="width: 105px; text-align: right;">Saldo (Rp)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+          <tr style="background-color: #f8fafc; font-weight: bold; border-top: 2px solid #0f172a; border-bottom: 2px solid #0f172a;">
+            <td colspan="4" style="padding: 8px; text-align: right; text-transform: uppercase;">Total Mutasi &amp; Saldo Akhir:</td>
+            <td style="padding: 8px; text-align: right; color: #166534; font-family: monospace;">${formatCurrency(data.totalMasuk)}</td>
+            <td style="padding: 8px; text-align: right; color: #991b1b; font-family: monospace;">${formatCurrency(data.totalKeluar)}</td>
+            <td style="padding: 8px; text-align: right; color: #0f172a; font-family: monospace;">${formatCurrency(data.sisaSaldo)}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="sig-container">
+        <div class="sig-box">
+          <p style="margin: 0;">Disusun Oleh,</p>
+          <p style="margin: 2px 0; font-size: 8pt; color: #64748b;">Administrasi &amp; Keuangan Proyek</p>
+          <div class="sig-space"></div>
+          <p style="margin: 0; font-weight: bold; text-decoration: underline;">Staf Keuangan IoT</p>
+          <p style="margin: 1px 0 0 0; font-size: 7.5pt; color: #64748b;">Yayasan Maleo Talenta Cendekia</p>
+        </div>
+
+        <div class="sig-box">
+          <p style="margin: 0;">Mengetahui &amp; Menyetujui,</p>
+          <p style="margin: 2px 0; font-size: 8pt; color: #64748b;">Koordinator Wilayah 2 Program SNT</p>
+          <div class="sig-space"></div>
+          <p style="margin: 0; font-weight: bold; text-decoration: underline;">Jully Tjindrawan, MBA</p>
+          <p style="margin: 1px 0 0 0; font-size: 7.5pt; color: #64748b;">Direktur / Penanggung Jawab Proyek</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `
+}

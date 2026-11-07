@@ -7,7 +7,18 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/format'
 import { createPaketIoT, deletePaketIoT, importExcelPaketIoT } from '@/app/actions/iot'
-import { generateRabIotHtml, generateBast100KitHtml, generateBastSntHtml, generateLaporanLengkapIotHtml } from '@/lib/pdf-iot-templates'
+import { 
+  getIoTCashflowData, 
+  createIoTCashTransaction, 
+  deleteIoTCashTransaction 
+} from '@/app/actions/iot-cashflow'
+import { 
+  generateRabIotHtml, 
+  generateBast100KitHtml, 
+  generateBastSntHtml, 
+  generateLaporanLengkapIotHtml,
+  generateBukuKasIotHtml
+} from '@/lib/pdf-iot-templates'
 import { 
   Plus, 
   Search, 
@@ -31,23 +42,52 @@ import {
   CheckCircle,
   Clock,
   Upload,
-  FileSpreadsheet
+  FileSpreadsheet,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Wallet,
+  BookOpen,
+  Receipt,
+  FileCheck
 } from 'lucide-react'
 
 export function AlatBahanIotClient({ 
   initialPaketList = [], 
-  fasilitators = [] 
+  fasilitators = [],
+  initialCashflowData
 }: { 
   initialPaketList: any[], 
-  fasilitators: any[] 
+  fasilitators: any[],
+  initialCashflowData?: any
 }) {
   const router = useRouter()
   const [paketList, setPaketList] = useState<any[]>(initialPaketList)
-  const [activeProgramTab, setActiveProgramTab] = useState<'SNT' | 'STARTER_KIT_100'>('SNT')
+  const [activeProgramTab, setActiveProgramTab] = useState<'SNT' | 'STARTER_KIT_100' | 'BUKU_KAS_100'>('SNT')
   const [searchQuery, setSearchQuery] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  // State for Buku Kas Keluar Masuk IoT
+  const [cashflow, setCashflow] = useState<any>(initialCashflowData || {
+    totalMasuk: 0,
+    totalKeluar: 0,
+    sisaSaldo: 0,
+    transactions: []
+  })
+  const [showCashModal, setShowCashModal] = useState(false)
+  const [cashFormType, setCashFormType] = useState<'INCOME' | 'EXPENSE'>('INCOME')
+  const [cashFormData, setCashFormData] = useState({
+    date: new Date().toISOString().split('T')[0],
+    amount: '',
+    category: 'Penerimaan SP2D Kemendikbud',
+    description: '',
+    paymentMethod: 'Bank BCA (111.11.101)',
+    receiptUrl: ''
+  })
+  const [isSavingCash, setIsSavingCash] = useState(false)
+  const [deletingCashId, setDeletingCashId] = useState<string | null>(null)
+  const [cashSearch, setCashSearch] = useState('')
 
   // Form State for New Package
   const [formData, setFormData] = useState({
@@ -282,6 +322,113 @@ export function AlatBahanIotClient({
     }
   }
 
+  // Filtered Cashflow transactions
+  const filteredCashflowList = useMemo(() => {
+    if (!cashSearch.trim()) return cashflow?.transactions || []
+    const q = cashSearch.toLowerCase()
+    return (cashflow?.transactions || []).filter((t: any) =>
+      (t.description || '').toLowerCase().includes(q) ||
+      (t.category || '').toLowerCase().includes(q) ||
+      (t.journalEntryNumber || '').toLowerCase().includes(q) ||
+      (t.paymentMethod || '').toLowerCase().includes(q)
+    )
+  }, [cashflow, cashSearch])
+
+  const handlePrintBukuKas = () => {
+    const html = generateBukuKasIotHtml({
+      projectName: 'Pengadaan Starter Kit IoT (100 Kit - 5 Wilayah)',
+      totalMasuk: cashflow?.totalMasuk || 0,
+      totalKeluar: cashflow?.totalKeluar || 0,
+      sisaSaldo: cashflow?.sisaSaldo || 0,
+      transactions: cashflow?.transactions || []
+    })
+    const win = window.open('', '_blank')
+    if (win) {
+      win.document.write(html)
+      win.document.close()
+      setTimeout(() => {
+        win.print()
+      }, 700)
+    }
+  }
+
+  const handleSaveCashTransaction = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!cashFormData.amount || Number(cashFormData.amount) <= 0) {
+      alert('Masukkan nominal transaksi yang valid')
+      return
+    }
+    if (!cashFormData.description.trim()) {
+      alert('Masukkan keterangan/uraian transaksi')
+      return
+    }
+
+    setIsSavingCash(true)
+    try {
+      const res = await createIoTCashTransaction({
+        type: cashFormType,
+        amount: Number(cashFormData.amount),
+        category: cashFormData.category,
+        description: cashFormData.description,
+        date: cashFormData.date,
+        paymentMethod: cashFormData.paymentMethod,
+        receiptUrl: cashFormData.receiptUrl
+      })
+
+      if (!res?.success) {
+        alert('Gagal menyimpan transaksi: ' + (res?.error || 'Kesalahan server'))
+        return
+      }
+
+      // Reload fresh cashflow data
+      const updated = await getIoTCashflowData()
+      if (updated?.success) {
+        setCashflow(updated)
+      }
+
+      setShowCashModal(false)
+      setCashFormData({
+        date: new Date().toISOString().split('T')[0],
+        amount: '',
+        category: cashFormType === 'INCOME' ? 'Penerimaan SP2D Kemendikbud' : 'A. IoT CORE KIT',
+        description: '',
+        paymentMethod: 'Bank BCA (111.11.101)',
+        receiptUrl: ''
+      })
+      alert(`Transaksi ${cashFormType === 'INCOME' ? 'Kas Masuk' : 'Pengeluaran'} berhasil dicatat dan langsung terjurnal otomatis di Akuntansi Utama!`)
+      router.refresh()
+    } catch (err: any) {
+      alert('Terjadi kesalahan: ' + (err.message || err))
+    } finally {
+      setIsSavingCash(false)
+    }
+  }
+
+  const handleDeleteCashTransaction = async (t: any) => {
+    if (!confirm(`Hapus transaksi "${t.description}" sebesar ${formatCurrency(t.amount)}?\nJurnal Akuntansi Utama terkait juga akan dihapus secara otomatis.`)) {
+      return
+    }
+
+    setDeletingCashId(t.id)
+    try {
+      const res = await deleteIoTCashTransaction(t.id)
+      if (!res?.success) {
+        alert('Gagal menghapus: ' + (res?.error || 'Kesalahan server'))
+        return
+      }
+
+      const updated = await getIoTCashflowData()
+      if (updated?.success) {
+        setCashflow(updated)
+      }
+      router.refresh()
+    } catch (err: any) {
+      alert('Terjadi kesalahan: ' + (err.message || err))
+    } finally {
+      setDeletingCashId(null)
+    }
+  }
+
   // Filter list SNT
   const filteredList = sntList.filter(p => {
     const q = searchQuery.toLowerCase()
@@ -383,6 +530,22 @@ export function AlatBahanIotClient({
           <span>Pengadaan Starter Kit IoT (100 Kit - 5 Lokasi)</span>
           <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 text-[10px] font-bold">
             SPK Rp 238,55 Jt
+          </Badge>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveProgramTab('BUKU_KAS_100')}
+          className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2.5 transition-colors cursor-pointer ${
+            activeProgramTab === 'BUKU_KAS_100'
+              ? 'border-indigo-600 text-indigo-700 bg-indigo-50/50'
+              : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+          }`}
+        >
+          <Coins className="w-4 h-4 text-indigo-600" />
+          <span>Buku Kas &amp; Keluar-Masuk (100 Kits)</span>
+          <Badge variant="secondary" className="bg-indigo-100 text-indigo-800 text-[10px] font-bold font-mono">
+            Saldo: {formatCurrency(cashflow?.sisaSaldo || 0)}
           </Badge>
         </button>
       </div>
@@ -734,6 +897,16 @@ export function AlatBahanIotClient({
                       <span>Cetak RAB (PDF)</span>
                     </button>
 
+                    <button
+                      type="button"
+                      onClick={() => setActiveProgramTab('BUKU_KAS_100')}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-colors shadow-xs cursor-pointer"
+                      title="Buka Buku Kas Keluar-Masuk & SP2D Proyek 100 Kits"
+                    >
+                      <Coins className="w-4 h-4" />
+                      <span>Buku Kas &amp; SP2D Proyek</span>
+                    </button>
+
                     <Link
                       href="/dashboard-rab"
                       className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold transition-colors"
@@ -956,6 +1129,593 @@ export function AlatBahanIotClient({
               <p className="text-sm text-slate-500">Paket Pengadaan Starter Kit IoT belum ditemukan.</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* VIEW FOR TAB 3: BUKU KAS & KELUAR MASUK PROYEK 100 KITS */}
+      {activeProgramTab === 'BUKU_KAS_100' && (
+        <div className="space-y-6">
+          {/* KPI STATS CARDS */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="border-emerald-200 bg-emerald-50/50 shadow-xs">
+              <CardHeader className="pb-2">
+                <span className="text-xs font-semibold uppercase text-emerald-800 flex items-center justify-between">
+                  <span>Total Kas Masuk (SP2D)</span>
+                  <ArrowDownLeft className="w-4 h-4 text-emerald-600" />
+                </span>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-emerald-950 font-mono">
+                  {formatCurrency(cashflow?.totalMasuk || 233779000)}
+                </div>
+                <p className="text-[11px] text-emerald-700 mt-0.5">
+                  2 SP2D Ditjen PAUD (Netto Cair Bank BCA)
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-rose-200 bg-rose-50/50 shadow-xs">
+              <CardHeader className="pb-2">
+                <span className="text-xs font-semibold uppercase text-rose-800 flex items-center justify-between">
+                  <span>Total Kas Keluar (Belanja)</span>
+                  <ArrowUpRight className="w-4 h-4 text-rose-600" />
+                </span>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-rose-950 font-mono">
+                  {formatCurrency(cashflow?.totalKeluar || 101986940)}
+                </div>
+                <p className="text-[11px] text-rose-700 mt-0.5">
+                  Realisasi Belanja 4 Pos Kategori F
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-indigo-200 bg-indigo-50/50 shadow-xs">
+              <CardHeader className="pb-2">
+                <span className="text-xs font-semibold uppercase text-indigo-800 flex items-center justify-between">
+                  <span>Sisa Saldo Kas Proyek</span>
+                  <Wallet className="w-4 h-4 text-indigo-600" />
+                </span>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-indigo-950 font-mono">
+                  {formatCurrency(cashflow?.sisaSaldo !== undefined ? cashflow.sisaSaldo : 131792060)}
+                </div>
+                <p className="text-[11px] text-indigo-700 mt-0.5 font-medium">
+                  Saldo Kas Tersedia di Rekening Bank BCA
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-slate-200 bg-slate-50/80 shadow-xs">
+              <CardHeader className="pb-2">
+                <span className="text-xs font-semibold uppercase text-slate-700 flex items-center justify-between">
+                  <span>Integrasi Akuntansi</span>
+                  <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                </span>
+              </CardHeader>
+              <CardContent>
+                <div className="text-sm font-bold text-slate-900 flex items-center gap-1.5 mt-1">
+                  <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 font-bold">
+                    POSTED (Otomatis)
+                  </Badge>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-2">
+                  Tersinkron ke Buku Besar BCA (111.11.101) &amp; Jurnal Umum
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* 2 SP2D VERIFIED SUMMARY BANNER */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-4 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="px-2 py-0.5 bg-emerald-600 text-white rounded text-[10px] font-bold uppercase tracking-wider">
+                    SP2D Termin 1 (60%)
+                  </span>
+                  <span className="text-xs font-mono text-emerald-800 font-semibold">
+                    No. 260880000135881
+                  </span>
+                </div>
+                <h4 className="text-base font-extrabold text-emerald-950 mt-2">
+                  Rp 140.267.400 <span className="text-xs font-normal text-emerald-700">(Netto Cair)</span>
+                </h4>
+                <div className="text-xs text-slate-600 mt-1 space-y-0.5">
+                  <p><strong>SPM Bruto:</strong> Rp 158.874.300 &bull; <strong>Potongan Pajak:</strong> Rp 18.606.900</p>
+                  <p><strong>Kontrak:</strong> 0717a/PPK1.3/PR/2026 (15 Okt 2026)</p>
+                  <p><strong>BAST:</strong> 0901a/PPK1.3/PR/2026 (5 Nov 2026)</p>
+                </div>
+              </div>
+              <div className="mt-3 pt-3 border-t border-emerald-200/70 flex items-center justify-between">
+                <span className="text-[11px] text-emerald-800 font-medium">Satker Ditjen PAUD Dikdas Dikmen</span>
+                <a
+                  href="/documents/sp2d/sp2d-158-jully.pdf"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-[11px] font-semibold transition-colors"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Lihat PDF SP2D</span>
+                </a>
+              </div>
+            </div>
+
+            <div className="p-4 bg-gradient-to-r from-teal-50 to-cyan-50 border border-teal-200 rounded-xl flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="px-2 py-0.5 bg-teal-600 text-white rounded text-[10px] font-bold uppercase tracking-wider">
+                    SP2D Termin 2 (40%)
+                  </span>
+                  <span className="text-xs font-mono text-teal-800 font-semibold">
+                    No. 260880000135880
+                  </span>
+                </div>
+                <h4 className="text-base font-extrabold text-teal-950 mt-2">
+                  Rp 93.511.600 <span className="text-xs font-normal text-teal-700">(Netto Cair)</span>
+                </h4>
+                <div className="text-xs text-slate-600 mt-1 space-y-0.5">
+                  <p><strong>SPM Bruto:</strong> Rp 105.916.200 &bull; <strong>Potongan Pajak:</strong> Rp 12.404.600</p>
+                  <p><strong>Kontrak:</strong> 0717b/PPK1.3/PR/2026 (15 Okt 2026)</p>
+                  <p><strong>BAST:</strong> 0901b/PPK1.3/PR/2026 (5 Nov 2026)</p>
+                </div>
+              </div>
+              <div className="mt-3 pt-3 border-t border-teal-200/70 flex items-center justify-between">
+                <span className="text-[11px] text-teal-800 font-medium">Satker Ditjen PAUD Dikdas Dikmen</span>
+                <a
+                  href="/documents/sp2d/sp2d-105-jully.pdf"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-teal-700 hover:bg-teal-800 text-white rounded text-[11px] font-semibold transition-colors"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Lihat PDF SP2D</span>
+                </a>
+              </div>
+            </div>
+          </div>
+
+          {/* TABLE MUTASI KAS & ACTIONS */}
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader className="bg-slate-50/80 border-b pb-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <BookOpen className="w-5 h-5 text-indigo-600" />
+                    <span>Daftar Mutasi Kas Masuk &amp; Keluar Proyek IoT 100 Kits</span>
+                  </CardTitle>
+                  <CardDescription className="text-xs text-slate-500">
+                    Buku kas sederhana proyek dengan integrasi otomatis ke Jurnal Akuntansi Umum &amp; Buku Besar Kas/Bank BCA.
+                  </CardDescription>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="relative w-full sm:w-64">
+                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={cashSearch}
+                      onChange={e => setCashSearch(e.target.value)}
+                      placeholder="Cari transaksi, SP2D, nota..."
+                      className="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCashFormType('INCOME')
+                      setCashFormData({
+                        date: new Date().toISOString().split('T')[0],
+                        amount: '',
+                        category: 'Penerimaan SP2D Kemendikbud',
+                        description: '',
+                        paymentMethod: 'Bank BCA (111.11.101)',
+                        receiptUrl: ''
+                      })
+                      setShowCashModal(true)
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-xs font-bold transition-colors cursor-pointer shadow-xs"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>+ Catat Uang Masuk</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCashFormType('EXPENSE')
+                      setCashFormData({
+                        date: new Date().toISOString().split('T')[0],
+                        amount: '',
+                        category: 'A. IoT CORE KIT',
+                        description: '',
+                        paymentMethod: 'Bank BCA (111.11.101)',
+                        receiptUrl: ''
+                      })
+                      setShowCashModal(true)
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-md text-xs font-bold transition-colors cursor-pointer shadow-xs"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>- Catat Pengeluaran</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handlePrintBukuKas}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-700 hover:bg-indigo-800 text-white rounded-md text-xs font-bold transition-colors cursor-pointer shadow-xs"
+                    title="Cetak Laporan Buku Kas Proyek (PDF)"
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>Cetak PDF Buku Kas</span>
+                  </button>
+
+                  <Link
+                    href="/jurnal"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-md text-xs font-semibold transition-colors"
+                    title="Lihat seluruh Jurnal Umum di Akuntansi Utama"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Jurnal Umum</span>
+                  </Link>
+                </div>
+              </div>
+            </CardHeader>
+
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-50 text-slate-700 uppercase border-b text-[10px]">
+                    <tr>
+                      <th className="px-3.5 py-3 text-center" style={{ width: '35px' }}>No</th>
+                      <th className="px-3.5 py-3" style={{ width: '90px' }}>Tanggal</th>
+                      <th className="px-3.5 py-3 text-center" style={{ width: '100px' }}>Jenis</th>
+                      <th className="px-3.5 py-3">Kategori &amp; Dokumen</th>
+                      <th className="px-3.5 py-3">Uraian / Keterangan</th>
+                      <th className="px-3.5 py-3" style={{ width: '120px' }}>Metode / Kas</th>
+                      <th className="px-3.5 py-3 text-right" style={{ width: '120px' }}>Masuk (Rp)</th>
+                      <th className="px-3.5 py-3 text-right" style={{ width: '120px' }}>Keluar (Rp)</th>
+                      <th className="px-3.5 py-3 text-right" style={{ width: '130px' }}>Saldo (Rp)</th>
+                      <th className="px-3.5 py-3 text-center" style={{ width: '120px' }}>Jurnal Utama</th>
+                      <th className="px-3.5 py-3 text-center" style={{ width: '60px' }}>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredCashflowList.length === 0 ? (
+                      <tr>
+                        <td colSpan={11} className="text-center py-12 text-slate-400">
+                          Belum ada catatan mutasi kas. Gunakan tombol "+ Catat Uang Masuk" atau "- Catat Pengeluaran" di atas.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredCashflowList.map((t: any, idx: number) => {
+                        const isIncome = t.type === 'INCOME'
+
+                        return (
+                          <tr key={t.id || idx} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="px-3.5 py-3 text-center font-mono text-slate-500 font-medium">
+                              {idx + 1}
+                            </td>
+                            <td className="px-3.5 py-3 font-mono text-slate-600 whitespace-nowrap">
+                              {new Date(t.date).toLocaleDateString('id-ID', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric'
+                              })}
+                            </td>
+                            <td className="px-3.5 py-3 text-center">
+                              <Badge
+                                className={
+                                  isIncome
+                                    ? 'bg-emerald-100 text-emerald-800 border-emerald-200 font-bold text-[10px]'
+                                    : 'bg-rose-100 text-rose-800 border-rose-200 font-bold text-[10px]'
+                                }
+                              >
+                                {isIncome ? 'UANG MASUK' : 'UANG KELUAR'}
+                              </Badge>
+                            </td>
+                            <td className="px-3.5 py-3 font-semibold text-slate-800">
+                              <div>{t.category || (isIncome ? 'Penerimaan Proyek' : 'Pengeluaran Proyek')}</div>
+                              {t.receiptUrl && (
+                                <a
+                                  href={t.receiptUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1 text-[10px] text-blue-600 hover:underline mt-0.5"
+                                >
+                                  <FileText className="w-3 h-3" />
+                                  <span>Lampiran Dokumen</span>
+                                </a>
+                              )}
+                            </td>
+                            <td className="px-3.5 py-3 text-slate-700 max-w-xs">
+                              <div className="font-normal text-[11px] leading-relaxed line-clamp-2" title={t.description}>
+                                {t.description}
+                              </div>
+                            </td>
+                            <td className="px-3.5 py-3 font-mono text-[11px] text-slate-600 whitespace-nowrap">
+                              {t.paymentMethod || 'Bank BCA'}
+                            </td>
+                            <td className="px-3.5 py-3 text-right font-mono font-bold text-emerald-700">
+                              {isIncome ? formatCurrency(t.amount) : '–'}
+                            </td>
+                            <td className="px-3.5 py-3 text-right font-mono font-bold text-rose-600">
+                              {!isIncome ? formatCurrency(t.amount) : '–'}
+                            </td>
+                            <td className="px-3.5 py-3 text-right font-mono font-bold text-slate-900 bg-slate-50/50">
+                              {formatCurrency(t.runningBalance !== undefined ? t.runningBalance : 0)}
+                            </td>
+                            <td className="px-3.5 py-3 text-center">
+                              {t.journalEntryNumber ? (
+                                <Link
+                                  href="/jurnal"
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded font-mono text-[10px] font-bold transition-colors"
+                                  title="Lihat Jurnal di Akuntansi Utama"
+                                >
+                                  <span>{t.journalEntryNumber}</span>
+                                  <ExternalLink className="w-2.5 h-2.5" />
+                                </Link>
+                              ) : (
+                                <span className="inline-flex items-center text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                  POSTED
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-3.5 py-3 text-center">
+                              <button
+                                type="button"
+                                disabled={deletingCashId === t.id}
+                                onClick={() => handleDeleteCashTransaction(t)}
+                                className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors disabled:opacity-40 cursor-pointer"
+                                title="Hapus transaksi ini dan jurnal terkait"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>
+                  <tfoot className="bg-slate-100/80 font-bold border-t text-slate-900 text-[11px]">
+                    <tr>
+                      <td colSpan={6} className="px-3.5 py-3 text-right uppercase tracking-wider">
+                        Total Rekapitulasi:
+                      </td>
+                      <td className="px-3.5 py-3 text-right font-mono text-emerald-800">
+                        {formatCurrency(cashflow?.totalMasuk || 0)}
+                      </td>
+                      <td className="px-3.5 py-3 text-right font-mono text-rose-800">
+                        {formatCurrency(cashflow?.totalKeluar || 0)}
+                      </td>
+                      <td className="px-3.5 py-3 text-right font-mono text-indigo-950 bg-indigo-50/60 font-black">
+                        {formatCurrency(cashflow?.sisaSaldo || 0)}
+                      </td>
+                      <td colSpan={2} className="px-3.5 py-3 text-center text-slate-500 font-normal text-[10px]">
+                        Sinkron Akuntansi
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* MODAL CATAT KAS KELUAR MASUK */}
+      {showCashModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[92vh] overflow-y-auto p-6">
+            <div className="flex items-center justify-between pb-3 border-b">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  {cashFormType === 'INCOME' ? 'Catat Kas Masuk (Penerimaan)' : 'Catat Pengeluaran (Belanja)'}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Otomatis terjurnal ke Akuntansi Utama &amp; Buku Besar Kas/Bank BCA.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCashModal(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCashTransaction} className="space-y-4 mt-4 text-xs">
+              <div className="flex border rounded-lg overflow-hidden p-0.5 bg-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCashFormType('INCOME')
+                    setCashFormData(prev => ({
+                      ...prev,
+                      category: 'Penerimaan SP2D Kemendikbud'
+                    }))
+                  }}
+                  className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors ${
+                    cashFormType === 'INCOME'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Uang Masuk (+)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCashFormType('EXPENSE')
+                    setCashFormData(prev => ({
+                      ...prev,
+                      category: 'A. IoT CORE KIT'
+                    }))
+                  }}
+                  className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors ${
+                    cashFormType === 'EXPENSE'
+                      ? 'bg-rose-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Pengeluaran (-)
+                </button>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Tanggal Transaksi <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={cashFormData.date}
+                  onChange={e => setCashFormData({ ...cashFormData, date: e.target.value })}
+                  className="w-full border rounded-md px-3 py-2 text-xs bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Nominal Transaksi (Rp) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  required
+                  min="1"
+                  step="any"
+                  placeholder="Contoh: 5000000"
+                  value={cashFormData.amount}
+                  onChange={e => setCashFormData({ ...cashFormData, amount: e.target.value })}
+                  className="w-full border rounded-md px-3 py-2 text-xs bg-white font-mono font-bold"
+                />
+                {cashFormData.amount && (
+                  <p className="text-[11px] text-indigo-700 font-medium mt-1">
+                    {formatCurrency(Number(cashFormData.amount))}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Kategori
+                </label>
+                <select
+                  value={cashFormData.category}
+                  onChange={e => setCashFormData({ ...cashFormData, category: e.target.value })}
+                  className="w-full border rounded-md px-3 py-2 text-xs bg-white"
+                >
+                  {cashFormType === 'INCOME' ? (
+                    <>
+                      <option value="Penerimaan SP2D Kemendikbud">Penerimaan SP2D Kemendikbud</option>
+                      <option value="Uang Muka Proyek (DP)">Uang Muka Proyek (DP)</option>
+                      <option value="Pelunasan Proyek IoT">Pelunasan Proyek IoT</option>
+                      <option value="Pendapatan Tambahan Proyek">Pendapatan Tambahan Proyek</option>
+                      <option value="Pengembalian Sisa Belanja">Pengembalian Sisa Belanja</option>
+                      <option value="Lain-lain">Lain-lain</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="A. IoT CORE KIT">A. IoT CORE KIT</option>
+                      <option value="B. PERANGKAT PENDUKUNG">B. PERANGKAT PENDUKUNG</option>
+                      <option value="C. KEMASAN & KELENGKAPAN / QC">C. KEMASAN & KELENGKAPAN / QC</option>
+                      <option value="D. TAMBAHAN & ONGKIR">D. TAMBAHAN & ONGKIR</option>
+                      <option value="Belanja PCM Elektronik">Belanja PCM Elektronik</option>
+                      <option value="Belanja CNC Store Bandung">Belanja CNC Store Bandung</option>
+                      <option value="Belanja The Box 03">Belanja The Box 03</option>
+                      <option value="Belanja Percetakan">Belanja Percetakan</option>
+                      <option value="Belanja Shopee/Marketplace">Belanja Shopee/Marketplace</option>
+                      <option value="Biaya QC & Perakitan Internal">Biaya QC & Perakitan Internal</option>
+                      <option value="Biaya Operasional & Ekspedisi">Biaya Operasional & Ekspedisi</option>
+                      <option value="Lain-lain">Lain-lain</option>
+                    </>
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Uraian / Keterangan <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  required
+                  rows={2}
+                  placeholder={
+                    cashFormType === 'INCOME'
+                      ? 'Contoh: Penerimaan SP2D No. ... Kontrak ... BAST ...'
+                      : 'Contoh: Pembelian solder, multimeter, ESP32 di vendor ...'
+                  }
+                  value={cashFormData.description}
+                  onChange={e => setCashFormData({ ...cashFormData, description: e.target.value })}
+                  className="w-full border rounded-md px-3 py-2 text-xs bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Akun Kas / Bank
+                </label>
+                <input
+                  type="text"
+                  disabled
+                  value="Bank BCA (111.11.101)"
+                  className="w-full border rounded-md px-3 py-2 text-xs bg-slate-100 text-slate-600 font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  URL Bukti Nota / Dokumen (Opsional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="https://... atau /documents/..."
+                  value={cashFormData.receiptUrl}
+                  onChange={e => setCashFormData({ ...cashFormData, receiptUrl: e.target.value })}
+                  className="w-full border rounded-md px-3 py-2 text-xs bg-white font-mono"
+                />
+              </div>
+
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-900 text-[11px] leading-relaxed">
+                <p>
+                  <strong>Catatan Otomasi:</strong> Transaksi ini akan langsung membuat entri jurnal double-entry otomatis di Akuntansi Utama dengan nomor urut <code>JU-2026-xxxx</code> dan status <code>POSTED</code>.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t">
+                <button
+                  type="button"
+                  onClick={() => setShowCashModal(false)}
+                  className="px-4 py-2 border rounded-md text-xs text-slate-700 hover:bg-slate-50"
+                  disabled={isSavingCash}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingCash}
+                  className={`px-4 py-2 text-white rounded-md text-xs font-bold flex items-center gap-2 disabled:opacity-50 ${
+                    cashFormType === 'INCOME'
+                      ? 'bg-emerald-600 hover:bg-emerald-700'
+                      : 'bg-rose-600 hover:bg-rose-700'
+                  }`}
+                >
+                  {isSavingCash ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Menyimpan &amp; Menjurnal...</span>
+                    </>
+                  ) : (
+                    <span>Simpan Transaksi &amp; Jurnal</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
