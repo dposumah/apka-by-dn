@@ -375,10 +375,10 @@ export const getMonthlyRekapReportHtml = (
   });
 
   const totalFasilitator = rowsData.length;
-  const containerWidth = isLandscape ? '1060px' : '730px';
+  const containerWidth = isLandscape ? '1123px' : '794px';
 
   return `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; width: ${containerWidth}; max-width: ${containerWidth}; box-sizing: border-box; padding: ${isLandscape ? '10px 14px' : '10px 12px'}; background-color: #ffffff; color: #0f172a; font-size: ${isLandscape ? '10px' : '9px'}; line-height: 1.3;">
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; width: 100%; max-width: ${containerWidth}; margin: 0 auto; box-sizing: border-box; padding: ${isLandscape ? '16px 20px' : '16px 14px'}; background-color: #ffffff; color: #0f172a; font-size: ${isLandscape ? '10px' : '9px'}; line-height: 1.3;">
       
       <style>
         @page { size: ${isLandscape ? 'A4 landscape' : 'A4 portrait'}; margin: 6mm; }

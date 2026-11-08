@@ -589,41 +589,29 @@ export function RekapHonorClient({
       );
 
       const isLandscape = exportOrientation === 'landscape';
-      const widthPx = isLandscape ? 1060 : 730;
+      const widthPx = isLandscape ? 1123 : 794;
 
-      // Simpan posisi scroll sebelum capture canvas
-      const prevScrollY = typeof window !== 'undefined' ? window.scrollY : 0;
-      const prevScrollX = typeof window !== 'undefined' ? window.scrollX : 0;
-      if (typeof window !== 'undefined') {
-        window.scrollTo(0, 0);
+      // Preload kop image jika ada agar html2canvas tidak blank
+      if (exportKopType !== 'none' && typeof window !== 'undefined') {
+        const kopUrl = window.location.origin + (exportKopType === 'maleo' ? '/kop-maleo.png' : '/kop-surat.png');
+        try {
+          const img = new Image();
+          img.src = kopUrl;
+          if (!img.complete) {
+            await new Promise((res) => {
+              img.onload = res;
+              img.onerror = res;
+            });
+          }
+        } catch (e) {
+          console.warn('Preload kop notice', e);
+        }
       }
 
       const wrapper = document.createElement('div');
-      wrapper.id = 'rekap-monthly-pdf-container';
       wrapper.innerHTML = htmlString;
-      wrapper.style.position = 'absolute';
-      wrapper.style.left = '0';
-      wrapper.style.top = '0';
       wrapper.style.width = `${widthPx}px`;
       wrapper.style.backgroundColor = '#ffffff';
-      wrapper.style.zIndex = '40'; // Berada di bawah modal z-50 sehingga user tetap melihat spinner modal
-      wrapper.style.opacity = '1';
-      wrapper.style.visibility = 'visible';
-      document.body.appendChild(wrapper);
-
-      // Tunggu semua gambar (seperti kop surat) selesai termuat
-      const images = Array.from(wrapper.querySelectorAll('img'));
-      await Promise.all(
-        images.map(img => {
-          if (img.complete) return Promise.resolve();
-          return new Promise(resolve => {
-            img.onload = resolve;
-            img.onerror = resolve;
-          });
-        })
-      );
-      // Jeda sejenak untuk memastikan browser selesai rendering layout DOM
-      await new Promise(r => setTimeout(r, 250));
 
       let html2pdf: any; 
       try { 
@@ -631,39 +619,25 @@ export function RekapHonorClient({
       } catch (e) { 
         html2pdf = (window as any).html2pdf; 
       }
+      if (typeof html2pdf !== 'function' && html2pdf?.default) {
+        html2pdf = html2pdf.default;
+      }
 
       const filename = `Rekap_Kebutuhan_Honor_${exportSelectedBulan}_${exportOrientation}.pdf`;
       const opt = {
-        margin: [6, 6, 6, 6],
+        margin: 0,
         filename,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { 
           scale: 2, 
           useCORS: true, 
-          letterRendering: true,
-          logging: false,
-          windowWidth: widthPx,
-          width: widthPx,
-          scrollX: 0,
-          scrollY: 0
+          windowWidth: widthPx 
         },
         jsPDF: { unit: 'mm', format: 'a4', orientation: exportOrientation },
-        pagebreak: { 
-          mode: ['css', 'legacy'],
-          avoid: ['tr', '.avoid-break']
-        }
+        pagebreak: { mode: 'css' }
       };
 
-      try {
-        await html2pdf().set(opt).from(wrapper).save();
-      } finally {
-        if (wrapper.parentNode) {
-          wrapper.parentNode.removeChild(wrapper);
-        }
-        if (typeof window !== 'undefined') {
-          window.scrollTo(prevScrollX, prevScrollY);
-        }
-      }
+      await html2pdf().set(opt).from(wrapper).save();
       setShowExportMonthlyModal(false);
     } catch (err: any) {
       console.error('GENERATE MONTHLY REPORT PDF ERROR', err);
@@ -671,6 +645,81 @@ export function RekapHonorClient({
     } finally {
       setIsGeneratingReportPdf(false);
     }
+  };
+
+  const handlePrintViaBrowser = () => {
+    if (!exportSelectedBulan) {
+      alert("Silakan pilih bulan rekapitulasi terlebih dahulu.");
+      return;
+    }
+
+    if (!exportPreviewData || exportPreviewData.items.length === 0) {
+      alert(`Tidak ada data rekapitulasi untuk bulan ${formatBulanIndo(exportSelectedBulan)}.`);
+      return;
+    }
+
+    const sortedItems = [...exportPreviewData.items].sort((a: any, b: any) => 
+      (a.fasilitator?.namaLengkap || '').localeCompare(b.fasilitator?.namaLengkap || '')
+    );
+
+    let tanggalFormatted = '';
+    if (exportTanggalDokumen) {
+      const d = new Date(exportTanggalDokumen);
+      tanggalFormatted = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+    }
+
+    const htmlString = getMonthlyRekapReportHtml(
+      {
+        bulan: exportSelectedBulan,
+        items: sortedItems,
+        kopType: exportKopType,
+        tanggalDokumen: tanggalFormatted,
+        orientation: exportOrientation,
+        filterStatus: exportStatusFilter
+      },
+      terbilangRupiah
+    );
+
+    const printWin = window.open('', '_blank');
+    if (!printWin) {
+      alert("Popup blocker browser aktif. Mohon izinkan popup window untuk mencetak laporan.");
+      return;
+    }
+    printWin.document.open();
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Rekap Kebutuhan Honor & Transport Bulan ${formatBulanIndo(exportSelectedBulan)}</title>
+          <meta charset="utf-8" />
+          <style>
+            @page { 
+              size: A4 ${exportOrientation}; 
+              margin: 8mm; 
+            }
+            body { 
+              margin: 0; 
+              padding: 0; 
+              background: #ffffff; 
+              -webkit-print-color-adjust: exact; 
+              print-color-adjust: exact; 
+            }
+          </style>
+        </head>
+        <body>
+          ${htmlString}
+          <script>
+            window.onload = function() {
+              window.focus();
+              setTimeout(function() {
+                window.print();
+              }, 400);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWin.document.close();
   };
 
   // Active Tab & View Mode
@@ -3915,20 +3964,32 @@ Atas Nama: ${namaLengkap}`;
             </div>
 
             {/* Sticky Footer */}
-            <div className="px-5 py-3.5 border-t flex justify-between items-center gap-2 bg-slate-50 shrink-0">
-              <span className="text-xs text-slate-500">
-                Dokumen PDF akan langsung terunduh secara otomatis.
+            <div className="px-5 py-3.5 border-t flex flex-col sm:flex-row justify-between items-center gap-3 bg-slate-50 shrink-0">
+              <span className="text-[11px] text-slate-500">
+                Laporan siap diunduh otomatis atau dicetak langsung via dialog print browser.
               </span>
 
-              <div className="flex gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setShowExportMonthlyModal(false)}
                   disabled={isGeneratingReportPdf}
-                  className="px-4 py-2 text-xs text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 font-medium cursor-pointer transition-colors"
+                  className="px-3.5 py-2 text-xs text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 font-medium cursor-pointer transition-colors"
                 >
                   Batal
                 </button>
+
+                <button
+                  type="button"
+                  onClick={handlePrintViaBrowser}
+                  disabled={isGeneratingReportPdf || !exportPreviewData || exportPreviewData.totalFasilitator === 0}
+                  className="px-3.5 py-2 text-xs text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 font-semibold disabled:opacity-50 cursor-pointer shadow-2xs transition-colors flex items-center gap-1.5"
+                  title="Buka dialog cetak browser untuk Simpan sebagai PDF (Vector kualitas tinggi) atau print ke printer fisik"
+                >
+                  <Printer className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Cetak / Simpan PDF (Browser)</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={handleGenerateMonthlyReportPdf}
