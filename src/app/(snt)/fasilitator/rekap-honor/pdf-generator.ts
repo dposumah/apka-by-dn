@@ -375,102 +375,105 @@ export const getMonthlyRekapReportHtml = (
   });
 
   const totalFasilitator = rowsData.length;
-  const containerWidth = isLandscape ? '1080px' : '740px';
+  const containerWidth = isLandscape ? '1060px' : '730px';
 
   return `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; width: ${containerWidth}; max-width: ${containerWidth}; box-sizing: border-box; padding: ${isLandscape ? '12px 16px' : '12px 14px'}; background-color: #ffffff; color: #0f172a; font-size: ${isLandscape ? '10px' : '9px'}; line-height: 1.3;">
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; width: ${containerWidth}; max-width: ${containerWidth}; box-sizing: border-box; padding: ${isLandscape ? '10px 14px' : '10px 12px'}; background-color: #ffffff; color: #0f172a; font-size: ${isLandscape ? '10px' : '9px'}; line-height: 1.3;">
       
       <style>
-        table { page-break-inside: auto; }
+        @page { size: ${isLandscape ? 'A4 landscape' : 'A4 portrait'}; margin: 6mm; }
+        table { page-break-inside: auto; border-collapse: collapse; }
         tr { page-break-inside: avoid !important; }
         thead { display: table-header-group; }
         tfoot { display: table-footer-group; }
-        .avoid-break { page-break-inside: avoid !important; }
+        .avoid-break { page-break-inside: avoid !important; break-inside: avoid !important; }
       </style>
 
       <!-- KOP SURAT -->
       ${kopType !== 'none' ? `
-        <div style="margin-bottom: 10px; text-align: center;">
-          <img src="${kopImage}" style="max-width: 100%; max-height: ${isLandscape ? '75px' : '85px'}; height: auto; object-fit: contain; display: block; margin: 0 auto;" alt="Kop Surat" />
+        <div style="margin-bottom: 8px; text-align: center;">
+          <img src="${kopImage}" style="max-width: 100%; max-height: ${isLandscape ? '70px' : '80px'}; height: auto; object-fit: contain; display: block; margin: 0 auto;" alt="Kop Surat" />
         </div>
       ` : `
-        <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 12px;">
-          <h1 style="margin: 0; font-size: 16px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px;">
+        <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 6px; margin-bottom: 10px;">
+          <h1 style="margin: 0; font-size: 15px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px;">
             YAYASAN MALEO TALENTA CENDEKIA
           </h1>
-          <p style="margin: 2px 0 0 0; font-size: 11px; color: #475569;">
+          <p style="margin: 2px 0 0 0; font-size: 10.5px; color: #475569;">
             Program KKA Sekolah Nasional Terintegrasi (SNT) &bull; Tahun Ajaran 2026/2027
           </p>
         </div>
       `}
 
       <!-- JUDUL LAPORAN -->
-      <div style="text-align: center; margin-bottom: 10px;">
-        <h2 style="margin: 0; font-size: ${isLandscape ? '14px' : '13px'}; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.3px;">
+      <div style="text-align: center; margin-bottom: 8px;">
+        <h2 style="margin: 0; font-size: ${isLandscape ? '13.5px' : '12.5px'}; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.3px;">
           LAPORAN REKAPITULASI RINCIAN &amp; KEBUTUHAN BIAYA FASILITATOR
         </h2>
-        <div style="margin-top: 2px; font-size: 11px; color: #334155;">
+        <div style="margin-top: 2px; font-size: 10.5px; color: #334155;">
           Periode Kegiatan: <strong>Bulan ${labelBulan}</strong> &bull; Dokumen Tanggal: <strong>${tanggalDoc}</strong>
         </div>
       </div>
 
-      <!-- EXECUTIVE SUMMARY CARDS -->
-      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px;">
-        <div style="border: 1px solid #cbd5e1; background: #f8fafc; border-radius: 5px; padding: 6px 8px;">
-          <div style="font-size: 8.5px; color: #64748b; text-transform: uppercase; font-weight: bold; letter-spacing: 0.2px;">Total Fasilitator &amp; Jam</div>
-          <div style="font-size: 13px; font-weight: 800; color: #0f172a; margin-top: 1px;">
-            ${totalFasilitator} Orang &bull; ${totalJP} JP
-          </div>
-          <div style="font-size: 9px; color: #64748b; margin-top: 1px;">
-            Intra: ${totalJPIntra} JP | Ekstra: ${totalJPEkstra} JP
-          </div>
-        </div>
+      <!-- EXECUTIVE SUMMARY CARDS (TABLE BASED FOR 100% RELIABLE HTML2CANVAS RENDER) -->
+      <table style="width: 100%; border-collapse: separate; border-spacing: 6px 0; margin-bottom: 8px; table-layout: fixed;">
+        <tr>
+          <td style="width: 25%; border: 1px solid #cbd5e1; background: #f8fafc; border-radius: 5px; padding: 5px 7px; vertical-align: top;">
+            <div style="font-size: 8px; color: #64748b; text-transform: uppercase; font-weight: bold; letter-spacing: 0.2px;">Total Fasilitator &amp; Jam</div>
+            <div style="font-size: 12.5px; font-weight: 800; color: #0f172a; margin-top: 1px;">
+              ${totalFasilitator} Orang &bull; ${totalJP} JP
+            </div>
+            <div style="font-size: 8.5px; color: #64748b; margin-top: 1px;">
+              Intra: ${totalJPIntra} JP | Ekstra: ${totalJPEkstra} JP
+            </div>
+          </td>
 
-        <div style="border: 1px solid #cbd5e1; background: #f8fafc; border-radius: 5px; padding: 6px 8px;">
-          <div style="font-size: 8.5px; color: #64748b; text-transform: uppercase; font-weight: bold; letter-spacing: 0.2px;">Kebutuhan Honorarium</div>
-          <div style="font-size: 13px; font-weight: 800; color: #1e3a8a; margin-top: 1px;">
-            Rp ${totalHonor.toLocaleString('id-ID')}
-          </div>
-          <div style="font-size: 9px; color: #64748b; margin-top: 1px;">Beban honor sesi mengajar</div>
-        </div>
+          <td style="width: 25%; border: 1px solid #cbd5e1; background: #f8fafc; border-radius: 5px; padding: 5px 7px; vertical-align: top;">
+            <div style="font-size: 8px; color: #64748b; text-transform: uppercase; font-weight: bold; letter-spacing: 0.2px;">Kebutuhan Honorarium</div>
+            <div style="font-size: 12.5px; font-weight: 800; color: #1e3a8a; margin-top: 1px;">
+              Rp ${totalHonor.toLocaleString('id-ID')}
+            </div>
+            <div style="font-size: 8.5px; color: #64748b; margin-top: 1px;">Beban honor sesi mengajar</div>
+          </td>
 
-        <div style="border: 1px solid #cbd5e1; background: #f8fafc; border-radius: 5px; padding: 6px 8px;">
-          <div style="font-size: 8.5px; color: #64748b; text-transform: uppercase; font-weight: bold; letter-spacing: 0.2px;">Kebutuhan Bantuan Transport</div>
-          <div style="font-size: 13px; font-weight: 800; color: #9a3412; margin-top: 1px;">
-            Rp ${totalTransport.toLocaleString('id-ID')}
-          </div>
-          <div style="font-size: 9px; color: #64748b; margin-top: 1px;">Bantuan BBM / Operasional</div>
-        </div>
+          <td style="width: 25%; border: 1px solid #cbd5e1; background: #f8fafc; border-radius: 5px; padding: 5px 7px; vertical-align: top;">
+            <div style="font-size: 8px; color: #64748b; text-transform: uppercase; font-weight: bold; letter-spacing: 0.2px;">Kebutuhan Bantuan Transport</div>
+            <div style="font-size: 12.5px; font-weight: 800; color: #9a3412; margin-top: 1px;">
+              Rp ${totalTransport.toLocaleString('id-ID')}
+            </div>
+            <div style="font-size: 8.5px; color: #64748b; margin-top: 1px;">Bantuan BBM / Operasional</div>
+          </td>
 
-        <div style="border: 1.5px solid #059669; background: #ecfdf5; border-radius: 5px; padding: 6px 8px;">
-          <div style="font-size: 8.5px; color: #065f46; text-transform: uppercase; font-weight: bold; letter-spacing: 0.2px;">Total Kebutuhan Dana (Transfer)</div>
-          <div style="font-size: 13.5px; font-weight: 900; color: #064e3b; margin-top: 1px;">
-            Rp ${grandTotal.toLocaleString('id-ID')}
-          </div>
-          <div style="font-size: 9px; color: #047857; margin-top: 1px; font-weight: 600;">
-            ${lunasCount} Lunas &bull; ${unpaidCount} Perlu Pencairan
-          </div>
-        </div>
-      </div>
+          <td style="width: 25%; border: 1.5px solid #059669; background: #ecfdf5; border-radius: 5px; padding: 5px 7px; vertical-align: top;">
+            <div style="font-size: 8px; color: #065f46; text-transform: uppercase; font-weight: bold; letter-spacing: 0.2px;">Total Kebutuhan Dana (Transfer)</div>
+            <div style="font-size: 13px; font-weight: 900; color: #064e3b; margin-top: 1px;">
+              Rp ${grandTotal.toLocaleString('id-ID')}
+            </div>
+            <div style="font-size: 8.5px; color: #047857; margin-top: 1px; font-weight: 600;">
+              ${lunasCount} Lunas &bull; ${unpaidCount} Perlu Pencairan
+            </div>
+          </td>
+        </tr>
+      </table>
 
       <!-- TERBILANG BANNER -->
-      <div style="background: #f1f5f9; border-left: 3.5px solid #0284c7; padding: 5px 10px; margin-bottom: 10px; font-size: 9.5px; color: #1e293b; border-radius: 0 4px 4px 0;">
+      <div style="background: #f1f5f9; border-left: 3.5px solid #0284c7; padding: 4px 8px; margin-bottom: 8px; font-size: 9px; color: #1e293b; border-radius: 0 4px 4px 0;">
         <strong>Terbilang Total Kebutuhan Dana:</strong> <span style="font-style: italic; font-weight: 600; color: #0369a1;">${terbilangRupiah(grandTotal)} Rupiah</span>
       </div>
 
-      <!-- TABEL RINCIAN FASILITATOR -->
-      <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: ${isLandscape ? '9.5px' : '8.5px'}; table-layout: fixed;">
+      <!-- TABEL RINCIAN FASILITATOR & REKENING PEMBAYARAN -->
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: ${isLandscape ? '9px' : '8px'}; table-layout: fixed;">
         <thead>
           <tr style="background-color: #1e293b; color: #ffffff; text-align: left;">
-            <th style="padding: 6px 4px; border: 1px solid #334155; text-align: center; width: 4%;">No</th>
-            <th style="padding: 6px 6px; border: 1px solid #334155; width: ${isLandscape ? '17%' : '18%'};">Nama Fasilitator</th>
-            <th style="padding: 6px 6px; border: 1px solid #334155; width: ${isLandscape ? '14%' : '13%'};">Lokasi SNT</th>
-            <th style="padding: 6px 6px; border: 1px solid #334155; width: ${isLandscape ? '18%' : '17%'};">Rekening Transfer</th>
-            <th style="padding: 6px 4px; border: 1px solid #334155; text-align: center; width: ${isLandscape ? '8%' : '8%'};">Sesi/JP</th>
-            <th style="padding: 6px 6px; border: 1px solid #334155; text-align: right; width: ${isLandscape ? '11%' : '12%'};">Honorarium</th>
-            <th style="padding: 6px 6px; border: 1px solid #334155; text-align: right; width: ${isLandscape ? '12%' : '12%'};">Transport</th>
-            <th style="padding: 6px 6px; border: 1px solid #334155; text-align: right; width: ${isLandscape ? '11%' : '12%'};">Total Transfer</th>
-            <th style="padding: 6px 4px; border: 1px solid #334155; text-align: center; width: ${isLandscape ? '5%' : '6%'};">Status</th>
+            <th style="padding: 5px 3px; border: 1px solid #334155; text-align: center; width: ${isLandscape ? '3%' : '4%'};">No</th>
+            <th style="padding: 5px 5px; border: 1px solid #334155; width: 17%;">Nama Fasilitator</th>
+            <th style="padding: 5px 5px; border: 1px solid #334155; width: 12%;">Lokasi SNT</th>
+            <th style="padding: 5px 5px; border: 1px solid #334155; width: ${isLandscape ? '21%' : '20%'};">Rekening Pembayaran</th>
+            <th style="padding: 5px 3px; border: 1px solid #334155; text-align: center; width: 7%;">Sesi/JP</th>
+            <th style="padding: 5px 5px; border: 1px solid #334155; text-align: right; width: ${isLandscape ? '11%' : '11%'};">Honorarium</th>
+            <th style="padding: 5px 5px; border: 1px solid #334155; text-align: right; width: ${isLandscape ? '11%' : '11%'};">Transport</th>
+            <th style="padding: 5px 5px; border: 1px solid #334155; text-align: right; width: ${isLandscape ? '13%' : '13%'};">Total Transfer</th>
+            <th style="padding: 5px 3px; border: 1px solid #334155; text-align: center; width: 5%;">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -482,39 +485,55 @@ export const getMonthlyRekapReportHtml = (
             </tr>
           ` : rowsData.map((row, idx) => `
             <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
-              <td style="padding: 5px 3px; border: 1px solid #cbd5e1; text-align: center;">${row.no}</td>
-              <td style="padding: 5px 6px; border: 1px solid #cbd5e1; word-wrap: break-word;">
-                <div style="font-weight: 700; color: #0f172a; line-height: 1.2;">${row.nama}</div>
-                ${row.nikNpwp ? `<div style="font-size: 8px; color: #64748b;">${row.nikNpwp}</div>` : ''}
+              <td style="padding: 4px 2px; border: 1px solid #cbd5e1; text-align: center;">${row.no}</td>
+              <td style="padding: 4px 5px; border: 1px solid #cbd5e1; word-wrap: break-word;">
+                <div style="font-weight: 700; color: #0f172a; line-height: 1.15;">${row.nama}</div>
+                ${row.nikNpwp ? `<div style="font-size: 7.5px; color: #64748b;">NIK/NPWP: ${row.nikNpwp}</div>` : ''}
               </td>
-              <td style="padding: 5px 6px; border: 1px solid #cbd5e1; color: #334155; word-wrap: break-word;">
-                <div style="font-weight: 600; line-height: 1.2;">${(row.lokasi && typeof row.lokasi === 'string') ? (row.lokasi.split(' - ')[0] || row.lokasi) : (row.lokasi || '-')}</div>
-                ${(row.lokasi && typeof row.lokasi === 'string' && row.lokasi.split(' - ')[1]) ? `<div style="font-size: 8px; color: #64748b;">${row.lokasi.split(' - ')[1]}</div>` : ''}
+              <td style="padding: 4px 5px; border: 1px solid #cbd5e1; color: #334155; word-wrap: break-word;">
+                <div style="font-weight: 600; line-height: 1.15;">${(row.lokasi && typeof row.lokasi === 'string') ? (row.lokasi.split(' - ')[0] || row.lokasi) : (row.lokasi || '-')}</div>
+                ${(row.lokasi && typeof row.lokasi === 'string' && row.lokasi.split(' - ')[1]) ? `<div style="font-size: 7.5px; color: #64748b;">${row.lokasi.split(' - ')[1]}</div>` : ''}
               </td>
-              <td style="padding: 5px 6px; border: 1px solid #cbd5e1; word-wrap: break-word;">
-                <div style="font-weight: 600; color: #0f172a; line-height: 1.2;">${row.bankName} - ${row.bankAccount}</div>
-                <div style="font-size: 8px; color: #64748b;">a.n. ${row.bankHolder}</div>
+              <td style="padding: 4px 5px; border: 1px solid #cbd5e1; word-wrap: break-word;">
+                ${row.bankAccount && row.bankAccount !== '-' ? `
+                  <div style="font-weight: 800; color: #1e3a8a; font-size: ${isLandscape ? '9.5px' : '8.5px'}; text-transform: uppercase; line-height: 1.1;">
+                    ${row.bankName || 'BANK'}
+                  </div>
+                  <div style="font-family: 'Consolas', 'Courier New', monospace; font-size: ${isLandscape ? '10px' : '9px'}; font-weight: 800; color: #0f172a; letter-spacing: 0.5px; margin: 1px 0;">
+                    ${row.bankAccount}
+                  </div>
+                  <div style="font-size: 7.5px; color: #475569; line-height: 1.1;">
+                    a.n. ${row.bankHolder}
+                  </div>
+                ` : `
+                  <div style="color: #dc2626; font-size: 8px; font-weight: 700; line-height: 1.1;">
+                    ⚠️ Belum ada rekening
+                  </div>
+                  <div style="font-size: 7.5px; color: #64748b; line-height: 1.1;">
+                    a.n. ${row.bankHolder}
+                  </div>
+                `}
               </td>
-              <td style="padding: 5px 3px; border: 1px solid #cbd5e1; text-align: center;">
+              <td style="padding: 4px 2px; border: 1px solid #cbd5e1; text-align: center;">
                 <div style="font-weight: 700;">${row.sesi}S / ${row.jp}JP</div>
-                ${(row.jpIntra > 0 || row.jpEkstra > 0) ? `<div style="font-size: 7.5px; color: #64748b;">${row.jpIntra}I+${row.jpEkstra}E</div>` : ''}
+                ${(row.jpIntra > 0 || row.jpEkstra > 0) ? `<div style="font-size: 7px; color: #64748b;">${row.jpIntra}I+${row.jpEkstra}E</div>` : ''}
               </td>
-              <td style="padding: 5px 6px; border: 1px solid #cbd5e1; text-align: right; font-weight: 600; color: #1e3a8a;">
+              <td style="padding: 4px 5px; border: 1px solid #cbd5e1; text-align: right; font-weight: 600; color: #1e3a8a;">
                 Rp ${row.honor.toLocaleString('id-ID')}
               </td>
-              <td style="padding: 5px 6px; border: 1px solid #cbd5e1; text-align: right;">
+              <td style="padding: 4px 5px; border: 1px solid #cbd5e1; text-align: right;">
                 <div style="font-weight: 600; color: #9a3412;">Rp ${row.transport.toLocaleString('id-ID')}</div>
-                <div style="font-size: 7.5px; color: #64748b;">
+                <div style="font-size: 7px; color: #64748b;">
                   ${row.transport === 0 ? 'Daring' : (row.rekap.fasilitator?.jarakPPKm ? `${row.rekap.fasilitator.jarakPPKm} km` : 'Transport')}
                 </div>
               </td>
-              <td style="padding: 5px 6px; border: 1px solid #cbd5e1; text-align: right; font-weight: 800; color: #064e3b;">
-                Rp ${row.total.toLocaleString('id-ID')}
+              <td style="padding: 4px 5px; border: 1px solid #cbd5e1; text-align: right; font-weight: 800; color: #064e3b; background-color: ${idx % 2 === 0 ? '#f0fdf4' : '#ffffff'};">
+                <div style="font-size: ${isLandscape ? '10px' : '9px'};">Rp ${row.total.toLocaleString('id-ID')}</div>
               </td>
-              <td style="padding: 5px 3px; border: 1px solid #cbd5e1; text-align: center;">
+              <td style="padding: 4px 2px; border: 1px solid #cbd5e1; text-align: center;">
                 ${row.isLunas 
-                  ? `<span style="background-color: #dcfce7; color: #15803d; border: 0.5px solid #86efac; padding: 1.5px 3px; border-radius: 3px; font-weight: bold; font-size: 8px;">LUNAS</span>`
-                  : `<span style="background-color: #fef3c7; color: #b45309; border: 0.5px solid #fde68a; padding: 1.5px 3px; border-radius: 3px; font-weight: bold; font-size: 8px;">DRAFT</span>`
+                  ? `<span style="background-color: #dcfce7; color: #15803d; border: 0.5px solid #86efac; padding: 1px 3px; border-radius: 3px; font-weight: bold; font-size: 7.5px;">LUNAS</span>`
+                  : `<span style="background-color: #fef3c7; color: #b45309; border: 0.5px solid #fde68a; padding: 1px 3px; border-radius: 3px; font-weight: bold; font-size: 7.5px;">DRAFT</span>`
                 }
               </td>
             </tr>
@@ -522,22 +541,22 @@ export const getMonthlyRekapReportHtml = (
         </tbody>
         <tfoot>
           <tr style="background-color: #f1f5f9; font-weight: 800; border-top: 2px solid #0f172a;">
-            <td colspan="4" style="padding: 6px; border: 1px solid #cbd5e1; text-align: right; text-transform: uppercase; font-size: 9.5px;">
+            <td colspan="4" style="padding: 5px; border: 1px solid #cbd5e1; text-align: right; text-transform: uppercase; font-size: 9px;">
               TOTAL (${totalFasilitator} FASILITATOR) :
             </td>
-            <td style="padding: 6px 3px; border: 1px solid #cbd5e1; text-align: center; color: #0f172a;">
+            <td style="padding: 5px 2px; border: 1px solid #cbd5e1; text-align: center; color: #0f172a;">
               ${totalJP} JP
             </td>
-            <td style="padding: 6px; border: 1px solid #cbd5e1; text-align: right; color: #1e3a8a;">
+            <td style="padding: 5px; border: 1px solid #cbd5e1; text-align: right; color: #1e3a8a;">
               Rp ${totalHonor.toLocaleString('id-ID')}
             </td>
-            <td style="padding: 6px; border: 1px solid #cbd5e1; text-align: right; color: #9a3412;">
+            <td style="padding: 5px; border: 1px solid #cbd5e1; text-align: right; color: #9a3412;">
               Rp ${totalTransport.toLocaleString('id-ID')}
             </td>
-            <td style="padding: 6px; border: 1px solid #cbd5e1; text-align: right; color: #064e3b; font-size: 1.05em;">
+            <td style="padding: 5px; border: 1px solid #cbd5e1; text-align: right; color: #064e3b; font-size: 1.05em; background-color: #ecfdf5;">
               Rp ${grandTotal.toLocaleString('id-ID')}
             </td>
-            <td style="padding: 6px 3px; border: 1px solid #cbd5e1; text-align: center; font-size: 8px; color: #475569;">
+            <td style="padding: 5px 2px; border: 1px solid #cbd5e1; text-align: center; font-size: 7.5px; color: #475569;">
               ${lunasCount}/${totalFasilitator}
             </td>
           </tr>
@@ -545,28 +564,29 @@ export const getMonthlyRekapReportHtml = (
       </table>
 
       <!-- CATATAN DAN TANDA TANGAN -->
-      <div class="avoid-break" style="margin-top: 10px; display: flex; justify-content: space-between; align-items: flex-start; font-size: ${isLandscape ? '9px' : '8px'};">
-        <div style="width: 52%; color: #64748b; line-height: 1.35;">
+      <div class="avoid-break" style="margin-top: 8px; display: flex; justify-content: space-between; align-items: flex-start; font-size: ${isLandscape ? '8.5px' : '7.5px'};">
+        <div style="width: 52%; color: #64748b; line-height: 1.3;">
           <div style="font-weight: 700; color: #1e293b; margin-bottom: 2px;">Catatan Pelaksanaan &amp; Verifikasi:</div>
           <div>1. Rekapitulasi dihitung berdasarkan beban JP dan verifikasi laporan mingguan kegiatan fasilitator.</div>
           <div>2. Bantuan transport luring dihitung sesuai rumus BBM jarak PP. Kegiatan daring tanpa transport (Rp 0).</div>
           <div>3. Pencairan dana ditransfer non-tunai langsung ke rekening bank masing-masing fasilitator terdaftar.</div>
+          <div>4. Pastikan nomor rekening dan nama penerima telah sesuai sebelum proses otorisasi transfer perbankan.</div>
         </div>
 
         <div style="width: 44%; display: flex; justify-content: space-between; text-align: center;">
           <div style="width: 48%;">
             <p style="margin: 0; color: #64748b;">Disiapkan Oleh,</p>
             <p style="margin: 1px 0 0 0; font-weight: bold; color: #1e293b;">Admin Keuangan SNT</p>
-            <div style="height: 38px;"></div>
+            <div style="height: 35px;"></div>
             <p style="margin: 0; font-weight: bold; color: #0f172a;">( _____________________ )</p>
-            <p style="margin: 1px 0 0 0; font-size: 7.5px; color: #64748b;">Staff Administrasi</p>
+            <p style="margin: 1px 0 0 0; font-size: 7px; color: #64748b;">Staff Administrasi</p>
           </div>
           <div style="width: 48%;">
             <p style="margin: 0; color: #64748b;">Mengetahui &amp; Menyetujui,</p>
             <p style="margin: 1px 0 0 0; font-weight: bold; color: #1e293b;">${kopType === 'robotic' ? 'PT Jully Tjindrawan Robotik' : 'Yayasan Maleo Talenta Cendekia'}</p>
-            <div style="height: 38px;"></div>
+            <div style="height: 35px;"></div>
             <p style="margin: 0; font-weight: bold; color: #0f172a;">( _____________________ )</p>
-            <p style="margin: 1px 0 0 0; font-size: 7.5px; color: #64748b;">Pimpinan Lembaga</p>
+            <p style="margin: 1px 0 0 0; font-size: 7px; color: #64748b;">Pimpinan Lembaga</p>
           </div>
         </div>
       </div>

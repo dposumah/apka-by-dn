@@ -589,19 +589,41 @@ export function RekapHonorClient({
       );
 
       const isLandscape = exportOrientation === 'landscape';
-      const widthPx = isLandscape ? 1080 : 740;
+      const widthPx = isLandscape ? 1060 : 730;
+
+      // Simpan posisi scroll sebelum capture canvas
+      const prevScrollY = typeof window !== 'undefined' ? window.scrollY : 0;
+      const prevScrollX = typeof window !== 'undefined' ? window.scrollX : 0;
+      if (typeof window !== 'undefined') {
+        window.scrollTo(0, 0);
+      }
 
       const wrapper = document.createElement('div');
+      wrapper.id = 'rekap-monthly-pdf-container';
       wrapper.innerHTML = htmlString;
-      wrapper.style.position = 'fixed';
+      wrapper.style.position = 'absolute';
       wrapper.style.left = '0';
       wrapper.style.top = '0';
       wrapper.style.width = `${widthPx}px`;
       wrapper.style.backgroundColor = '#ffffff';
-      wrapper.style.zIndex = '-9999';
-      wrapper.style.opacity = '0';
-      wrapper.style.pointerEvents = 'none';
+      wrapper.style.zIndex = '40'; // Berada di bawah modal z-50 sehingga user tetap melihat spinner modal
+      wrapper.style.opacity = '1';
+      wrapper.style.visibility = 'visible';
       document.body.appendChild(wrapper);
+
+      // Tunggu semua gambar (seperti kop surat) selesai termuat
+      const images = Array.from(wrapper.querySelectorAll('img'));
+      await Promise.all(
+        images.map(img => {
+          if (img.complete) return Promise.resolve();
+          return new Promise(resolve => {
+            img.onload = resolve;
+            img.onerror = resolve;
+          });
+        })
+      );
+      // Jeda sejenak untuk memastikan browser selesai rendering layout DOM
+      await new Promise(r => setTimeout(r, 250));
 
       let html2pdf: any; 
       try { 
@@ -618,6 +640,8 @@ export function RekapHonorClient({
         html2canvas: { 
           scale: 2, 
           useCORS: true, 
+          letterRendering: true,
+          logging: false,
           windowWidth: widthPx,
           width: widthPx,
           scrollX: 0,
@@ -635,6 +659,9 @@ export function RekapHonorClient({
       } finally {
         if (wrapper.parentNode) {
           wrapper.parentNode.removeChild(wrapper);
+        }
+        if (typeof window !== 'undefined') {
+          window.scrollTo(prevScrollX, prevScrollY);
         }
       }
       setShowExportMonthlyModal(false);
@@ -3747,6 +3774,13 @@ Atas Nama: ${namaLengkap}`;
                       <span className="block font-semibold">{exportPreviewData.lunasCount} Lunas</span>
                       <span className="block opacity-90">{exportPreviewData.unpaidCount} Menunggu Bayar</span>
                     </div>
+                  </div>
+
+                  <div className="bg-blue-50/90 border border-blue-200 rounded-lg p-2.5 text-xs text-blue-900 flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
+                    <span className="leading-relaxed">
+                      <strong>Termasuk Data Rekening Pembayaran:</strong> Laporan PDF otomatis menyertakan Nama Bank, Nomor Rekening, dan Nama Penerima masing-masing fasilitator untuk kebutuhan otorisasi transfer.
+                    </span>
                   </div>
                 </div>
               ) : (
