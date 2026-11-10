@@ -795,23 +795,40 @@ model CashflowProject {
 }
 
 model CashflowTransaction {
-  id            String            @id @default(cuid())
-  projectId     String
-  project       CashflowProject   @relation(fields: [projectId], references: [id])
-  date          DateTime
-  type          TransactionType
-  amount        Float
-  description   String
-  category      String            // contoh: Operasional, Gaji, dll
-  receiptUrl    String?           // Bukti Nota/Kwitansi
-  paymentMethod String            // Cash, Transfer, Bank
-  status        TransactionStatus @default(COMPLETED)
+  id              String            @id @default(cuid())
+  projectId       String
+  project         CashflowProject   @relation(fields: [projectId], references: [id])
+  date            DateTime
+  type            TransactionType
+  amount          Float
+  description     String
+  category        String            // contoh: Operasional, Gaji, dll
+  receiptUrl      String?           // Bukti Nota/Kwitansi
+  paymentMethod   String            // Cash, Transfer, Bank
+  status          TransactionStatus @default(COMPLETED)
 
-  createdById   String?
-  createdBy     User?             @relation(fields: [createdById], references: [id])
+  // Metadata hasil ekstraksi Invoice PDF & Rekening Tujuan Transfer
+  invoiceNumber   String?
+  vendorName      String?
+  currency        String?           @default("IDR")
+  originalAmount  Float?
+  exchangeRate    Float?
+  paymentScheme   String?
+  dueDate         DateTime?
+  bankName        String?
+  bankBranch      String?
+  accountNumber   String?
+  accountHolder   String?
+  swiftCode       String?
+  bankAddress     String?
+  invoiceMetadata Json?
+  whatsappText    String?           @db.Text
 
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  createdById     String?
+  createdBy       User?             @relation(fields: [createdById], references: [id])
+
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
 
   @@map("cashflow_transactions")
 }

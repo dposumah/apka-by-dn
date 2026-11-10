@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { generateCashflowInsights } from "@/actions/cashflow";
+import { Clock, ArrowRight } from "lucide-react";
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658'];
 
@@ -23,9 +25,14 @@ export default function CashflowDashboardClient({ initialTransactions, projects 
     return matchProject && matchMonth && matchYear;
   });
 
-  const totalIncome = filteredTransactions.filter(t => t.type === "INCOME").reduce((sum, t) => sum + t.amount, 0);
-  const totalExpense = filteredTransactions.filter(t => t.type === "EXPENSE").reduce((sum, t) => sum + t.amount, 0);
+  // Realisasi Cashflow & Profit hanya menghitung transaksi COMPLETED (Lunas)
+  const completedTransactions = filteredTransactions.filter(t => t.status === "COMPLETED");
+  const pendingExpenses = filteredTransactions.filter(t => t.status === "PENDING" && t.type === "EXPENSE");
+
+  const totalIncome = completedTransactions.filter(t => t.type === "INCOME").reduce((sum, t) => sum + t.amount, 0);
+  const totalExpense = completedTransactions.filter(t => t.type === "EXPENSE").reduce((sum, t) => sum + t.amount, 0);
   const netProfit = totalIncome - totalExpense;
+  const totalPendingExpense = pendingExpenses.reduce((sum, t) => sum + t.amount, 0);
 
   // Prepare data for Bar Chart (Daily accumulation or Income vs Expense)
   const barChartData = [
@@ -34,7 +41,7 @@ export default function CashflowDashboardClient({ initialTransactions, projects 
   ];
 
   // Prepare data for Pie Chart (Expense Categories)
-  const expenseByCategory = filteredTransactions
+  const expenseByCategory = completedTransactions
     .filter(t => t.type === "EXPENSE")
     .reduce((acc, t) => {
       acc[t.category] = (acc[t.category] || 0) + t.amount;
@@ -51,7 +58,7 @@ export default function CashflowDashboardClient({ initialTransactions, projects 
     setInsights("");
     const res = await generateCashflowInsights(filteredTransactions);
     if (res.success) {
-      setInsights(res.insights);
+      setInsights(res.insights || "");
     } else {
       setInsights("Gagal membuat rekomendasi: " + res.error);
     }
@@ -99,13 +106,13 @@ export default function CashflowDashboardClient({ initialTransactions, projects 
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-6 rounded-lg shadow border-l-4 border-green-500">
-          <h3 className="text-gray-500 text-sm font-medium">Total Pemasukan</h3>
+          <h3 className="text-gray-500 text-sm font-medium">Pemasukan (Lunas)</h3>
           <p className="text-2xl font-bold text-green-600">Rp {totalIncome.toLocaleString('id-ID')}</p>
         </div>
         <div className="bg-white p-6 rounded-lg shadow border-l-4 border-red-500">
-          <h3 className="text-gray-500 text-sm font-medium">Total Pengeluaran</h3>
+          <h3 className="text-gray-500 text-sm font-medium">Pengeluaran (Lunas)</h3>
           <p className="text-2xl font-bold text-red-600">Rp {totalExpense.toLocaleString('id-ID')}</p>
         </div>
         <div className="bg-white p-6 rounded-lg shadow border-l-4 border-blue-500">
@@ -114,12 +121,33 @@ export default function CashflowDashboardClient({ initialTransactions, projects 
             Rp {netProfit.toLocaleString('id-ID')}
           </p>
         </div>
+        <div className="bg-amber-50/80 p-6 rounded-lg shadow border-l-4 border-amber-500 flex flex-col justify-between">
+          <div>
+            <h3 className="text-amber-800 text-sm font-semibold flex items-center gap-1.5">
+              <Clock size={14} /> Menunggu Pembayaran (Pending)
+            </h3>
+            <p className="text-xl font-bold text-amber-900 mt-1">
+              Rp {totalPendingExpense.toLocaleString('id-ID')}
+            </p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              {pendingExpenses.length} invoice belum ditransfer
+            </p>
+          </div>
+          {pendingExpenses.length > 0 && (
+            <Link
+              href="/cashflow/transactions?status=PENDING"
+              className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-amber-800 hover:text-amber-950 underline"
+            >
+              Kelola &amp; Tandai Lunas <ArrowRight size={12} />
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white p-4 rounded-lg shadow">
-          <h3 className="text-lg font-medium mb-4">Pemasukan vs Pengeluaran</h3>
+          <h3 className="text-lg font-medium mb-4">Pemasukan vs Pengeluaran (Terealisasi)</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={barChartData}>
@@ -134,7 +162,7 @@ export default function CashflowDashboardClient({ initialTransactions, projects 
         </div>
         
         <div className="bg-white p-4 rounded-lg shadow">
-          <h3 className="text-lg font-medium mb-4">Kategori Pengeluaran</h3>
+          <h3 className="text-lg font-medium mb-4">Kategori Pengeluaran (Lunas)</h3>
           <div className="h-64">
             {pieChartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -156,7 +184,7 @@ export default function CashflowDashboardClient({ initialTransactions, projects 
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-full text-gray-500">Belum ada data pengeluaran</div>
+              <div className="flex items-center justify-center h-full text-gray-500">Belum ada data pengeluaran lunas</div>
             )}
           </div>
         </div>

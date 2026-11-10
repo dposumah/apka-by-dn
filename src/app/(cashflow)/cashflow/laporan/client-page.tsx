@@ -10,14 +10,27 @@ export default function CashflowLaporanClient({ projects, transactions }: { proj
   const [selectedProject, setSelectedProject] = useState("");
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
-  // Filter transactions
+  // Filter transactions (hanya COMPLETED masuk realisasi arus kas; PENDING dihitung terpisah)
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
       const d = new Date(t.date);
       const matchYear = d.getFullYear() === selectedYear;
       const matchProject = selectedProject ? t.projectId === selectedProject : true;
-      return matchYear && matchProject;
+      return matchYear && matchProject && t.status === "COMPLETED";
     });
+  }, [transactions, selectedYear, selectedProject]);
+
+  const pendingSummary = useMemo(() => {
+    const pendingList = transactions.filter(t => {
+      const d = new Date(t.date);
+      const matchYear = d.getFullYear() === selectedYear;
+      const matchProject = selectedProject ? t.projectId === selectedProject : true;
+      return matchYear && matchProject && t.status === "PENDING";
+    });
+    return {
+      count: pendingList.length,
+      totalExpense: pendingList.filter(t => t.type === "EXPENSE").reduce((s, t) => s + t.amount, 0),
+    };
   }, [transactions, selectedYear, selectedProject]);
 
   // Aggregate by month (YYYY-MM)
@@ -158,6 +171,14 @@ export default function CashflowLaporanClient({ projects, transactions }: { proj
           </button>
         </div>
       </div>
+
+      {pendingSummary.count > 0 && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 rounded-xl text-xs flex flex-wrap items-center justify-between gap-2">
+          <span>
+            <strong>Catatan Akrual / Tagihan Pending:</strong> Terdapat <strong>{pendingSummary.count} transaksi berstatus Pending (Menunggu TF)</strong> senilai pengeluaran <strong>{formatCurrency(pendingSummary.totalExpense)}</strong> pada tahun {selectedYear} yang belum dimasukkan ke realisasi arus kas di bawah ini sampai ditandai Lunas.
+          </span>
+        </div>
+      )}
 
       {/* Summary Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
