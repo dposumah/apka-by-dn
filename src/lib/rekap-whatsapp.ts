@@ -73,8 +73,8 @@ export function buildRekapWhatsAppMessage(
     ? `${jpTotal} JP (Intra: ${jpIntra} JP, Ekstra: ${jpEkstra} JP)`
     : `${jpTotal} JP`;
 
-  const urlHonor = overrides?.urlHonor ?? rekap?.buktiPembayaranHonor;
-  const urlTransport = overrides?.urlTransport ?? rekap?.buktiPembayaranTransport;
+  const urlHonor = overrides?.urlHonor ?? rekap?.shortUrlHonor ?? rekap?.buktiPembayaranHonor;
+  const urlTransport = overrides?.urlTransport ?? rekap?.shortUrlTransport ?? rekap?.buktiPembayaranTransport;
 
   const lines: string[] = [
     `Yth. Bapak/Ibu *${namaLengkap}*,`,

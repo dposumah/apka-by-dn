@@ -11,6 +11,7 @@ import { authOptions } from '@/lib/auth';
 import { checkAuth } from '@/lib/auth-check';
 import { getAppSetting } from '@/app/actions/rab';
 import { hitungTotalTransportRekap, hitungTransportDenganRumusBBMDanPlafon, TransportFormulaOptions } from '@/lib/transport';
+import { buildSignedReceiptUrl } from '@/lib/receipt-link';
 
 
 export async function getAvailableMonths(fasilitatorId: string) {
@@ -1050,7 +1051,11 @@ export async function uploadBuktiRekap(
     revalidatePath('/fasilitator/laporan-bulanan');
     revalidatePath('/dashboard-rab');
     revalidatePath('/laporan-pengeluaran');
-    return { success: true };
+    return {
+      success: true,
+      shortUrlHonor: hasHonor ? buildSignedReceiptUrl(rekapId, 'h') : null,
+      shortUrlTransport: hasTransport ? buildSignedReceiptUrl(rekapId, 't') : null,
+    };
   } catch (error: any) {
     console.error('Error in uploadBuktiRekap:', error);
     return { error: error.message };

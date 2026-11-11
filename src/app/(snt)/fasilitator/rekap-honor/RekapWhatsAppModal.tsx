@@ -55,8 +55,9 @@ export function RekapWhatsAppModal({
 
   const buildDefaultMsg = (r: any) =>
     buildRekapWhatsAppMessage(r, {
-      urlHonor: postUploadInfo?.urlHonor ?? r?.buktiPembayaranHonor,
-      urlTransport: postUploadInfo?.urlTransport ?? r?.buktiPembayaranTransport,
+      urlHonor: postUploadInfo?.urlHonor ?? r?.shortUrlHonor ?? r?.buktiPembayaranHonor,
+      urlTransport:
+        postUploadInfo?.urlTransport ?? r?.shortUrlTransport ?? r?.buktiPembayaranTransport,
     });
 
   useEffect(() => {

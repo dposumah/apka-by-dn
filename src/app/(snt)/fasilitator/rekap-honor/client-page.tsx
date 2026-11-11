@@ -2289,10 +2289,23 @@ Atas Nama: ${namaLengkap}`;
                       );
                       if (result.error) throw new Error(result.error);
 
+                      const shortUrlHonor =
+                        result.shortUrlHonor ||
+                        uploadingRekap.shortUrlHonor ||
+                        urlHonor ||
+                        uploadingRekap.buktiPembayaranHonor;
+                      const shortUrlTransport =
+                        result.shortUrlTransport ||
+                        uploadingRekap.shortUrlTransport ||
+                        urlTransport ||
+                        uploadingRekap.buktiPembayaranTransport;
+
                       const updatedRekapForWa = {
                         ...uploadingRekap,
                         buktiPembayaranHonor: urlHonor || uploadingRekap.buktiPembayaranHonor,
                         buktiPembayaranTransport: urlTransport || uploadingRekap.buktiPembayaranTransport,
+                        shortUrlHonor,
+                        shortUrlTransport,
                         fasilitator: {
                           ...uploadingRekap.fasilitator,
                           kontak: uploadWaPhone.trim() || uploadingRekap.fasilitator?.kontak,
@@ -2311,8 +2324,8 @@ Atas Nama: ${namaLengkap}`;
                       const normPhone = normalizeWhatsAppNumber(uploadWaPhone);
                       if (autoLaunchWaAfterUpload && normPhone) {
                         const waMsg = buildRekapWhatsAppMessage(updatedRekapForWa, {
-                          urlHonor: updatedRekapForWa.buktiPembayaranHonor,
-                          urlTransport: updatedRekapForWa.buktiPembayaranTransport,
+                          urlHonor: shortUrlHonor,
+                          urlTransport: shortUrlTransport,
                         });
                         launchedDesktop = launchWhatsAppDesktop(normPhone, waMsg);
                       }
@@ -2325,8 +2338,8 @@ Atas Nama: ${namaLengkap}`;
                           launchedDesktop,
                           imageCopied,
                           imageFiles,
-                          urlHonor: updatedRekapForWa.buktiPembayaranHonor,
-                          urlTransport: updatedRekapForWa.buktiPembayaranTransport,
+                          urlHonor: shortUrlHonor,
+                          urlTransport: shortUrlTransport,
                         },
                       });
                       router.refresh();
