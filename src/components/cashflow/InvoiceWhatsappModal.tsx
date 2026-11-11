@@ -342,6 +342,7 @@ export default function InvoiceWhatsappModal({
               href={`https://wa.me/?text=${encodeURIComponent(waText)}`}
               target="_blank"
               rel="noopener noreferrer"
+              data-no-preview="true"
               className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 rounded-lg hover:bg-emerald-100"
             >
               <ExternalLink size={13} /> Kirim ke WA

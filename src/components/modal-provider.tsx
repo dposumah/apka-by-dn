@@ -100,24 +100,36 @@ export function ModalProvider({ children }: { children: ReactNode }) {
       const href = anchor.getAttribute('href');
       if (!href) return;
 
-      // Do not intercept if inside FilePreviewModal, has download attribute, or data-no-preview
+      const lowerHref = href.toLowerCase().trim();
+
+      // Do not intercept if inside FilePreviewModal, has download attribute, data-no-preview,
+      // or uses messaging / non-document protocols (whatsapp:, wa.me, mailto:, tel:, etc.)
       if (
         anchor.closest('.file-preview-modal') ||
         anchor.hasAttribute('download') ||
-        anchor.getAttribute('data-no-preview') === 'true'
+        anchor.getAttribute('data-no-preview') === 'true' ||
+        lowerHref.startsWith('whatsapp:') ||
+        lowerHref.startsWith('https://wa.me/') ||
+        lowerHref.startsWith('http://wa.me/') ||
+        lowerHref.startsWith('https://api.whatsapp.com/') ||
+        lowerHref.startsWith('mailto:') ||
+        lowerHref.startsWith('tel:') ||
+        lowerHref.startsWith('#')
       ) {
         return;
       }
 
-      // Check if it's an uploaded file (Supabase storage, /uploads/, or ends with image/pdf extension)
+      // Check only base URL without query string for storage host/path detection
+      // so query parameters (e.g. ?text=...supabase.co...) are never misidentified as file links
+      const basePathHref = lowerHref.split('?')[0];
       const isStorage = 
-        href.includes('/storage/v1/object/public/') ||
-        href.includes('/attachments/') ||
-        href.includes('/receipts/') ||
-        href.startsWith('/uploads/') ||
-        href.includes('supabase.co');
+        basePathHref.includes('/storage/v1/object/public/') ||
+        basePathHref.includes('/attachments/') ||
+        basePathHref.includes('/receipts/') ||
+        basePathHref.startsWith('/uploads/') ||
+        basePathHref.includes('supabase.co');
 
-      const isDocument = /\.(pdf|png|jpe?g|webp|gif|svg|bmp)(\?.*)?$/i.test(href);
+      const isDocument = /\.(pdf|png|jpe?g|webp|gif|svg|bmp)$/i.test(basePathHref);
       const isBlobOrData = href.startsWith('blob:') || href.startsWith('data:image/') || href.startsWith('data:application/pdf');
 
       // Do not intercept internal routes like /portal/rekap/[id]/pdf

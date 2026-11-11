@@ -142,6 +142,7 @@ export function launchWhatsAppDesktop(phone: string, text: string): boolean {
   const uri = getWhatsAppDesktopUrl(normalized, text);
   const a = document.createElement("a");
   a.href = uri;
+  a.setAttribute("data-no-preview", "true");
   a.style.display = "none";
   document.body.appendChild(a);
   a.click();
