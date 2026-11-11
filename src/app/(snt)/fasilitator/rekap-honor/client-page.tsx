@@ -970,6 +970,7 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
   const [honorFile, setHonorFile] = useState<File | null>(null)
   const [transportFile, setTransportFile] = useState<File | null>(null)
   const [isUploading, setIsUploading] = useState(false)
+  const [separateReceiptUpload, setSeparateReceiptUpload] = useState(false)
   const [uploadWaPhone, setUploadWaPhone] = useState('')
   const [autoLaunchWaAfterUpload, setAutoLaunchWaAfterUpload] = useState(true)
   const [copyImageAfterUpload, setCopyImageAfterUpload] = useState(true)
@@ -983,6 +984,7 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
     setUploadingRekap(rekap)
     setHonorFile(null)
     setTransportFile(null)
+    setSeparateReceiptUpload(false)
     setUploadWaPhone(rekap?.fasilitator?.kontak || '')
     setAutoLaunchWaAfterUpload(true)
     setCopyImageAfterUpload(true)
@@ -1354,32 +1356,53 @@ Atas Nama: ${namaLengkap}`;
                 {/* 8. Bukti Bayar & Dokumen Lampiran */}
                 <td className="py-3 px-3 align-top text-center">
                   <div className="flex flex-col items-center gap-1.5 min-w-[95px]">
-                    {rekap.buktiPembayaranHonor ? (
-                      <button 
+                    {rekap.buktiPembayaranHonor &&
+                    rekap.buktiPembayaranTransport &&
+                    rekap.buktiPembayaranHonor === rekap.buktiPembayaranTransport ? (
+                      <button
                         type="button"
-                        onClick={() => setPreviewModal({
-                          isOpen: true,
-                          title: `Bukti Transfer Honor - ${rekap.fasilitator?.namaLengkap || 'Fasilitator'} (${rekap.bulan})`,
-                          url: rekap.buktiPembayaranHonor
-                        })}
+                        onClick={() =>
+                          setPreviewModal({
+                            isOpen: true,
+                            title: `Bukti Transfer (Honor & Transport) - ${rekap.fasilitator?.namaLengkap || 'Fasilitator'} (${rekap.bulan})`,
+                            url: rekap.buktiPembayaranHonor,
+                          })
+                        }
                         className="text-xs text-emerald-700 hover:text-emerald-900 font-medium hover:underline inline-flex items-center gap-1 cursor-pointer bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 w-full justify-center transition-colors"
+                        title="Bukti Transfer Gabungan Honorarium & Transportasi"
                       >
-                        ✓ Honor
+                        ✓ Bukti Transfer
                       </button>
-                    ) : null}
-                    {rekap.buktiPembayaranTransport ? (
-                      <button 
-                        type="button"
-                        onClick={() => setPreviewModal({
-                          isOpen: true,
-                          title: `Bukti Transfer Transport - ${rekap.fasilitator?.namaLengkap || 'Fasilitator'} (${rekap.bulan})`,
-                          url: rekap.buktiPembayaranTransport
-                        })}
-                        className="text-xs text-purple-700 hover:text-purple-900 font-medium hover:underline inline-flex items-center gap-1 cursor-pointer bg-purple-50 px-2 py-0.5 rounded border border-purple-200 w-full justify-center transition-colors"
-                      >
-                        ✓ Transport
-                      </button>
-                    ) : null}
+                    ) : (
+                      <>
+                        {rekap.buktiPembayaranHonor ? (
+                          <button 
+                            type="button"
+                            onClick={() => setPreviewModal({
+                              isOpen: true,
+                              title: `Bukti Transfer Honor - ${rekap.fasilitator?.namaLengkap || 'Fasilitator'} (${rekap.bulan})`,
+                              url: rekap.buktiPembayaranHonor
+                            })}
+                            className="text-xs text-emerald-700 hover:text-emerald-900 font-medium hover:underline inline-flex items-center gap-1 cursor-pointer bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 w-full justify-center transition-colors"
+                          >
+                            ✓ Honor
+                          </button>
+                        ) : null}
+                        {rekap.buktiPembayaranTransport ? (
+                          <button 
+                            type="button"
+                            onClick={() => setPreviewModal({
+                              isOpen: true,
+                              title: `Bukti Transfer Transport - ${rekap.fasilitator?.namaLengkap || 'Fasilitator'} (${rekap.bulan})`,
+                              url: rekap.buktiPembayaranTransport
+                            })}
+                            className="text-xs text-purple-700 hover:text-purple-900 font-medium hover:underline inline-flex items-center gap-1 cursor-pointer bg-purple-50 px-2 py-0.5 rounded border border-purple-200 w-full justify-center transition-colors"
+                          >
+                            ✓ Transport
+                          </button>
+                        ) : null}
+                      </>
+                    )}
                     {rekap.filePdf ? (
                       <button 
                         type="button"
@@ -2123,10 +2146,17 @@ Atas Nama: ${namaLengkap}`;
       {/* Modal Upload Bukti Pembayaran */}
       {showUploadModal && uploadingRekap && (() => {
         const transTotal = hitungTotalTransportRekap(uploadingRekap);
+        const grandTotalTransfer = (uploadingRekap.totalHonor || 0) + transTotal;
         const normPreviewPhone = normalizeWhatsAppNumber(uploadWaPhone);
-        const hasImageSelected = Boolean(
-          (honorFile && honorFile.type.startsWith('image/')) ||
-          (transportFile && transportFile.type.startsWith('image/'))
+        const hasImageSelected = separateReceiptUpload
+          ? Boolean(
+              (honorFile && honorFile.type.startsWith('image/')) ||
+              (transportFile && transportFile.type.startsWith('image/'))
+            )
+          : Boolean(honorFile && honorFile.type.startsWith('image/'));
+        const hasExistingCombined = Boolean(
+          uploadingRekap.buktiPembayaranHonor &&
+          (!transTotal || uploadingRekap.buktiPembayaranTransport)
         );
 
         return (
@@ -2156,42 +2186,86 @@ Atas Nama: ${namaLengkap}`;
                   Setelah diupload, sistem otomatis memotong item <strong>RAB Fasilitator &amp; Sewa Rumah</strong> dan menyiapkan rincian ke WhatsApp Fasilitator.
                 </p>
 
-                <div className="border border-slate-200 p-3.5 rounded-xl space-y-2">
-                  <label className="block text-xs font-bold text-slate-800">
-                    1. Bukti Transfer Honorarium ({formatCurrency(uploadingRekap.totalHonor)})
-                  </label>
-                  {uploadingRekap.buktiPembayaranHonor ? (
-                    <div className="text-xs text-emerald-600 font-semibold">✓ Sudah ada bukti terupload</div>
-                  ) : null}
-                  <input 
-                    type="file" 
-                    accept="image/*,.pdf"
-                    onChange={(e) => setHonorFile(e.target.files?.[0] || null)}
-                    className="w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-slate-100 file:text-slate-700 file:font-semibold hover:file:bg-slate-200 cursor-pointer"
-                  />
-                </div>
-
-                <div className="border border-slate-200 p-3.5 rounded-xl space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <label className="block text-xs font-bold text-slate-800">
-                      2. Bukti Transfer Transportasi ({formatCurrency(transTotal)})
-                    </label>
-                    {transTotal <= 0 && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
-                        Opsional (Rp 0)
+                {!separateReceiptUpload ? (
+                  <div className="border border-slate-200 p-3.5 rounded-xl space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <label className="block text-xs font-bold text-slate-800">
+                        Bukti Transfer Pembayaran ({formatCurrency(grandTotalTransfer)})
+                      </label>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 shrink-0">
+                        1 Bukti Gabungan
                       </span>
-                    )}
+                    </div>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      Mencakup Honorarium ({formatCurrency(uploadingRekap.totalHonor)})
+                      {transTotal > 0 ? ` + Transportasi (${formatCurrency(transTotal)})` : ' (Tanpa Transportasi)'}
+                    </p>
+                    {hasExistingCombined ? (
+                      <div className="text-xs text-emerald-600 font-semibold">✓ Sudah ada bukti terupload</div>
+                    ) : null}
+                    <input
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={(e) => setHonorFile(e.target.files?.[0] || null)}
+                      className="w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-slate-100 file:text-slate-700 file:font-semibold hover:file:bg-slate-200 cursor-pointer"
+                    />
                   </div>
-                  {uploadingRekap.buktiPembayaranTransport ? (
-                    <div className="text-xs text-emerald-600 font-semibold">✓ Sudah ada bukti terupload</div>
-                  ) : null}
-                  <input 
-                    type="file" 
-                    accept="image/*,.pdf"
-                    onChange={(e) => setTransportFile(e.target.files?.[0] || null)}
-                    className="w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-slate-100 file:text-slate-700 file:font-semibold hover:file:bg-slate-200 cursor-pointer"
+                ) : (
+                  <>
+                    <div className="border border-slate-200 p-3.5 rounded-xl space-y-2">
+                      <label className="block text-xs font-bold text-slate-800">
+                        1. Bukti Transfer Honorarium ({formatCurrency(uploadingRekap.totalHonor)})
+                      </label>
+                      {uploadingRekap.buktiPembayaranHonor ? (
+                        <div className="text-xs text-emerald-600 font-semibold">✓ Sudah ada bukti terupload</div>
+                      ) : null}
+                      <input 
+                        type="file" 
+                        accept="image/*,.pdf"
+                        onChange={(e) => setHonorFile(e.target.files?.[0] || null)}
+                        className="w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-slate-100 file:text-slate-700 file:font-semibold hover:file:bg-slate-200 cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="border border-slate-200 p-3.5 rounded-xl space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="block text-xs font-bold text-slate-800">
+                          2. Bukti Transfer Transportasi ({formatCurrency(transTotal)})
+                        </label>
+                        {transTotal <= 0 && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                            Opsional (Rp 0)
+                          </span>
+                        )}
+                      </div>
+                      {uploadingRekap.buktiPembayaranTransport ? (
+                        <div className="text-xs text-emerald-600 font-semibold">✓ Sudah ada bukti terupload</div>
+                      ) : null}
+                      <input 
+                        type="file" 
+                        accept="image/*,.pdf"
+                        onChange={(e) => setTransportFile(e.target.files?.[0] || null)}
+                        className="w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-slate-100 file:text-slate-700 file:font-semibold hover:file:bg-slate-200 cursor-pointer"
+                      />
+                    </div>
+                  </>
+                )}
+
+                <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer select-none px-1">
+                  <input
+                    type="checkbox"
+                    checked={separateReceiptUpload}
+                    onChange={(e) => {
+                      const next = e.target.checked;
+                      setSeparateReceiptUpload(next);
+                      if (!next) {
+                        setTransportFile(null);
+                      }
+                    }}
+                    className="rounded border-slate-300 text-slate-800 focus:ring-slate-500"
                   />
-                </div>
+                  <span>Upload bukti Honor &amp; Transport secara terpisah (jika ditransfer dalam 2 transaksi berbeda)</span>
+                </label>
 
                 {/* Pengaturan Kirim Otomatis ke WhatsApp Desktop */}
                 <div className="border border-emerald-200 bg-emerald-50/40 p-3.5 rounded-xl space-y-3">
@@ -2266,19 +2340,30 @@ Atas Nama: ${namaLengkap}`;
                 <button 
                   type="button"
                   onClick={async () => {
-                    if (!honorFile && !transportFile) {
-                      alert('Pilih minimal satu file bukti pembayaran');
+                    if (separateReceiptUpload) {
+                      if (!honorFile && !transportFile) {
+                        alert('Pilih minimal satu file bukti pembayaran');
+                        return;
+                      }
+                    } else if (!honorFile) {
+                      alert('Pilih file bukti pembayaran terlebih dahulu');
                       return;
                     }
                     setIsUploading(true);
                     try {
                       let urlHonor: string | undefined;
                       let urlTransport: string | undefined;
-                      if (honorFile) {
-                        urlHonor = await uploadFileClient(honorFile, 'receipts');
-                      }
-                      if (transportFile) {
-                        urlTransport = await uploadFileClient(transportFile, 'receipts');
+                      if (!separateReceiptUpload && honorFile) {
+                        const uploadedUrl = await uploadFileClient(honorFile, 'receipts');
+                        urlHonor = uploadedUrl;
+                        urlTransport = transTotal > 0 ? uploadedUrl : undefined;
+                      } else {
+                        if (honorFile) {
+                          urlHonor = await uploadFileClient(honorFile, 'receipts');
+                        }
+                        if (transportFile) {
+                          urlTransport = await uploadFileClient(transportFile, 'receipts');
+                        }
                       }
                       
                       const result = await uploadBuktiRekap(
@@ -2294,11 +2379,12 @@ Atas Nama: ${namaLengkap}`;
                         uploadingRekap.shortUrlHonor ||
                         urlHonor ||
                         uploadingRekap.buktiPembayaranHonor;
-                      const shortUrlTransport =
-                        result.shortUrlTransport ||
-                        uploadingRekap.shortUrlTransport ||
-                        urlTransport ||
-                        uploadingRekap.buktiPembayaranTransport;
+                      const shortUrlTransport = !separateReceiptUpload
+                        ? (transTotal > 0 ? shortUrlHonor : null)
+                        : (result.shortUrlTransport ||
+                           uploadingRekap.shortUrlTransport ||
+                           urlTransport ||
+                           uploadingRekap.buktiPembayaranTransport);
 
                       const updatedRekapForWa = {
                         ...uploadingRekap,
@@ -2312,7 +2398,7 @@ Atas Nama: ${namaLengkap}`;
                         },
                       };
 
-                      const imageFiles = [honorFile, transportFile].filter(
+                      const imageFiles = (separateReceiptUpload ? [honorFile, transportFile] : [honorFile]).filter(
                         (f): f is File => Boolean(f && f.type.startsWith('image/'))
                       );
                       let imageCopied = false;
@@ -2351,7 +2437,7 @@ Atas Nama: ${namaLengkap}`;
                     }
                   }}
                   className="px-4 py-2 text-xs font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
-                  disabled={isUploading || (!honorFile && !transportFile)}
+                  disabled={isUploading || (separateReceiptUpload ? (!honorFile && !transportFile) : !honorFile)}
                 >
                   {isUploading ? (
                     <>

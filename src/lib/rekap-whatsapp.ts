@@ -108,8 +108,20 @@ export function buildRekapWhatsAppMessage(
   if (urlHonor || urlTransport) {
     lines.push("");
     lines.push(`📎 *Link Bukti Transfer:*`);
-    if (urlHonor) lines.push(`• Bukti Honorarium: ${urlHonor}`);
-    if (urlTransport) lines.push(`• Bukti Transportasi: ${urlTransport}`);
+    const sameRawReceipt = Boolean(
+      rekap?.buktiPembayaranHonor &&
+        rekap?.buktiPembayaranTransport &&
+        rekap.buktiPembayaranHonor === rekap.buktiPembayaranTransport
+    );
+    const sameShownLink = Boolean(urlHonor && urlTransport && urlHonor === urlTransport);
+
+    if ((sameRawReceipt || sameShownLink) && (urlHonor || urlTransport)) {
+      const label = totalTransport > 0 ? "Bukti Transfer (Honor & Transport)" : "Bukti Transfer";
+      lines.push(`• ${label}: ${urlHonor || urlTransport}`);
+    } else {
+      if (urlHonor) lines.push(`• Bukti Honorarium: ${urlHonor}`);
+      if (urlTransport) lines.push(`• Bukti Transportasi: ${urlTransport}`);
+    }
   }
 
   lines.push("");
