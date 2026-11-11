@@ -23,7 +23,9 @@ import {
   Fuel,
   Sliders,
   FileDown,
-  Save
+  Save,
+  MessageSquare,
+  Phone
 } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -40,6 +42,13 @@ import { useModal } from '@/components/modal-provider';
 import { getFasilitatorJpForMonth, syncLaporanToRekap } from '@/app/actions/rekap'
 import { FilePreviewModal } from '@/components/shared/FilePreviewModal'
 import { uploadFileClient } from '@/lib/upload-client'
+import { RekapWhatsAppModal, RekapWhatsAppModalProps } from './RekapWhatsAppModal'
+import {
+  buildRekapWhatsAppMessage,
+  copyImageFileToClipboard,
+  launchWhatsAppDesktop,
+  normalizeWhatsAppNumber,
+} from '@/lib/rekap-whatsapp'
 
 export function RekapHonorClient({ 
   initialData, 
@@ -961,6 +970,25 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
   const [honorFile, setHonorFile] = useState<File | null>(null)
   const [transportFile, setTransportFile] = useState<File | null>(null)
   const [isUploading, setIsUploading] = useState(false)
+  const [uploadWaPhone, setUploadWaPhone] = useState('')
+  const [autoLaunchWaAfterUpload, setAutoLaunchWaAfterUpload] = useState(true)
+  const [copyImageAfterUpload, setCopyImageAfterUpload] = useState(true)
+  const [waModalState, setWaModalState] = useState<{
+    isOpen: boolean;
+    rekap: any | null;
+    postUploadInfo?: RekapWhatsAppModalProps["postUploadInfo"];
+  }>({ isOpen: false, rekap: null, postUploadInfo: null })
+
+  const openUploadBuktiModal = (rekap: any) => {
+    setUploadingRekap(rekap)
+    setHonorFile(null)
+    setTransportFile(null)
+    setUploadWaPhone(rekap?.fasilitator?.kontak || '')
+    setAutoLaunchWaAfterUpload(true)
+    setCopyImageAfterUpload(true)
+    setShowUploadModal(true)
+  }
+
   const [selectedRekap, setSelectedRekap] = useState<any>(null)
   
   // New variables for Kwitansi manual input
@@ -1367,12 +1395,24 @@ Atas Nama: ${namaLengkap}`;
                       </button>
                     ) : null}
                     {(rekap.status === 'SUBMITTED' || rekap.status === 'APPROVED') && (
-                      <button 
-                        onClick={() => { setUploadingRekap(rekap); setHonorFile(null); setTransportFile(null); setShowUploadModal(true); }}
-                        className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 px-2 py-0.5 rounded transition-colors font-medium cursor-pointer w-full mt-0.5"
-                      >
-                        {rekap.buktiPembayaranHonor && rekap.buktiPembayaranTransport ? 'Ganti Bukti' : 'Upload Bukti'}
-                      </button>
+                      <>
+                        <button 
+                          type="button"
+                          onClick={() => openUploadBuktiModal(rekap)}
+                          className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 px-2 py-0.5 rounded transition-colors font-medium cursor-pointer w-full mt-0.5"
+                        >
+                          {rekap.buktiPembayaranHonor && (hitungTotalTransportRekap(rekap) <= 0 || rekap.buktiPembayaranTransport) ? 'Ganti Bukti' : 'Upload Bukti'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setWaModalState({ isOpen: true, rekap, postUploadInfo: null })}
+                          className="inline-flex items-center justify-center gap-1 text-[10px] bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded transition-colors font-semibold cursor-pointer w-full"
+                          title="Kirim / Salin Rincian Pembayaran ke WhatsApp Fasilitator"
+                        >
+                          <MessageSquare className="w-2.5 h-2.5" />
+                          <span>Kirim WA</span>
+                        </button>
+                      </>
                     )}
                   </div>
                 </td>
@@ -2081,90 +2121,239 @@ Atas Nama: ${namaLengkap}`;
       {/* Modal Pilih Dokumen */}
       
       {/* Modal Upload Bukti Pembayaran */}
-      {showUploadModal && uploadingRekap && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white p-6 rounded-lg shadow-xl w-[500px] max-w-[90vw]">
-            <h2 className="text-xl font-bold mb-4">Upload Bukti Pembayaran</h2>
-            <p className="text-sm text-gray-500 mb-4">
-              Upload bukti transfer untuk Fasilitator <strong>{uploadingRekap.fasilitator?.namaLengkap}</strong> (Bulan: {uploadingRekap.bulan}).<br/>
-              Sistem akan otomatis memotong item RAB Fasilitator & Sewa Rumah.
-            </p>
-            
-            <div className="space-y-4 mb-6">
-              <div className="border p-4 rounded-md">
-                <label className="block text-sm font-medium mb-2">1. Bukti Transfer Honorarium (Rp {formatCurrency(uploadingRekap.totalHonor)})</label>
-                {uploadingRekap.buktiPembayaranHonor ? (
-                  <div className="text-sm text-green-600 mb-2">✓ Sudah ada bukti terupload</div>
-                ) : null}
-                <input 
-                  type="file" 
-                  accept="image/*,.pdf"
-                  onChange={(e) => setHonorFile(e.target.files?.[0] || null)}
-                  className="w-full text-sm"
-                />
+      {showUploadModal && uploadingRekap && (() => {
+        const transTotal = hitungTotalTransportRekap(uploadingRekap);
+        const normPreviewPhone = normalizeWhatsAppNumber(uploadWaPhone);
+        const hasImageSelected = Boolean(
+          (honorFile && honorFile.type.startsWith('image/')) ||
+          (transportFile && transportFile.type.startsWith('image/'))
+        );
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl shadow-2xl w-[540px] max-w-[94vw] max-h-[92vh] flex flex-col my-auto overflow-hidden border border-slate-200">
+              {/* Header */}
+              <div className="px-5 py-4 border-b bg-slate-50 flex items-center justify-between shrink-0">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Upload Bukti Pembayaran</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {uploadingRekap.fasilitator?.namaLengkap} &bull; Bulan {uploadingRekap.bulan}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowUploadModal(false)}
+                  disabled={isUploading}
+                  className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
+                >
+                  &times;
+                </button>
               </div>
 
-              <div className="border p-4 rounded-md">
-                <label className="block text-sm font-medium mb-2">2. Bukti Transfer Transportasi (Rp {formatCurrency(hitungTotalTransportRekap(uploadingRekap))})</label>
-                {uploadingRekap.buktiPembayaranTransport ? (
-                  <div className="text-sm text-green-600 mb-2">✓ Sudah ada bukti terupload</div>
-                ) : null}
-                <input 
-                  type="file" 
-                  accept="image/*,.pdf"
-                  onChange={(e) => setTransportFile(e.target.files?.[0] || null)}
-                  className="w-full text-sm"
-                />
-              </div>
-            </div>
+              {/* Body */}
+              <div className="p-5 overflow-y-auto space-y-4 flex-1">
+                <p className="text-xs text-slate-600 bg-blue-50/70 border border-blue-200 rounded-lg px-3 py-2">
+                  Setelah diupload, sistem otomatis memotong item <strong>RAB Fasilitator &amp; Sewa Rumah</strong> dan menyiapkan rincian ke WhatsApp Fasilitator.
+                </p>
 
-            <div className="flex justify-end gap-2">
-              <button 
-                onClick={() => setShowUploadModal(false)}
-                className="px-4 py-2 bg-gray-100 rounded-md hover:bg-gray-200"
-                disabled={isUploading}
-              >
-                Batal
-              </button>
-              <button 
-                onClick={async () => {
-                  if (!honorFile && !transportFile) {
-                    alert('Pilih minimal satu file bukti pembayaran');
-                    return;
-                  }
-                  setIsUploading(true);
-                  try {
-                    let urlHonor;
-                    let urlTransport;
-                    if (honorFile) {
-                      urlHonor = await uploadFileClient(honorFile, 'receipts');
+                <div className="border border-slate-200 p-3.5 rounded-xl space-y-2">
+                  <label className="block text-xs font-bold text-slate-800">
+                    1. Bukti Transfer Honorarium ({formatCurrency(uploadingRekap.totalHonor)})
+                  </label>
+                  {uploadingRekap.buktiPembayaranHonor ? (
+                    <div className="text-xs text-emerald-600 font-semibold">✓ Sudah ada bukti terupload</div>
+                  ) : null}
+                  <input 
+                    type="file" 
+                    accept="image/*,.pdf"
+                    onChange={(e) => setHonorFile(e.target.files?.[0] || null)}
+                    className="w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-slate-100 file:text-slate-700 file:font-semibold hover:file:bg-slate-200 cursor-pointer"
+                  />
+                </div>
+
+                <div className="border border-slate-200 p-3.5 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="block text-xs font-bold text-slate-800">
+                      2. Bukti Transfer Transportasi ({formatCurrency(transTotal)})
+                    </label>
+                    {transTotal <= 0 && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                        Opsional (Rp 0)
+                      </span>
+                    )}
+                  </div>
+                  {uploadingRekap.buktiPembayaranTransport ? (
+                    <div className="text-xs text-emerald-600 font-semibold">✓ Sudah ada bukti terupload</div>
+                  ) : null}
+                  <input 
+                    type="file" 
+                    accept="image/*,.pdf"
+                    onChange={(e) => setTransportFile(e.target.files?.[0] || null)}
+                    className="w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-slate-100 file:text-slate-700 file:font-semibold hover:file:bg-slate-200 cursor-pointer"
+                  />
+                </div>
+
+                {/* Pengaturan Kirim Otomatis ke WhatsApp Desktop */}
+                <div className="border border-emerald-200 bg-emerald-50/40 p-3.5 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-1.5">
+                    <span className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                      <MessageSquare className="w-4 h-4 text-emerald-600" />
+                      Notifikasi WhatsApp Fasilitator
+                    </span>
+                    {normPreviewPhone ? (
+                      <span className="text-[10.5px] font-mono font-bold text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-200">
+                        +{normPreviewPhone}
+                      </span>
+                    ) : (
+                      <span className="text-[10.5px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                        Nomor WA Belum Valid
+                      </span>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1 flex items-center gap-1">
+                      <Phone className="w-3 h-3 text-slate-500" />
+                      Nomor WhatsApp Fasilitator (otomatis disimpan jika diubah):
+                    </label>
+                    <input
+                      type="text"
+                      value={uploadWaPhone}
+                      onChange={(e) => setUploadWaPhone(e.target.value)}
+                      placeholder="Contoh: 081234567890"
+                      className="w-full text-xs font-mono font-semibold px-3 py-2 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <label className="flex items-start gap-2 cursor-pointer text-xs text-slate-800">
+                    <input
+                      type="checkbox"
+                      checked={autoLaunchWaAfterUpload}
+                      onChange={(e) => setAutoLaunchWaAfterUpload(e.target.checked)}
+                      className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                    />
+                    <span>
+                      <strong>Otomatis buka WhatsApp Desktop</strong> ke chat fasil dengan rincian nominal, rekening, dan link bukti transfer siap tekan Enter
+                    </span>
+                  </label>
+
+                  {hasImageSelected && (
+                    <label className="flex items-start gap-2 cursor-pointer text-xs text-slate-800">
+                      <input
+                        type="checkbox"
+                        checked={copyImageAfterUpload}
+                        onChange={(e) => setCopyImageAfterUpload(e.target.checked)}
+                        className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                      />
+                      <span>
+                        <strong>Salin gambar bukti ke clipboard otomatis</strong> agar tinggal tekan <kbd className="px-1 py-0.5 bg-white border rounded text-[10px]">Ctrl+V</kbd> di chat WhatsApp
+                      </span>
+                    </label>
+                  )}
+                </div>
+              </div>
+
+              {/* Sticky Footer */}
+              <div className="px-5 py-3.5 border-t bg-slate-50 flex justify-end gap-2 shrink-0">
+                <button 
+                  type="button"
+                  onClick={() => setShowUploadModal(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 cursor-pointer"
+                  disabled={isUploading}
+                >
+                  Batal
+                </button>
+                <button 
+                  type="button"
+                  onClick={async () => {
+                    if (!honorFile && !transportFile) {
+                      alert('Pilih minimal satu file bukti pembayaran');
+                      return;
                     }
-                    if (transportFile) {
-                      urlTransport = await uploadFileClient(transportFile, 'receipts');
+                    setIsUploading(true);
+                    try {
+                      let urlHonor: string | undefined;
+                      let urlTransport: string | undefined;
+                      if (honorFile) {
+                        urlHonor = await uploadFileClient(honorFile, 'receipts');
+                      }
+                      if (transportFile) {
+                        urlTransport = await uploadFileClient(transportFile, 'receipts');
+                      }
+                      
+                      const result = await uploadBuktiRekap(
+                        uploadingRekap.id,
+                        urlHonor,
+                        urlTransport,
+                        uploadWaPhone
+                      );
+                      if (result.error) throw new Error(result.error);
+
+                      const updatedRekapForWa = {
+                        ...uploadingRekap,
+                        buktiPembayaranHonor: urlHonor || uploadingRekap.buktiPembayaranHonor,
+                        buktiPembayaranTransport: urlTransport || uploadingRekap.buktiPembayaranTransport,
+                        fasilitator: {
+                          ...uploadingRekap.fasilitator,
+                          kontak: uploadWaPhone.trim() || uploadingRekap.fasilitator?.kontak,
+                        },
+                      };
+
+                      const imageFiles = [honorFile, transportFile].filter(
+                        (f): f is File => Boolean(f && f.type.startsWith('image/'))
+                      );
+                      let imageCopied = false;
+                      if (copyImageAfterUpload && imageFiles.length > 0) {
+                        imageCopied = await copyImageFileToClipboard(imageFiles[0]);
+                      }
+
+                      let launchedDesktop = false;
+                      const normPhone = normalizeWhatsAppNumber(uploadWaPhone);
+                      if (autoLaunchWaAfterUpload && normPhone) {
+                        const waMsg = buildRekapWhatsAppMessage(updatedRekapForWa, {
+                          urlHonor: updatedRekapForWa.buktiPembayaranHonor,
+                          urlTransport: updatedRekapForWa.buktiPembayaranTransport,
+                        });
+                        launchedDesktop = launchWhatsAppDesktop(normPhone, waMsg);
+                      }
+
+                      setShowUploadModal(false);
+                      setWaModalState({
+                        isOpen: true,
+                        rekap: updatedRekapForWa,
+                        postUploadInfo: {
+                          launchedDesktop,
+                          imageCopied,
+                          imageFiles,
+                          urlHonor: updatedRekapForWa.buktiPembayaranHonor,
+                          urlTransport: updatedRekapForWa.buktiPembayaranTransport,
+                        },
+                      });
+                      router.refresh();
+                    } catch (err: any) {
+                      console.error(err);
+                      alert('Terjadi kesalahan: ' + err.message);
+                    } finally {
+                      setIsUploading(false);
                     }
-                    
-                    const result = await uploadBuktiRekap(uploadingRekap.id, urlHonor, urlTransport);
-                    if (result.error) throw new Error(result.error);
-                    
-                    alert('Bukti pembayaran berhasil diupload & RAB berhasil dipotong!');
-                    setShowUploadModal(false);
-                    router.refresh();
-                  } catch (err: any) {
-                    console.error(err);
-                    alert('Terjadi kesalahan: ' + err.message);
-                  } finally {
-                    setIsUploading(false);
-                  }
-                }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-                disabled={isUploading || (!honorFile && !transportFile)}
-              >
-                {isUploading ? 'Mengunggah...' : 'Upload & Potong RAB'}
-              </button>
+                  }}
+                  className="px-4 py-2 text-xs font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+                  disabled={isUploading || (!honorFile && !transportFile)}
+                >
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Mengunggah...</span>
+                    </>
+                  ) : (
+                    <span>Upload, Potong RAB &amp; Kirim WA</span>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {showKopModal && selectedRekap && (() => {
         const existingInv = getInvHonor(selectedRekap);
@@ -4020,6 +4209,15 @@ Atas Nama: ${namaLengkap}`;
         onClose={() => setPreviewModal(prev => ({ ...prev, isOpen: false }))}
         title={previewModal.title}
         url={previewModal.url}
+      />
+
+      {/* Modal Kirim / Konfirmasi WhatsApp Fasilitator */}
+      <RekapWhatsAppModal
+        isOpen={waModalState.isOpen}
+        rekap={waModalState.rekap}
+        postUploadInfo={waModalState.postUploadInfo}
+        onClose={() => setWaModalState({ isOpen: false, rekap: null, postUploadInfo: null })}
+        onKontakSaved={() => router.refresh()}
       />
 
     </div>

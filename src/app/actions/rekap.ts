@@ -895,7 +895,12 @@ export async function generateInvoiceExpense(expenseId: string, inputNoUrut?: st
 }
 
 
-export async function uploadBuktiRekap(rekapId: string, urlHonor?: string, urlTransport?: string) {
+export async function uploadBuktiRekap(
+  rekapId: string,
+  urlHonor?: string,
+  urlTransport?: string,
+  kontakWhatsApp?: string
+) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) throw new Error('Unauthorized');
@@ -910,19 +915,30 @@ export async function uploadBuktiRekap(rekapId: string, urlHonor?: string, urlTr
     
     if (!rekap) throw new Error("Rekap tidak ditemukan");
 
+    // Simpan perubahan nomor WhatsApp fasilitator bila diisi/diubah pada form upload
+    if (kontakWhatsApp !== undefined) {
+      const cleanKontak = kontakWhatsApp.trim();
+      if (cleanKontak && cleanKontak !== (rekap.fasilitator?.kontak || '')) {
+        await prisma.fasilitator.update({
+          where: { id: rekap.fasilitatorId },
+          data: { kontak: cleanKontak }
+        });
+      }
+    }
+
     // Lakukan update URL bukti di RekapHonorarium
     const updateData: any = {};
     if (urlHonor) {
       updateData.buktiPembayaranHonor = urlHonor;
-
     }
     if (urlTransport) {
       updateData.buktiPembayaranTransport = urlTransport;
-
     }
-    const hasHonor = urlHonor || rekap.buktiPembayaranHonor;
-    const hasTransport = urlTransport || rekap.buktiPembayaranTransport;
-    if (hasHonor && hasTransport) {
+    const hasHonor = Boolean(urlHonor || rekap.buktiPembayaranHonor);
+    const totalTransportVal = hitungTotalTransportRekap(rekap);
+    const needsTransport = totalTransportVal > 0;
+    const hasTransport = Boolean(urlTransport || rekap.buktiPembayaranTransport);
+    if (hasHonor && (!needsTransport || hasTransport)) {
       updateData.status = 'APPROVED';
     }
     
@@ -1038,6 +1054,25 @@ export async function uploadBuktiRekap(rekapId: string, urlHonor?: string, urlTr
   } catch (error: any) {
     console.error('Error in uploadBuktiRekap:', error);
     return { error: error.message };
+  }
+}
+
+export async function updateFasilitatorKontak(fasilitatorId: string, kontak: string) {
+  try {
+    const { error: authError, session } = await checkAuth(['ADMIN', 'SUPER_ADMIN']);
+    if (authError || !session) return { error: authError || "Unauthorized" };
+
+    const updated = await prisma.fasilitator.update({
+      where: { id: fasilitatorId },
+      data: { kontak: kontak.trim() || null }
+    });
+
+    revalidatePath('/fasilitator/rekap-honor');
+    revalidatePath('/fasilitator');
+    return { success: true, kontak: updated.kontak };
+  } catch (error: any) {
+    console.error('Error in updateFasilitatorKontak:', error);
+    return { error: error.message || 'Gagal memperbarui nomor kontak' };
   }
 }
 
