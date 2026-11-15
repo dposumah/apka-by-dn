@@ -176,24 +176,32 @@ export async function createCashflowTransaction(data: any) {
     }
 
     const persistenceData = buildTransactionPersistenceData(data);
-    const transaction = await prisma.$transaction(async (tx) => {
-      const created = await tx.cashflowTransaction.create({
-        data: {
-          ...persistenceData,
-          createdById: session.user.id || null,
-        },
-      });
+    const createdId = await prisma.$transaction(
+      async (tx) => {
+        const created = await tx.cashflowTransaction.create({
+          data: {
+            ...persistenceData,
+            createdById: session.user.id || null,
+          },
+          select: { id: true, status: true, amount: true },
+        });
 
-      await syncCashflowTransactionToJournal(tx, created.id, session.user.id);
+        if (created.status === "COMPLETED" && created.amount > 0) {
+          await syncCashflowTransactionToJournal(tx, created.id, session.user.id);
+        }
 
-      return await tx.cashflowTransaction.findUniqueOrThrow({
-        where: { id: created.id },
-        include: {
-          project: true,
-          account: { select: { id: true, code: true, name: true, type: true } },
-          journalEntry: { select: { id: true, entryNumber: true, status: true } },
-        },
-      });
+        return created.id;
+      },
+      { maxWait: 10000, timeout: 25000 }
+    );
+
+    const transaction = await prisma.cashflowTransaction.findUniqueOrThrow({
+      where: { id: createdId },
+      include: {
+        project: true,
+        account: { select: { id: true, code: true, name: true, type: true } },
+        journalEntry: { select: { id: true, entryNumber: true, status: true } },
+      },
     });
 
     revalidateCashflowRoutes();
@@ -212,22 +220,25 @@ export async function updateCashflowTransaction(id: string, data: any) {
     }
 
     const persistenceData = buildTransactionPersistenceData(data);
-    const transaction = await prisma.$transaction(async (tx) => {
-      await tx.cashflowTransaction.update({
-        where: { id },
-        data: persistenceData,
-      });
+    await prisma.$transaction(
+      async (tx) => {
+        await tx.cashflowTransaction.update({
+          where: { id },
+          data: persistenceData,
+        });
 
-      await syncCashflowTransactionToJournal(tx, id, session.user.id);
+        await syncCashflowTransactionToJournal(tx, id, session.user.id);
+      },
+      { maxWait: 10000, timeout: 25000 }
+    );
 
-      return await tx.cashflowTransaction.findUniqueOrThrow({
-        where: { id },
-        include: {
-          project: true,
-          account: { select: { id: true, code: true, name: true, type: true } },
-          journalEntry: { select: { id: true, entryNumber: true, status: true } },
-        },
-      });
+    const transaction = await prisma.cashflowTransaction.findUniqueOrThrow({
+      where: { id },
+      include: {
+        project: true,
+        account: { select: { id: true, code: true, name: true, type: true } },
+        journalEntry: { select: { id: true, entryNumber: true, status: true } },
+      },
     });
 
     revalidateCashflowRoutes();
@@ -286,31 +297,34 @@ export async function markCashflowTransactionPaid(
         ? new Date(opts.paidDate)
         : existing.date;
 
-    const transaction = await prisma.$transaction(async (tx) => {
-      await tx.cashflowTransaction.update({
-        where: { id },
-        data: {
-          status: "COMPLETED",
-          amount: actualAmount,
-          date: paidDateObj,
-          ...(opts.paymentMethod ? { paymentMethod: opts.paymentMethod } : {}),
-          ...(opts.accountId ? { accountId: opts.accountId } : {}),
-          ...(taxWithheld !== undefined ? { taxWithheldAmount: taxWithheld } : {}),
-          ...(opts.paidReceiptUrl ? { receiptUrl: opts.paidReceiptUrl } : {}),
-          ...(updatedWaText !== undefined ? { whatsappText: updatedWaText } : {}),
-        },
-      });
+    await prisma.$transaction(
+      async (tx) => {
+        await tx.cashflowTransaction.update({
+          where: { id },
+          data: {
+            status: "COMPLETED",
+            amount: actualAmount,
+            date: paidDateObj,
+            ...(opts.paymentMethod ? { paymentMethod: opts.paymentMethod } : {}),
+            ...(opts.accountId ? { accountId: opts.accountId } : {}),
+            ...(taxWithheld !== undefined ? { taxWithheldAmount: taxWithheld } : {}),
+            ...(opts.paidReceiptUrl ? { receiptUrl: opts.paidReceiptUrl } : {}),
+            ...(updatedWaText !== undefined ? { whatsappText: updatedWaText } : {}),
+          },
+        });
 
-      await syncCashflowTransactionToJournal(tx, id, session.user.id);
+        await syncCashflowTransactionToJournal(tx, id, session.user.id);
+      },
+      { maxWait: 10000, timeout: 25000 }
+    );
 
-      return await tx.cashflowTransaction.findUniqueOrThrow({
-        where: { id },
-        include: {
-          project: true,
-          account: { select: { id: true, code: true, name: true, type: true } },
-          journalEntry: { select: { id: true, entryNumber: true, status: true } },
-        },
-      });
+    const transaction = await prisma.cashflowTransaction.findUniqueOrThrow({
+      where: { id },
+      include: {
+        project: true,
+        account: { select: { id: true, code: true, name: true, type: true } },
+        journalEntry: { select: { id: true, entryNumber: true, status: true } },
+      },
     });
 
     revalidateCashflowRoutes();
@@ -328,25 +342,28 @@ export async function deleteCashflowTransaction(id: string) {
       return { success: false, error: authError };
     }
 
-    await prisma.$transaction(async (tx) => {
-      const existing = await tx.cashflowTransaction.findUnique({
-        where: { id },
-        select: { id: true, journalEntryId: true, project: { select: { name: true } } },
-      });
-
-      if (!existing) return;
-
-      await tx.cashflowTransaction.delete({ where: { id } });
-
-      if (
-        existing.journalEntryId &&
-        existing.project?.name !== "Pengadaan Starter Kit IoT 100 Kit"
-      ) {
-        await tx.journalEntry.delete({
-          where: { id: existing.journalEntryId },
+    await prisma.$transaction(
+      async (tx) => {
+        const existing = await tx.cashflowTransaction.findUnique({
+          where: { id },
+          select: { id: true, journalEntryId: true, project: { select: { name: true } } },
         });
-      }
-    });
+
+        if (!existing) return;
+
+        await tx.cashflowTransaction.delete({ where: { id } });
+
+        if (
+          existing.journalEntryId &&
+          existing.project?.name !== "Pengadaan Starter Kit IoT 100 Kit"
+        ) {
+          await tx.journalEntry.delete({
+            where: { id: existing.journalEntryId },
+          });
+        }
+      },
+      { maxWait: 10000, timeout: 25000 }
+    );
 
     revalidateCashflowRoutes();
     return { success: true };

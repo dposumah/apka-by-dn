@@ -228,9 +228,6 @@ export async function syncCashflowTransactionToJournal(
     return { synced: false, journalEntryId: null, reason: "NOT_COMPLETED" };
   }
 
-  // Pastikan periode fiskal masih terbuka
-  await assertFiscalPeriodOpen(tx, cf.date);
-
   const cashCode = resolveCashAccountCode(cf.paymentMethod);
   const suggestedCounterCode = suggestCashflowAccountCode({
     type: cf.type,
@@ -238,25 +235,42 @@ export async function syncCashflowTransactionToJournal(
     iyrcBudgetPos: cf.iyrcBudgetPos,
     description: cf.description,
   });
+  const reference = `CF-${cf.id}`;
 
-  const [cashAcc, fallbackCashAcc, explicitCounterAcc, suggestedCounterAcc, taxAcc, period] =
-    await Promise.all([
-      tx.account.findUnique({ where: { code: cashCode } }),
-      tx.account.findUnique({ where: { code: "111.11.101" } }),
-      cf.accountId
-        ? tx.account.findUnique({ where: { id: cf.accountId } })
-        : Promise.resolve(null),
-      tx.account.findUnique({ where: { code: suggestedCounterCode } }),
-      tx.account.findUnique({ where: { code: "600.10.037" } }),
-      tx.fiscalPeriod.findFirst({
-        where: {
-          status: "OPEN",
-          startDate: { lte: cf.date },
-          endDate: { gte: cf.date },
-        },
-        select: { id: true },
-      }),
-    ]);
+  // Jalankan validasi periode fiskal dan lookup COA/periode/jurnal secara paralel
+  const [
+    ,
+    cashAcc,
+    fallbackCashAcc,
+    explicitCounterAcc,
+    suggestedCounterAcc,
+    taxAcc,
+    period,
+    existingJournalByRef,
+  ] = await Promise.all([
+    assertFiscalPeriodOpen(tx, cf.date),
+    tx.account.findUnique({ where: { code: cashCode } }),
+    tx.account.findUnique({ where: { code: "111.11.101" } }),
+    cf.accountId
+      ? tx.account.findUnique({ where: { id: cf.accountId } })
+      : Promise.resolve(null),
+    tx.account.findUnique({ where: { code: suggestedCounterCode } }),
+    tx.account.findUnique({ where: { code: "600.10.037" } }),
+    tx.fiscalPeriod.findFirst({
+      where: {
+        status: "OPEN",
+        startDate: { lte: cf.date },
+        endDate: { gte: cf.date },
+      },
+      select: { id: true },
+    }),
+    cf.journalEntryId
+      ? Promise.resolve(null)
+      : tx.journalEntry.findFirst({
+          where: { reference },
+          select: { id: true },
+        }),
+  ]);
 
   const resolvedCashAcc = cashAcc || fallbackCashAcc;
   let resolvedCounterAcc = explicitCounterAcc || suggestedCounterAcc;
@@ -287,19 +301,10 @@ export async function syncCashflowTransactionToJournal(
 
   const totalDebit = lines.reduce((sum, l) => sum + l.debit, 0);
   const totalCredit = lines.reduce((sum, l) => sum + l.credit, 0);
-  const reference = `CF-${cf.id}`;
   const journalDesc = `[Cashflow ${cf.project?.name || "Proyek"}] ${cf.description}`;
 
   // Cek apakah sudah ada JournalEntry tertaut atau dengan reference yang sama
-  const existingJournalId =
-    cf.journalEntryId ||
-    (
-      await tx.journalEntry.findFirst({
-        where: { reference },
-        select: { id: true },
-      })
-    )?.id ||
-    null;
+  const existingJournalId = cf.journalEntryId || existingJournalByRef?.id || null;
 
   let finalJournalId: string;
 
