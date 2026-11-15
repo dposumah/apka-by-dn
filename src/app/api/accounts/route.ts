@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import { ACCOUNTING_READ_ROLES, ACCOUNTING_WRITE_ROLES, requireApiAuth } from '@/lib/auth-check';
 
 const accountSchema = z.object({
   code: z.string().min(1, 'Kode akun wajib diisi'),
@@ -15,6 +16,9 @@ const accountSchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
+    const { errorResponse } = await requireApiAuth(ACCOUNTING_READ_ROLES);
+    if (errorResponse) return errorResponse;
+
     const searchParams = req.nextUrl.searchParams;
     const type = searchParams.get('type');
     const search = searchParams.get('search');
@@ -59,6 +63,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const { errorResponse } = await requireApiAuth(ACCOUNTING_WRITE_ROLES);
+    if (errorResponse) return errorResponse;
+
     const body = await req.json();
     const validatedData = accountSchema.parse(body);
 
@@ -82,7 +89,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Data tidak valid', details: error.errors },
+        { error: 'Data tidak valid', details: error.issues },
         { status: 400 }
       );
     }

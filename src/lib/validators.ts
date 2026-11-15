@@ -21,7 +21,7 @@ export const journalEntryLineSchema = z.object({
 });
 
 export const journalEntrySchema = z.object({
-  date: z.date({ required_error: "Tanggal wajib diisi" }),
+  date: z.date({ error: "Tanggal wajib diisi" }),
   reference: z.string().optional(),
   description: z.string().min(1, "Deskripsi wajib diisi"),
   lines: z.array(journalEntryLineSchema).min(2, "Minimal 2 baris jurnal"),
@@ -51,8 +51,8 @@ export const invoiceLineSchema = z.object({
 
 export const invoiceSchema = z.object({
   customerId: z.string().min(1, "Pelanggan wajib dipilih"),
-  date: z.date({ required_error: "Tanggal wajib diisi" }),
-  dueDate: z.date({ required_error: "Jatuh tempo wajib diisi" }),
+  date: z.date({ error: "Tanggal wajib diisi" }),
+  dueDate: z.date({ error: "Jatuh tempo wajib diisi" }),
   reference: z.string().optional(),
   lines: z.array(invoiceLineSchema).min(1, "Minimal 1 baris produk"),
 });
@@ -64,7 +64,7 @@ export const billSchema = invoiceSchema.extend({
 export const paymentSchema = z.object({
   invoiceId: z.string().min(1, "Faktur wajib dipilih"),
   bankAccountId: z.string().min(1, "Akun kas/bank wajib dipilih"),
-  date: z.date({ required_error: "Tanggal bayar wajib diisi" }),
+  date: z.date({ error: "Tanggal bayar wajib diisi" }),
   amount: z.number().min(1, "Jumlah bayar harus lebih dari 0"),
   reference: z.string().optional(),
 });

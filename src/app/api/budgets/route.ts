@@ -1,25 +1,24 @@
 import { NextResponse } from 'next/server';
+import { BudgetStatus } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
+import { ACCOUNTING_READ_ROLES, ACCOUNTING_WRITE_ROLES, requireApiAuth } from '@/lib/auth-check';
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { errorResponse } = await requireApiAuth(ACCOUNTING_READ_ROLES);
+    if (errorResponse) return errorResponse;
 
     const budgets = await prisma.budget.findMany({
       include: {
-        lines: true
+        lines: true,
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
 
-    const enriched = budgets.map(b => ({
+    const enriched = budgets.map((b) => ({
       ...b,
       totalBudget: b.lines.reduce((sum, l) => sum + l.totalAmount, 0),
-      // Mocking total realization for the list view to keep it fast
-      totalRealized: 0, 
+      totalRealized: 0,
     }));
 
     return NextResponse.json(enriched);
@@ -31,13 +30,13 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { errorResponse } = await requireApiAuth(ACCOUNTING_WRITE_ROLES);
+    if (errorResponse) return errorResponse;
 
     const body = await request.json();
     const { name, fiscalPeriodId, status, lines } = body;
 
-    if (!name || !fiscalPeriodId || !lines || lines.length === 0) {
+    if (!name || !fiscalPeriodId || !Array.isArray(lines) || lines.length === 0) {
       return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
     }
 
@@ -45,15 +44,17 @@ export async function POST(request: Request) {
       data: {
         name,
         fiscalPeriodId,
-        status: status || 'DRAFT',
+        status: (status as BudgetStatus) || 'DRAFT',
         lines: {
-          create: lines.map((l: any) => ({
+          create: lines.map((l: { accountId: string; monthlyAmounts: number[] }) => ({
             accountId: l.accountId,
             monthlyAmounts: l.monthlyAmounts,
-            totalAmount: l.monthlyAmounts.reduce((a:number,b:number)=>a+b, 0)
-          }))
-        }
-      }
+            totalAmount: Array.isArray(l.monthlyAmounts)
+              ? l.monthlyAmounts.reduce((a, b) => a + (Number(b) || 0), 0)
+              : 0,
+          })),
+        },
+      },
     });
 
     return NextResponse.json(budget, { status: 201 });

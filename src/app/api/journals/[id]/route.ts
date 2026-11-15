@@ -1,11 +1,21 @@
 import { NextResponse } from "next/server";
+import { JournalStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { ACCOUNTING_READ_ROLES, ACCOUNTING_WRITE_ROLES, requireApiAuth } from "@/lib/auth-check";
+import {
+  assertFiscalPeriodOpen,
+  FiscalPeriodClosedError,
+  validateJournalLines,
+} from "@/lib/accounting-server";
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
+    const { errorResponse } = await requireApiAuth(ACCOUNTING_READ_ROLES);
+    if (errorResponse) return errorResponse;
+
     const { id } = await Promise.resolve(params);
 
     const journal = await prisma.journalEntry.findFirst({
@@ -43,6 +53,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
+    const { session, errorResponse } = await requireApiAuth(ACCOUNTING_WRITE_ROLES);
+    if (errorResponse) return errorResponse;
+
     const { id } = await Promise.resolve(params);
     const body = await request.json();
     const { date, description, reference, lines, status } = body;
@@ -60,58 +73,67 @@ export async function PUT(
       );
     }
 
-    if (existing.status === "VOID") {
+    if (existing.status !== "DRAFT") {
       return NextResponse.json(
-        { error: "Jurnal berstatus VOID tidak dapat diedit" },
-        { status: 400 }
-      );
-    }
-
-    if (!lines || lines.length < 2) {
-      return NextResponse.json(
-        { error: "Jurnal harus memiliki minimal 2 baris akun" },
-        { status: 400 }
-      );
-    }
-
-    const totalDebit = lines.reduce((sum: number, line: any) => sum + (Number(line.debit) || 0), 0);
-    const totalCredit = lines.reduce((sum: number, line: any) => sum + (Number(line.credit) || 0), 0);
-
-    if (Math.abs(totalDebit - totalCredit) > 0.01) {
-      return NextResponse.json(
-        { error: "Total Debit dan Kredit harus seimbang (balance)" },
-        { status: 400 }
-      );
-    }
-
-    // Delete existing lines
-    await prisma.journalEntryLine.deleteMany({
-      where: { journalEntryId: existing.id },
-    });
-
-    const updated = await prisma.journalEntry.update({
-      where: { id: existing.id },
-      data: {
-        date: new Date(date),
-        description,
-        reference: reference || null,
-        totalDebit,
-        totalCredit,
-        ...(status && ["DRAFT", "POSTED"].includes(status) ? { status } : {}),
-        lines: {
-          create: lines.map((line: any) => ({
-            accountId: line.accountId,
-            description: line.description || "",
-            debit: Number(line.debit) || 0,
-            credit: Number(line.credit) || 0,
-          })),
+        {
+          error:
+            existing.status === "VOID"
+              ? "Jurnal berstatus VOID tidak dapat diedit"
+              : "Jurnal yang sudah POSTED tidak dapat diedit langsung. Kembalikan ke Draft terlebih dahulu.",
         },
-      },
-      include: { lines: true },
+        { status: 400 }
+      );
+    }
+
+    const validation = validateJournalLines(lines);
+    if (!validation.valid) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
+    }
+
+    const txDate = new Date(date);
+    if (Number.isNaN(txDate.getTime())) {
+      return NextResponse.json({ error: "Format tanggal tidak valid" }, { status: 400 });
+    }
+
+    const targetStatus: JournalStatus | undefined =
+      status && ["DRAFT", "POSTED"].includes(status) ? (status as JournalStatus) : undefined;
+
+    const updated = await prisma.$transaction(async (tx) => {
+      await assertFiscalPeriodOpen(tx, existing.date);
+      await assertFiscalPeriodOpen(tx, txDate);
+
+      await tx.journalEntryLine.deleteMany({
+        where: { journalEntryId: existing.id },
+      });
+
+      return tx.journalEntry.update({
+        where: { id: existing.id },
+        data: {
+          date: txDate,
+          description: String(description),
+          reference: reference || null,
+          totalDebit: validation.totalDebit,
+          totalCredit: validation.totalCredit,
+          ...(targetStatus ? { status: targetStatus } : {}),
+          ...(targetStatus === "POSTED" ? { approvedById: session.user.id } : {}),
+          lines: {
+            create: lines.map((line: { accountId: string; description?: string; debit?: number; credit?: number }) => ({
+              accountId: line.accountId,
+              description: line.description || "",
+              debit: Number(line.debit) || 0,
+              credit: Number(line.credit) || 0,
+            })),
+          },
+        },
+        include: { lines: true },
+      });
     });
 
     return NextResponse.json({ journal: updated });
   } catch (error) {
+    if (error instanceof FiscalPeriodClosedError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     console.error("Error updating journal:", error);
     return NextResponse.json(
       { error: "Gagal memperbarui jurnal" },
@@ -125,6 +147,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
+    const { errorResponse } = await requireApiAuth(ACCOUNTING_WRITE_ROLES);
+    if (errorResponse) return errorResponse;
+
     const { id } = await Promise.resolve(params);
 
     const existing = await prisma.journalEntry.findFirst({
@@ -147,12 +172,18 @@ export async function DELETE(
       );
     }
 
-    await prisma.journalEntry.delete({
-      where: { id: existing.id },
+    await prisma.$transaction(async (tx) => {
+      await assertFiscalPeriodOpen(tx, existing.date);
+      await tx.journalEntry.delete({
+        where: { id: existing.id },
+      });
     });
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof FiscalPeriodClosedError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     console.error("Error deleting journal:", error);
     return NextResponse.json(
       { error: "Gagal menghapus jurnal" },

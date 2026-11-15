@@ -32,7 +32,9 @@ import {
   GraduationCap,
   RefreshCw,
   Landmark,
+  TrendingUp,
 } from "lucide-react";
+import IyrcPnLTab from "@/components/cashflow/IyrcPnLTab";
 import {
   addIyrcParticipant,
   updateIyrcParticipant,
@@ -58,7 +60,7 @@ import {
 } from "@/lib/iyrc-utils";
 
 export default function IyrcClientPage({ initialData }: { initialData?: any }) {
-  const [activeTab, setActiveTab] = useState<"rab" | "kontingen" | "pelatihan" | "itinerary" | "invitation" | "whatsapp">("rab");
+  const [activeTab, setActiveTab] = useState<"rab" | "pnl" | "kontingen" | "pelatihan" | "itinerary" | "invitation" | "whatsapp">("rab");
 
   // State Peserta & Budget Items
   const [participants, setParticipants] = useState<any[]>(initialData?.participants || []);
@@ -477,6 +479,17 @@ Demikian kami sampaikan. Terima kasih atas kerja sama dan dukungan Bapak/Ibu! ðŸ
             <Calculator size={15} /> RAB & Simulasi Dinamis
           </button>
           <button
+            onClick={() => setActiveTab("pnl")}
+            className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === "pnl" ? "bg-white text-indigo-900 shadow-md font-bold" : "text-white/80 hover:bg-white/10"
+            }`}
+          >
+            <TrendingUp size={15} /> Laba Rugi &amp; Pengeluaran
+            <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-200 text-[10px] font-bold">
+              upNov10
+            </span>
+          </button>
+          <button
             onClick={() => setActiveTab("kontingen")}
             className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 whitespace-nowrap ${
               activeTab === "kontingen" ? "bg-white text-indigo-900 shadow-md font-bold" : "text-white/80 hover:bg-white/10"
@@ -518,6 +531,15 @@ Demikian kami sampaikan. Terima kasih atas kerja sama dan dukungan Bapak/Ibu! ðŸ
           </button>
         </div>
       </div>
+
+      {/* ==================== TAB PNL: LABA RUGI & PENGELUARAN (upNov10) ==================== */}
+      {activeTab === "pnl" && (
+        <IyrcPnLTab
+          iyrcProject={initialData?.iyrcProject}
+          initialTransactions={initialData?.iyrcTransactions || []}
+          coaAccounts={initialData?.coaAccounts || []}
+        />
+      )}
 
       {/* ==================== TAB 1: RAB & SIMULASI DINAMIS ==================== */}
       {activeTab === "rab" && (
@@ -635,7 +657,7 @@ Demikian kami sampaikan. Terima kasih atas kerja sama dan dukungan Bapak/Ibu! ðŸ
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1">
                   {studyTour
-                    ? `Termasuk Add-on Study Tour +${formatCurrency(currentSimulation.subtotalStudyTour)}`
+                    ? `Termasuk Add-on Study Tour +${formatCurrency(currentSimulation.studyTour.total)}`
                     : `Paket Kompetisi (${simSiswa} Siswa + ${simPendamping} Pendamping) Â· Tanpa Study Tour`}
                 </p>
               </CardContent>

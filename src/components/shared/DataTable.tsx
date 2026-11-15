@@ -2,7 +2,13 @@
 
 import * as React from "react"
 import { Input } from "@/components/ui/input"
-import { Select } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import {
   Table,
@@ -164,18 +170,21 @@ export function DataTable<T>({
         <div className="flex items-center gap-2 text-sm text-gray-600">
           <span>Tampilkan</span>
           <Select
-            className="w-20 h-8"
             value={pageSize.toString()}
-            onChange={(e) => {
-              setPageSize(Number(e.target.value))
+            onValueChange={(value) => {
+              setPageSize(Number(value))
               setPage(1)
             }}
-            options={[
-              { label: "10", value: "10" },
-              { label: "25", value: "25" },
-              { label: "50", value: "50" },
-            ]}
-          />
+          >
+            <SelectTrigger className="w-20 h-8">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="25">25</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+            </SelectContent>
+          </Select>
           <span>data per halaman</span>
         </div>
 

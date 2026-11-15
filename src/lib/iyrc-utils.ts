@@ -619,3 +619,257 @@ export function terbilang(n: number): string {
   const s = f(n).trim().replace(/\s+/g, " ");
   return s.charAt(0).toUpperCase() + s.slice(1) + " rupiah";
 }
+
+// ==================== LABA RUGI & PAGU IYRC CHINA 2026 (upNov10) ====================
+
+export const IYRC_PNL_VERSION = "10 November 2026 (upNov10)";
+
+export const IYRC_PNL_ASSUMPTIONS = {
+  usdToIdr: 18500,
+  flightPerPerson: 6500000,
+  visaPerPerson: 1500000,
+  insurancePerPerson: 300000,
+  ticketVisaInsurancePerPerson: 8300000,
+  sntTravelCount: 6,
+  grethaTravelCount: 1,
+  reStaffTravelCount: 4,
+  tunasBangsaTravelCount: 0,
+  kitModalUsdPerChild: 190,
+  creativeKitModalIdrPerChild: 2000000,
+  kitCountSnt: 4,
+  kitCountGretha: 1,
+  kitCountTunasBangsa: 2,
+};
+
+export interface IyrcRevenueSeedItem {
+  budgetPos: string;
+  program: "SNT" | "GRETHA" | "TUNAS_BANGSA" | "KIT_SNT";
+  programLabel: string;
+  description: string;
+  category: string;
+  amount: number;
+  initialStatus: "PENDING" | "COMPLETED";
+  defaultDate: string;
+  vendorName: string;
+  invoiceNumber: string | null;
+  defaultAccountCode: string;
+  sourceNote: string;
+}
+
+export interface IyrcExpenseBudgetPos {
+  key: "MY_ROBOT" | "KIT_PPN" | "HOTEL" | "TIKET_VISA" | "TAMBAHAN";
+  code: string;
+  label: string;
+  shortLabel: string;
+  budgetAmount: number;
+  defaultCategory: string;
+  defaultAccountCode: string;
+  description: string;
+}
+
+export interface IyrcProgramSummaryBudget {
+  program: "SNT" | "GRETHA" | "TUNAS_BANGSA" | "KIT_SNT" | "STAF_RE";
+  label: string;
+  revenueBudget: number;
+  expenseBudget: number;
+  profitBudget: number;
+  allocationNote: string;
+}
+
+export const IYRC_REVENUE_ITEMS: IyrcRevenueSeedItem[] = [
+  {
+    budgetPos: "REV_SNT_1",
+    program: "SNT",
+    programLabel: "SNT – Kemendikdasmen",
+    description: "RAB SNT – Rincian I (kompetisi, guru, akomodasi Jakarta)",
+    category: "Pendapatan RAB SNT Rincian I",
+    amount: 146400000,
+    initialStatus: "PENDING",
+    defaultDate: "2026-11-09",
+    vendorName: "Kemendikdasmen (Program SNT Wilayah 2)",
+    invoiceNumber: "RAB-SNT-W2-R1-091126",
+    defaultAccountCode: "400.10.105",
+    sourceNote: "RAB SNT Wilayah 2, versi 9 Nov 2026",
+  },
+  {
+    budgetPos: "REV_SNT_2",
+    program: "SNT",
+    programLabel: "SNT – Kemendikdasmen",
+    description: "RAB SNT – Rincian II (visa, asuransi, perjalanan internasional)",
+    category: "Pendapatan RAB SNT Rincian II",
+    amount: 61195360,
+    initialStatus: "PENDING",
+    defaultDate: "2026-11-09",
+    vendorName: "Kemendikdasmen (Program SNT Wilayah 2)",
+    invoiceNumber: "RAB-SNT-W2-R2-091126",
+    defaultAccountCode: "400.10.105",
+    sourceNote: "RAB SNT Wilayah 2, versi 9 Nov 2026",
+  },
+  {
+    budgetPos: "REV_GRETHA",
+    program: "GRETHA",
+    programLabel: "Gretha – Pemda Kab. Kupang",
+    description: "Biaya Peserta IYRC Pemda Kupang a.n Gretha Gratia Tameno",
+    category: "Peserta IYRC Pemda Kupang",
+    amount: 47150000,
+    initialStatus: "COMPLETED",
+    defaultDate: "2026-11-11",
+    vendorName: "Pemda Kab. Kupang",
+    invoiceNumber: "INV/REX/SNT-IYRC/XI/2026/002",
+    defaultAccountCode: "400.10.104",
+    sourceNote: "INV/REX/SNT-IYRC/XI/2026/002 (Sudah Lunas)",
+  },
+  {
+    budgetPos: "REV_TUNAS_BANGSA",
+    program: "TUNAS_BANGSA",
+    programLabel: "Tunas Bangsa",
+    description: "Tunas Bangsa – 2 siswa (Benjamin & Sebastian, tidak termasuk tiket & visa)",
+    category: "Peserta IYRC Tunas Bangsa",
+    amount: 73000000,
+    initialStatus: "PENDING",
+    defaultDate: "2026-11-10",
+    vendorName: "Sekolah Tunas Bangsa",
+    invoiceNumber: "INV-IYRC-TB-2026",
+    defaultAccountCode: "400.10.104",
+    sourceNote: "2 siswa × Rp 36.500.000",
+  },
+  {
+    budgetPos: "REV_EXTEND",
+    program: "TUNAS_BANGSA",
+    programLabel: "Tunas Bangsa",
+    description: "Pak Hardian – tambahan extend paket 4D3N → 6D5N",
+    category: "Tambahan Paket IYRC",
+    amount: 6500000,
+    initialStatus: "PENDING",
+    defaultDate: "2026-11-10",
+    vendorName: "Pak Hardian (Tunas Bangsa)",
+    invoiceNumber: "EXT-IYRC-HARDIAN-2026",
+    defaultAccountCode: "400.10.104",
+    sourceNote: "Menunggu konfirmasi & transfer Pak Hardian",
+  },
+  {
+    budgetPos: "REV_KIT_SNT",
+    program: "KIT_SNT",
+    programLabel: "Pengadaan Kit SNT",
+    description: "Surat Penawaran pengadaan robot kit + creative kit SNT (termasuk PPN)",
+    category: "Penjualan Kit SNT IYRC",
+    amount: 42400000,
+    initialStatus: "PENDING",
+    defaultDate: "2026-11-10",
+    vendorName: "Pengadaan Kit SNT (Kemendikdasmen)",
+    invoiceNumber: "001/SPH/REX/XI/2026",
+    defaultAccountCode: "400.10.102",
+    sourceNote: "001/SPH/REX/XI/2026 (4 siswa × Rp 10.600.000 incl. PPN)",
+  },
+];
+
+export const IYRC_EXPENSE_BUDGET_POSITIONS: IyrcExpenseBudgetPos[] = [
+  {
+    key: "MY_ROBOT",
+    code: "Pos 2",
+    label: "Invoice MY-ROBOT WW2611-00002 (USD)",
+    shortLabel: "Invoice MY-ROBOT",
+    budgetAmount: 130795000,
+    defaultCategory: "Pos 2 - Registrasi MY-ROBOT",
+    defaultAccountCode: "600.10.027",
+    description: "$7.070 (6D5N TB $2.440, 4D3N SNT $2.120, Gretha $590, Guru SNT $960, Staf RE $960, Jully FOC) @ Rp 18.500",
+  },
+  {
+    key: "KIT_PPN",
+    code: "Pos 3",
+    label: "Robot Kit, Creative Kit & PPN Keluaran",
+    shortLabel: "Kit & PPN",
+    budgetAmount: 42806802,
+    defaultCategory: "Pos 3 - Robot Kit & PPN",
+    defaultAccountCode: "500.10.102",
+    description: "Modal kit 7 anak ($190 × Rp 18.500 + Rp 2.000.000 = Rp 38.605.000) + PPN keluaran kit SNT Rp 4.201.802",
+  },
+  {
+    key: "HOTEL",
+    code: "Pos 4",
+    label: "Hotel 88 Kedoya (Jakarta)",
+    shortLabel: "Hotel 88 Kedoya",
+    budgetAmount: 32550000,
+    defaultCategory: "Pos 4 - Akomodasi Hotel 88",
+    defaultAccountCode: "600.10.026",
+    description: "Kamar siswa putra/putri + extrabed (26 malam), Pak Chindra (10m), Pak Farid (2m), Lunch & Coffee Break 5 siswa (25h)",
+  },
+  {
+    key: "TIKET_VISA",
+    code: "Pos 5",
+    label: "Tiket Pesawat, Visa China & Asuransi",
+    shortLabel: "Tiket, Visa & Asuransi",
+    budgetAmount: 91300000,
+    defaultCategory: "Pos 5 - Tiket, Visa & Asuransi",
+    defaultAccountCode: "600.10.026",
+    description: "11 orang × Rp 8.300.000 (Tiket Rp 6,5 jt + Visa Rp 1,5 jt + Asuransi Rp 300 rb): 6 SNT, 1 Gretha, 4 Staf RE",
+  },
+  {
+    key: "TAMBAHAN",
+    code: "Pos 6",
+    label: "Biaya Tambahan / Belum Dihitung di Pagu",
+    shortLabel: "Biaya Tambahan",
+    budgetAmount: 0,
+    defaultCategory: "Pos 6 - Biaya Tambahan IYRC",
+    defaultAccountCode: "600.10.032",
+    description: "Makan malam siswa, transport bandara↔hotel Shenzhen, uang saku staf RE, honor pelatih, selisih kurs & fee transfer OCBC",
+  },
+];
+
+export const IYRC_PROGRAM_BREAKDOWN: IyrcProgramSummaryBudget[] = [
+  {
+    program: "SNT",
+    label: "SNT – RAB Kemendikdasmen (Versi 9 Nov)",
+    revenueBudget: 207595360,
+    expenseBudget: 133660000,
+    profitBudget: 73935360,
+    allocationNote: "Paket MY-ROBOT 4 siswa + 2 guru, hotel (dikurangi porsi Gretha 1/5), tiket/visa/asuransi 6 orang",
+  },
+  {
+    program: "GRETHA",
+    label: "Gretha – Pemda Kab. Kupang",
+    revenueBudget: 47150000,
+    expenseBudget: 30400000,
+    profitBudget: 16750000,
+    allocationNote: "Paket MY-ROBOT, porsi 1/5 kamar siswa & lunch, tiket/visa/asuransi, kit",
+  },
+  {
+    program: "TUNAS_BANGSA",
+    label: "Tunas Bangsa – 2 Siswa + Pak Hardian",
+    revenueBudget: 79500000,
+    expenseBudget: 56170000,
+    profitBudget: 23330000,
+    allocationNote: "Paket 6D5N 2 siswa + Hardian, kit 2 siswa; pendapatan termasuk extend Rp 6,5 jt",
+  },
+  {
+    program: "KIT_SNT",
+    label: "Pengadaan Kit SNT – Surat Penawaran 001",
+    revenueBudget: 42400000,
+    expenseBudget: 26261802,
+    profitBudget: 16138198,
+    allocationNote: "Modal kit 4 siswa + PPN keluaran disetor (Rp 4.201.802)",
+  },
+  {
+    program: "STAF_RE",
+    label: "Staf RE (Biaya Bersama)",
+    revenueBudget: 0,
+    expenseBudget: 50960000,
+    profitBudget: -50960000,
+    allocationNote: "Paket Wisnu & Agung (Jully FOC), tiket/visa/asuransi 4 staf RE",
+  },
+];
+
+export const IYRC_UNBUDGETED_NOTES: string[] = [
+  "Makan malam siswa selama di Jakarta (tabel hotel hanya mencakup lunch & coffee break, sementara invoice Gretha menagih makan siang & malam).",
+  "Transport bandara ↔ hotel di Shenzhen, uang saku staf RE, dan honor pelatih internal.",
+  "Potongan pajak oleh bendahara Kemendikdasmen / Pemda (PPN & PPh).",
+  "Selisih kurs USD/IDR aktual dan biaya transfer internasional ke OCBC Malaysia.",
+];
+
+export const IYRC_PROFIT_LOSS_TOTALS = {
+  totalRevenueBudget: 376645360,
+  totalExpenseBudget: 297451802,
+  projectedProfit: 79193558,
+  projectedMarginPct: 21.0,
+};
+

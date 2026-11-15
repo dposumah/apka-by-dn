@@ -3,11 +3,45 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { GoogleGenAI } from "@google/genai";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import {
+  CASHFLOW_READ_ROLES,
+  CASHFLOW_WRITE_ROLES,
+  checkAuth,
+} from "@/lib/auth-check";
+import {
+  inferIyrcBudgetPos,
+  syncCashflowTransactionToJournal,
+} from "@/lib/cashflow-accounting";
+import { ensureIyrcPnLCashflowSeeded } from "@/actions/iyrc";
+
+export async function getCashflowAccounts() {
+  try {
+    const { error: authError } = await checkAuth(CASHFLOW_READ_ROLES);
+    if (authError) return [];
+    return await prisma.account.findMany({
+      where: {
+        isActive: true,
+        type: { in: ["REVENUE", "EXPENSE"] },
+        NOT: { code: { endsWith: ".000" } },
+      },
+      orderBy: { code: "asc" },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        type: true,
+      },
+    });
+  } catch (error) {
+    console.error("Failed to get cashflow COA accounts:", error);
+    return [];
+  }
+}
 
 export async function getCashflowProjects() {
   try {
+    const { error: authError, session } = await checkAuth(CASHFLOW_READ_ROLES);
+    if (authError) return [];
     // Ensure default projects exist
     const defaultProjects = ["Bina Insani", "ASMI", "IYRC"];
     for (const name of defaultProjects) {
@@ -17,6 +51,8 @@ export async function getCashflowProjects() {
         create: { name },
       });
     }
+
+    await ensureIyrcPnLCashflowSeeded(session?.user?.id);
     
     return await prisma.cashflowProject.findMany({
       orderBy: { name: "asc" }
@@ -29,6 +65,8 @@ export async function getCashflowProjects() {
 
 export async function getCashflowTransactions(projectId?: string, month?: number, year?: number) {
   try {
+    const { error: authError } = await checkAuth(CASHFLOW_READ_ROLES);
+    if (authError) return [];
     const where: any = {};
     if (projectId) where.projectId = projectId;
     
@@ -44,7 +82,13 @@ export async function getCashflowTransactions(projectId?: string, month?: number
     const transactions = await prisma.cashflowTransaction.findMany({
       where,
       include: {
-        project: true
+        project: true,
+        account: {
+          select: { id: true, code: true, name: true, type: true },
+        },
+        journalEntry: {
+          select: { id: true, entryNumber: true, status: true },
+        },
       },
       orderBy: { date: "desc" }
     });
@@ -93,6 +137,22 @@ function buildTransactionPersistenceData(data: any) {
     bankAddress: data.bankAddress || null,
     invoiceMetadata: data.invoiceMetadata ?? undefined,
     whatsappText: data.whatsappText || null,
+    accountId: data.accountId || null,
+    iyrcBudgetPos:
+      data.iyrcBudgetPos ||
+      inferIyrcBudgetPos({
+        type: data.type,
+        category: data.category,
+        vendorName: data.vendorName,
+        description: data.description,
+      }),
+    iyrcProgram: data.iyrcProgram || null,
+    taxWithheldAmount:
+      data.taxWithheldAmount !== undefined &&
+      data.taxWithheldAmount !== null &&
+      data.taxWithheldAmount !== ""
+        ? parseFloat(data.taxWithheldAmount)
+        : null,
   };
 }
 
@@ -100,22 +160,40 @@ function revalidateCashflowRoutes() {
   revalidatePath("/cashflow");
   revalidatePath("/cashflow/transactions");
   revalidatePath("/cashflow/laporan");
+  revalidatePath("/cashflow/iyrc");
+  revalidatePath("/jurnal");
+  revalidatePath("/buku-besar");
+  revalidatePath("/laporan/laba-rugi");
+  revalidatePath("/laporan/neraca");
+  revalidatePath("/dashboard");
 }
 
 export async function createCashflowTransaction(data: any) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return { success: false, error: "Unauthorized" };
+    const { error: authError, session } = await checkAuth(CASHFLOW_WRITE_ROLES);
+    if (authError || !session) {
+      return { success: false, error: authError || "Unauthorized" };
     }
 
     const persistenceData = buildTransactionPersistenceData(data);
-    const transaction = await prisma.cashflowTransaction.create({
-      data: {
-        ...persistenceData,
-        createdById: (session.user as any).id || null,
-      },
-      include: { project: true },
+    const transaction = await prisma.$transaction(async (tx) => {
+      const created = await tx.cashflowTransaction.create({
+        data: {
+          ...persistenceData,
+          createdById: session.user.id || null,
+        },
+      });
+
+      await syncCashflowTransactionToJournal(tx, created.id, session.user.id);
+
+      return await tx.cashflowTransaction.findUniqueOrThrow({
+        where: { id: created.id },
+        include: {
+          project: true,
+          account: { select: { id: true, code: true, name: true, type: true } },
+          journalEntry: { select: { id: true, entryNumber: true, status: true } },
+        },
+      });
     });
 
     revalidateCashflowRoutes();
@@ -128,16 +206,28 @@ export async function createCashflowTransaction(data: any) {
 
 export async function updateCashflowTransaction(id: string, data: any) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return { success: false, error: "Unauthorized" };
+    const { error: authError, session } = await checkAuth(CASHFLOW_WRITE_ROLES);
+    if (authError || !session) {
+      return { success: false, error: authError || "Unauthorized" };
     }
 
     const persistenceData = buildTransactionPersistenceData(data);
-    const transaction = await prisma.cashflowTransaction.update({
-      where: { id },
-      data: persistenceData,
-      include: { project: true },
+    const transaction = await prisma.$transaction(async (tx) => {
+      await tx.cashflowTransaction.update({
+        where: { id },
+        data: persistenceData,
+      });
+
+      await syncCashflowTransactionToJournal(tx, id, session.user.id);
+
+      return await tx.cashflowTransaction.findUniqueOrThrow({
+        where: { id },
+        include: {
+          project: true,
+          account: { select: { id: true, code: true, name: true, type: true } },
+          journalEntry: { select: { id: true, entryNumber: true, status: true } },
+        },
+      });
     });
 
     revalidateCashflowRoutes();
@@ -148,12 +238,31 @@ export async function updateCashflowTransaction(id: string, data: any) {
   }
 }
 
-export async function markCashflowTransactionPaid(id: string, paidReceiptUrl?: string) {
+export type MarkPaidOptions =
+  | string
+  | {
+      paidReceiptUrl?: string;
+      actualAmount?: number;
+      taxWithheldAmount?: number;
+      paymentMethod?: string;
+      accountId?: string;
+      paidDate?: string;
+    };
+
+export async function markCashflowTransactionPaid(
+  id: string,
+  receiptOrOptions?: MarkPaidOptions
+) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return { success: false, error: "Unauthorized" };
+    const { error: authError, session } = await checkAuth(CASHFLOW_WRITE_ROLES);
+    if (authError || !session) {
+      return { success: false, error: authError || "Unauthorized" };
     }
+
+    const opts =
+      typeof receiptOrOptions === "string"
+        ? { paidReceiptUrl: receiptOrOptions }
+        : receiptOrOptions || {};
 
     const existing = await prisma.cashflowTransaction.findUnique({ where: { id } });
     if (!existing) {
@@ -164,14 +273,44 @@ export async function markCashflowTransactionPaid(id: string, paidReceiptUrl?: s
       ? existing.whatsappText.replace("MENUNGGU TRANSFER", "LUNAS / KONFIRMASI TF")
       : existing.whatsappText;
 
-    const transaction = await prisma.cashflowTransaction.update({
-      where: { id },
-      data: {
-        status: "COMPLETED",
-        ...(paidReceiptUrl ? { receiptUrl: paidReceiptUrl } : {}),
-        ...(updatedWaText !== undefined ? { whatsappText: updatedWaText } : {}),
-      },
-      include: { project: true },
+    const actualAmount =
+      opts.actualAmount !== undefined && !Number.isNaN(Number(opts.actualAmount))
+        ? Math.max(0, Number(opts.actualAmount))
+        : existing.amount;
+    const taxWithheld =
+      opts.taxWithheldAmount !== undefined && !Number.isNaN(Number(opts.taxWithheldAmount))
+        ? Math.max(0, Number(opts.taxWithheldAmount))
+        : existing.taxWithheldAmount;
+    const paidDateObj =
+      opts.paidDate && !Number.isNaN(new Date(opts.paidDate).getTime())
+        ? new Date(opts.paidDate)
+        : existing.date;
+
+    const transaction = await prisma.$transaction(async (tx) => {
+      await tx.cashflowTransaction.update({
+        where: { id },
+        data: {
+          status: "COMPLETED",
+          amount: actualAmount,
+          date: paidDateObj,
+          ...(opts.paymentMethod ? { paymentMethod: opts.paymentMethod } : {}),
+          ...(opts.accountId ? { accountId: opts.accountId } : {}),
+          ...(taxWithheld !== undefined ? { taxWithheldAmount: taxWithheld } : {}),
+          ...(opts.paidReceiptUrl ? { receiptUrl: opts.paidReceiptUrl } : {}),
+          ...(updatedWaText !== undefined ? { whatsappText: updatedWaText } : {}),
+        },
+      });
+
+      await syncCashflowTransactionToJournal(tx, id, session.user.id);
+
+      return await tx.cashflowTransaction.findUniqueOrThrow({
+        where: { id },
+        include: {
+          project: true,
+          account: { select: { id: true, code: true, name: true, type: true } },
+          journalEntry: { select: { id: true, entryNumber: true, status: true } },
+        },
+      });
     });
 
     revalidateCashflowRoutes();
@@ -184,14 +323,31 @@ export async function markCashflowTransactionPaid(id: string, paidReceiptUrl?: s
 
 export async function deleteCashflowTransaction(id: string) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return { success: false, error: "Unauthorized" };
+    const { error: authError } = await checkAuth(CASHFLOW_WRITE_ROLES);
+    if (authError) {
+      return { success: false, error: authError };
     }
 
-    await prisma.cashflowTransaction.delete({
-      where: { id }
+    await prisma.$transaction(async (tx) => {
+      const existing = await tx.cashflowTransaction.findUnique({
+        where: { id },
+        select: { id: true, journalEntryId: true, project: { select: { name: true } } },
+      });
+
+      if (!existing) return;
+
+      await tx.cashflowTransaction.delete({ where: { id } });
+
+      if (
+        existing.journalEntryId &&
+        existing.project?.name !== "Pengadaan Starter Kit IoT 100 Kit"
+      ) {
+        await tx.journalEntry.delete({
+          where: { id: existing.journalEntryId },
+        });
+      }
     });
+
     revalidateCashflowRoutes();
     return { success: true };
   } catch (error: any) {
@@ -202,6 +358,10 @@ export async function deleteCashflowTransaction(id: string) {
 
 export async function generateCashflowInsights(transactions: any[]) {
   try {
+    const { error: authError } = await checkAuth(CASHFLOW_READ_ROLES);
+    if (authError) {
+      return { success: false, error: authError };
+    }
     let apiKey = process.env.GEMINI_API_KEY || '';
     if (apiKey.startsWith('"') && apiKey.endsWith('"')) apiKey = apiKey.slice(1, -1);
     if (!apiKey) {

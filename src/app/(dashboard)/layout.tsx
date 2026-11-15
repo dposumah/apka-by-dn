@@ -24,6 +24,10 @@ export default async function DashboardLayout({
     redirect('/login');
   }
 
+  if (session.user.role === 'FASILITATOR') {
+    redirect('/portal');
+  }
+
   return (
     <MainLayout>
       {children}

@@ -5,10 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import TransactionForm from "@/components/cashflow/TransactionForm";
 import InvoiceWhatsappModal from "@/components/cashflow/InvoiceWhatsappModal";
-import {
-  deleteCashflowTransaction,
-  markCashflowTransactionPaid,
-} from "@/actions/cashflow";
+import MarkPaidModal from "@/components/cashflow/MarkPaidModal";
+import { deleteCashflowTransaction } from "@/actions/cashflow";
 import {
   Plus,
   ArrowLeft,
@@ -28,18 +26,20 @@ import { formatForeignCurrency } from "@/lib/cashflow-invoice";
 export default function TransactionListClient({
   projects,
   initialTransactions,
+  accounts = [],
 }: {
   projects: any[];
   initialTransactions: any[];
+  accounts?: any[];
 }) {
   const router = useRouter();
   const [showForm, setShowForm] = useState(false);
   const [autoOpenScanner, setAutoOpenScanner] = useState(false);
   const [editingData, setEditingData] = useState<any>(null);
   const [waModalTx, setWaModalTx] = useState<any | null>(null);
+  const [markPaidTx, setMarkPaidTx] = useState<any | null>(null);
   const [filterProject, setFilterProject] = useState<string>("");
   const [filterStatus, setFilterStatus] = useState<"ALL" | "PENDING" | "COMPLETED">("ALL");
-  const [markingId, setMarkingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -101,22 +101,9 @@ export default function TransactionListClient({
   };
 
   const handleMarkPaid = async (id: string) => {
-    if (!confirm("Tandai tagihan ini sudah ditransfer / Lunas? Nominal akan langsung masuk realisasi Cashflow.")) {
-      return;
-    }
-    setMarkingId(id);
-    try {
-      const res = await markCashflowTransactionPaid(id);
-      if (!res.success) {
-        alert("Gagal memperbarui status: " + res.error);
-        return;
-      }
-      if (waModalTx?.id === id && res.transaction) {
-        setWaModalTx(res.transaction);
-      }
-      router.refresh();
-    } finally {
-      setMarkingId(null);
+    const target = initialTransactions.find((t) => t.id === id);
+    if (target) {
+      setMarkPaidTx(target);
     }
   };
 
@@ -285,6 +272,7 @@ export default function TransactionListClient({
           </div>
           <TransactionForm
             projects={projects}
+            accounts={accounts}
             initialData={editingData}
             autoOpenScanner={autoOpenScanner}
             onSuccess={handleFormSuccess}
@@ -377,6 +365,24 @@ export default function TransactionListClient({
                               </span>
                             </div>
                           )}
+                          {(tx.journalEntry?.entryNumber || tx.account) && (
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                              {tx.journalEntry?.entryNumber && (
+                                <Link
+                                  href={`/jurnal/${tx.journalEntry.id}`}
+                                  className="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-mono text-[10px] font-bold hover:underline"
+                                  title="Lihat Jurnal Umum di Akuntansi Utama"
+                                >
+                                  {tx.journalEntry.entryNumber}
+                                </Link>
+                              )}
+                              {tx.account && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-medium">
+                                  {tx.account.code} {tx.account.name}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-center align-top space-y-1.5">
                           <div>
@@ -453,13 +459,12 @@ export default function TransactionListClient({
                             {tx.status === "PENDING" && (
                               <button
                                 type="button"
-                                onClick={() => handleMarkPaid(tx.id)}
-                                disabled={markingId === tx.id}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-2xs cursor-pointer disabled:opacity-50"
-                                title="Tandai Sudah Ditransfer (Lunas)"
+                                onClick={() => setMarkPaidTx(tx)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-2xs cursor-pointer"
+                                title="Tandai Sudah Ditransfer / Cair (Lunas)"
                               >
                                 <CheckCircle2 size={12} />
-                                {markingId === tx.id ? "..." : "Tandai Lunas"}
+                                Tandai Lunas
                               </button>
                             )}
                             <div className="flex items-center justify-center gap-1">
@@ -495,6 +500,19 @@ export default function TransactionListClient({
         transaction={waModalTx}
         onClose={() => setWaModalTx(null)}
         onMarkPaid={handleMarkPaid}
+      />
+
+      {/* Modal Konfirmasi Pelunasan & Posting Jurnal Umum */}
+      <MarkPaidModal
+        transaction={markPaidTx}
+        accounts={accounts}
+        onClose={() => setMarkPaidTx(null)}
+        onSuccess={(updatedTx) => {
+          if (waModalTx?.id === updatedTx?.id) {
+            setWaModalTx(updatedTx);
+          }
+          router.refresh();
+        }}
       />
     </div>
   );

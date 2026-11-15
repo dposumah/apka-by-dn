@@ -1,15 +1,26 @@
 import { NextResponse } from "next/server";
+import { JournalStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { ACCOUNTING_READ_ROLES, ACCOUNTING_WRITE_ROLES, requireApiAuth } from "@/lib/auth-check";
+import {
+  assertFiscalPeriodOpen,
+  FiscalPeriodClosedError,
+  generateNextEntryNumber,
+  validateJournalLines,
+} from "@/lib/accounting-server";
 
 export async function GET(request: Request) {
   try {
+    const { errorResponse } = await requireApiAuth(ACCOUNTING_READ_ROLES);
+    if (errorResponse) return errorResponse;
+
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
     const search = searchParams.get("search");
 
-    const where: any = {};
-    if (status && status !== "ALL") {
-      where.status = status;
+    const where: Prisma.JournalEntryWhereInput = {};
+    if (status && status !== "ALL" && ["DRAFT", "POSTED", "VOID"].includes(status)) {
+      where.status = status as JournalStatus;
     }
     if (search) {
       where.OR = [
@@ -43,60 +54,68 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const { session, errorResponse } = await requireApiAuth(ACCOUNTING_WRITE_ROLES);
+    if (errorResponse) return errorResponse;
+
     const body = await request.json();
-    const { date, description, reference, status, lines } = body;
+    const { date, description, reference, status, lines, attachmentUrl } = body;
 
-    // Generate Entry Number JU-YYYY-NNNN
-    const year = new Date(date).getFullYear();
-    const startOfYear = new Date(year, 0, 1);
-    const endOfYear = new Date(year + 1, 0, 1);
-    
-    const count = await prisma.journalEntry.count({
-      where: {
-        date: {
-          gte: startOfYear,
-          lt: endOfYear,
-        }
-      }
-    });
-    const entryNumber = `JU-${year}-${String(count + 1).padStart(4, "0")}`;
-
-    const totalDebit = lines.reduce((sum: number, line: any) => sum + (line.debit || 0), 0);
-    const totalCredit = lines.reduce((sum: number, line: any) => sum + (line.credit || 0), 0);
-
-    // Validation
-    if (status === "POSTED" && totalDebit !== totalCredit) {
+    if (!date || !description) {
       return NextResponse.json(
-        { error: "Debit dan Kredit tidak seimbang" },
+        { error: "Tanggal dan keterangan jurnal wajib diisi" },
         { status: 400 }
       );
     }
 
-    const journal = await prisma.journalEntry.create({
-      data: {
-        entryNumber,
-        date: new Date(date),
-        description,
-        reference,
-        status: status || "DRAFT",
-        totalDebit,
-        totalCredit,
-        lines: {
-          create: lines.map((line: any) => ({
-            accountId: line.accountId,
-            description: line.description,
-            debit: line.debit,
-            credit: line.credit,
-          })),
+    const validation = validateJournalLines(lines);
+    if (!validation.valid) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
+    }
+
+    const txDate = new Date(date);
+    if (Number.isNaN(txDate.getTime())) {
+      return NextResponse.json({ error: "Format tanggal tidak valid" }, { status: 400 });
+    }
+
+    const targetStatus: JournalStatus =
+      status === "POSTED" ? "POSTED" : "DRAFT";
+
+    const journal = await prisma.$transaction(async (tx) => {
+      await assertFiscalPeriodOpen(tx, txDate);
+      const entryNumber = await generateNextEntryNumber(tx, "JU", txDate);
+
+      return tx.journalEntry.create({
+        data: {
+          entryNumber,
+          date: txDate,
+          description: String(description),
+          reference: reference ? String(reference) : null,
+          attachmentUrl: attachmentUrl ? String(attachmentUrl) : null,
+          status: targetStatus,
+          totalDebit: validation.totalDebit,
+          totalCredit: validation.totalCredit,
+          createdById: session.user.id,
+          approvedById: targetStatus === "POSTED" ? session.user.id : null,
+          lines: {
+            create: lines.map((line: { accountId: string; description?: string; debit?: number; credit?: number }) => ({
+              accountId: line.accountId,
+              description: line.description || "",
+              debit: Number(line.debit) || 0,
+              credit: Number(line.credit) || 0,
+            })),
+          },
         },
-      },
-      include: {
-        lines: true,
-      },
+        include: {
+          lines: true,
+        },
+      });
     });
 
     return NextResponse.json({ journal });
   } catch (error) {
+    if (error instanceof FiscalPeriodClosedError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     console.error("Error creating journal:", error);
     return NextResponse.json(
       { error: "Gagal membuat jurnal" },

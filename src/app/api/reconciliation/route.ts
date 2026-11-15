@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
+import { ACCOUNTING_WRITE_ROLES, requireApiAuth } from '@/lib/auth-check';
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { errorResponse } = await requireApiAuth(ACCOUNTING_WRITE_ROLES);
+    if (errorResponse) return errorResponse;
 
     const body = await request.json();
     const { transactionIds } = body;
@@ -17,15 +16,15 @@ export async function POST(request: Request) {
 
     await prisma.bankTransaction.updateMany({
       where: {
-        id: { in: transactionIds }
+        id: { in: transactionIds },
       },
       data: {
-        isReconciled: true
-      }
+        isReconciled: true,
+      },
     });
 
     return NextResponse.json({ success: true, message: 'Transactions reconciled' });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error reconciling transactions:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }

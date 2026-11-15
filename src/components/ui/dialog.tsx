@@ -18,12 +18,13 @@ export function Dialog({ children, open, onOpenChange }: { children: React.React
 export function DialogTrigger({ children, asChild }: { children: React.ReactNode, asChild?: boolean }) {
   const { onOpenChange } = React.useContext(DialogContext)
   if (asChild && React.isValidElement(children)) {
-    return React.cloneElement(children as React.ReactElement, {
+    const child = children as React.ReactElement<any>
+    return React.cloneElement(child, {
       onClick: (e: any) => {
-        children.props.onClick?.(e)
+        child.props?.onClick?.(e)
         onOpenChange(true)
       },
-    })
+    } as any)
   }
   return <button onClick={() => onOpenChange(true)}>{children}</button>
 }
@@ -89,12 +90,13 @@ export function DialogDescription({ className, ...props }: React.HTMLAttributes<
 export function DialogClose({ children, asChild }: { children: React.ReactNode, asChild?: boolean }) {
   const { onOpenChange } = React.useContext(DialogContext)
   if (asChild && React.isValidElement(children)) {
-    return React.cloneElement(children as React.ReactElement, {
+    const child = children as React.ReactElement<any>
+    return React.cloneElement(child, {
       onClick: (e: any) => {
-        children.props.onClick?.(e)
+        child.props?.onClick?.(e)
         onOpenChange(false)
       },
-    })
+    } as any)
   }
   return <button onClick={() => onOpenChange(false)}>{children}</button>
 }

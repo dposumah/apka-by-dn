@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { GoogleGenAI } from "@google/genai";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { id as localeId } from "date-fns/locale";
+import { ACCOUNTING_READ_ROLES, checkAuth } from "@/lib/auth-check";
 
 interface AIAnalysisResult {
   success: boolean;
@@ -26,6 +27,10 @@ interface AIAnalysisResult {
 }
 
 export async function getFinancialAIData() {
+  const { error: authError } = await checkAuth(ACCOUNTING_READ_ROLES);
+  if (authError) {
+    throw new Error(authError);
+  }
   try {
     const today = new Date();
     const currentMonthStart = startOfMonth(today);
@@ -269,6 +274,10 @@ async function callGeminiWithFallback(ai: GoogleGenAI, prompt: string): Promise<
 
 export async function generateFinancialAIAnalysis(): Promise<AIAnalysisResult> {
   try {
+    const { error: authError } = await checkAuth(ACCOUNTING_READ_ROLES);
+    if (authError) {
+      return { success: false, error: authError };
+    }
     let apiKey = process.env.GEMINI_API_KEY || "";
     if (apiKey.startsWith('"') && apiKey.endsWith('"')) apiKey = apiKey.slice(1, -1);
     if (!apiKey) {
@@ -369,6 +378,14 @@ Gunakan bahasa Indonesia yang profesional, ramah, meyakinkan, dan memberi semang
 
 export async function askFinancialAIChat(userQuestion: string): Promise<{ success: boolean; answer?: string; error?: string }> {
   try {
+    const { error: authError } = await checkAuth(ACCOUNTING_READ_ROLES);
+    if (authError) {
+      return { success: false, error: authError };
+    }
+    const sanitizedQuestion = (userQuestion || "").trim().slice(0, 1500);
+    if (!sanitizedQuestion) {
+      return { success: false, error: "Pertanyaan tidak boleh kosong" };
+    }
     let apiKey = process.env.GEMINI_API_KEY || "";
     if (apiKey.startsWith('"') && apiKey.endsWith('"')) apiKey = apiKey.slice(1, -1);
     if (!apiKey) {
@@ -391,7 +408,7 @@ DATA KEUANGAN SAAT INI:
 - Proyek KKA SNT 2026: Termin Masuk Rp ${data.sntProject.revenueIn.toLocaleString("id-ID")}, Pengeluaran Lapangan Rp ${data.sntProject.realizedExpense.toLocaleString("id-ID")}, Sisa Saldo Rp ${data.sntProject.surplusRemaining.toLocaleString("id-ID")}.
 
 PERTANYAAN PENGGUNA:
-"${userQuestion}"
+"${sanitizedQuestion}"
 
 Instruksi:
 Jawablah secara lugas, jelas, berbasis data di atas, dan berikan rekomendasi bisnis praktis. Gunakan bahasa Indonesia profesional dan format Markdown.

@@ -109,9 +109,10 @@ model Account {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  journalLines JournalEntryLine[]
-  budgetLines  BudgetLine[]
-  bankAccounts BankAccount[]
+  journalLines         JournalEntryLine[]
+  budgetLines          BudgetLine[]
+  bankAccounts         BankAccount[]
+  cashflowTransactions CashflowTransaction[]
 
   @@map("accounts")
 }
@@ -143,9 +144,14 @@ model JournalEntry {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  lines            JournalEntryLine[]
-  bankTransactions BankTransaction[]
+  lines               JournalEntryLine[]
+  bankTransactions    BankTransaction[]
+  cashflowTransaction CashflowTransaction?
 
+  @@index([date])
+  @@index([status, date])
+  @@index([fiscalPeriodId])
+  @@index([reference])
   @@map("journal_entries")
 }
 
@@ -159,6 +165,8 @@ model JournalEntryLine {
   credit         Float        @default(0)
   description    String?
 
+  @@index([journalEntryId])
+  @@index([accountId])
   @@map("journal_entry_lines")
 }
 
@@ -211,6 +219,8 @@ model Invoice {
   lines    InvoiceLine[]
   payments Payment[]
 
+  @@index([customerId])
+  @@index([status, dueDate])
   @@map("invoices")
 }
 
@@ -299,6 +309,8 @@ model Bill {
   lines    BillLine[]
   payments BillPayment[]
 
+  @@index([supplierId])
+  @@index([status, dueDate])
   @@map("bills")
 }
 
@@ -422,6 +434,8 @@ model BankTransaction {
   journalEntry   JournalEntry?       @relation(fields: [journalEntryId], references: [id])
   createdAt      DateTime            @default(now())
 
+  @@index([bankAccountId, date])
+  @@index([journalEntryId])
   @@map("bank_transactions")
 }
 
@@ -553,6 +567,7 @@ model ExpenseRequest {
   amount            Float
   description       String
   receiptUrl        String?
+  receiptUrls       String[]      @default([])
   paymentReceiptUrl String?
   date              DateTime      @default(now())
   status            ExpenseStatus @default(PENDING)
@@ -570,6 +585,9 @@ model ExpenseRequest {
   invoiceRecord  InvoiceRecord?
   paketIoT       PaketPengadaanIoT?
 
+  @@index([rabItemId, status])
+  @@index([fasilitatorId])
+  @@index([date])
   @@map("expense_requests")
 }
 
@@ -653,6 +671,9 @@ model LaporanKegiatan {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([fasilitatorId, date])
+  @@index([rekapHonorariumId])
+  @@index([statusTransport])
   @@map("laporan_kegiatan")
 }
 
@@ -680,6 +701,8 @@ model RekapHonorarium {
   kwitansiRecord KwitansiRecord[]
   invoiceRecord InvoiceRecord?
 
+  @@index([fasilitatorId, bulan])
+  @@index([bulan, status])
   @@map("rekap_honorarium")
 }
 
@@ -824,12 +847,25 @@ model CashflowTransaction {
   invoiceMetadata Json?
   whatsappText    String?           @db.Text
 
+  // Integrasi Akuntansi Utama & Pagu Proyek IYRC
+  accountId         String?
+  account           Account?          @relation(fields: [accountId], references: [id])
+  journalEntryId    String?           @unique
+  journalEntry      JournalEntry?     @relation(fields: [journalEntryId], references: [id], onDelete: SetNull)
+  iyrcBudgetPos     String?
+  iyrcProgram       String?
+  taxWithheldAmount Float?
+
   createdById     String?
   createdBy       User?             @relation(fields: [createdById], references: [id])
 
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
+  @@index([projectId, date])
+  @@index([status, type])
+  @@index([accountId])
+  @@index([iyrcBudgetPos])
   @@map("cashflow_transactions")
 }
 

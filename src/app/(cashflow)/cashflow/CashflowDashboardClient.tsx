@@ -154,7 +154,7 @@ export default function CashflowDashboardClient({ initialTransactions, projects 
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
                 <YAxis />
-                <RechartsTooltip formatter={(value: number) => `Rp ${value.toLocaleString('id-ID')}`} />
+                <RechartsTooltip formatter={(value) => `Rp ${Number(value ?? 0).toLocaleString('id-ID')}`} />
                 <Bar dataKey="amount" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -174,13 +174,13 @@ export default function CashflowDashboardClient({ initialTransactions, projects 
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="value"
-                    label={({name, percent}) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    label={({name, percent}) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
                   >
                     {pieChartData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <RechartsTooltip formatter={(value: number) => `Rp ${value.toLocaleString('id-ID')}`} />
+                  <RechartsTooltip formatter={(value) => `Rp ${Number(value ?? 0).toLocaleString('id-ID')}`} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (

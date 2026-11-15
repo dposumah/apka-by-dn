@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import { ACCOUNTING_READ_ROLES, ACCOUNTING_WRITE_ROLES, requireApiAuth } from '@/lib/auth-check';
 
 const accountSchema = z.object({
   code: z.string().min(1, 'Kode akun wajib diisi'),
@@ -15,15 +16,18 @@ const accountSchema = z.object({
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { errorResponse } = await requireApiAuth(ACCOUNTING_READ_ROLES);
+    if (errorResponse) return errorResponse;
+
+    const { id } = await params;
     const account = await prisma.account.findUnique({
       where: { id },
       include: {
         children: true,
-      }
+      },
     });
 
     if (!account) {
@@ -45,14 +49,16 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { errorResponse } = await requireApiAuth(ACCOUNTING_WRITE_ROLES);
+    if (errorResponse) return errorResponse;
+
+    const { id } = await params;
     const body = await req.json();
     const validatedData = accountSchema.parse(body);
 
-    // Prevent cyclic parent
     if (validatedData.parentId === id) {
       return NextResponse.json(
         { error: 'Akun tidak dapat menjadi induk bagi dirinya sendiri' },
@@ -60,12 +66,11 @@ export async function PUT(
       );
     }
 
-    // Check code uniqueness excluding this account
     const existingAccount = await prisma.account.findFirst({
-      where: { 
+      where: {
         code: validatedData.code,
-        NOT: { id: id }
-      }
+        NOT: { id },
+      },
     });
 
     if (existingAccount) {
@@ -84,7 +89,7 @@ export async function PUT(
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Data tidak valid', details: error.errors },
+        { error: 'Data tidak valid', details: error.issues },
         { status: 400 }
       );
     }
@@ -98,18 +103,14 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { errorResponse } = await requireApiAuth(ACCOUNTING_WRITE_ROLES);
+    if (errorResponse) return errorResponse;
 
-    // Optional: Check if account has journal entries before allowing delete
-    // const journalLines = await prisma.journalLine.findFirst({ where: { accountId: id } });
-    // if (journalLines) {
-    //   return NextResponse.json({ error: 'Akun tidak dapat dihapus karena memiliki transaksi' }, { status: 400 });
-    // }
+    const { id } = await params;
 
-    // Instead of hard delete, perform soft delete or deactivate
     const deletedAccount = await prisma.account.update({
       where: { id },
       data: { isActive: false },

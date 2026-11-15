@@ -1,17 +1,15 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
+import { ACCOUNTING_READ_ROLES, ACCOUNTING_WRITE_ROLES, requireApiAuth } from '@/lib/auth-check';
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { errorResponse } = await requireApiAuth(ACCOUNTING_READ_ROLES);
+    if (errorResponse) return errorResponse;
 
+    const { id } = await params;
     const product = await prisma.product.findUnique({
-      where: { id: params.id }
+      where: { id },
     });
 
     if (!product) {
@@ -25,18 +23,17 @@ export async function GET(request: Request, { params }: { params: { id: string }
   }
 }
 
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
+export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { errorResponse } = await requireApiAuth(ACCOUNTING_WRITE_ROLES);
+    if (errorResponse) return errorResponse;
 
+    const { id } = await params;
     const body = await request.json();
     const { name, description, category, unitOfMeasure, purchasePrice, sellingPrice, minStock, isActive } = body;
 
     const updatedProduct = await prisma.product.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         name,
         description,
@@ -45,8 +42,8 @@ export async function PUT(request: Request, { params }: { params: { id: string }
         purchasePrice: purchasePrice !== undefined ? parseFloat(purchasePrice) : undefined,
         sellingPrice: sellingPrice !== undefined ? parseFloat(sellingPrice) : undefined,
         minStock: minStock !== undefined ? parseFloat(minStock) : undefined,
-        isActive
-      }
+        isActive,
+      },
     });
 
     return NextResponse.json(updatedProduct);
@@ -56,15 +53,14 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   }
 }
 
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { errorResponse } = await requireApiAuth(ACCOUNTING_WRITE_ROLES);
+    if (errorResponse) return errorResponse;
 
+    const { id } = await params;
     await prisma.product.delete({
-      where: { id: params.id }
+      where: { id },
     });
 
     return NextResponse.json({ success: true });

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { formatRupiah } from '@/lib/utils'; // Assuming a utility exists
+import { formatRupiah } from '@/lib/format';
 
 interface Customer {
   id: string;

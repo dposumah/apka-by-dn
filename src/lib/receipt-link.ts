@@ -8,10 +8,14 @@ const PUBLIC_BASE_URL = (
 ).replace(/\/+$/, "");
 
 function getReceiptSecret(): string {
-  return (
-    process.env.NEXTAUTH_SECRET ||
-    "apka-by-dn-secret-key-2026-change-in-production"
-  );
+  const secret =
+    process.env.RECEIPT_SIGNING_SECRET || process.env.NEXTAUTH_SECRET;
+  if (!secret) {
+    throw new Error(
+      "RECEIPT_SIGNING_SECRET atau NEXTAUTH_SECRET belum dikonfigurasi."
+    );
+  }
+  return secret;
 }
 
 /**
@@ -32,11 +36,15 @@ export function verifyReceiptToken(
   token?: string | null
 ): boolean {
   if (!token) return false;
-  const expected = signReceiptToken(rekapId, type);
-  const a = Buffer.from(expected, "utf8");
-  const b = Buffer.from(token.trim(), "utf8");
-  if (a.length !== b.length) return false;
-  return crypto.timingSafeEqual(a, b);
+  try {
+    const expected = signReceiptToken(rekapId, type);
+    const a = Buffer.from(expected, "utf8");
+    const b = Buffer.from(token.trim(), "utf8");
+    if (a.length !== b.length) return false;
+    return crypto.timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
 }
 
 export function buildSignedReceiptUrl(rekapId: string, type: "h" | "t"): string {

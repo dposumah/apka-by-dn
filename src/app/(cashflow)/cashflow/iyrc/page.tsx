@@ -1,6 +1,8 @@
 import { getIyrcData } from "@/actions/iyrc";
 import IyrcClientPage from "./IyrcClientPage";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "IYRC China 2026 - Rencana Anggaran & Kontingen",
 };

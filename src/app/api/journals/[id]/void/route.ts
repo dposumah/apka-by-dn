@@ -1,79 +1,58 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { ACCOUNTING_WRITE_ROLES, requireApiAuth } from "@/lib/auth-check";
+import { assertFiscalPeriodOpen, FiscalPeriodClosedError } from "@/lib/accounting-server";
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
+    const { errorResponse } = await requireApiAuth(ACCOUNTING_WRITE_ROLES);
+    if (errorResponse) return errorResponse;
+
     const resolvedParams = await Promise.resolve(params);
     const id = resolvedParams.id;
 
-    const journal = await prisma.journalEntry.findFirst({
-      where: {
-        OR: [{ id }, { entryNumber: id }],
-      },
-      include: { lines: true },
-    });
+    // Tandai jurnal asal sebagai VOID di dalam transaksi.
+    // Seluruh laporan (neraca, laba rugi, buku besar, dashboard) hanya menghitung status POSTED,
+    // sehingga kita tidak lagi membuat jurnal pembalik berstatus POSTED yang menyebabkan double-reversal.
+    const voided = await prisma.$transaction(async (tx) => {
+      const journal = await tx.journalEntry.findFirst({
+        where: {
+          OR: [{ id }, { entryNumber: id }],
+        },
+      });
 
-    if (!journal) {
-      return NextResponse.json({ error: "Jurnal tidak ditemukan" }, { status: 404 });
-    }
-
-    if (journal.status !== "POSTED") {
-      return NextResponse.json({ error: "Hanya jurnal POSTED yang dapat dibatalkan" }, { status: 400 });
-    }
-
-    // Generate reverse entry number
-    const year = new Date().getFullYear();
-    const startOfYear = new Date(year, 0, 1);
-    const endOfYear = new Date(year + 1, 0, 1);
-    
-    const count = await prisma.journalEntry.count({
-      where: {
-        date: {
-          gte: startOfYear,
-          lt: endOfYear,
-        }
+      if (!journal) {
+        throw new Error("NOT_FOUND");
       }
-    });
-    const reverseEntryNumber = `JU-${year}-${String(count + 1).padStart(4, "0")}`;
 
-    // Transaction to void original and create reverse
-    const result = await prisma.$transaction(async (tx) => {
-      // 1. Mark original as VOID
-      await tx.journalEntry.update({
+      if (journal.status !== "POSTED") {
+        throw new Error("NOT_POSTED");
+      }
+
+      await assertFiscalPeriodOpen(tx, journal.date);
+
+      return tx.journalEntry.update({
         where: { id: journal.id },
         data: { status: "VOID" },
       });
-
-      // 2. Create reverse entry
-      const reverseEntry = await tx.journalEntry.create({
-        data: {
-          entryNumber: reverseEntryNumber,
-          date: new Date(),
-          description: `Reversal of ${journal.entryNumber}: ${journal.description}`,
-          reference: journal.entryNumber,
-          status: "POSTED", // Reverse entries are posted immediately
-          totalDebit: journal.totalCredit,
-          totalCredit: journal.totalDebit,
-          lines: {
-            create: journal.lines.map(line => ({
-              accountId: line.accountId,
-              description: `Reversal: ${line.description || journal.description}`,
-              // Swap debit and credit
-              debit: line.credit,
-              credit: line.debit,
-            }))
-          }
-        }
-      });
-
-      return reverseEntry;
     });
 
-    return NextResponse.json({ success: true, reverseEntry: result });
-  } catch (error) {
+    return NextResponse.json({ success: true, journal: voided });
+  } catch (error: unknown) {
+    if (error instanceof FiscalPeriodClosedError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    if (error instanceof Error) {
+      if (error.message === "NOT_FOUND") {
+        return NextResponse.json({ error: "Jurnal tidak ditemukan" }, { status: 404 });
+      }
+      if (error.message === "NOT_POSTED") {
+        return NextResponse.json({ error: "Hanya jurnal POSTED yang dapat dibatalkan" }, { status: 400 });
+      }
+    }
     console.error("Error voiding journal:", error);
     return NextResponse.json({ error: "Gagal membatalkan jurnal" }, { status: 500 });
   }

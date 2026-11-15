@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { ACCOUNTING_READ_ROLES, requireApiAuth } from '@/lib/auth-check';
 
 export async function GET() {
   try {
+    const { errorResponse } = await requireApiAuth(ACCOUNTING_READ_ROLES);
+    if (errorResponse) return errorResponse;
     // 1. Fetch RAB Project info
     const rabProject = await prisma.rabProject.findFirst({
       include: {

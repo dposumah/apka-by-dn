@@ -29,6 +29,11 @@ import {
   ChevronsRight
 } from 'lucide-react'
 import { uploadFileClient } from '@/lib/upload-client'
+import {
+  getEditableExpenseNotaUrls,
+  getExpenseReceiptUrls,
+  renderReceiptAttachmentPagesHtml,
+} from '@/lib/expense-receipts'
 
 interface RecentExpensesProps {
   expenses: any[]
@@ -54,7 +59,24 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
   // Edit Expense State
   const [showEditModal, setShowEditModal] = useState(false)
   const [editData, setEditData] = useState<any>(null)
-  const [newFile, setNewFile] = useState<File | null>(null)
+  const [newFiles, setNewFiles] = useState<File[]>([])
+
+  const handleAddNewFiles = (incoming: FileList | null) => {
+    if (!incoming || incoming.length === 0) return
+    const next = Array.from(incoming)
+    setNewFiles((prev) => {
+      const seen = new Set(prev.map((f) => `${f.name}:${f.size}:${f.lastModified}`))
+      const merged = [...prev]
+      for (const item of next) {
+        const key = `${item.name}:${item.size}:${item.lastModified}`
+        if (!seen.has(key)) {
+          seen.add(key)
+          merged.push(item)
+        }
+      }
+      return merged
+    })
+  }
   const [isSaving, setIsSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
@@ -217,9 +239,9 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
       amount: expense.amount || 0,
       rabItemId: expense.rabItemId || '',
       fasilitatorId: expense.fasilitatorId || '',
-      currentReceiptUrl: expense.receiptUrl || expense.paymentReceiptUrl || ''
+      keptUrls: getEditableExpenseNotaUrls(expense),
     })
-    setNewFile(null)
+    setNewFiles([])
     setShowEditModal(true)
   }
 
@@ -236,11 +258,17 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
 
     setIsSaving(true)
     try {
-      let receiptUrl = editData.currentReceiptUrl
+      const uploadedUrls: string[] = []
 
-      if (newFile) {
-        receiptUrl = await uploadFileClient(newFile, 'receipts')
+      for (const f of newFiles) {
+        const url = await uploadFileClient(f, 'receipts')
+        if (url) uploadedUrls.push(url)
       }
+
+      const finalReceiptUrls = [
+        ...(Array.isArray(editData.keptUrls) ? editData.keptUrls : []),
+        ...uploadedUrls,
+      ]
 
       const res = await updateExpense(editData.id, {
         date: new Date(editData.date),
@@ -248,7 +276,8 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
         amount: Number(editData.amount),
         rabItemId: editData.rabItemId,
         fasilitatorId: editData.fasilitatorId || undefined,
-        receiptUrl: receiptUrl || undefined
+        receiptUrls: finalReceiptUrls,
+        receiptUrl: finalReceiptUrls[0] || undefined,
       })
 
       if (res?.error) {
@@ -443,18 +472,7 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
           </div>
         </div>
 
-        ${(expense.receiptUrl || expense.paymentReceiptUrl) ? `
-        <div style="page-break-before: always; padding: 40px; font-family: sans-serif; box-sizing: border-box; width: 100%; text-align: center;">
-          <h3 style="margin-bottom: 20px;">Lampiran Bukti Pengeluaran</h3>
-          ${(expense.receiptUrl || expense.paymentReceiptUrl).toLowerCase().endsWith('.pdf') 
-            ? `<div style="padding: 20px; border: 1px solid #ccc; background-color: #f9f9f9;">
-                 <p>Lampiran ini berformat PDF.</p>
-                 <a href="${expense.receiptUrl || expense.paymentReceiptUrl}" target="_blank" style="color: blue; text-decoration: underline;">Klik di sini untuk melihat PDF Bukti</a>
-               </div>`
-            : `<img src="${expense.receiptUrl || expense.paymentReceiptUrl}" style="max-width: 100%; max-height: 900px; object-fit: contain; border: 1px solid #ccc; padding: 10px;" alt="Bukti Nota" />`
-          }
-        </div>
-        ` : ''}
+        ${renderReceiptAttachmentPagesHtml(getExpenseReceiptUrls(expense))}
       </div>
     `
   }
@@ -710,7 +728,7 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
                   </tr>
                 ) : (
                   paginatedExpenses.map((expense: any, idx: number) => {
-                    const receipt = expense.receiptUrl || expense.paymentReceiptUrl
+                    const receipts = getExpenseReceiptUrls(expense)
                     const kw = getKwitansi(expense)
                     const inv = getInvoice(expense)
                     const hasValidKwitansi = Boolean(kw && kw.noKwitansi && !kw.noKwitansi.includes('TEMP'))
@@ -804,18 +822,23 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
 
                         {/* 8. Bukti Nota */}
                         <td className="py-3 px-3 align-top text-center">
-                          {receipt ? (
-                            <a 
-                              href={receipt} 
-                              target="_blank" 
-                              rel="noreferrer" 
-                              data-preview-title={`Bukti Nota - ${expense.rabItem?.name || expense.description}`}
-                              className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded transition-colors cursor-pointer"
-                              title="Klik untuk membuka popup bukti nota"
-                            >
-                              <Paperclip className="w-3 h-3" />
-                              <span>Lihat Nota</span>
-                            </a>
+                          {receipts.length > 0 ? (
+                            <div className="flex flex-wrap items-center justify-center gap-1">
+                              {receipts.map((url, rIdx) => (
+                                <a
+                                  key={`${url}-${rIdx}`}
+                                  href={url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  data-preview-title={`Bukti Nota ${receipts.length > 1 ? `#${rIdx + 1} ` : ''}- ${expense.rabItem?.name || expense.description}`}
+                                  className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded transition-colors cursor-pointer"
+                                  title="Klik untuk membuka popup bukti nota"
+                                >
+                                  <Paperclip className="w-3 h-3" />
+                                  <span>{receipts.length === 1 ? 'Lihat Nota' : `Nota ${rIdx + 1}`}</span>
+                                </a>
+                              ))}
+                            </div>
                           ) : (
                             <span className="text-slate-400 text-[11px] italic">Tanpa Bukti</span>
                           )}
@@ -1460,30 +1483,76 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Ganti / Upload Bukti Nota (Opsional)
+                  Bukti Nota (Bisa Lebih dari 1 File)
                 </label>
-                {editData.currentReceiptUrl && (
-                  <div className="mb-2 text-xs text-blue-600 flex items-center gap-1">
-                    <span>Bukti saat ini:</span>
-                    <a 
-                      href={editData.currentReceiptUrl} 
-                      target="_blank" 
-                      rel="noreferrer" 
-                      data-preview-title="Bukti Nota Saat Ini"
-                      className="underline font-medium"
-                    >
-                      Lihat Nota Saat Ini
-                    </a>
+                {Array.isArray(editData.keptUrls) && editData.keptUrls.length > 0 && (
+                  <div className="mb-2 space-y-1 rounded-md border border-blue-100 bg-blue-50/50 p-2">
+                    <div className="text-[11px] font-medium text-slate-600">
+                      File nota tersimpan ({editData.keptUrls.length}):
+                    </div>
+                    {editData.keptUrls.map((url: string, uIdx: number) => (
+                      <div key={`${url}-${uIdx}`} className="flex items-center justify-between gap-2 text-xs">
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                          data-preview-title={`Bukti Nota #${uIdx + 1}`}
+                          className="text-blue-600 underline font-medium truncate"
+                        >
+                          Lihat Nota #{uIdx + 1}
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditData({
+                              ...editData,
+                              keptUrls: editData.keptUrls.filter((_: string, i: number) => i !== uIdx),
+                            })
+                          }
+                          className="shrink-0 text-[11px] text-red-600 hover:underline"
+                        >
+                          Hapus
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
                 <input 
                   type="file" 
                   accept="image/*,.pdf"
-                  onChange={e => setNewFile(e.target.files?.[0] || null)}
+                  multiple
+                  onChange={e => {
+                    handleAddNewFiles(e.target.files)
+                    e.target.value = ''
+                  }}
                   className="w-full text-xs border rounded-md p-1.5 bg-slate-50"
                 />
+                {newFiles.length > 0 && (
+                  <ul className="mt-2 space-y-1 rounded-md border border-slate-200 bg-slate-50 p-2">
+                    {newFiles.map((item, idx) => (
+                      <li
+                        key={`${item.name}-${item.size}-${item.lastModified}`}
+                        className="flex items-center justify-between gap-2 text-xs text-slate-700"
+                      >
+                        <span className="truncate">
+                          + {item.name}{' '}
+                          <span className="text-slate-400">
+                            ({(item.size / 1024).toFixed(0)} KB)
+                          </span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setNewFiles(prev => prev.filter((_, i) => i !== idx))}
+                          className="shrink-0 text-[11px] text-red-600 hover:underline"
+                        >
+                          Hapus
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <p className="text-[11px] text-slate-400 mt-1">
-                  Format gambar atau PDF. Kosongkan jika tidak ingin mengubah bukti nota.
+                  File baru akan ditambahkan ke daftar nota yang masih dipertahankan.
                 </p>
               </div>
             </div>

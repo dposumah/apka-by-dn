@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency, terbilangRupiah } from '@/lib/format'
 import { Badge } from '@/components/ui/badge'
+import { getExpenseReceiptUrls, renderReceiptAttachmentPagesHtml } from '@/lib/expense-receipts'
 import { DeleteExpenseButton } from './DeleteExpenseButton'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
@@ -404,18 +405,7 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
           </div>
         </div>
 
-        ${(expense.receiptUrl || expense.paymentReceiptUrl) ? `
-        <div style="page-break-before: always; padding: 40px; font-family: sans-serif; box-sizing: border-box; width: 100%; text-align: center;">
-          <h3 style="margin-bottom: 20px;">Lampiran Bukti Pengeluaran</h3>
-          ${(expense.receiptUrl || expense.paymentReceiptUrl).toLowerCase().endsWith('.pdf') 
-            ? `<div style="padding: 20px; border: 1px solid #ccc; background-color: #f9f9f9;">
-                 <p>Lampiran ini berformat PDF dan tidak dapat dicetak secara langsung dalam halaman ini.</p>
-                 <a href="${expense.receiptUrl || expense.paymentReceiptUrl}" target="_blank" style="color: blue; text-decoration: underline;">Klik di sini untuk mengunduh/melihat PDF</a>
-               </div>`
-            : `<img src="${expense.receiptUrl || expense.paymentReceiptUrl}" style="max-width: 100%; max-height: 900px; object-fit: contain; border: 1px solid #ccc; padding: 10px;" alt="Bukti Nota" />`
-          }
-        </div>
-        ` : ''}
+        ${renderReceiptAttachmentPagesHtml(getExpenseReceiptUrls(expense))}
       </div>
     `;
   }
@@ -1027,13 +1017,26 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
                     <td className="px-6 py-4">{exp.rabItem?.name || '-'}</td>
                     <td className="px-6 py-4">
                       {exp.description}
-                      {(exp.receiptUrl || exp.paymentReceiptUrl) && (
-                        <div className="mt-1">
-                          <a href={exp.receiptUrl || exp.paymentReceiptUrl} target="_blank" rel="noreferrer" data-preview-title={`Bukti Pengeluaran - ${exp.rabItem?.name || exp.description}`} className="text-blue-500 hover:underline text-xs flex items-center gap-1">
-                            📎 Lihat Nota
-                          </a>
-                        </div>
-                      )}
+                      {(() => {
+                        const receipts = getExpenseReceiptUrls(exp)
+                        if (receipts.length === 0) return null
+                        return (
+                          <div className="mt-1 flex flex-wrap gap-2">
+                            {receipts.map((url, rIdx) => (
+                              <a
+                                key={`${url}-${rIdx}`}
+                                href={url}
+                                target="_blank"
+                                rel="noreferrer"
+                                data-preview-title={`Bukti Pengeluaran ${receipts.length > 1 ? `#${rIdx + 1} ` : ''}- ${exp.rabItem?.name || exp.description}`}
+                                className="text-blue-500 hover:underline text-xs flex items-center gap-1"
+                              >
+                                📎 {receipts.length === 1 ? 'Lihat Nota' : `Nota ${rIdx + 1}`}
+                              </a>
+                            ))}
+                          </div>
+                        )
+                      })()}
                     </td>
                     <td className="px-6 py-4 font-medium">{formatCurrency(exp.amount)}</td>
                     <td className="px-6 py-4">
@@ -1833,19 +1836,28 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
                                     {formatCurrency(exp.amount)}
                                   </td>
                                   <td className="px-3 py-2 text-center whitespace-nowrap">
-                                    {(exp.receiptUrl || exp.paymentReceiptUrl) ? (
-                                      <a
-                                        href={exp.receiptUrl || exp.paymentReceiptUrl}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        data-preview-title={`Bukti Pengeluaran - ${exp.rabItem?.name || exp.description}`}
-                                        className="text-blue-600 hover:underline font-medium"
-                                      >
-                                        📎 Lihat Nota
-                                      </a>
-                                    ) : (
-                                      <span className="text-slate-400">-</span>
-                                    )}
+                                    {(() => {
+                                      const receipts = getExpenseReceiptUrls(exp)
+                                      if (receipts.length === 0) {
+                                        return <span className="text-slate-400">-</span>
+                                      }
+                                      return (
+                                        <div className="flex flex-wrap items-center justify-center gap-1.5">
+                                          {receipts.map((url, rIdx) => (
+                                            <a
+                                              key={`${url}-${rIdx}`}
+                                              href={url}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              data-preview-title={`Bukti Pengeluaran ${receipts.length > 1 ? `#${rIdx + 1} ` : ''}- ${exp.rabItem?.name || exp.description}`}
+                                              className="text-blue-600 hover:underline font-medium"
+                                            >
+                                              📎 {receipts.length === 1 ? 'Lihat Nota' : `Nota ${rIdx + 1}`}
+                                            </a>
+                                          ))}
+                                        </div>
+                                      )
+                                    })()}
                                   </td>
                                   <td className="px-3 py-2 text-center whitespace-nowrap">
                                     <div className="flex items-center justify-center gap-1.5">

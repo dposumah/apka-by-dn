@@ -1,19 +1,21 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { ACCOUNTING_READ_ROLES, ACCOUNTING_WRITE_ROLES, requireApiAuth } from '@/lib/auth-check';
 
 export async function GET() {
   try {
-    // There should ideally only be one company profile.
+    const { errorResponse } = await requireApiAuth(ACCOUNTING_READ_ROLES);
+    if (errorResponse) return errorResponse;
+
     let company = await prisma.company.findFirst();
-    
-    // If no company exists, return a default mock object or create one
+
     if (!company) {
       company = await prisma.company.create({
         data: {
           name: 'APKA BY DN',
           address: '',
-          npwp: ''
-        }
+          npwp: '',
+        },
       });
     }
 
@@ -26,6 +28,9 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const { errorResponse } = await requireApiAuth(ACCOUNTING_WRITE_ROLES);
+    if (errorResponse) return errorResponse;
+
     const data = await req.json();
     let company = await prisma.company.findFirst();
 
@@ -38,7 +43,7 @@ export async function POST(req: Request) {
           phone: data.phone,
           email: data.email,
           npwp: data.npwp,
-        }
+        },
       });
     } else {
       company = await prisma.company.create({
@@ -48,7 +53,7 @@ export async function POST(req: Request) {
           phone: data.phone,
           email: data.email,
           npwp: data.npwp,
-        }
+        },
       });
     }
 

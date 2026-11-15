@@ -2,9 +2,12 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
+import { ACCOUNTING_READ_ROLES, requireApiAuth } from '@/lib/auth-check';
 
 export async function GET(request: Request) {
   try {
+    const { errorResponse } = await requireApiAuth(ACCOUNTING_READ_ROLES);
+    if (errorResponse) return errorResponse;
     const { searchParams } = new URL(request.url);
     const today = new Date();
 

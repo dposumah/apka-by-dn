@@ -38,12 +38,13 @@ export function DropdownMenuTrigger({ children, asChild }: { children: React.Rea
   if (!context) throw new Error("DropdownMenuTrigger must be used within DropdownMenu")
 
   if (asChild && React.isValidElement(children)) {
-    return React.cloneElement(children as React.ReactElement, {
+    const child = children as React.ReactElement<any>
+    return React.cloneElement(child, {
       onClick: (e: any) => {
-        children.props.onClick?.(e)
+        child.props?.onClick?.(e)
         context.setOpen(!context.open)
       },
-    })
+    } as any)
   }
 
   return (

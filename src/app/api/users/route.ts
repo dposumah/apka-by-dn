@@ -1,22 +1,26 @@
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { NextResponse } from 'next/server';
+import { UserRole } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
+import { ADMIN_ONLY_ROLES, requireApiAuth } from '@/lib/auth-check';
+
+const VALID_ROLES = new Set<UserRole>(['ADMIN', 'ACCOUNTANT', 'VIEWER', 'KORWIL', 'FASILITATOR']);
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || (session.user.role !== 'SUPER_ADMIN' && session.user.role !== 'ADMIN')) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { errorResponse } = await requireApiAuth(ADMIN_ONLY_ROLES);
+    if (errorResponse) return errorResponse;
+
     const users = await prisma.user.findMany({
       select: {
         id: true,
         name: true,
         email: true,
         role: true,
+        isActive: true,
         createdAt: true,
       },
-      orderBy: { createdAt: 'asc' }
+      orderBy: { createdAt: 'asc' },
     });
     return NextResponse.json(users);
   } catch (error) {
@@ -27,6 +31,9 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const { errorResponse } = await requireApiAuth(ADMIN_ONLY_ROLES);
+    if (errorResponse) return errorResponse;
+
     const data = await req.json();
     const { name, email, password, role } = data;
 
@@ -34,9 +41,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Nama, Email, dan Password wajib diisi' }, { status: 400 });
     }
 
-    // Check if user already exists
+    if (typeof password !== 'string' || password.length < 6) {
+      return NextResponse.json({ error: 'Password minimal 6 karakter' }, { status: 400 });
+    }
+
+    const targetRole: UserRole =
+      role && VALID_ROLES.has(role as UserRole) ? (role as UserRole) : 'VIEWER';
+
     const existingUser = await prisma.user.findUnique({
-      where: { email }
+      where: { email: String(email).trim() },
     });
 
     if (existingUser) {
@@ -47,17 +60,17 @@ export async function POST(req: Request) {
 
     const user = await prisma.user.create({
       data: {
-        name,
-        email,
+        name: String(name).trim(),
+        email: String(email).trim(),
         password: hashedPassword,
-        role: role || 'STAFF',
+        role: targetRole,
       },
       select: {
         id: true,
         name: true,
         email: true,
-        role: true
-      }
+        role: true,
+      },
     });
 
     return NextResponse.json(user, { status: 201 });

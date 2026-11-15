@@ -99,7 +99,7 @@ export default function LaporanBulananClient({ rekaps }: { rekaps: any[] }) {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="bulan" />
                     <YAxis />
-                    <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                    <Tooltip formatter={(value) => formatCurrency(Number(value ?? 0))} />
                     <Legend />
                     <Bar dataKey="totalHonor" name="Honorarium" stackId="a" fill="#3b82f6" />
                     <Bar dataKey="totalTransport" name="Transport" stackId="a" fill="#10b981" />

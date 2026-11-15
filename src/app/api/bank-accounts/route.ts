@@ -1,15 +1,14 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
+import { ACCOUNTING_READ_ROLES, ACCOUNTING_WRITE_ROLES, requireApiAuth } from '@/lib/auth-check';
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { errorResponse } = await requireApiAuth(ACCOUNTING_READ_ROLES);
+    if (errorResponse) return errorResponse;
 
     const accounts = await prisma.bankAccount.findMany({
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
 
     return NextResponse.json(accounts);
@@ -21,8 +20,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { errorResponse } = await requireApiAuth(ACCOUNTING_WRITE_ROLES);
+    if (errorResponse) return errorResponse;
 
     const body = await request.json();
     const { name, bankName, accountNumber, balance, accountId } = body;
@@ -37,8 +36,8 @@ export async function POST(request: Request) {
         bankName,
         accountNumber,
         balance: parseFloat(balance) || 0,
-        accountId: accountId || null
-      }
+        accountId: accountId || null,
+      },
     });
 
     return NextResponse.json(newAccount, { status: 201 });

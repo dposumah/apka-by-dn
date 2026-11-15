@@ -3,35 +3,48 @@
 import * as React from "react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
-import { signOut } from "next-auth/react"
+import { signOut, useSession } from "next-auth/react"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import { Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useModal } from '@/components/modal-provider';
+import { useModal } from "@/components/modal-provider"
 
 export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const pathname = usePathname()
-  const [companyName, setCompanyName] = React.useState('Memuat...');
-  const [isLoggingOut, setIsLoggingOut] = React.useState(false);
-  
+  const { data: session } = useSession()
+  const { confirm } = useModal()
+  const [companyName, setCompanyName] = React.useState("Memuat...")
+  const [isLoggingOut, setIsLoggingOut] = React.useState(false)
+
+  const userName = session?.user?.name || "Pengguna"
+  const userEmail = session?.user?.email || ""
+  const userInitials =
+    userName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() || "")
+      .join("") || "AP"
+
   React.useEffect(() => {
-    fetch('/api/settings')
-      .then(res => res.json())
-      .then(data => {
+    fetch("/api/settings")
+      .then((res) => res.json())
+      .then((data) => {
         if (data && data.name) {
-          setCompanyName(data.name);
+          setCompanyName(data.name)
         } else {
-          setCompanyName('Perusahaan');
+          setCompanyName("Perusahaan")
         }
       })
-      .catch(() => setCompanyName('Perusahaan'));
-  }, []);
+      .catch(() => setCompanyName("Perusahaan"))
+  }, [])
 
   // Format pathname to breadcrumb
-  const segments = pathname?.split('/').filter(Boolean) || []
-  const breadcrumb = segments.length > 0 
-    ? segments.map(s => s.charAt(0).toUpperCase() + s.slice(1).replace(/-/g, ' ')).join(' / ')
-    : 'Dashboard'
+  const segments = pathname?.split("/").filter(Boolean) || []
+  const breadcrumb =
+    segments.length > 0
+      ? segments.map((s) => s.charAt(0).toUpperCase() + s.slice(1).replace(/-/g, " ")).join(" / ")
+      : "Dashboard"
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b bg-white px-4 md:px-6">
@@ -43,22 +56,22 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
       </div>
 
       <div className="flex items-center gap-2 md:gap-4">
-        <Link 
-          href="/laporan" 
+        <Link
+          href="/laporan"
           className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md transition-colors"
         >
           <span>📑</span>
           <span className="hidden sm:inline">Laporan Keuangan</span>
         </Link>
-        <Link 
-          href="/analisis-ai" 
+        <Link
+          href="/analisis-ai"
           className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-md transition-colors"
         >
           <span>✨</span>
           <span className="hidden sm:inline">Analisis AI</span>
         </Link>
-        <Link 
-          href="/dashboard-rab" 
+        <Link
+          href="/dashboard-rab"
           className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-md transition-colors"
         >
           <span>🤖</span>
@@ -67,30 +80,46 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
         <Link href="/" className="text-xs sm:text-sm font-medium text-blue-600 hover:underline border-r pr-2 md:pr-4">
           &#8644; Ganti Aplikasi
         </Link>
-        <span className="text-xs sm:text-sm font-medium text-gray-600 border-r pr-2 md:pr-4 truncate max-w-[120px] sm:max-w-xs">{companyName}</span>
-        
+        <span className="text-xs sm:text-sm font-medium text-gray-600 border-r pr-2 md:pr-4 truncate max-w-[120px] sm:max-w-xs">
+          {companyName}
+        </span>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-                AD
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600 text-xs font-semibold">
+                {userInitials}
               </div>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="right" className="w-56">
             <div className="flex items-center justify-start gap-2 p-2">
               <div className="flex flex-col space-y-1 leading-none">
-                <p className="font-medium">Admin Utama</p>
-                <p className="w-[200px] truncate text-sm text-gray-500">admin@apka.com</p>
+                <p className="font-medium truncate max-w-[200px]">{userName}</p>
+                {userEmail && <p className="w-[200px] truncate text-sm text-gray-500">{userEmail}</p>}
               </div>
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Profil</DropdownMenuItem>
-            <DropdownMenuItem>Pengaturan</DropdownMenuItem>
+            <DropdownMenuItem>
+              <Link href="/pengaturan" className="w-full block">
+                Profil
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem>
+              <Link href="/pengaturan/perusahaan" className="w-full block">
+                Pengaturan
+              </Link>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem 
-              className="text-red-600 cursor-pointer" 
-              onClick={async (e) => { e.preventDefault(); if(isLoggingOut) return; if (await confirm('Apakah Anda yakin ingin keluar?')) { setIsLoggingOut(true); signOut({ callbackUrl: '/login' }); } }}
+            <DropdownMenuItem
+              className="text-red-600 cursor-pointer"
+              onClick={async () => {
+                if (isLoggingOut) return
+                if (await confirm("Apakah Anda yakin ingin keluar?")) {
+                  setIsLoggingOut(true)
+                  signOut({ callbackUrl: "/login" })
+                }
+              }}
             >
               Keluar
             </DropdownMenuItem>

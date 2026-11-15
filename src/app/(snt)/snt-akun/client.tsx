@@ -134,7 +134,11 @@ export function SntAkunClient({ user, hargaPertamax, facilitators = [] }: { user
     setNewKorwilError('')
     
     try {
-      const res = await createKorwilUser(newKorwilData.name, newKorwilData.email, newKorwilData.password)
+      const res = await createKorwilUser({
+        name: newKorwilData.name,
+        email: newKorwilData.email,
+        password: newKorwilData.password,
+      })
       if (res.error) throw new Error(res.error)
       
       setNewKorwilSuccess(true)
@@ -247,7 +251,7 @@ export function SntAkunClient({ user, hargaPertamax, facilitators = [] }: { user
         </Card>
       </div>
 
-      {['ADMIN', 'SUPER_ADMIN'].includes(user.role) && (
+      {user.role === 'ADMIN' && (
         <>
           <div className="mt-6">
             <Card>

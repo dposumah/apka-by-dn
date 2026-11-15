@@ -714,7 +714,7 @@ export default function DashboardPage() {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="name" />
                   <YAxis tickFormatter={(value) => `Rp ${value / 1000000}M`} />
-                  <RechartsTooltip formatter={(value: number) => formatCurrency(value)} />
+                  <RechartsTooltip formatter={(value) => formatCurrency(Number(value ?? 0))} />
                   <Legend />
                   <Bar dataKey="pendapatan" name="Pendapatan" fill="#10b981" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="beban" name="Beban" fill="#f43f5e" radius={[4, 4, 0, 0]} />
@@ -750,7 +750,7 @@ export default function DashboardPage() {
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
-                      <RechartsTooltip formatter={(value: number) => formatCurrency(value)} />
+                      <RechartsTooltip formatter={(value) => formatCurrency(Number(value ?? 0))} />
                       <Legend />
                     </PieChart>
                   </ResponsiveContainer>

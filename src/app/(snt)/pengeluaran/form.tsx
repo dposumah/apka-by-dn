@@ -12,6 +12,7 @@ import { formatCurrency, terbilangRupiah } from '@/lib/format'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { uploadFileClient } from '@/lib/upload-client'
+import { getExpenseReceiptUrls, renderReceiptAttachmentPagesHtml } from '@/lib/expense-receipts'
 
 export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilitators: any[] }) {
   const { toast } = useToast();
@@ -19,7 +20,24 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
   const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split('T')[0])
   const [selectedItemId, setSelectedItemId] = useState('')
   const [selectedFasilitatorId, setSelectedFasilitatorId] = useState('')
-  const [file, setFile] = useState<File | null>(null)
+  const [files, setFiles] = useState<File[]>([])
+
+  const handleAddFiles = (incoming: FileList | null) => {
+    if (!incoming || incoming.length === 0) return
+    const next = Array.from(incoming)
+    setFiles((prev) => {
+      const seen = new Set(prev.map((f) => `${f.name}:${f.size}:${f.lastModified}`))
+      const merged = [...prev]
+      for (const item of next) {
+        const key = `${item.name}:${item.size}:${item.lastModified}`
+        if (!seen.has(key)) {
+          seen.add(key)
+          merged.push(item)
+        }
+      }
+      return merged
+    })
+  }
 
   const [submittedExpense, setSubmittedExpense] = useState<any>(null)
   const [printInvoice, setPrintInvoice] = useState(false)
@@ -66,17 +84,19 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
     const description = String(formData.get('description'))
     
     try {
-      let receiptUrl = ''
+      const uploadedUrls: string[] = []
 
-      if (file) {
-        receiptUrl = await uploadFileClient(file, 'receipts')
+      for (const f of files) {
+        const url = await uploadFileClient(f, 'receipts')
+        if (url) uploadedUrls.push(url)
       }
 
       const res: any = await submitExpense({
         rabItemId: selectedItemId,
         amount,
         description,
-        receiptUrl,
+        receiptUrl: uploadedUrls[0] || undefined,
+        receiptUrls: uploadedUrls,
         userId: 'demo-user-id',
         fasilitatorId: isHonorarium ? selectedFasilitatorId : undefined,
         date: expenseDate
@@ -92,7 +112,7 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
       formElement.reset()
       setSelectedItemId('')
       setSelectedFasilitatorId('')
-      setFile(null)
+      setFiles([])
       setExpenseDate(new Date().toISOString().split('T')[0])
       
       if (expense) {
@@ -201,18 +221,7 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
           </div>
 
         </div>
-        ${expense.receiptUrl ? `
-        <div style="page-break-before: always; padding: 40px; font-family: sans-serif; box-sizing: border-box; width: 100%; text-align: center;">
-          <h3 style="margin-bottom: 20px;">Lampiran Bukti Pengeluaran</h3>
-          ${expense.receiptUrl.toLowerCase().endsWith('.pdf') 
-            ? `<div style="padding: 20px; border: 1px solid #ccc; background-color: #f9f9f9;">
-                 <p>Lampiran ini berformat PDF dan tidak dapat dicetak secara langsung dalam halaman ini.</p>
-                 <a href="${expense.receiptUrl}" target="_blank" style="color: blue; text-decoration: underline;">Klik di sini untuk mengunduh/melihat PDF</a>
-               </div>`
-            : `<img src="${expense.receiptUrl}" style="max-width: 100%; max-height: 900px; object-fit: contain; border: 1px solid #ccc; padding: 10px;" alt="Bukti Nota" />`
-          }
-        </div>
-        ` : ''}
+        ${renderReceiptAttachmentPagesHtml(getExpenseReceiptUrls(expense))}
       </div>
     `;
   }
@@ -379,13 +388,55 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
         </div>
         
         <div className="space-y-2">
-          <Label>Foto Bukti Nota (Opsional)</Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label>Foto / PDF Bukti Nota (Opsional, Bisa Lebih dari 1 File)</Label>
+            {files.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setFiles([])}
+                className="text-xs font-medium text-red-600 hover:underline"
+              >
+                Hapus Semua ({files.length})
+              </button>
+            )}
+          </div>
           <Input 
             type="file" 
-            accept="image/*" 
-            onChange={e => setFile(e.target.files?.[0] || null)}
+            accept="image/*,.pdf" 
+            multiple
+            onChange={e => {
+              handleAddFiles(e.target.files)
+              e.target.value = ''
+            }}
           />
-          <p className="text-xs text-gray-500">Otomatis diunggah ke Supabase saat form disubmit.</p>
+          {files.length > 0 && (
+            <ul className="space-y-1.5 rounded-md border border-slate-200 bg-slate-50 p-2">
+              {files.map((item, idx) => (
+                <li
+                  key={`${item.name}-${item.size}-${item.lastModified}`}
+                  className="flex items-center justify-between gap-2 text-xs text-slate-700"
+                >
+                  <span className="truncate">
+                    {idx + 1}. {item.name}{' '}
+                    <span className="text-slate-400">
+                      ({(item.size / 1024).toFixed(0)} KB)
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setFiles(prev => prev.filter((_, i) => i !== idx))}
+                    className="shrink-0 rounded px-1.5 py-0.5 text-red-600 hover:bg-red-100"
+                    title="Hapus file ini"
+                  >
+                    Hapus
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="text-xs text-gray-500">
+            Bisa memilih beberapa file sekaligus (JPG/PNG/WebP/PDF) atau menambah lagi. Otomatis diunggah ke Supabase saat form disubmit.
+          </p>
         </div>
 
         <Button type="submit" disabled={loading} className="w-full">

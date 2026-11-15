@@ -14,6 +14,14 @@ import {
   generateInvoiceWhatsAppText,
 } from "@/lib/cashflow-invoice";
 import {
+  IYRC_EXPENSE_BUDGET_POSITIONS,
+  IYRC_REVENUE_ITEMS,
+} from "@/lib/iyrc-utils";
+import {
+  inferIyrcBudgetPos,
+  suggestCashflowAccountCode,
+} from "@/lib/cashflow-accounting";
+import {
   Sparkles,
   FileUp,
   Loader2,
@@ -31,20 +39,37 @@ import {
 
 interface TransactionFormProps {
   projects: any[];
+  accounts?: any[];
   onSuccess: () => void;
   onCancel: () => void;
   initialData?: any;
   autoOpenScanner?: boolean;
+  defaultProjectId?: string;
+  defaultIyrcBudgetPos?: string;
+  defaultType?: "INCOME" | "EXPENSE";
 }
 
 export default function TransactionForm({
   projects,
+  accounts = [],
   onSuccess,
   onCancel,
   initialData,
   autoOpenScanner = false,
+  defaultProjectId,
+  defaultIyrcBudgetPos,
+  defaultType,
 }: TransactionFormProps) {
   const existingMeta: any = initialData?.invoiceMetadata || {};
+
+  const initialExpensePos = defaultIyrcBudgetPos
+    ? IYRC_EXPENSE_BUDGET_POSITIONS.find((p) => p.key === defaultIyrcBudgetPos)
+    : undefined;
+  const initialAccountId =
+    initialData?.accountId ||
+    (initialExpensePos
+      ? accounts.find((a) => a.code === initialExpensePos.defaultAccountCode)?.id || ""
+      : "");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -63,17 +88,25 @@ export default function TransactionForm({
 
   // State Data Transaksi Utama + Invoice + Rekening
   const [formData, setFormData] = useState({
-    projectId: initialData?.projectId || projects[0]?.id || "",
+    projectId: initialData?.projectId || defaultProjectId || projects[0]?.id || "",
     date: initialData?.date
       ? new Date(initialData.date).toISOString().split("T")[0]
       : new Date().toISOString().split("T")[0],
-    type: initialData?.type || "EXPENSE",
+    type: initialData?.type || defaultType || "EXPENSE",
     amount: initialData?.amount !== undefined ? String(initialData.amount) : "",
     description: initialData?.description || "",
-    category: initialData?.category || "",
+    category: initialData?.category || initialExpensePos?.defaultCategory || "",
     paymentMethod: initialData?.paymentMethod || "TRANSFER",
     status: initialData?.status || (autoOpenScanner ? "PENDING" : "COMPLETED"),
     receiptUrl: initialData?.receiptUrl || "",
+    accountId: initialAccountId,
+    iyrcBudgetPos: initialData?.iyrcBudgetPos || defaultIyrcBudgetPos || "",
+    iyrcProgram: initialData?.iyrcProgram || "",
+    taxWithheldAmount:
+      initialData?.taxWithheldAmount !== undefined &&
+      initialData?.taxWithheldAmount !== null
+        ? String(initialData.taxWithheldAmount)
+        : "",
     invoiceNumber: initialData?.invoiceNumber || "",
     vendorName: initialData?.vendorName || "",
     currency: initialData?.currency || "IDR",
@@ -304,6 +337,20 @@ export default function TransactionForm({
         parsed.suggestedPaymentOptions?.[0]?.label ||
         "Full 100%";
 
+      const inferredPos = inferIyrcBudgetPos({
+        type: "EXPENSE",
+        category: parsed.suggestedCategory || formData.category,
+        vendorName: parsed.vendorName,
+        description: parsed.summaryTitle || formData.description,
+      });
+      const suggestedCoaCode = suggestCashflowAccountCode({
+        type: "EXPENSE",
+        category: parsed.suggestedCategory || formData.category,
+        iyrcBudgetPos: inferredPos,
+        description: parsed.summaryTitle || formData.description,
+      });
+      const matchedCoa = accounts.find((a) => a.code === suggestedCoaCode);
+
       setFormData((prev) => ({
         ...prev,
         projectId: matchedProjectId,
@@ -315,6 +362,8 @@ export default function TransactionForm({
         paymentMethod: "TRANSFER",
         status: "PENDING",
         receiptUrl: uploadedUrl || prev.receiptUrl,
+        iyrcBudgetPos: inferredPos || prev.iyrcBudgetPos,
+        accountId: matchedCoa?.id || prev.accountId,
         invoiceNumber: parsed.invoiceNumber || "",
         vendorName: parsed.vendorName || "",
         currency: cur,
@@ -784,11 +833,100 @@ export default function TransactionForm({
               setFormData((prev) => ({ ...prev, paymentMethod: e.target.value }))
             }
           >
-            <option value="TRANSFER">Transfer</option>
-            <option value="BANK">Bank / Wire Transfer</option>
-            <option value="CASH">Cash</option>
+            <option value="TRANSFER">Transfer Bank BCA (111.11.101)</option>
+            <option value="BANK">Bank / Wire Transfer (111.11.101)</option>
+            <option value="CASH">Cash / Kas (111.10.101)</option>
           </select>
         </div>
+
+        {/* Pos Anggaran IYRC bila proyek = IYRC */}
+        {selectedProjectName.toUpperCase() === "IYRC" && (
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-indigo-700 mb-1">
+              Pos Laba Rugi IYRC (upNov10)
+            </label>
+            <select
+              className="block w-full rounded-xl border-indigo-300 shadow-xs border p-2.5 text-sm bg-indigo-50/40 focus:ring-2 focus:ring-indigo-500"
+              value={formData.iyrcBudgetPos}
+              onChange={(e) => {
+                const posKey = e.target.value;
+                const expPos = IYRC_EXPENSE_BUDGET_POSITIONS.find((p) => p.key === posKey);
+                const revPos = IYRC_REVENUE_ITEMS.find((r) => r.budgetPos === posKey);
+                const matchedAccCode = expPos?.defaultAccountCode || revPos?.defaultAccountCode;
+                const matchedAcc = matchedAccCode
+                  ? accounts.find((a) => a.code === matchedAccCode)
+                  : undefined;
+
+                setFormData((prev) => ({
+                  ...prev,
+                  iyrcBudgetPos: posKey,
+                  iyrcProgram: revPos?.program || prev.iyrcProgram || "GABUNGAN",
+                  category:
+                    expPos?.defaultCategory ||
+                    revPos?.category ||
+                    prev.category,
+                  accountId: matchedAcc?.id || prev.accountId,
+                }));
+              }}
+            >
+              <option value="">Otomatis deteksi pos</option>
+              {formData.type === "EXPENSE" ? (
+                IYRC_EXPENSE_BUDGET_POSITIONS.map((p) => (
+                  <option key={p.key} value={p.key}>
+                    {p.code}: {p.shortLabel}
+                  </option>
+                ))
+              ) : (
+                IYRC_REVENUE_ITEMS.map((r) => (
+                  <option key={r.budgetPos} value={r.budgetPos}>
+                    {r.programLabel}: {r.description.slice(0, 42)}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+        )}
+
+        {/* Pilihan Akun COA Akuntansi Utama */}
+        {accounts.length > 0 && (
+          <div className={selectedProjectName.toUpperCase() === "IYRC" ? "" : "md:col-span-2"}>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+              Akun Akuntansi Utama (COA → Jurnal Umum)
+            </label>
+            <select
+              className="block w-full rounded-xl border-slate-300 shadow-xs border p-2.5 text-sm bg-white focus:ring-2 focus:ring-indigo-500"
+              value={formData.accountId}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, accountId: e.target.value }))
+              }
+            >
+              <option value="">
+                Otomatis ({suggestCashflowAccountCode({
+                  type: formData.type,
+                  category: formData.category,
+                  iyrcBudgetPos: formData.iyrcBudgetPos,
+                  description: formData.description,
+                })})
+              </option>
+              {accounts
+                .filter((a) =>
+                  formData.type === "INCOME" ? a.type === "REVENUE" : a.type === "EXPENSE"
+                )
+                .map((acc) => (
+                  <option key={acc.id} value={acc.id}>
+                    {acc.code} - {acc.name}
+                  </option>
+                ))}
+            </select>
+            <span className="text-[11px] text-slate-500 mt-1 block">
+              {selectedProjectName === "Pengadaan Starter Kit IoT 100 Kit"
+                ? "Proyek Starter Kit IoT menggunakan sinkronisasi jurnal IoT khusus."
+                : formData.status === "COMPLETED"
+                ? "Status Lunas otomatis mem-posting Jurnal Umum (Buku Besar & Laba Rugi)."
+                : "Status Pending belum masuk Jurnal Umum hingga ditandai Lunas."}
+            </span>
+          </div>
+        )}
 
         <div className="md:col-span-2">
           <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">

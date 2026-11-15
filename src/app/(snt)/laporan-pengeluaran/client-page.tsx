@@ -7,6 +7,7 @@ import { formatCurrency } from '@/lib/format'
 import React, { useState, useEffect, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
+import { getExpenseReceiptUrls } from '@/lib/expense-receipts'
 import { updateExpense, deleteExpense, updateRabItem } from '@/app/actions/rab'
 import { Search, Trash2, X, AlertCircle, Loader2, Pencil } from 'lucide-react'
 
@@ -177,7 +178,7 @@ export function LaporanClientPage({
       const amount = exp.amount;
       const penerima = exp.fasilitator ? exp.fasilitator.namaLengkap : (exp.createdBy?.name || 'Lainnya');
       const status = exp.status;
-      const bukti = exp.paymentReceiptUrl || exp.receiptUrl || '';
+      const bukti = getExpenseReceiptUrls(exp).join(' | ');
       
       return [date, cat, item, desc, amount, penerima, status, bukti].join(',');
     });
@@ -517,17 +518,26 @@ export function LaporanClientPage({
                         <td className="py-2 px-4 whitespace-nowrap">{exp.fasilitator ? exp.fasilitator.namaLengkap : (exp.createdBy?.name || 'Lainnya')}</td>
                         <td className="py-2 px-4 text-right font-medium whitespace-nowrap">{formatCurrency(exp.amount)}</td>
                         <td className="py-2 px-4 text-center print:hidden whitespace-nowrap">
-                          {(exp.paymentReceiptUrl || exp.receiptUrl) ? (
-                            <a 
-                              href={exp.paymentReceiptUrl || exp.receiptUrl} 
-                              target="_blank" 
-                              rel="noreferrer"
-                              data-preview-title={`Bukti Pengeluaran - ${exp.rabItem?.name || exp.description || 'Nota'}`}
-                              className="text-blue-600 text-xs hover:underline inline-flex items-center gap-1 font-medium"
-                            >
-                              📎 Lihat
-                            </a>
-                          ) : '-'}
+                          {(() => {
+                            const receipts = getExpenseReceiptUrls(exp)
+                            if (receipts.length === 0) return '-'
+                            return (
+                              <div className="flex flex-wrap items-center justify-center gap-1.5">
+                                {receipts.map((url, rIdx) => (
+                                  <a 
+                                    key={`${url}-${rIdx}`}
+                                    href={url} 
+                                    target="_blank" 
+                                    rel="noreferrer"
+                                    data-preview-title={`Bukti Pengeluaran ${receipts.length > 1 ? `#${rIdx + 1} ` : ''}- ${exp.rabItem?.name || exp.description || 'Nota'}`}
+                                    className="text-blue-600 text-xs hover:underline inline-flex items-center gap-1 font-medium"
+                                  >
+                                    📎 {receipts.length === 1 ? 'Lihat' : `Nota ${rIdx + 1}`}
+                                  </a>
+                                ))}
+                              </div>
+                            )
+                          })()}
                         </td>
                         <td className="py-2 px-4 text-center print:hidden whitespace-nowrap">
                           <div className="flex items-center justify-center gap-1.5">

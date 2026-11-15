@@ -11,6 +11,7 @@ export interface Toast {
   title?: string
   description?: string
   type?: ToastType
+  variant?: "default" | "destructive"
   duration?: number
 }
 
@@ -78,7 +79,7 @@ export function Toaster() {
           key={t.id}
           className={cn(
             "pointer-events-auto relative flex w-full items-center justify-between space-x-2 overflow-hidden rounded-md border p-4 pr-6 shadow-lg transition-all mb-2",
-            t.type === "error" ? "bg-red-50 border-red-200 text-red-900" :
+            (t.type === "error" || t.variant === "destructive") ? "bg-red-50 border-red-200 text-red-900" :
             t.type === "success" ? "bg-green-50 border-green-200 text-green-900" :
             t.type === "warning" ? "bg-yellow-50 border-yellow-200 text-yellow-900" :
             "bg-white border-gray-200"

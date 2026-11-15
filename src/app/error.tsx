@@ -32,15 +32,10 @@ export default function Error({
           </p>
         </div>
 
-        {error?.message && (
-          <div className="p-3 rounded-lg bg-slate-100 text-left text-xs font-mono text-slate-700 break-all max-h-32 overflow-y-auto">
-            <span className="font-bold text-slate-900">Detail: </span>
-            {error.message}
-            {error.digest && (
-              <span className="block text-[10px] text-slate-400 mt-1">
-                Digest: {error.digest}
-              </span>
-            )}
+        {error?.digest && (
+          <div className="p-3 rounded-lg bg-slate-100 text-left text-xs font-mono text-slate-700 break-all">
+            <span className="font-bold text-slate-900">Kode Referensi: </span>
+            {error.digest}
           </div>
         )}
 

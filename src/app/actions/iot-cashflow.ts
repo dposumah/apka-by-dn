@@ -2,7 +2,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
-import { checkAuth } from '@/lib/auth-check'
+import { CASHFLOW_READ_ROLES, SNT_MANAGE_ROLES, checkAuth } from '@/lib/auth-check'
 
 const PROJECT_NAME = "Pengadaan Starter Kit IoT 100 Kit"
 
@@ -261,8 +261,18 @@ async function ensureIoTCashflowProjectAndSeed(userId?: string) {
  */
 export async function getIoTCashflowData() {
   try {
-    const auth = await checkAuth().catch(() => null)
-    const project = await ensureIoTCashflowProjectAndSeed(auth?.userId)
+    const { error: authError, session } = await checkAuth(CASHFLOW_READ_ROLES)
+    if (authError || !session) {
+      return {
+        success: false,
+        error: authError || 'Unauthorized',
+        totalMasuk: 0,
+        totalKeluar: 0,
+        sisaSaldo: 0,
+        transactions: []
+      }
+    }
+    const project = await ensureIoTCashflowProjectAndSeed(session.user.id)
 
     const transactions = await prisma.cashflowTransaction.findMany({
       where: { projectId: project.id },
@@ -373,53 +383,55 @@ export async function createIoTCashTransaction(data: {
   receiptUrl?: string
 }) {
   try {
-    const auth = await checkAuth().catch(() => null)
-    const userId = auth?.userId
-
-    const project = await prisma.cashflowProject.upsert({
-      where: { name: PROJECT_NAME },
-      update: {},
-      create: { name: PROJECT_NAME, description: "Buku Kas Proyek IoT 100 Kit" }
-    })
+    const { error: authError, session } = await checkAuth(SNT_MANAGE_ROLES)
+    if (authError || !session) {
+      return { success: false, error: authError || 'Unauthorized' }
+    }
+    const userId = session.user.id
 
     const trxDate = data.date ? new Date(data.date) : new Date()
 
-    const transaction = await prisma.cashflowTransaction.create({
-      data: {
-        projectId: project.id,
-        date: trxDate,
-        type: data.type,
-        amount: Math.abs(Number(data.amount)),
-        category: data.category || (data.type === 'INCOME' ? 'Penerimaan Proyek' : 'Belanja Operasional'),
-        description: data.description,
-        paymentMethod: data.paymentMethod || 'Bank BCA (111.11.101)',
-        receiptUrl: data.receiptUrl || null,
-        status: 'COMPLETED',
-        createdById: userId || null
-      }
-    })
+    const transaction = await prisma.$transaction(async (tx) => {
+      const project = await tx.cashflowProject.upsert({
+        where: { name: PROJECT_NAME },
+        update: {},
+        create: { name: PROJECT_NAME, description: "Buku Kas Proyek IoT 100 Kit" }
+      })
 
-    // Automatically synchronize into Akuntansi Utama (JournalEntry & Lines)
-    try {
-      const bcaAccount = await prisma.account.findUnique({ where: { code: '111.11.101' } })
-      const pendAccount = await prisma.account.findUnique({ where: { code: '400.10.105' } }) || await prisma.account.findUnique({ where: { code: '400.10.102' } })
-      const bebanAccount = await prisma.account.findUnique({ where: { code: '600.10.034' } })
-      const period = await prisma.fiscalPeriod.findFirst({ where: { name: '2026' } })
+      const created = await tx.cashflowTransaction.create({
+        data: {
+          projectId: project.id,
+          date: trxDate,
+          type: data.type,
+          amount: Math.abs(Number(data.amount)),
+          category: data.category || (data.type === 'INCOME' ? 'Penerimaan Proyek' : 'Belanja Operasional'),
+          description: data.description,
+          paymentMethod: data.paymentMethod || 'Bank BCA (111.11.101)',
+          receiptUrl: data.receiptUrl || null,
+          status: 'COMPLETED',
+          createdById: userId || null
+        }
+      })
+
+      const bcaAccount = await tx.account.findUnique({ where: { code: '111.11.101' } })
+      const pendAccount = await tx.account.findUnique({ where: { code: '400.10.105' } }) || await tx.account.findUnique({ where: { code: '400.10.102' } })
+      const bebanAccount = await tx.account.findUnique({ where: { code: '600.10.034' } })
+      const period = await tx.fiscalPeriod.findFirst({ where: { name: '2026' } })
 
       if (bcaAccount && ((data.type === 'INCOME' && pendAccount) || (data.type === 'EXPENSE' && bebanAccount))) {
         const entryNum = await getNextJournalEntryNumber()
         const isIncome = data.type === 'INCOME'
 
-        await prisma.journalEntry.create({
+        await tx.journalEntry.create({
           data: {
             entryNumber: entryNum,
             date: trxDate,
             description: `[Buku Kas IoT 100 Kit] ${data.description}`,
-            reference: `IOT-CASH-${transaction.id}`,
+            reference: `IOT-CASH-${created.id}`,
             attachmentUrl: data.receiptUrl || null,
             status: 'POSTED',
-            totalDebit: transaction.amount,
-            totalCredit: transaction.amount,
+            totalDebit: created.amount,
+            totalCredit: created.amount,
             fiscalPeriodId: period?.id || null,
             createdById: userId || null,
             lines: {
@@ -427,28 +439,28 @@ export async function createIoTCashTransaction(data: {
                 ? [
                     {
                       accountId: bcaAccount.id,
-                      debit: transaction.amount,
+                      debit: created.amount,
                       credit: 0,
                       description: `Penerimaan Kas/Bank BCA: ${data.description}`
                     },
                     {
                       accountId: pendAccount!.id,
                       debit: 0,
-                      credit: transaction.amount,
+                      credit: created.amount,
                       description: `Pendapatan Proyek IoT 100 Kit: ${data.description}`
                     }
                   ]
                 : [
                     {
                       accountId: bebanAccount!.id,
-                      debit: transaction.amount,
+                      debit: created.amount,
                       credit: 0,
                       description: `Beban Belanja Proyek IoT: ${data.description}`
                     },
                     {
                       accountId: bcaAccount.id,
                       debit: 0,
-                      credit: transaction.amount,
+                      credit: created.amount,
                       description: `Kas Keluar BCA untuk ${data.description}`
                     }
                   ]
@@ -456,9 +468,9 @@ export async function createIoTCashTransaction(data: {
           }
         })
       }
-    } catch (jErr) {
-      console.error("Non-blocking journal sync error in IoT cashflow:", jErr)
-    }
+
+      return created
+    })
 
     revalidatePath('/alat-bahan-iot')
     revalidatePath('/jurnal')
@@ -474,6 +486,11 @@ export async function createIoTCashTransaction(data: {
  */
 export async function deleteIoTCashTransaction(id: string) {
   try {
+    const { error: authError } = await checkAuth(SNT_MANAGE_ROLES)
+    if (authError) {
+      return { success: false, error: authError }
+    }
+
     const trx = await prisma.cashflowTransaction.findUnique({ where: { id } })
     if (!trx) throw new Error("Transaksi tidak ditemukan")
 
@@ -486,26 +503,22 @@ export async function deleteIoTCashTransaction(id: string) {
     else if (trx.category.includes('KEMASAN')) refKey = 'IOT-EXP-POS-C'
     else if (trx.category.includes('TAMBAHAN')) refKey = 'IOT-EXP-POS-D'
 
-    // Clean up JournalEntry in Akuntansi Utama
-    try {
-      const journal = await prisma.journalEntry.findFirst({
+    await prisma.$transaction(async (tx) => {
+      const journal = await tx.journalEntry.findFirst({
         where: { reference: refKey }
       })
       if (journal) {
-        await prisma.journalEntryLine.deleteMany({
+        await tx.journalEntryLine.deleteMany({
           where: { journalEntryId: journal.id }
         })
-        await prisma.journalEntry.delete({
+        await tx.journalEntry.delete({
           where: { id: journal.id }
         })
       }
-    } catch (jErr) {
-      console.error("Error removing journal entry:", jErr)
-    }
 
-    // Delete transaction
-    await prisma.cashflowTransaction.delete({
-      where: { id }
+      await tx.cashflowTransaction.delete({
+        where: { id }
+      })
     })
 
     revalidatePath('/alat-bahan-iot')

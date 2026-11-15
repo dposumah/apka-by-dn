@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { ACCOUNTING_READ_ROLES, requireApiAuth } from '@/lib/auth-check';
 
 export async function GET(request: Request) {
   try {
+    const { errorResponse } = await requireApiAuth(ACCOUNTING_READ_ROLES);
+    if (errorResponse) return errorResponse;
     const { searchParams } = new URL(request.url);
     const asOfDateParam = searchParams.get('asOfDate') || '2026-12-31';
     const asOfDate = new Date(asOfDateParam + 'T23:59:59.999Z');

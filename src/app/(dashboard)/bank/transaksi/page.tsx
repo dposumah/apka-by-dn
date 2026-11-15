@@ -6,8 +6,8 @@ import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 
 export default function BankTransaksiPage() {
-  const [accounts, setAccounts] = useState([]);
-  const [transactions, setTransactions] = useState([]);
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [loading, setLoading] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);

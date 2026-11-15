@@ -30,13 +30,13 @@ const accountSchema = z.object({
   code: z.string().min(1, 'Kode akun harus diisi'),
   name: z.string().min(1, 'Nama akun harus diisi'),
   type: z.enum(['ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE'], {
-    required_error: 'Tipe akun harus dipilih',
+    error: 'Tipe akun harus dipilih',
   }),
   subType: z.string().optional(),
   normalBalance: z.enum(['DEBIT', 'CREDIT']),
   parentId: z.string().optional().nullable(),
   description: z.string().optional(),
-  isActive: z.boolean().default(true),
+  isActive: z.boolean(),
 });
 
 type AccountFormValues = z.infer<typeof accountSchema>;

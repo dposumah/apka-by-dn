@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { ACCOUNTING_READ_ROLES, requireApiAuth } from "@/lib/auth-check";
 
 export async function GET(request: Request) {
   try {
+    const { errorResponse } = await requireApiAuth(ACCOUNTING_READ_ROLES);
+    if (errorResponse) return errorResponse;
     const { searchParams } = new URL(request.url);
     const dateTo = searchParams.get("dateTo");
 

@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { NormalBalance } from "@prisma/client";
+import { ACCOUNTING_READ_ROLES, requireApiAuth } from "@/lib/auth-check";
 
 export async function GET(request: Request) {
   try {
+    const { errorResponse } = await requireApiAuth(ACCOUNTING_READ_ROLES);
+    if (errorResponse) return errorResponse;
     const { searchParams } = new URL(request.url);
     const accountId = searchParams.get("accountId");
     const dateFrom = searchParams.get("dateFrom");

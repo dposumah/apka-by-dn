@@ -2,7 +2,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
-import { checkAuth } from '@/lib/auth-check'
+import { ADMIN_ONLY_ROLES, SNT_MANAGE_ROLES, checkAuth } from '@/lib/auth-check'
 import { DEFAULT_51_IOT_ITEMS, STANDARD_8_KELOMPOK, getStandardItemKemasanAndSatuan, isLikelyVendorName } from '@/lib/iot-constants'
 import { parseIotExcelWorkbook, normalizeItemName, parseStarterKit100Workbook } from '@/lib/excel-iot-parser'
 
@@ -407,7 +407,7 @@ async function syncPaketToRabCategory(paketId: string, userId?: string) {
 // ==================== QUERY PAKET IOT ====================
 
 export async function getPaketIoTList() {
-  const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN', 'ACCOUNTANT', 'KORWIL'])
+  const { error: authError } = await checkAuth(SNT_MANAGE_ROLES)
   if (authError) return []
 
   const count = await prisma.paketPengadaanIoT.count()
@@ -436,7 +436,7 @@ export async function getPaketIoTList() {
 }
 
 export async function getPaketIoTDetail(id: string) {
-  const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN', 'ACCOUNTANT', 'KORWIL'])
+  const { error: authError } = await checkAuth(SNT_MANAGE_ROLES)
   if (authError) return null
 
   return prisma.paketPengadaanIoT.findUnique({
@@ -475,7 +475,7 @@ export async function createPaketIoT(data: {
   catatan?: string
   loadDefaultTemplate?: boolean
 }) {
-  const { error: authError, session } = await checkAuth(['ADMIN', 'SUPER_ADMIN', 'ACCOUNTANT', 'KORWIL'])
+  const { error: authError, session } = await checkAuth(SNT_MANAGE_ROLES)
   if (authError) return { error: authError }
 
   try {
@@ -563,7 +563,7 @@ export async function createPaketIoT(data: {
 // ==================== UPDATE PAKET IOT ====================
 
 export async function updatePaketIoT(id: string, data: any, items?: any[]) {
-  const { error: authError, session } = await checkAuth(['ADMIN', 'SUPER_ADMIN', 'ACCOUNTANT', 'KORWIL'])
+  const { error: authError, session } = await checkAuth(SNT_MANAGE_ROLES)
   if (authError) return { error: authError }
 
   try {
@@ -650,7 +650,7 @@ export async function updatePaketIoT(id: string, data: any, items?: any[]) {
 // ==================== AUTO-SET REALISASI DARI TOTAL BELANJA ====================
 
 export async function autoSetPaketRealisasi(paketId: string, totalBelanja: number) {
-  const { error: authError, session } = await checkAuth(['ADMIN', 'SUPER_ADMIN', 'ACCOUNTANT', 'KORWIL'])
+  const { error: authError, session } = await checkAuth(SNT_MANAGE_ROLES)
   if (authError) return { error: authError }
 
   try {
@@ -722,7 +722,7 @@ export async function autoSetPaketRealisasi(paketId: string, totalBelanja: numbe
 // ==================== IMPORT EXCEL REKAP REALISASI ====================
 
 export async function importExcelPaketIoT(paketId: string, base64Data: string) {
-  const { error: authError, session } = await checkAuth(['ADMIN', 'SUPER_ADMIN', 'ACCOUNTANT', 'KORWIL'])
+  const { error: authError, session } = await checkAuth(SNT_MANAGE_ROLES)
   if (authError) return { error: authError }
 
   try {
@@ -929,7 +929,7 @@ export async function importExcelPaketIoT(paketId: string, base64Data: string) {
 // ==================== DELETE PAKET IOT ====================
 
 export async function deletePaketIoT(id: string) {
-  const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN'])
+  const { error: authError } = await checkAuth(ADMIN_ONLY_ROLES)
   if (authError) return { error: authError }
 
   try {
@@ -939,27 +939,28 @@ export async function deletePaketIoT(id: string) {
     })
     if (!existing) return { error: 'Paket tidak ditemukan' }
 
-    // Hapus RabCategory dan semua item serta expense-nya jika terhubung
-    if (existing.rabCategoryId) {
-      await prisma.rabCategory.delete({
-        where: { id: existing.rabCategoryId }
-      }).catch(() => {})
-    }
+    await prisma.$transaction(async (tx) => {
+      if (existing.rabCategoryId) {
+        await tx.rabCategory.deleteMany({
+          where: { id: existing.rabCategoryId }
+        })
+      }
 
-    if (existing.expenseRequestId) {
-      await prisma.expenseRequest.delete({
-        where: { id: existing.expenseRequestId }
-      }).catch(() => {})
-    }
+      if (existing.expenseRequestId) {
+        await tx.expenseRequest.deleteMany({
+          where: { id: existing.expenseRequestId }
+        })
+      }
 
-    if (existing.rabItemId) {
-      await prisma.rabItem.delete({
-        where: { id: existing.rabItemId }
-      }).catch(() => {})
-    }
+      if (existing.rabItemId) {
+        await tx.rabItem.deleteMany({
+          where: { id: existing.rabItemId }
+        })
+      }
 
-    await prisma.paketPengadaanIoT.delete({
-      where: { id }
+      await tx.paketPengadaanIoT.delete({
+        where: { id }
+      })
     })
 
     revalidatePath('/alat-bahan-iot')
@@ -974,6 +975,9 @@ export async function deletePaketIoT(id: string) {
 // ==================== MIGRASI KUPANG & SEEDING TIDORE ====================
 
 export async function migrateAndSeedSntCategories() {
+  const { error: authError } = await checkAuth(ADMIN_ONLY_ROLES)
+  if (authError) return
+
   try {
     const project = await prisma.rabProject.findFirst()
     if (!project) return
@@ -1137,22 +1141,7 @@ export async function migrateAndSeedSntCategories() {
         }
       })
 
-      // Cek apakah file Excel Tidore ada di Downloads untuk langsung diimport otomatis
-      try {
-        const fs = require('fs')
-        const tidoreExcelPath = 'C:\\Users\\ASUS\\Downloads\\Rekap_Pengeluaran_SNT5_Tidore.xlsx'
-        if (fs.existsSync(tidoreExcelPath)) {
-          const fileBuf = fs.readFileSync(tidoreExcelPath)
-          const base64 = fileBuf.toString('base64')
-          await importExcelPaketIoT(paketTidore.id, base64)
-          console.log('Successfully auto-imported Tidore Excel file!')
-        } else {
-          await syncPaketToRabCategory(paketTidore.id)
-        }
-      } catch (errExcel) {
-        console.error('Failed auto-importing Tidore Excel:', errExcel)
-        await syncPaketToRabCategory(paketTidore.id)
-      }
+      await syncPaketToRabCategory(paketTidore.id)
     }
   } catch (err: any) {
     console.error('Error migrateAndSeedSntCategories:', err)

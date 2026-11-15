@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { CASHFLOW_WRITE_ROLES, requireApiAuth } from "@/lib/auth-check";
 import { prisma } from "@/lib/prisma";
 import { GoogleGenAI } from "@google/genai";
 import {
@@ -185,13 +184,8 @@ function buildPaymentOptions(parsed: ParsedInvoiceData): InvoicePaymentOption[] 
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    if (session.user.role === "FASILITATOR") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    const { errorResponse } = await requireApiAuth(CASHFLOW_WRITE_ROLES);
+    if (errorResponse) return errorResponse;
 
     let apiKey = process.env.GEMINI_API_KEY || "";
     if (apiKey.startsWith('"') && apiKey.endsWith('"')) apiKey = apiKey.slice(1, -1);
@@ -225,9 +219,21 @@ export async function POST(req: Request) {
       }
       pdfBuffer = Buffer.from(await file.arrayBuffer());
     } else if (fileUrl) {
-      // Validasi SSRF: hanya izinkan URL dari Supabase Storage aplikasi ini
-      const allowedPrefix = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/+$/, "");
-      if (!allowedPrefix || !fileUrl.startsWith(allowedPrefix)) {
+      // Validasi SSRF: hanya izinkan URL dari origin Supabase Storage aplikasi ini
+      let validStorageUrl = false;
+      const supabaseBaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+      if (supabaseBaseUrl) {
+        try {
+          const allowedOrigin = new URL(supabaseBaseUrl).origin;
+          const parsedFileUrl = new URL(fileUrl);
+          validStorageUrl =
+            parsedFileUrl.origin === allowedOrigin &&
+            parsedFileUrl.pathname.startsWith("/storage/");
+        } catch {
+          validStorageUrl = false;
+        }
+      }
+      if (!validStorageUrl) {
         return NextResponse.json(
           { error: "URL file PDF tidak valid atau bukan dari storage aplikasi." },
           { status: 400 }

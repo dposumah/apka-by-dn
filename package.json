@@ -7,6 +7,7 @@
     "build": "npx prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "vitest run",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "npx ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts",
@@ -60,6 +61,7 @@
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
     "tsx": "^4.23.13",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
   }
 }

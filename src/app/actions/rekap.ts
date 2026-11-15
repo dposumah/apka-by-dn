@@ -8,13 +8,26 @@ import { revalidatePath } from 'next/cache';
 
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { checkAuth } from '@/lib/auth-check';
+import {
+  ADMIN_ONLY_ROLES,
+  CASHFLOW_READ_ROLES,
+  SNT_MANAGE_ROLES,
+  checkAuth,
+  hasAnyRole,
+} from '@/lib/auth-check';
 import { getAppSetting } from '@/app/actions/rab';
 import { hitungTotalTransportRekap, hitungTransportDenganRumusBBMDanPlafon, TransportFormulaOptions } from '@/lib/transport';
 import { buildSignedReceiptUrl } from '@/lib/receipt-link';
 
 
 export async function getAvailableMonths(fasilitatorId: string) {
+  const { error: authError, session } = await checkAuth();
+  if (authError || !session) return [];
+  if (!hasAnyRole(session.user.role, CASHFLOW_READ_ROLES)) {
+    const fasil = await prisma.fasilitator.findUnique({ where: { id: fasilitatorId }, select: { userId: true } });
+    if (!fasil || fasil.userId !== session.user.id) return [];
+  }
+
   const laporan = await prisma.laporanKegiatan.findMany({
     where: { fasilitatorId },
     select: { date: true, rekapHonorariumId: true }
@@ -43,6 +56,15 @@ export async function getAvailableMonths(fasilitatorId: string) {
 }
 
 export async function createRekapBulanan(fasilitatorId: string, bulan: string) {
+  const { error: authError, session } = await checkAuth();
+  if (authError || !session) throw new Error(authError || 'Unauthorized');
+  if (!hasAnyRole(session.user.role, SNT_MANAGE_ROLES)) {
+    const fasil = await prisma.fasilitator.findUnique({ where: { id: fasilitatorId }, select: { userId: true } });
+    if (!fasil || fasil.userId !== session.user.id) {
+      throw new Error('Forbidden');
+    }
+  }
+
   // bulan = 'YYYY-MM'
   const [year, month] = bulan.split('-');
   
@@ -50,46 +72,49 @@ export async function createRekapBulanan(fasilitatorId: string, bulan: string) {
   const endDate = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59);
 
   // Cari semua laporan di bulan ini yang belum direkap
-  const laporan = await prisma.laporanKegiatan.findMany({
-    where: {
-      fasilitatorId,
-      rekapHonorariumId: null,
-      date: {
-        gte: startDate,
-        lte: endDate
+  const rekap = await prisma.$transaction(async (tx) => {
+    const laporan = await tx.laporanKegiatan.findMany({
+      where: {
+        fasilitatorId,
+        rekapHonorariumId: null,
+        date: {
+          gte: startDate,
+          lte: endDate
+        }
       }
+    });
+
+    if (laporan.length === 0) {
+      throw new Error('Tidak ada laporan yang bisa direkap untuk bulan ini');
     }
-  });
 
-  if (laporan.length === 0) {
-    throw new Error('Tidak ada laporan yang bisa direkap untuk bulan ini');
-  }
+    const totalJPIntra = laporan.reduce((sum, lap) => sum + (lap.jumlahJPIntra || 0), 0);
+    const totalJPEkstra = laporan.reduce((sum, lap) => sum + (lap.jumlahJPEkstra || 0), 0);
+    const totalJP = totalJPIntra + totalJPEkstra;
+    const totalHonor = totalJP * 65000;
 
-  const totalJPIntra = laporan.reduce((sum, lap) => sum + (lap.jumlahJPIntra || 0), 0);
-  const totalJPEkstra = laporan.reduce((sum, lap) => sum + (lap.jumlahJPEkstra || 0), 0);
-  const totalJP = totalJPIntra + totalJPEkstra;
-  const totalHonor = totalJP * 65000;
+    const created = await tx.rekapHonorarium.create({
+      data: {
+        fasilitatorId,
+        bulan,
+        totalJP,
+        totalJPIntra,
+        totalJPEkstra,
+        totalHonor,
+        status: 'DRAFT',
+      }
+    });
 
-  const rekap = await prisma.rekapHonorarium.create({
-    data: {
-      fasilitatorId,
-      bulan,
-      totalJP,
-      totalJPIntra,
-      totalJPEkstra,
-      totalHonor,
-      status: 'DRAFT',
-    }
-  });
+    await tx.laporanKegiatan.updateMany({
+      where: {
+        id: { in: laporan.map(l => l.id) }
+      },
+      data: {
+        rekapHonorariumId: created.id
+      }
+    });
 
-  // Hubungkan laporan ke rekap
-  await prisma.laporanKegiatan.updateMany({
-    where: {
-      id: { in: laporan.map(l => l.id) }
-    },
-    data: {
-      rekapHonorariumId: rekap.id
-    }
+    return created;
   });
 
   revalidatePath('/portal/rekap');
@@ -97,8 +122,8 @@ export async function createRekapBulanan(fasilitatorId: string, bulan: string) {
 }
 
 export async function submitRekapBulanan(rekapId: string, fileUrl: string) {
-  const session = await getServerSession(authOptions);
-  const userId = session?.user?.id || 'unknown';
+  const { error: authError, session } = await checkAuth();
+  if (authError || !session) throw new Error(authError || 'Unauthorized');
 
   const rekap = await prisma.rekapHonorarium.findUnique({
     where: { id: rekapId },
@@ -106,6 +131,9 @@ export async function submitRekapBulanan(rekapId: string, fileUrl: string) {
   });
 
   if (!rekap) throw new Error('Rekap tidak ditemukan');
+  if (!hasAnyRole(session.user.role, SNT_MANAGE_ROLES) && rekap.fasilitator?.userId !== session.user.id) {
+    throw new Error('Forbidden');
+  }
 
 
 
@@ -125,6 +153,9 @@ export async function submitRekapBulanan(rekapId: string, fileUrl: string) {
 
 
 export async function getAdminTransportRecap() {
+  const { error: authError } = await checkAuth(CASHFLOW_READ_ROLES);
+  if (authError) return [];
+
   const laporanList = await prisma.laporanKegiatan.findMany({
     where: {
       OR: [
@@ -143,76 +174,82 @@ export async function getAdminTransportRecap() {
 }
 
 export async function markTransportPaid(laporanId: string, buktiUrl: string) {
-  const session = await getServerSession(authOptions);
-  const userId = session?.user?.id || 'unknown';
+  const { error: authError, session } = await checkAuth(SNT_MANAGE_ROLES);
+  if (authError || !session) throw new Error(authError || 'Unauthorized');
+  const userId = session.user.id;
 
-  const lap = await prisma.laporanKegiatan.update({
-    where: { id: laporanId },
-    data: { 
-      statusTransport: 'PAID',
-      buktiTransferTransport: buktiUrl 
-    }
-  });
-
-  const rabItem = await prisma.rabItem.findFirst({
-    where: { name: { contains: 'Bantuan Sewa Rumah Fasilitator', mode: 'insensitive' } }
-  });
-
-  if (rabItem) {
-    await prisma.expenseRequest.create({
-      data: {
-        rabItemId: rabItem.id,
-        amount: (lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0),
-        description: `Transport Mengajar Fasilitator - ${lap.topic}`,
-        receiptUrl: buktiUrl,
-        status: 'APPROVED',
-        createdById: userId,
-        fasilitatorId: lap.fasilitatorId,
+  await prisma.$transaction(async (tx) => {
+    const lap = await tx.laporanKegiatan.update({
+      where: { id: laporanId },
+      data: { 
+        statusTransport: 'PAID',
+        buktiTransferTransport: buktiUrl 
       }
     });
-  }
+
+    const rabItem = await tx.rabItem.findFirst({
+      where: { name: { contains: 'Bantuan Sewa Rumah Fasilitator', mode: 'insensitive' } }
+    });
+
+    if (rabItem) {
+      await tx.expenseRequest.create({
+        data: {
+          rabItemId: rabItem.id,
+          amount: (lap.biayaTransport || 0) + (lap.biayaTransportLaut || 0),
+          description: `Transport Mengajar Fasilitator - ${lap.topic}`,
+          receiptUrl: buktiUrl,
+          status: 'APPROVED',
+          createdById: userId,
+          fasilitatorId: lap.fasilitatorId,
+        }
+      });
+    }
+  });
 
   revalidatePath('/fasilitator/transport');
 }
 
 export async function adminGenerateInvoiceHonor(rekapId: string) {
-  const session = await getServerSession(authOptions);
-  const userId = session?.user?.id || 'unknown';
+  const { error: authError, session } = await checkAuth(SNT_MANAGE_ROLES);
+  if (authError || !session) throw new Error(authError || 'Unauthorized');
+  const userId = session.user.id;
 
-  const rekap = await prisma.rekapHonorarium.findUnique({
-    where: { id: rekapId },
-    include: { fasilitator: true }
-  });
+  const updated = await prisma.$transaction(async (tx) => {
+    const rekap = await tx.rekapHonorarium.findUnique({
+      where: { id: rekapId },
+      include: { fasilitator: true }
+    });
 
-  if (!rekap) throw new Error('Rekap tidak ditemukan');
-  
-  if (rekap.status === 'APPROVED') {
-    return rekap; // Already approved
-  }
+    if (!rekap) throw new Error('Rekap tidak ditemukan');
+    
+    if (rekap.status === 'APPROVED') {
+      return rekap;
+    }
 
-  const rabItem = await prisma.rabItem.findFirst({
-    where: { name: { contains: 'Honor', mode: 'insensitive' } }
-  });
+    const rabItem = await tx.rabItem.findFirst({
+      where: { name: { contains: 'Honor', mode: 'insensitive' } }
+    });
 
-  if (rabItem) {
-    await prisma.expenseRequest.create({
+    if (rabItem) {
+      await tx.expenseRequest.create({
+        data: {
+          rabItemId: rabItem.id,
+          amount: rekap.totalHonor,
+          description: `Honor Pengajar - Bulan ${rekap.bulan} (${rekap.totalJP} JP)`,
+          receiptUrl: rekap.filePdf,
+          status: 'PENDING',
+          createdById: userId,
+          fasilitatorId: rekap.fasilitatorId,
+        }
+      });
+    }
+
+    return tx.rekapHonorarium.update({
+      where: { id: rekapId },
       data: {
-        rabItemId: rabItem.id,
-        amount: rekap.totalHonor,
-        description: `Honor Pengajar - Bulan ${rekap.bulan} (${rekap.totalJP} JP)`,
-        receiptUrl: rekap.filePdf,
-        status: 'PENDING',
-        createdById: userId,
-        fasilitatorId: rekap.fasilitatorId,
+        status: 'APPROVED'
       }
     });
-  }
-
-  const updated = await prisma.rekapHonorarium.update({
-    where: { id: rekapId },
-    data: {
-      status: 'APPROVED'
-    }
   });
 
   revalidatePath('/fasilitator/rekap-honor');
@@ -221,8 +258,8 @@ export async function adminGenerateInvoiceHonor(rekapId: string) {
 }
 
 export async function cancelTransportPaid(laporanId: string) {
-  const { error: authError, session } = await checkAuth(['ADMIN', 'SUPER_ADMIN']);
-  if (authError || !session?.user?.id) throw new Error('Unauthorized');
+  const { error: authError, session } = await checkAuth(ADMIN_ONLY_ROLES);
+  if (authError || !session?.user?.id) throw new Error(authError || 'Unauthorized');
 
   const lap = await prisma.laporanKegiatan.findUnique({
     where: { id: laporanId }
@@ -267,7 +304,8 @@ export async function createRekapManual(
   totalJPEkstra?: number,
   totalTransport?: number | null
 ) {
-  const session = await getServerSession(authOptions);
+  const { error: authError } = await checkAuth(SNT_MANAGE_ROLES);
+  if (authError) throw new Error(authError);
   
   // Create RekapHonorarium directly with SUBMITTED status
   // so admin can generate invoice immediately.
@@ -313,7 +351,8 @@ export async function copyRekapFromPreviousMonth(
   newSesi: number,
   selectedFasilIds?: string[]
 ) {
-  const session = await getServerSession(authOptions);
+  const { error: authError } = await checkAuth(SNT_MANAGE_ROLES);
+  if (authError) throw new Error(authError);
   
   // 1. Ambil rekap di sourceBulan
   const sourceRekaps = await prisma.rekapHonorarium.findMany({
@@ -401,29 +440,32 @@ export async function copyRekapFromPreviousMonth(
 
 
 export async function deleteRekap(id: string) {
-  const session = await getServerSession(authOptions);
-  
-  const rekap = await prisma.rekapHonorarium.findUnique({ where: { id } });
-  if (!rekap) throw new Error('Rekap tidak ditemukan');
+  const { error: authError } = await checkAuth(ADMIN_ONLY_ROLES);
+  if (authError) throw new Error(authError);
 
-  // Unlink LaporanKegiatan if any
-  await prisma.laporanKegiatan.updateMany({
-    where: { rekapHonorariumId: id },
-    data: { rekapHonorariumId: null }
-  });
+  await prisma.$transaction(async (tx) => {
+    const rekap = await tx.rekapHonorarium.findUnique({ where: { id } });
+    if (!rekap) throw new Error('Rekap tidak ditemukan');
 
-  // Delete ExpenseRequest if any
-  await prisma.expenseRequest.deleteMany({
-    where: {
-      OR: [
-        { receiptUrl: rekap.filePdf },
-        { description: { contains: `(RekapID: ${id})` } }
-      ]
-    }
-  });
+    // Unlink LaporanKegiatan if any
+    await tx.laporanKegiatan.updateMany({
+      where: { rekapHonorariumId: id },
+      data: { rekapHonorariumId: null }
+    });
 
-  await prisma.rekapHonorarium.delete({
-    where: { id }
+    // Delete ExpenseRequest if any
+    await tx.expenseRequest.deleteMany({
+      where: {
+        OR: [
+          ...(rekap.filePdf ? [{ receiptUrl: rekap.filePdf }] : []),
+          { description: { contains: `(RekapID: ${id})` } }
+        ]
+      }
+    });
+
+    await tx.rekapHonorarium.delete({
+      where: { id }
+    });
   });
 
   revalidatePath('/fasilitator/rekap-honor');
@@ -435,8 +477,8 @@ export async function deleteRekap(id: string) {
 
 export async function generateKwitansiHonor(rekapId: string, inputNoUrut?: string, inputTanggal?: string, forceNew: boolean = false) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) return { error: "Unauthorized: Anda harus login untuk melakukan aksi ini." };
+    const { error: authError } = await checkAuth(SNT_MANAGE_ROLES);
+    if (authError) return { error: authError };
 
   // Check if it already exists locally
   const existing = await prisma.kwitansiRecord.findFirst({ where: { rekapId, tipeKwitansi: 'HONOR' } });
@@ -559,8 +601,8 @@ export async function generateKwitansiHonor(rekapId: string, inputNoUrut?: strin
 
 export async function generateKwitansiExpense(expenseId: string, inputNoUrut?: string, inputTanggal?: string, forceNew: boolean = false) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) return { error: "Unauthorized: Anda harus login untuk melakukan aksi ini." };
+    const { error: authError } = await checkAuth(SNT_MANAGE_ROLES);
+    if (authError) return { error: authError };
 
     const existing = await prisma.kwitansiRecord.findFirst({ where: { expenseId } });
 
@@ -677,8 +719,8 @@ export async function generateKwitansiExpense(expenseId: string, inputNoUrut?: s
 
 export async function generateKwitansiTransportBulanan(rekapId: string, inputNoUrut?: string, inputTanggal?: string, forceNew: boolean = false) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) return { error: "Unauthorized: Anda harus login untuk melakukan aksi ini." };
+    const { error: authError } = await checkAuth(SNT_MANAGE_ROLES);
+    if (authError) return { error: authError };
 
   const existing = await prisma.kwitansiRecord.findFirst({
     where: { rekapId, tipeKwitansi: 'TRANSPORT' }
@@ -791,8 +833,8 @@ export async function generateKwitansiTransportBulanan(rekapId: string, inputNoU
 
 export async function generateInvoiceExpense(expenseId: string, inputNoUrut?: string, inputTanggal?: string, forceNew: boolean = false) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) return { error: "Unauthorized: Anda harus login untuk melakukan aksi ini." };
+    const { error: authError } = await checkAuth(SNT_MANAGE_ROLES);
+    if (authError) return { error: authError };
 
     const existing = await prisma.invoiceRecord.findFirst({ where: { expenseId } });
     
@@ -903,11 +945,10 @@ export async function uploadBuktiRekap(
   kontakWhatsApp?: string
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) throw new Error('Unauthorized');
-    
-    const currentUser = await prisma.user.findUnique({ where: { id: session.user.id } });
-    if (!currentUser) throw new Error('User not found');
+    const { error: authError, session } = await checkAuth(SNT_MANAGE_ROLES);
+    if (authError || !session?.user?.id) throw new Error(authError || 'Unauthorized');
+
+    const currentUser = { id: session.user.id };
 
     const rekap = await prisma.rekapHonorarium.findUnique({
       where: { id: rekapId },
@@ -1064,7 +1105,7 @@ export async function uploadBuktiRekap(
 
 export async function updateFasilitatorKontak(fasilitatorId: string, kontak: string) {
   try {
-    const { error: authError, session } = await checkAuth(['ADMIN', 'SUPER_ADMIN']);
+    const { error: authError, session } = await checkAuth(ADMIN_ONLY_ROLES);
     if (authError || !session) return { error: authError || "Unauthorized" };
 
     const updated = await prisma.fasilitator.update({
@@ -1083,7 +1124,7 @@ export async function updateFasilitatorKontak(fasilitatorId: string, kontak: str
 
 
 export async function adminUpdateTransportAmount(laporanId: string, biayaTransport: number, biayaTransportLaut: number) {
-  const { error: authError, session } = await checkAuth(['ADMIN', 'SUPER_ADMIN', 'KORWIL']);
+  const { error: authError, session } = await checkAuth(SNT_MANAGE_ROLES);
   if (authError || !session) throw new Error(authError || "Unauthorized");
 
   const updated = await prisma.laporanKegiatan.update({
@@ -1099,6 +1140,12 @@ export async function adminUpdateTransportAmount(laporanId: string, biayaTranspo
 }
 
 export async function getFasilitatorJpForMonth(fasilitatorId: string, bulan: string) {
+  const { error: authError, session } = await checkAuth();
+  if (authError || !session) return { totalJPIntra: 0, totalJPEkstra: 0, sesi: 0 };
+  if (!hasAnyRole(session.user.role, CASHFLOW_READ_ROLES)) {
+    const fasil = await prisma.fasilitator.findUnique({ where: { id: fasilitatorId }, select: { userId: true } });
+    if (!fasil || fasil.userId !== session.user.id) return { totalJPIntra: 0, totalJPEkstra: 0, sesi: 0 };
+  }
   if (!fasilitatorId || !bulan) return { totalJPIntra: 0, totalJPEkstra: 0, sesi: 0 };
   const [year, month] = bulan.split('-');
   const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
@@ -1119,6 +1166,8 @@ export async function getFasilitatorJpForMonth(fasilitatorId: string, bulan: str
 }
 
 export async function getRekapTargetJp(bulanTahun?: string) {
+  const { error: authError } = await checkAuth(CASHFLOW_READ_ROLES);
+  if (authError) return [];
   // bulanTahun: 'YYYY-MM', default to current month
   let targetYear: number, targetMonth: number;
   if (bulanTahun) {
@@ -1188,6 +1237,9 @@ export async function getRekapTargetJp(bulanTahun?: string) {
 }
 
 export async function updateTargetJpFasilitator(id: string, targetBulan: number, targetTotal: number) {
+  const { error: authError } = await checkAuth(ADMIN_ONLY_ROLES);
+  if (authError) throw new Error(authError);
+
   await prisma.fasilitator.update({
     where: { id },
     data: {
@@ -1198,8 +1250,8 @@ export async function updateTargetJpFasilitator(id: string, targetBulan: number,
 }
 
 export async function syncLaporanToRekap(rekapId: string) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) throw new Error("Unauthorized");
+  const { error: authError } = await checkAuth(SNT_MANAGE_ROLES);
+  if (authError) throw new Error(authError);
 
   const rekap = await prisma.rekapHonorarium.findUnique({
     where: { id: rekapId }
@@ -1296,8 +1348,8 @@ export async function syncLaporanToRekap(rekapId: string) {
 
 export async function generateInvoiceHonorRecord(rekapId: string, inputNoUrut?: string, inputTanggal?: string, forceNew: boolean = false) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) return { error: "Unauthorized: Anda harus login untuk melakukan aksi ini." };
+    const { error: authError } = await checkAuth(SNT_MANAGE_ROLES);
+    if (authError) return { error: authError };
 
     const existing = await prisma.invoiceRecord.findFirst({ where: { rekapId } });
     
@@ -1401,7 +1453,7 @@ export async function generateInvoiceHonorRecord(rekapId: string, inputNoUrut?: 
 
 export async function updateRekapTransport(rekapId: string, totalTransport: number | null) {
   try {
-    const { error: authError, session } = await checkAuth(['ADMIN', 'SUPER_ADMIN']);
+    const { error: authError, session } = await checkAuth(ADMIN_ONLY_ROLES);
     if (authError || !session) return { error: authError || "Unauthorized" };
 
     const dataToUpdate: any = {};
@@ -1442,7 +1494,7 @@ export async function updateRekapHonorManual(
   }
 ) {
   try {
-    const { error: authError, session } = await checkAuth(['ADMIN', 'SUPER_ADMIN']);
+    const { error: authError, session } = await checkAuth(ADMIN_ONLY_ROLES);
     if (authError || !session) return { error: authError || "Unauthorized" };
 
     const honorVal = Math.round(parseFloat(totalHonor.toString()) || 0);
@@ -1507,7 +1559,7 @@ export async function batchUpdateTransportByFormula(
   }
 ) {
   try {
-    const { error: authError, session } = await checkAuth(['ADMIN', 'SUPER_ADMIN']);
+    const { error: authError, session } = await checkAuth(ADMIN_ONLY_ROLES);
     if (authError || !session) return { error: authError || "Unauthorized" };
 
     const rekaps = await prisma.rekapHonorarium.findMany({
@@ -1574,6 +1626,9 @@ export async function batchUpdateTransportByFormula(
 }
 export async function syncSingleRekapToRabExpenses(rekapId: string) {
   try {
+    const { error: authError } = await checkAuth(SNT_MANAGE_ROLES);
+    if (authError) return;
+
     const rekap = await prisma.rekapHonorarium.findUnique({
       where: { id: rekapId },
       include: { fasilitator: true, laporan: true }

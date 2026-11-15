@@ -4,13 +4,21 @@ import prisma from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { checkAuth } from '@/lib/auth-check'
+import {
+  ACCOUNTING_WRITE_ROLES,
+  ADMIN_ONLY_ROLES,
+  CASHFLOW_READ_ROLES,
+  SNT_MANAGE_ROLES,
+  checkAuth,
+  hasAnyRole,
+} from '@/lib/auth-check'
 import { sendEmail } from '@/lib/email'
 import { getAdminNotificationEmailHtml } from '@/lib/email-templates';
+import { normalizeReceiptUrlList } from '@/lib/expense-receipts';
 
 
 export async function getRabDashboardData() {
-  const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN', 'ACCOUNTANT', 'KORWIL']);
+  const { error: authError } = await checkAuth(CASHFLOW_READ_ROLES);
   if (authError) return null;
   /* getRabDashboardData_auth */
   const project = await prisma.rabProject.findFirst({
@@ -82,7 +90,7 @@ export async function getRabDashboardData() {
 }
 
 export async function getRecentExpenses(limit = 100) {
-  const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN', 'ACCOUNTANT', 'KORWIL']);
+  const { error: authError } = await checkAuth(CASHFLOW_READ_ROLES);
   if (authError) return [];
   /* getRecentExpenses_auth */
   return await prisma.expenseRequest.findMany({
@@ -104,15 +112,45 @@ export async function getRecentExpenses(limit = 100) {
   })
 }
 
-export async function approveExpense(expenseId: string, status: 'APPROVED' | 'REJECTED') {
-  const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN', 'ACCOUNTANT']);
-  if (authError) return undefined;
+export async function approveExpense(
+  expenseId: string,
+  status: 'APPROVED' | 'REJECTED',
+  receiptUrl?: string
+) {
+  const { error: authError, session } = await checkAuth(ACCOUNTING_WRITE_ROLES);
+  if (authError || !session) return undefined;
   /* approveExpense_auth */
+  const existing = receiptUrl
+    ? await prisma.expenseRequest.findUnique({
+        where: { id: expenseId },
+        select: { receiptUrl: true, receiptUrls: true },
+      })
+    : null
+  const mergedReceiptUrls = receiptUrl
+    ? normalizeReceiptUrlList([
+        ...(existing?.receiptUrls || []),
+        existing?.receiptUrl,
+        receiptUrl,
+      ])
+    : undefined
+
   await prisma.expenseRequest.update({
     where: { id: expenseId },
-    data: { status } // simplified for now, ideally set approvedById
+    data: {
+      status,
+      approvedById: session.user.id,
+      ...(receiptUrl
+        ? {
+            paymentReceiptUrl: receiptUrl,
+            receiptUrl: existing?.receiptUrl || receiptUrl,
+            receiptUrls: mergedReceiptUrls,
+          }
+        : {}),
+    }
   })
   revalidatePath('/dashboard-rab')
+  revalidatePath('/laporan-pengeluaran')
+  revalidatePath('/pengeluaran')
 }
 
 export async function submitExpense(data: {
@@ -120,11 +158,12 @@ export async function submitExpense(data: {
   amount: number;
   description: string;
   receiptUrl?: string;
+  receiptUrls?: string[];
   userId?: string;
   fasilitatorId?: string;
   date?: string;
 }) {
-  const { error: authError, session } = await checkAuth(['ADMIN', 'SUPER_ADMIN', 'ACCOUNTANT', 'KORWIL']);
+  const { error: authError, session } = await checkAuth(SNT_MANAGE_ROLES);
   if (authError) return { error: authError };
   /* submitExpense_auth */
   try {
@@ -138,12 +177,18 @@ export async function submitExpense(data: {
       return { error: 'User tidak ditemukan' };
     }
 
+    const normalizedReceiptUrls = normalizeReceiptUrlList([
+      ...(data.receiptUrls || []),
+      data.receiptUrl,
+    ]);
+
     const expense = await prisma.expenseRequest.create({
       data: {
         rabItemId: data.rabItemId,
         amount: data.amount,
         description: data.description,
-        receiptUrl: data.receiptUrl || null,
+        receiptUrl: normalizedReceiptUrls[0] || null,
+        receiptUrls: normalizedReceiptUrls,
         createdById,
         fasilitatorId: data.fasilitatorId || null,
         status: 'APPROVED',
@@ -216,7 +261,7 @@ export async function submitExpense(data: {
   }
 }
 export async function getFasilitators() {
-  const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN', 'ACCOUNTANT', 'KORWIL']);
+  const { error: authError } = await checkAuth(CASHFLOW_READ_ROLES);
   if (authError) return [];
   /* getFasilitators_auth */
   return await prisma.fasilitator.findMany({
@@ -226,9 +271,9 @@ export async function getFasilitators() {
 
 export async function getFasilitatorDetail(id: string) {
   const { error: authError, session } = await checkAuth();
-  if (authError) return null;
+  if (authError || !session) return null;
   /* getFasilitatorDetail_auth */
-  return await prisma.fasilitator.findUnique({
+  const fasil = await prisma.fasilitator.findUnique({
     where: { id },
     include: {
       expenses: {
@@ -244,13 +289,23 @@ export async function getFasilitatorDetail(id: string) {
         orderBy: { bulan: 'desc' }
       }
     }
-  })
+  });
+  if (!fasil) return null;
+  if (!hasAnyRole(session.user.role, CASHFLOW_READ_ROLES) && fasil.userId !== session.user.id) {
+    return null;
+  }
+  return fasil;
 }
 
 export async function updateFasilitatorBank(id: string, bankName: string, bankAccount: string, npwpNik: string) {
   const { error: authError, session } = await checkAuth();
-  if (authError) throw new Error(authError);
+  if (authError || !session) throw new Error(authError || 'Unauthorized');
   /* updateFasilitatorBank_auth */
+  const fasil = await prisma.fasilitator.findUnique({ where: { id }, select: { userId: true } });
+  if (!fasil) throw new Error('Fasilitator tidak ditemukan');
+  if (!hasAnyRole(session.user.role, SNT_MANAGE_ROLES) && fasil.userId !== session.user.id) {
+    throw new Error('Forbidden: Anda tidak memiliki akses untuk mengubah rekening fasilitator lain.');
+  }
   await prisma.fasilitator.update({
     where: { id },
     data: { bankName, bankAccount, npwpNik }
@@ -262,7 +317,7 @@ export async function updateFasilitatorBank(id: string, bankName: string, bankAc
 import * as bcrypt from 'bcryptjs'
 
 export async function createFasilitator(data: any) {
-  const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN']);
+  const { error: authError } = await checkAuth(ADMIN_ONLY_ROLES);
   if (authError) return { error: authError };
   /* createFasilitator_auth */
   let userId = null;
@@ -325,8 +380,8 @@ export async function createFasilitator(data: any) {
 
   const currentFasil = await prisma.fasilitator.findUnique({ where: { id } });
   
-  // Security Check: Only ADMIN/SUPER_ADMIN or the fasilitator themselves can update their profile
-  if (session.user.role !== 'ADMIN' && session.user.role !== 'SUPER_ADMIN') {
+  // Security Check: Only ADMIN or the fasilitator themselves can update their profile
+  if (session.user.role !== 'ADMIN') {
     if (currentFasil?.userId !== session.user.id) {
       throw new Error('Unauthorized: Anda tidak memiliki akses untuk mengubah profil fasilitator lain.');
     }
@@ -418,10 +473,13 @@ function getWeekRange(dateString: string) {
 export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
   try {
     const { error: authError, session } = await checkAuth();
-    if (authError) return { error: authError };
+    if (authError || !session) return { error: authError || 'Unauthorized' };
 
     const fasil = await prisma.fasilitator.findUnique({ where: { id: fasilitatorId } });
     if (!fasil) return { error: 'Data fasilitator tidak ditemukan' };
+    if (!hasAnyRole(session.user.role, SNT_MANAGE_ROLES) && fasil.userId !== session.user.id) {
+      return { error: 'Forbidden: Anda tidak memiliki akses untuk melaporkan atas nama fasilitator lain.' };
+    }
     
     const reqJpIntra = parseInt(data.jumlahJPIntra) || 0;
     const reqJpEkstra = parseInt(data.jumlahJPEkstra) || 0;
@@ -538,7 +596,7 @@ export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
       const { getAdminNotificationEmailHtml } = require('@/lib/email-templates');
       const { sendEmail } = require('@/lib/email');
       const admins = await prisma.user.findMany({
-        where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] } },
+        where: { role: 'ADMIN', isActive: true },
         select: { email: true }
       });
       const adminEmails = admins.map(a => a.email).filter(Boolean);
@@ -570,63 +628,62 @@ export async function submitLaporanKegiatan(fasilitatorId: string, data: any) {
 }
 
 export async function deleteFasilitator(id: string) {
-  const session = await getServerSession(authOptions)
-  if (session?.user?.role !== 'SUPER_ADMIN' && session?.user?.role !== 'ADMIN') {
-    throw new Error('Unauthorized')
-  }
+  const { error: authError } = await checkAuth(ADMIN_ONLY_ROLES);
+  if (authError) throw new Error(authError);
 
-  // Cek apakah ada relasi ke user
-  const fasil = await prisma.fasilitator.findUnique({ where: { id } })
-  const userIdToDelete = fasil?.userId;
+  await prisma.$transaction(async (tx) => {
+    const fasil = await tx.fasilitator.findUnique({ where: { id } })
+    const userIdToDelete = fasil?.userId;
 
-  // Delete related Laporan Kegiatan and Rekap Honorarium first
-  await prisma.laporanKegiatan.deleteMany({ where: { fasilitatorId: id } })
-  await prisma.rekapHonorarium.deleteMany({ where: { fasilitatorId: id } })
-  await prisma.expenseRequest.deleteMany({ where: { fasilitatorId: id } })
+    await tx.laporanKegiatan.deleteMany({ where: { fasilitatorId: id } })
+    await tx.rekapHonorarium.deleteMany({ where: { fasilitatorId: id } })
+    await tx.expenseRequest.deleteMany({ where: { fasilitatorId: id } })
 
-  await prisma.fasilitator.delete({
-    where: { id }
+    await tx.fasilitator.delete({
+      where: { id }
+    })
+
+    if (userIdToDelete) {
+      await tx.user.deleteMany({ where: { id: userIdToDelete } })
+    }
   })
-  
-  if (userIdToDelete) {
-    await prisma.user.delete({ where: { id: userIdToDelete } }).catch(()=>console.log('User delete failed'))
-  }
-  
+
   revalidatePath('/fasilitator')
 }
 
 export async function toggleFasilitatorStatus(id: string, isActive: boolean) {
-  const session = await getServerSession(authOptions)
-  if (session?.user?.role !== 'SUPER_ADMIN' && session?.user?.role !== 'ADMIN') {
-    throw new Error('Unauthorized')
-  }
+  const { error: authError } = await checkAuth(ADMIN_ONLY_ROLES);
+  if (authError) throw new Error(authError);
 
-  const fasil = await prisma.fasilitator.update({
-    where: { id },
-    data: { isActive }
-  })
-  
-  if (fasil.userId) {
-    await prisma.user.update({
-      where: { id: fasil.userId },
+  await prisma.$transaction(async (tx) => {
+    const fasil = await tx.fasilitator.update({
+      where: { id },
       data: { isActive }
     })
-  }
-  
+
+    if (fasil.userId) {
+      await tx.user.update({
+        where: { id: fasil.userId },
+        data: { isActive }
+      })
+    }
+  })
+
   revalidatePath('/fasilitator')
 }
 
 export async function deleteLaporanKegiatan(laporanId: string, fasilitatorId: string) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) return { error: 'Unauthorized' }
+  const { error: authError, session } = await checkAuth();
+  if (authError || !session?.user?.id) return { error: authError || 'Unauthorized' };
 
   const lap = await prisma.laporanKegiatan.findUnique({
-    where: { id: laporanId }
+    where: { id: laporanId },
+    include: { fasilitator: { select: { userId: true } } }
   })
 
   if (!lap) return { error: 'Laporan tidak ditemukan' }
-  // Allow Admin to bypass fasilitatorId check if needed, or keep it.
-  if (lap.fasilitatorId !== fasilitatorId && session.user.role !== "ADMIN" && session.user.role !== "SUPER_ADMIN") return { error: "Unauthorized" };
+  const isOwner = lap.fasilitatorId === fasilitatorId && lap.fasilitator?.userId === session.user.id;
+  if (!isOwner && session.user.role !== 'ADMIN') return { error: 'Forbidden' };
   
   if (lap.rekapHonorariumId || lap.statusTransport === 'PAID') {
     return { error: 'Laporan sudah dibayar (Transport/Honor) sehingga tidak dapat dihapus.' }
@@ -653,11 +710,8 @@ export async function updateLaporanKegiatan(laporanId: string, data: {
   biayaTransportLaut?: number;
 }) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) return { error: 'Unauthorized: Harap login terlebih dahulu' };
-    if (session.user.role !== 'ADMIN' && session.user.role !== 'SUPER_ADMIN') {
-      return { error: 'Forbidden: Hanya Admin yang dapat mengedit laporan kegiatan' };
-    }
+    const { error: authError } = await checkAuth(ADMIN_ONLY_ROLES);
+    if (authError) return { error: authError };
 
     const lap = await prisma.laporanKegiatan.findUnique({
       where: { id: laporanId },
@@ -697,7 +751,7 @@ export async function updateLaporanKegiatan(laporanId: string, data: {
 
 
 export async function deleteExpense(id: string) {
-  const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN', 'ACCOUNTANT', 'KORWIL']);
+  const { error: authError } = await checkAuth(CASHFLOW_READ_ROLES);
   if (authError) return { error: authError };
   /* deleteExpense_auth */
   try {
@@ -727,13 +781,17 @@ export async function deleteExpense(id: string) {
 }
 
 export async function uploadLaporanFisik(laporanId: string, fileUrl: string) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) throw new Error('Unauthorized')
+  const { error: authError, session } = await checkAuth();
+  if (authError || !session?.user?.id) throw new Error(authError || 'Unauthorized');
 
   const lap = await prisma.laporanKegiatan.findUnique({
-    where: { id: laporanId }
+    where: { id: laporanId },
+    include: { fasilitator: { select: { userId: true } } }
   })
   if (!lap) throw new Error('Not found')
+  if (!hasAnyRole(session.user.role, SNT_MANAGE_ROLES) && lap.fasilitator?.userId !== session.user.id) {
+    throw new Error('Forbidden')
+  }
 
   await prisma.laporanKegiatan.update({
     where: { id: laporanId },
@@ -748,6 +806,9 @@ export async function uploadLaporanFisik(laporanId: string, fileUrl: string) {
 
 
 export async function getLaporanPengeluaran(startDate?: string, endDate?: string, categoryId?: string) {
+  const { error: authError } = await checkAuth(CASHFLOW_READ_ROLES);
+  if (authError) return [];
+
   const where: any = {
     status: 'APPROVED'
   };
@@ -790,6 +851,9 @@ export async function getLaporanPengeluaran(startDate?: string, endDate?: string
 // ==================== APP SETTINGS ====================
 
 export async function getAppSetting(key: string, defaultValue: string) {
+  const { error: authError } = await checkAuth();
+  if (authError) return defaultValue;
+
   const setting = await prisma.appSetting.findFirst({
     where: {
       OR: [
@@ -803,7 +867,7 @@ export async function getAppSetting(key: string, defaultValue: string) {
 }
 
 export async function updateAppSetting(key: string, value: string, label?: string) {
-  const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN']);
+  const { error: authError } = await checkAuth(ADMIN_ONLY_ROLES);
   if (authError) throw new Error(authError);
 
   const setting = await prisma.appSetting.upsert({
@@ -818,7 +882,7 @@ export async function updateAppSetting(key: string, value: string, label?: strin
 }
 
 export async function updateBulkFasilitatorTransportSettings(data: { id: string, jarakPPKm: number, besaranTransport: number }[]) {
-  const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN']);
+  const { error: authError } = await checkAuth(ADMIN_ONLY_ROLES);
   if (authError) throw new Error(authError);
 
   for (const item of data) {
@@ -841,10 +905,11 @@ export async function updateExpense(
     description: string,
     fasilitatorId?: string,
     date?: Date,
-    receiptUrl?: string
+    receiptUrl?: string,
+    receiptUrls?: string[]
   }
 ) {
-  const { error: authError, session } = await checkAuth(['ADMIN', 'SUPER_ADMIN', 'ACCOUNTANT', 'KORWIL']);
+  const { error: authError, session } = await checkAuth(SNT_MANAGE_ROLES);
   if (authError) return { error: authError };
 
   const expense = await prisma.expenseRequest.findUnique({
@@ -852,6 +917,13 @@ export async function updateExpense(
   });
 
   if (!expense) return { error: 'Expense not found' };
+
+  const hasReceiptUrlsOverride = data.receiptUrls !== undefined;
+  const nextReceiptUrls = hasReceiptUrlsOverride
+    ? normalizeReceiptUrlList(data.receiptUrls || [])
+    : data.receiptUrl
+      ? normalizeReceiptUrlList([...(expense.receiptUrls || []), data.receiptUrl])
+      : undefined;
 
   try {
     const updated = await prisma.expenseRequest.update({
@@ -862,7 +934,18 @@ export async function updateExpense(
         description: data.description,
         fasilitatorId: data.fasilitatorId || null,
         ...(data.date ? { date: data.date } : {}),
-        ...(data.receiptUrl ? { receiptUrl: data.receiptUrl, paymentReceiptUrl: data.receiptUrl } : {})
+        ...(hasReceiptUrlsOverride
+          ? {
+              receiptUrls: nextReceiptUrls,
+              receiptUrl: nextReceiptUrls?.[0] || null,
+            }
+          : data.receiptUrl
+            ? {
+                receiptUrl: data.receiptUrl,
+                paymentReceiptUrl: data.receiptUrl,
+                receiptUrls: nextReceiptUrls,
+              }
+            : {})
       },
       include: {
         rabItem: true,
@@ -880,7 +963,7 @@ export async function updateExpense(
 }
 
 export async function createRabCategory(name: string) {
-  const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN']);
+  const { error: authError } = await checkAuth(ADMIN_ONLY_ROLES);
   if (authError) return { error: authError };
 
   const project = await prisma.rabProject.findFirst();
@@ -908,7 +991,7 @@ export async function createRabItem(data: {
   unitPrice?: number,
   totalBudget: number
 }) {
-  const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN']);
+  const { error: authError } = await checkAuth(ADMIN_ONLY_ROLES);
   if (authError) return { error: authError };
 
   try {
@@ -960,7 +1043,7 @@ export async function updateRabItem(
     categoryId?: string
   }
 ) {
-  const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN', 'ACCOUNTANT', 'KORWIL']);
+  const { error: authError } = await checkAuth(CASHFLOW_READ_ROLES);
   if (authError) return { error: authError };
 
   try {
@@ -1004,7 +1087,7 @@ export async function updateRabItem(
 }
 
 export async function deleteRabItem(id: string) {
-  const { error: authError } = await checkAuth(['ADMIN', 'SUPER_ADMIN']);
+  const { error: authError } = await checkAuth(ADMIN_ONLY_ROLES);
   if (authError) return { error: authError };
 
   try {

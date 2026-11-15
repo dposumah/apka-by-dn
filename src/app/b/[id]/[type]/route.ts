@@ -46,12 +46,18 @@ export async function GET(
       );
     }
 
-    // Validasi SSRF: hanya fetch URL storage resmi aplikasi ini
-    const supabaseOrigin = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(
-      /\/+$/,
-      ""
-    );
-    if (!supabaseOrigin || !sourceUrl.startsWith(supabaseOrigin)) {
+    // Validasi SSRF: hanya fetch URL dari origin storage resmi aplikasi ini
+    const supabaseUrlEnv = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+    let isAllowedOrigin = false;
+    try {
+      if (supabaseUrlEnv) {
+        isAllowedOrigin =
+          new URL(sourceUrl).origin === new URL(supabaseUrlEnv).origin;
+      }
+    } catch {
+      isAllowedOrigin = false;
+    }
+    if (!isAllowedOrigin) {
       return NextResponse.json(
         { error: "Sumber berkas bukti tidak diizinkan" },
         { status: 403 }
