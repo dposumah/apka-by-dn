@@ -74,7 +74,7 @@ export async function ensureIyrcPnLCashflowSeeded(userId?: string | null) {
         },
       });
       await syncCashflowTransactionToJournal(tx, grethaTx.id, userId);
-    });
+    }, { timeout: 20000, maxWait: 10000 });
   }
 
   // 2. One-time seed untuk 6 pendapatan final IYRC upNov10 (5 PENDING + Gretha COMPLETED)
@@ -138,7 +138,7 @@ export async function ensureIyrcPnLCashflowSeeded(userId?: string | null) {
         label: "Initial seed 6 pendapatan final IYRC upNov10 ke Cashflow",
       },
     });
-  });
+  }, { timeout: 20000, maxWait: 10000 });
 
   return iyrcProject;
 }
@@ -150,7 +150,18 @@ export async function ensureIyrcPnLCashflowSeeded(userId?: string | null) {
 export async function getIyrcData() {
   try {
     const { error: authError, session } = await checkAuth(CASHFLOW_READ_ROLES);
-    if (authError) throw new Error(authError);
+    if (authError) {
+      return {
+        unauthorized: true as const,
+        error: authError,
+        participants: [],
+        budgetItems: [],
+        simulation: calculateDynamicRab(0, 0, []),
+        iyrcProject: null,
+        iyrcTransactions: [],
+        coaAccounts: [],
+      };
+    }
     let participants = await prisma.iyrcParticipant.findMany({
       orderBy: [{ peran: "asc" }, { nama: "asc" }],
     });
@@ -187,7 +198,20 @@ export async function getIyrcData() {
       });
     }
 
-    const iyrcProject = await ensureIyrcPnLCashflowSeeded(session?.user?.id);
+    let iyrcProject;
+    try {
+      iyrcProject = await ensureIyrcPnLCashflowSeeded(session?.user?.id);
+    } catch (seedErr) {
+      console.error("Warning: ensureIyrcPnLCashflowSeeded failed, falling back to project lookup:", seedErr);
+      iyrcProject = await prisma.cashflowProject.upsert({
+        where: { name: "IYRC" },
+        update: {},
+        create: {
+          name: "IYRC",
+          description: "Program International Youth Robotics and AI Competition (China 2026)",
+        },
+      });
+    }
 
     const [iyrcTransactions, coaAccounts] = await Promise.all([
       prisma.cashflowTransaction.findMany({
@@ -259,7 +283,7 @@ export async function resyncIyrcCashflowAndJournals() {
     for (const row of completedTxs) {
       await prisma.$transaction(async (tx) => {
         await syncCashflowTransactionToJournal(tx, row.id, session.user.id);
-      });
+      }, { timeout: 20000, maxWait: 10000 });
     }
 
     revalidatePath("/cashflow/iyrc");
@@ -314,7 +338,7 @@ export async function syncRabToDatabase(countSiswa: number, countPendamping: num
           },
         });
       }
-    });
+    }, { timeout: 20000, maxWait: 10000 });
 
     if (!skipRevalidate) revalidatePath("/cashflow/iyrc");
     return { success: true };
@@ -554,7 +578,7 @@ export async function syncIyrcToLatestData(skipRevalidate = false) {
           },
         });
       }
-    });
+    }, { timeout: 20000, maxWait: 10000 });
 
     if (!skipRevalidate) revalidatePath("/cashflow/iyrc");
     return { success: true, countSiswa, countPendamping, keptReplaced };

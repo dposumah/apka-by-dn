@@ -124,10 +124,10 @@ export default function IyrcClientPage({ initialData }: { initialData?: any }) {
   // Invitation Letter Generator State (Dibuat Per Siswa/Individu)
   const [letterLanguage, setLetterLanguage] = useState<"id" | "en">("id");
   const [selectedLetterParticipant, setSelectedLetterParticipant] = useState<string>(
-    initialData.participants?.[0]?.id || ""
+    initialData?.participants?.[0]?.id || ""
   );
   const [letterRecipient, setLetterRecipient] = useState<string>(
-    initialData.participants?.[0] ? `Kepala ${initialData.participants[0].sntAsal}` : "Kepala SNT"
+    initialData?.participants?.[0] ? `Kepala ${initialData.participants[0].sntAsal}` : "Kepala SNT"
   );
   const [letterNumber, setLetterNumber] = useState<string>("088/RE-IYRC/XI/2026");
   const [letterDate, setLetterDate] = useState<string>("5 November 2026");
