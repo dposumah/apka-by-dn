@@ -9,7 +9,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { getExpenseReceiptUrls } from '@/lib/expense-receipts'
 import { updateExpense, deleteExpense, updateRabItem } from '@/app/actions/rab'
-import { Search, Trash2, X, AlertCircle, Loader2, Pencil } from 'lucide-react'
+import { Search, Trash2, X, AlertCircle, Loader2, Pencil, FileText, Paperclip } from 'lucide-react'
 
 export function LaporanClientPage({ 
   initialData, 
@@ -41,6 +41,9 @@ export function LaporanClientPage({
   const [showEditItemModal, setShowEditItemModal] = useState(false)
   const [editItemData, setEditItemData] = useState<any>(null)
   const [isSavingItem, setIsSavingItem] = useState(false)
+
+  // Detail Realisasi RAB Item popup modal state
+  const [detailRealizationItem, setDetailRealizationItem] = useState<any>(null)
 
   const openEditItemModal = (item: any, categoryId?: string) => {
     setEditItemData({
@@ -412,7 +415,25 @@ export function LaporanClientPage({
                               </div>
                             </td>
                             <td className="py-2 px-4 text-right">{formatCurrency(item.totalBudget)}</td>
-                            <td className="py-2 px-4 text-right text-blue-600">{formatCurrency(item.realized)}</td>
+                            <td className="py-2 px-4 text-right">
+                              <button
+                                type="button"
+                                onClick={() => setDetailRealizationItem({ ...item, categoryName: cat.name })}
+                                className={`inline-flex items-center justify-end gap-1.5 font-medium transition-colors cursor-pointer print:pointer-events-none print:no-underline ${
+                                  item.realized > 0 || (item.expenses?.length || 0) > 0
+                                    ? 'text-blue-600 hover:text-blue-800 hover:underline'
+                                    : 'text-blue-500/80 hover:text-blue-700 hover:underline'
+                                }`}
+                                title="Klik untuk melihat rincian realisasi item ini"
+                              >
+                                <span>{formatCurrency(item.realized)}</span>
+                                {(item.expenses?.length || 0) > 0 && (
+                                  <span className="print:hidden text-[10px] font-semibold bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0.5 rounded-full">
+                                    {item.expenses.length}
+                                  </span>
+                                )}
+                              </button>
+                            </td>
                             <td className="py-2 px-4 text-center">
                               <Badge variant={persen > 100 ? "destructive" : persen > 80 ? "default" : "secondary"}>
                                 {persen.toFixed(1)}%
@@ -806,6 +827,240 @@ export function LaporanClientPage({
                 <span>{isSavingItem ? 'Menyimpan...' : 'Simpan Perubahan'}</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Rincian Realisasi Item RAB */}
+      {detailRealizationItem && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 print:hidden"
+          onClick={() => setDetailRealizationItem(null)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[88vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header Modal */}
+            <div className="px-6 py-4 border-b bg-slate-50 flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-blue-100 text-blue-700 rounded-lg mt-0.5">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-lg font-bold text-slate-900">
+                      Rincian Realisasi RAB
+                    </h3>
+                    {detailRealizationItem.categoryName && (
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
+                        {detailRealizationItem.categoryName}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm font-medium text-blue-700 mt-0.5">
+                    {detailRealizationItem.code} - {detailRealizationItem.name}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetailRealizationItem(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 rounded-lg transition-colors"
+                aria-label="Tutup modal rincian"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Ringkasan Anggaran Item */}
+            {(() => {
+              const budget = Number(detailRealizationItem.totalBudget) || 0
+              const realized = Number(detailRealizationItem.realized) || 0
+              const sisa = budget - realized
+              const pct = budget > 0 ? (realized / budget) * 100 : 0
+              const itemsList = Array.isArray(detailRealizationItem.expenses)
+                ? detailRealizationItem.expenses
+                : []
+
+              return (
+                <>
+                  <div className="px-6 py-3 bg-white border-b grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50/70 px-3.5 py-2.5">
+                      <div className="text-[11px] font-medium text-slate-500">Pagu Anggaran</div>
+                      <div className="text-sm font-bold text-slate-900 mt-0.5">
+                        {formatCurrency(budget)}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-blue-200 bg-blue-50/60 px-3.5 py-2.5">
+                      <div className="text-[11px] font-medium text-blue-700">
+                        Total Realisasi ({itemsList.length} transaksi · {pct.toFixed(1)}%)
+                      </div>
+                      <div className="text-sm font-bold text-blue-700 mt-0.5">
+                        {formatCurrency(realized)}
+                      </div>
+                    </div>
+                    <div
+                      className={`rounded-lg border px-3.5 py-2.5 ${
+                        sisa < 0
+                          ? 'border-red-200 bg-red-50/60'
+                          : 'border-emerald-200 bg-emerald-50/60'
+                      }`}
+                    >
+                      <div
+                        className={`text-[11px] font-medium ${
+                          sisa < 0 ? 'text-red-700' : 'text-emerald-700'
+                        }`}
+                      >
+                        Sisa Anggaran
+                      </div>
+                      <div
+                        className={`text-sm font-bold mt-0.5 ${
+                          sisa < 0 ? 'text-red-700' : 'text-emerald-700'
+                        }`}
+                      >
+                        {formatCurrency(sisa)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Tabel Daftar Transaksi Realisasi */}
+                  <div className="flex-1 overflow-y-auto p-6 pt-4">
+                    {itemsList.length === 0 ? (
+                      <div className="py-10 text-center text-sm text-slate-500 border border-dashed border-slate-200 rounded-lg bg-slate-50/50">
+                        Belum ada transaksi pengeluaran yang disetujui untuk item RAB ini.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto border rounded-lg">
+                        <table className="w-full text-xs text-left">
+                          <thead className="bg-slate-100 text-slate-700 border-b">
+                            <tr>
+                              <th className="py-2.5 px-3 w-10 text-center">No</th>
+                              <th className="py-2.5 px-3 whitespace-nowrap">Tanggal</th>
+                              <th className="py-2.5 px-3">Uraian Pengeluaran</th>
+                              <th className="py-2.5 px-3 whitespace-nowrap">Penerima / Pelapor</th>
+                              <th className="py-2.5 px-3 text-right whitespace-nowrap">Nominal</th>
+                              <th className="py-2.5 px-3 text-center whitespace-nowrap">Bukti Nota</th>
+                              <th className="py-2.5 px-3 text-center whitespace-nowrap">Aksi</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 bg-white">
+                            {itemsList.map((exp: any, idx: number) => {
+                              const receipts = getExpenseReceiptUrls(exp)
+                              const penerima = exp.fasilitator
+                                ? exp.fasilitator.namaLengkap
+                                : exp.createdBy?.name || 'Lainnya'
+                              return (
+                                <tr key={exp.id || idx} className="hover:bg-slate-50/80">
+                                  <td className="py-2.5 px-3 text-center text-slate-500">
+                                    {idx + 1}
+                                  </td>
+                                  <td className="py-2.5 px-3 whitespace-nowrap text-slate-700">
+                                    {new Date(exp.date || exp.createdAt).toLocaleDateString('id-ID', {
+                                      day: '2-digit',
+                                      month: 'short',
+                                      year: 'numeric',
+                                    })}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-slate-800">
+                                    <div>{exp.description || '-'}</div>
+                                    {(exp.kwitansiRecord?.noKwitansi || exp.invoiceRecord?.noInvoice) && (
+                                      <div className="text-[10px] text-slate-400 mt-0.5">
+                                        {exp.kwitansiRecord?.noKwitansi
+                                          ? `Kwt: ${exp.kwitansiRecord.noKwitansi}`
+                                          : ''}
+                                        {exp.kwitansiRecord?.noKwitansi && exp.invoiceRecord?.noInvoice
+                                          ? ' · '
+                                          : ''}
+                                        {exp.invoiceRecord?.noInvoice
+                                          ? `Inv: ${exp.invoiceRecord.noInvoice}`
+                                          : ''}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="py-2.5 px-3 whitespace-nowrap text-slate-700">
+                                    {penerima}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-right font-semibold text-slate-900 whitespace-nowrap">
+                                    {formatCurrency(exp.amount)}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                                    {receipts.length > 0 ? (
+                                      <div className="flex flex-wrap items-center justify-center gap-1">
+                                        {receipts.map((url, rIdx) => (
+                                          <a
+                                            key={`${url}-${rIdx}`}
+                                            href={url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            data-preview-title={`Bukti Pengeluaran ${
+                                              receipts.length > 1 ? `#${rIdx + 1} ` : ''
+                                            }- ${detailRealizationItem.name || exp.description || 'Nota'}`}
+                                            className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 hover:underline bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded"
+                                          >
+                                            <Paperclip className="w-3 h-3" />
+                                            <span>
+                                              {receipts.length === 1 ? 'Lihat' : `Nota ${rIdx + 1}`}
+                                            </span>
+                                          </a>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <span className="text-slate-400">-</span>
+                                    )}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setDetailRealizationItem(null)
+                                        openEditModal(exp)
+                                      }}
+                                      className="inline-flex items-center gap-1 text-[11px] bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded transition-colors"
+                                      title="Edit pengeluaran ini"
+                                    >
+                                      <Pencil className="w-3 h-3" />
+                                      <span>Edit</span>
+                                    </button>
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                          <tfoot className="bg-slate-50 border-t font-bold text-slate-900">
+                            <tr>
+                              <td colSpan={4} className="py-2.5 px-3 text-right">
+                                TOTAL REALISASI ITEM:
+                              </td>
+                              <td className="py-2.5 px-3 text-right text-blue-700 whitespace-nowrap">
+                                {formatCurrency(realized)}
+                              </td>
+                              <td colSpan={2}></td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    )}
+                    {(startDate || endDate) && (
+                      <p className="text-[11px] text-slate-400 mt-3">
+                        Catatan: Rincian di atas menampilkan seluruh realisasi kumulatif item RAB yang berstatus disetujui (APPROVED), bukan hanya rentang filter tanggal di bagian B.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Footer Modal */}
+                  <div className="px-6 py-3 border-t bg-slate-50 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setDetailRealizationItem(null)}
+                      className="px-4 py-2 border border-slate-300 bg-white hover:bg-slate-100 rounded-md text-sm font-medium text-slate-700 transition-colors"
+                    >
+                      Tutup
+                    </button>
+                  </div>
+                </>
+              )
+            })()}
           </div>
         </div>
       )}
