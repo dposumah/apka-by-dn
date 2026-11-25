@@ -440,7 +440,8 @@ export function KwitansiAuditTab({ categories, rabSummary, profile }: KwitansiAu
                 <tr>
                   <th className="py-2 px-3">Kode</th>
                   <th className="py-2 px-3">Item RAB (Wilayah 2)</th>
-                  <th className="py-2 px-3 text-right">Realisasi</th>
+                  <th className="py-2 px-3 text-right whitespace-nowrap">Anggaran</th>
+                  <th className="py-2 px-3 text-right whitespace-nowrap">Realisasi</th>
                   <th className="py-2 px-3 text-center">Nota</th>
                   <th className="py-2 px-3 text-center">Kwitansi</th>
                   <th className="py-2 px-3">Bukti Wajib (Template 13)</th>
@@ -454,6 +455,9 @@ export function KwitansiAuditTab({ categories, rabSummary, profile }: KwitansiAu
                     <tr key={row.id} className={hasTx ? "bg-white" : "bg-slate-50/40 text-slate-400"}>
                       <td className="py-2 px-3 font-semibold">{row.code}</td>
                       <td className="py-2 px-3 font-medium text-slate-800">{row.name}</td>
+                      <td className="py-2 px-3 text-right whitespace-nowrap font-medium text-slate-700">
+                        {formatCurrency(row.budget)}
+                      </td>
                       <td className="py-2 px-3 text-right whitespace-nowrap font-semibold">
                         {formatCurrency(row.realizedTotal)}
                       </td>
@@ -480,6 +484,22 @@ export function KwitansiAuditTab({ categories, rabSummary, profile }: KwitansiAu
                   );
                 })}
               </tbody>
+              <tfoot className="bg-slate-100 border-t-2 border-slate-200 font-bold text-slate-900">
+                <tr>
+                  <td colSpan={2} className="py-2.5 px-3 text-right">
+                    TOTAL RAB RESMI (A + B):
+                  </td>
+                  <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                    {formatCurrency(rabSummary.subtotalOfficialBudget)}
+                  </td>
+                  <td className="py-2.5 px-3 text-right whitespace-nowrap text-blue-700">
+                    {formatCurrency(rabSummary.subtotalOfficialRealizedTotal)}
+                  </td>
+                  <td colSpan={3} className="py-2.5 px-3 text-slate-600 font-medium">
+                    Sisa: {formatCurrency(rabSummary.subtotalOfficialBudget - rabSummary.subtotalOfficialRealizedTotal)}
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </CardContent>
         )}

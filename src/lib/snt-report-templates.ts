@@ -276,6 +276,7 @@ export function getRequiredEvidenceForRabItem(code: string, name: string): strin
   const c = (code || "").trim().toLowerCase();
   const n = (name || "").toLowerCase();
 
+  if (c === "4a" || n.includes("pelatihan in")) return "Jadwal & materi pelatihan, daftar hadir, log jam, bukti honor";
   if (c === "1" || n.includes("ketua tim")) return "SK/penugasan, log jam kerja, bukti terima honor";
   if (c === "2" || n.includes("tim program")) return "SK tim, naskah modul SMP & SMA, berita acara serah terima, bukti honor";
   if (c === "3" || (n.includes("koordinator wilayah") && !n.includes("perjalanan"))) return "SK/penugasan, log jam kerja, bukti terima honor";
