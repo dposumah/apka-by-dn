@@ -26,16 +26,22 @@ import {
 } from "@/app/actions/snt-reports";
 import {
   buildMonthlyFacilitatorHonorReceipt,
+  buildMonthlyRabUnitHonorReceipt,
   EVIDENCE_DOC_CATALOG,
   EvidenceDocType,
   EvidenceLineItem,
   GenericEvidenceDraft,
   getDefaultGenericEvidenceDraft,
   getDefaultSewaRumahDraft,
+  getHonorTimPresetByRabCode,
   getMonthLabelId,
+  HonorPricingMode,
+  matchWilayah2LocationId,
   MonthlyHonorReceiptRow,
   RecipientMode,
   SewaRumahContractDraft,
+  SNT_RAB_HONOR_FASIL_UNIT_PRICE,
+  SNT_RAB_TENAGA_ADMIN_UNIT_PRICE,
 } from "@/lib/snt-evidence-docs";
 import {
   renderGenericEvidencePdfHtml,
@@ -81,13 +87,14 @@ export function EvidenceDocsTab({
 
   // State khusus Daftar Tanda Terima Honor Fasilitator Bulanan (A.4)
   const [honorMonth, setHonorMonth] = useState<string>("2026-10");
+  const [honorPricingMode, setHonorPricingMode] = useState<HonorPricingMode>("RAB_SATUAN");
   const [honorIncludeTransport, setHonorIncludeTransport] = useState<boolean>(false);
   const [honorRecipientMode, setHonorRecipientMode] = useState<RecipientMode>("MANUAL");
-  const [honorIncludeKwitansi, setHonorIncludeKwitansi] = useState<boolean>(false);
+  const [honorIncludeKwitansi, setHonorIncludeKwitansi] = useState<boolean>(true);
   const [honorTanggalCetak, setHonorTanggalCetak] = useState<string>(
     new Date().toISOString().slice(0, 10)
   );
-  const [customHonorRowsByMonth, setCustomHonorRowsByMonth] = useState<
+  const [customHonorRowsByKey, setCustomHonorRowsByKey] = useState<
     Record<string, MonthlyHonorReceiptRow[]>
   >({});
 
@@ -123,28 +130,51 @@ export function EvidenceDocsTab({
   const activeMeta =
     EVIDENCE_DOC_CATALOG.find((m) => m.type === activeType) || EVIDENCE_DOC_CATALOG[0];
 
-  // Build honor sheet untuk bulan terpilih (DB RekapHonorarium + override draft manual jika ada)
+  // Build honor sheet untuk bulan terpilih (Mode RAB Satuan Rp5.729.876/lokasi atau Realisasi Real/JP DB)
+  const rabUnitHonorSheet = useMemo(
+    () => buildMonthlyRabUnitHonorReceipt(honorMonth, rekaps, fasilitators),
+    [honorMonth, rekaps, fasilitators]
+  );
+
   const dbHonorSheet = useMemo(
     () => buildMonthlyFacilitatorHonorReceipt(rekaps, honorMonth),
     [rekaps, honorMonth]
   );
 
+  const honorStateKey = `${honorPricingMode}:${honorMonth}`;
+
   const activeHonorRows: MonthlyHonorReceiptRow[] = useMemo(() => {
-    if (customHonorRowsByMonth[honorMonth]) {
-      return customHonorRowsByMonth[honorMonth];
+    if (customHonorRowsByKey[honorStateKey]) {
+      return customHonorRowsByKey[honorStateKey];
     }
-    const savedKey = `EVIDENCE_HONOR_FASIL_${honorMonth}`;
+    const savedKey = `EVIDENCE_HONOR_FASIL_${honorPricingMode}_${honorMonth}`;
     const saved = evidenceDrafts[savedKey];
     if (saved && Array.isArray((saved as { rows?: MonthlyHonorReceiptRow[] }).rows)) {
       return (saved as { rows: MonthlyHonorReceiptRow[] }).rows;
     }
-    return dbHonorSheet.rows;
-  }, [customHonorRowsByMonth, evidenceDrafts, honorMonth, dbHonorSheet.rows]);
+    if (honorPricingMode === "REAL_JP") {
+      const legacySaved = evidenceDrafts[`EVIDENCE_HONOR_FASIL_${honorMonth}`];
+      if (legacySaved && Array.isArray((legacySaved as { rows?: MonthlyHonorReceiptRow[] }).rows)) {
+        return (legacySaved as { rows: MonthlyHonorReceiptRow[] }).rows;
+      }
+      return dbHonorSheet.rows;
+    }
+    return rabUnitHonorSheet.rows;
+  }, [
+    customHonorRowsByKey,
+    honorStateKey,
+    evidenceDrafts,
+    honorPricingMode,
+    honorMonth,
+    dbHonorSheet.rows,
+    rabUnitHonorSheet.rows,
+  ]);
 
   const activeHonorSheet = useMemo(() => {
     return {
       monthKey: honorMonth,
       monthLabel: getMonthLabelId(honorMonth),
+      pricingMode: honorPricingMode,
       rows: activeHonorRows,
       totalJpIntra: activeHonorRows.reduce((s, r) => s + (Number(r.jpIntra) || 0), 0),
       totalJpEkstra: activeHonorRows.reduce((s, r) => s + (Number(r.jpEkstra) || 0), 0),
@@ -152,7 +182,7 @@ export function EvidenceDocsTab({
       totalHonor: activeHonorRows.reduce((s, r) => s + (Number(r.totalHonor) || 0), 0),
       totalTransport: activeHonorRows.reduce((s, r) => s + (Number(r.totalTransport) || 0), 0),
     };
-  }, [honorMonth, activeHonorRows]);
+  }, [honorMonth, honorPricingMode, activeHonorRows]);
 
   const currentGenericDraft =
     genericDrafts[activeType] || getDefaultGenericEvidenceDraft(activeType, defaultPayer);
@@ -184,9 +214,9 @@ export function EvidenceDocsTab({
       let content: Record<string, unknown> = {};
 
       if (activeType === "HONOR_FASIL_BULANAN") {
-        templateCode = `EVIDENCE_HONOR_FASIL_${honorMonth}`;
+        templateCode = `EVIDENCE_HONOR_FASIL_${honorPricingMode}_${honorMonth}`;
         periodKey = honorMonth;
-        content = { rows: activeHonorRows, tanggalCetak: honorTanggalCetak };
+        content = { pricingMode: honorPricingMode, rows: activeHonorRows, tanggalCetak: honorTanggalCetak };
       } else if (activeType === "SEWA_RUMAH") {
         content = sewaDraft as unknown as Record<string, unknown>;
       } else {
@@ -431,6 +461,42 @@ export function EvidenceDocsTab({
             {/* ==================== 1. DAFTAR TANDA TERIMA HONOR FASILITATOR BULANAN (A.4) ==================== */}
             {activeType === "HONOR_FASIL_BULANAN" && (
               <div className="space-y-4">
+                {/* Switch Mode Perhitungan: Standar RAB Rp5.729.876/lokasi vs Realisasi Real/JP DB */}
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50/70 p-3">
+                  <div className="text-xs">
+                    <div className="font-bold text-emerald-950">Mode Perhitungan Honor Fasilitator (Pos A.4):</div>
+                    <div className="text-[11px] text-emerald-800 mt-0.5">
+                      {honorPricingMode === "RAB_SATUAN"
+                        ? `Harga Satuan RAB = ${formatCurrency(SNT_RAB_HONOR_FASIL_UNIT_PRICE)}/lokasi/bln (6 lokasi = ${formatCurrency(SNT_RAB_HONOR_FASIL_UNIT_PRICE * 6)}/bln). Lokasi dengan 2 fasilitator dikosongkan default — pilih dari dropdown atau biarkan kosong untuk blanko kwitansi.`
+                        : "Menarik realisasi aktual per fasilitator & harga satuan real/JP dari Rekap Honorarium DB."}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setHonorPricingMode("RAB_SATUAN")}
+                      className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                        honorPricingMode === "RAB_SATUAN"
+                          ? "bg-emerald-700 text-white shadow-xs"
+                          : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      Standar RAB (Rp5.729.876 / Lokasi)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHonorPricingMode("REAL_JP")}
+                      className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                        honorPricingMode === "REAL_JP"
+                          ? "bg-slate-900 text-white shadow-xs"
+                          : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      Realisasi Real / JP (Rekap DB)
+                    </button>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">Pilih Bulan Honorarium</label>
@@ -447,7 +513,7 @@ export function EvidenceDocsTab({
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Tanggal Tanda Terima</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Tanggal Tanda Terima &amp; Kwitansi</label>
                     <Input
                       type="date"
                       value={honorTanggalCetak}
@@ -461,18 +527,43 @@ export function EvidenceDocsTab({
                       size="sm"
                       variant="outline"
                       onClick={() => {
-                        setCustomHonorRowsByMonth((prev) => ({
+                        const freshRows =
+                          honorPricingMode === "RAB_SATUAN" ? rabUnitHonorSheet.rows : dbHonorSheet.rows;
+                        setCustomHonorRowsByKey((prev) => ({
                           ...prev,
-                          [honorMonth]: dbHonorSheet.rows,
+                          [honorStateKey]: freshRows,
                         }));
                         setBanner({
                           type: "ok",
-                          text: `Data ${getMonthLabelId(honorMonth)} disegarkan dari Rekap Honorarium (${dbHonorSheet.rows.length} fasilitator).`,
+                          text:
+                            honorPricingMode === "RAB_SATUAN"
+                              ? `Daftar ${getMonthLabelId(honorMonth)} direset ke 6 lokasi standar RAB (${formatCurrency(SNT_RAB_HONOR_FASIL_UNIT_PRICE)}/lokasi).`
+                              : `Data ${getMonthLabelId(honorMonth)} disegarkan dari Rekap Honorarium (${dbHonorSheet.rows.length} fasilitator).`,
                         });
                       }}
-                      className="text-xs h-9 bg-white gap-1 w-full"
+                      className="text-xs h-9 bg-white gap-1 flex-1"
                     >
-                      <Download className="w-3.5 h-3.5" /> Muat dari Rekap DB
+                      <Download className="w-3.5 h-3.5" /> {honorPricingMode === "RAB_SATUAN" ? "Reset 6 Lokasi" : "Muat Rekap DB"}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const cleared = activeHonorRows.map((r) => ({ ...r, nama: "" }));
+                        setCustomHonorRowsByKey((prev) => ({
+                          ...prev,
+                          [honorStateKey]: cleared,
+                        }));
+                        setBanner({
+                          type: "ok",
+                          text: "Semua nama fasilitator dikosongkan (akan tercetak blanko titik-titik pada Daftar Tanda Terima & Kwitansi).",
+                        });
+                      }}
+                      className="text-xs h-9 bg-white gap-1 text-amber-800 border-amber-300 hover:bg-amber-50"
+                      title="Kosongkan semua nama penerima di daftar & kwitansi"
+                    >
+                      <UserX className="w-3.5 h-3.5" /> Kosongkan Semua
                     </Button>
                   </div>
                 </div>
@@ -484,7 +575,7 @@ export function EvidenceDocsTab({
                       checked={honorRecipientMode === "BLANK"}
                       onChange={(e) => setHonorRecipientMode(e.target.checked ? "BLANK" : "MANUAL")}
                     />
-                    <span>Kosongkan kolom Nama Penerima (blanko tulis tangan)</span>
+                    <span>Paksa kosongkan semua nama saat cetak (blanko tulis tangan)</span>
                   </label>
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input
@@ -494,66 +585,210 @@ export function EvidenceDocsTab({
                     />
                     <span>Sertakan info kolom Transport</span>
                   </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer">
+                  <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-emerald-900">
                     <input
                       type="checkbox"
                       checked={honorIncludeKwitansi}
                       onChange={(e) => setHonorIncludeKwitansi(e.target.checked)}
                     />
-                    <span>Lampirkan lembar Kwitansi Honor per fasilitator</span>
+                    <span>Lampirkan lembar Kwitansi Honor per baris</span>
                   </label>
                 </div>
 
                 <div className="overflow-x-auto border rounded-lg">
                   <table className="w-full text-xs text-left">
                     <thead className="bg-slate-100 border-b text-slate-700">
-                      <tr>
-                        <th className="py-2 px-2">Fasilitator &amp; Lokasi</th>
-                        <th className="py-2 px-2 text-center">JP Intra</th>
-                        <th className="py-2 px-2 text-center">JP Ekstra</th>
-                        <th className="py-2 px-2 text-center">Total JP</th>
-                        <th className="py-2 px-2 text-right">Harga Satuan Real/JP</th>
-                        <th className="py-2 px-2 text-right">Total Honor</th>
-                        <th className="py-2 px-2 w-10"></th>
-                      </tr>
+                      {honorPricingMode === "RAB_SATUAN" ? (
+                        <tr>
+                          <th className="py-2 px-2">Lokasi SNT &amp; Pilihan Nama Fasilitator (Daftar &amp; Kwitansi)</th>
+                          <th className="py-2 px-2 text-center">Satuan</th>
+                          <th className="py-2 px-2 text-right">Harga Satuan (Rp)</th>
+                          <th className="py-2 px-2 text-right">Total Honor</th>
+                          <th className="py-2 px-2 text-center">Aksi</th>
+                        </tr>
+                      ) : (
+                        <tr>
+                          <th className="py-2 px-2">Fasilitator &amp; Lokasi</th>
+                          <th className="py-2 px-2 text-center">JP Intra</th>
+                          <th className="py-2 px-2 text-center">JP Ekstra</th>
+                          <th className="py-2 px-2 text-center">Total JP</th>
+                          <th className="py-2 px-2 text-right">Harga Satuan Real/JP</th>
+                          <th className="py-2 px-2 text-right">Total Honor</th>
+                          <th className="py-2 px-2 w-10"></th>
+                        </tr>
+                      )}
                     </thead>
                     <tbody className="divide-y bg-white">
                       {activeHonorRows.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="py-6 text-center text-slate-500">
-                            Belum ada Rekap Honorarium DB untuk {getMonthLabelId(honorMonth)}. Klik tombol &ldquo;+ Tambah Baris Manual&rdquo; untuk menyiapkan daftar bulan ini.
+                          <td colSpan={honorPricingMode === "RAB_SATUAN" ? 5 : 7} className="py-6 text-center text-slate-500">
+                            Belum ada data honorarium untuk {getMonthLabelId(honorMonth)}. Klik tombol &ldquo;+ Tambah Baris Manual&rdquo; untuk menyiapkan daftar bulan ini.
                           </td>
                         </tr>
                       ) : (
                         activeHonorRows.map((row, idx) => {
+                          const locId = row.locationId || matchWilayah2LocationId(row.lokasi);
+                          const localFasils = fasilitators.filter(
+                            (f) => locId && matchWilayah2LocationId(f.lokasiSNT) === locId
+                          );
+                          const otherFasils = fasilitators.filter(
+                            (f) => !locId || matchWilayah2LocationId(f.lokasiSNT) !== locId
+                          );
+                          const isSelectedInDb = fasilitators.some((f) => f.namaLengkap === row.nama);
+
                           const updateRow = (patch: Partial<MonthlyHonorReceiptRow>) => {
                             const next = [...activeHonorRows];
                             const merged = { ...row, ...patch };
-                            merged.totalJP = (Number(merged.jpIntra) || 0) + (Number(merged.jpEkstra) || 0);
-                            if (patch.jpIntra !== undefined || patch.jpEkstra !== undefined || patch.hargaSatuanReal !== undefined) {
-                              merged.totalHonor = merged.totalJP * (Number(merged.hargaSatuanReal) || 0);
-                            } else if (patch.totalHonor !== undefined && merged.totalJP > 0) {
-                              merged.hargaSatuanReal = Math.round((Number(patch.totalHonor) || 0) / merged.totalJP);
+                            if (honorPricingMode === "RAB_SATUAN") {
+                              if (patch.hargaSatuanReal !== undefined && patch.totalHonor === undefined) {
+                                merged.totalHonor = Number(patch.hargaSatuanReal) || 0;
+                              } else if (patch.totalHonor !== undefined && patch.hargaSatuanReal === undefined) {
+                                merged.hargaSatuanReal = Number(patch.totalHonor) || 0;
+                              }
+                            } else {
+                              merged.totalJP = (Number(merged.jpIntra) || 0) + (Number(merged.jpEkstra) || 0);
+                              if (patch.jpIntra !== undefined || patch.jpEkstra !== undefined || patch.hargaSatuanReal !== undefined) {
+                                merged.totalHonor = merged.totalJP * (Number(merged.hargaSatuanReal) || 0);
+                              } else if (patch.totalHonor !== undefined && merged.totalJP > 0) {
+                                merged.hargaSatuanReal = Math.round((Number(patch.totalHonor) || 0) / merged.totalJP);
+                              }
                             }
                             next[idx] = merged;
-                            setCustomHonorRowsByMonth((prev) => ({ ...prev, [honorMonth]: next }));
+                            setCustomHonorRowsByKey((prev) => ({ ...prev, [honorStateKey]: next }));
                           };
-                          return (
-                            <tr key={row.id || idx}>
-                              <td className="py-1.5 px-2">
-                                <input
-                                  type="text"
-                                  value={row.nama}
-                                  onChange={(e) => updateRow({ nama: e.target.value })}
-                                  className="w-full min-w-[140px] border rounded px-1.5 py-1 text-xs font-medium"
-                                />
+
+                          const facilitatorSelectorCell = (
+                            <td className="py-2 px-2 space-y-1.5 min-w-[240px]">
+                              <div className="flex items-center justify-between gap-1">
                                 <input
                                   type="text"
                                   value={row.lokasi}
                                   onChange={(e) => updateRow({ lokasi: e.target.value })}
-                                  className="w-full mt-1 border rounded px-1.5 py-0.5 text-[10px] text-slate-500"
+                                  className="font-bold text-slate-800 text-xs bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 flex-1"
+                                  placeholder="Lokasi SNT..."
                                 />
-                              </td>
+                                {honorPricingMode === "RAB_SATUAN" && (
+                                  <span
+                                    className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${
+                                      locId === "tidore"
+                                        ? "bg-blue-50 text-blue-700 border border-blue-200"
+                                        : "bg-amber-50 text-amber-800 border border-amber-200"
+                                    }`}
+                                  >
+                                    {locId === "tidore" ? "1 Fasil" : `${Math.max(2, localFasils.length)} Fasil`}
+                                  </span>
+                                )}
+                              </div>
+                              <select
+                                value={row.nama === "" ? "" : isSelectedInDb ? row.nama : "__CUSTOM__"}
+                                onChange={(e) => {
+                                  if (e.target.value === "__CUSTOM__") return;
+                                  updateRow({ nama: e.target.value });
+                                }}
+                                className={`w-full h-8 px-2 rounded border text-xs font-medium ${
+                                  row.nama === ""
+                                    ? "bg-amber-50/70 border-amber-300 text-amber-900"
+                                    : "bg-white border-slate-200 text-slate-900"
+                                }`}
+                              >
+                                <option value="">— Kosongkan Nama (Blanko ......) —</option>
+                                {localFasils.length > 0 && (
+                                  <optgroup label={`Fasilitator ${row.lokasi}`}>
+                                    {localFasils.map((f) => (
+                                      <option key={f.id} value={f.namaLengkap}>
+                                        {f.namaLengkap}
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                )}
+                                {otherFasils.length > 0 && (
+                                  <optgroup label="Fasilitator Lokasi Lainnya">
+                                    {otherFasils.map((f) => (
+                                      <option key={f.id} value={f.namaLengkap}>
+                                        {f.namaLengkap} ({f.lokasiSNT})
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                )}
+                                {row.nama !== "" && !isSelectedInDb && (
+                                  <option value="__CUSTOM__">Manual: {row.nama}</option>
+                                )}
+                              </select>
+                              <input
+                                type="text"
+                                value={row.nama}
+                                onChange={(e) => updateRow({ nama: e.target.value })}
+                                placeholder="Kosong (garis titik-titik) atau ketik nama manual..."
+                                className="w-full border border-slate-200 rounded px-1.5 py-0.5 text-[11px] text-slate-600"
+                              />
+                            </td>
+                          );
+
+                          if (honorPricingMode === "RAB_SATUAN") {
+                            return (
+                              <tr key={row.id || idx}>
+                                {facilitatorSelectorCell}
+                                <td className="py-1.5 px-2 text-center whitespace-nowrap">
+                                  <span className="font-semibold text-slate-700">1 Bulan</span>
+                                  {row.totalJP > 0 && (
+                                    <div className="text-[10px] text-slate-400">({row.totalJP} JP tercatat)</div>
+                                  )}
+                                </td>
+                                <td className="py-1.5 px-1 text-right">
+                                  <input
+                                    type="number"
+                                    value={row.hargaSatuanReal}
+                                    onChange={(e) => updateRow({ hargaSatuanReal: Number(e.target.value) || 0 })}
+                                    className="w-28 border rounded px-1.5 py-1 text-right text-xs"
+                                  />
+                                </td>
+                                <td className="py-1.5 px-1 text-right">
+                                  <input
+                                    type="number"
+                                    value={row.totalHonor}
+                                    onChange={(e) => updateRow({ totalHonor: Number(e.target.value) || 0 })}
+                                    className="w-28 border rounded px-1.5 py-1 text-right text-xs font-semibold text-emerald-900"
+                                  />
+                                </td>
+                                <td className="py-1.5 px-2 text-center whitespace-nowrap">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      type="button"
+                                      disabled={recordingId === row.id || row.totalHonor <= 0}
+                                      onClick={() =>
+                                        handleRecordLineToRab(
+                                          row.id,
+                                          "4",
+                                          honorTanggalCetak,
+                                          `Honorarium Fasilitator ${row.lokasi} (${row.nama || "Fasilitator SNT"}) - ${getMonthLabelId(honorMonth)}`,
+                                          row.totalHonor
+                                        )
+                                      }
+                                      className="px-1.5 py-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-semibold disabled:opacity-40"
+                                      title="Catat honor bulan ini ke Realisasi Pos RAB A.4"
+                                    >
+                                      {recordingId === row.id ? "..." : "+ RAB"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const next = activeHonorRows.filter((_, i) => i !== idx);
+                                        setCustomHonorRowsByKey((prev) => ({ ...prev, [honorStateKey]: next }));
+                                      }}
+                                      className="p-1 text-rose-500 hover:bg-rose-50 rounded"
+                                      title="Hapus baris"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          }
+
+                          return (
+                            <tr key={row.id || idx}>
+                              {facilitatorSelectorCell}
                               <td className="py-1.5 px-1 text-center">
                                 <input
                                   type="number"
@@ -592,7 +827,7 @@ export function EvidenceDocsTab({
                                   type="button"
                                   onClick={() => {
                                     const next = activeHonorRows.filter((_, i) => i !== idx);
-                                    setCustomHonorRowsByMonth((prev) => ({ ...prev, [honorMonth]: next }));
+                                    setCustomHonorRowsByKey((prev) => ({ ...prev, [honorStateKey]: next }));
                                   }}
                                   className="p-1 text-rose-500 hover:bg-rose-50 rounded"
                                   title="Hapus baris"
@@ -606,17 +841,29 @@ export function EvidenceDocsTab({
                       )}
                     </tbody>
                     <tfoot className="bg-blue-50/70 border-t font-bold">
-                      <tr>
-                        <td className="py-2 px-2">TOTAL ({activeHonorRows.length} Fasilitator)</td>
-                        <td className="py-2 px-2 text-center">{activeHonorSheet.totalJpIntra}</td>
-                        <td className="py-2 px-2 text-center">{activeHonorSheet.totalJpEkstra}</td>
-                        <td className="py-2 px-2 text-center">{activeHonorSheet.totalJP}</td>
-                        <td className="py-2 px-2 text-right">-</td>
-                        <td className="py-2 px-2 text-right text-blue-800 whitespace-nowrap">
-                          {formatCurrency(activeHonorSheet.totalHonor)}
-                        </td>
-                        <td></td>
-                      </tr>
+                      {honorPricingMode === "RAB_SATUAN" ? (
+                        <tr>
+                          <td colSpan={3} className="py-2 px-2">
+                            TOTAL ({activeHonorRows.length} Lokasi × {formatCurrency(SNT_RAB_HONOR_FASIL_UNIT_PRICE)})
+                          </td>
+                          <td className="py-2 px-2 text-right text-blue-800 whitespace-nowrap">
+                            {formatCurrency(activeHonorSheet.totalHonor)}
+                          </td>
+                          <td></td>
+                        </tr>
+                      ) : (
+                        <tr>
+                          <td className="py-2 px-2">TOTAL ({activeHonorRows.length} Fasilitator)</td>
+                          <td className="py-2 px-2 text-center">{activeHonorSheet.totalJpIntra}</td>
+                          <td className="py-2 px-2 text-center">{activeHonorSheet.totalJpEkstra}</td>
+                          <td className="py-2 px-2 text-center">{activeHonorSheet.totalJP}</td>
+                          <td className="py-2 px-2 text-right">-</td>
+                          <td className="py-2 px-2 text-right text-blue-800 whitespace-nowrap">
+                            {formatCurrency(activeHonorSheet.totalHonor)}
+                          </td>
+                          <td></td>
+                        </tr>
+                      )}
                     </tfoot>
                   </table>
                 </div>
@@ -633,23 +880,25 @@ export function EvidenceDocsTab({
                           id: `manual-${Date.now()}`,
                           nama: "",
                           lokasi: SNT_WILAYAH_2_LOCATIONS[0].label,
-                          jpIntra: 32,
-                          jpEkstra: 16,
-                          totalJP: 48,
-                          hargaSatuanReal: 65000,
-                          totalHonor: 3120000,
+                          jpIntra: honorPricingMode === "RAB_SATUAN" ? 0 : 32,
+                          jpEkstra: honorPricingMode === "RAB_SATUAN" ? 0 : 16,
+                          totalJP: honorPricingMode === "RAB_SATUAN" ? 0 : 48,
+                          hargaSatuanReal: honorPricingMode === "RAB_SATUAN" ? SNT_RAB_HONOR_FASIL_UNIT_PRICE : 65000,
+                          totalHonor: honorPricingMode === "RAB_SATUAN" ? SNT_RAB_HONOR_FASIL_UNIT_PRICE : 3120000,
                           totalTransport: 0,
                           status: "MANUAL",
                         },
                       ];
-                      setCustomHonorRowsByMonth((prev) => ({ ...prev, [honorMonth]: next }));
+                      setCustomHonorRowsByKey((prev) => ({ ...prev, [honorStateKey]: next }));
                     }}
                     className="text-xs bg-white gap-1"
                   >
                     <Plus className="w-3.5 h-3.5" /> Tambah Baris Manual
                   </Button>
                   <span className="text-[11px] text-slate-500">
-                    Tips: Tarif real JP umum = Rp65.000/JP (otomatis terhitung dari `Honor / Total JP`).
+                    {honorPricingMode === "RAB_SATUAN"
+                      ? `Standar RAB A.4: Rp5.729.876/lokasi/bln × 6 lokasi × 4 bln = Rp137.517.024.`
+                      : "Tips: Tarif real JP umum = Rp65.000/JP (otomatis terhitung dari Honor / Total JP)."}
                   </span>
                 </div>
               </div>
@@ -873,13 +1122,27 @@ export function EvidenceDocsTab({
                       <label className="block font-semibold text-slate-700 mb-1">Pos RAB Target</label>
                       <select
                         value={currentGenericDraft.rabCode}
-                        onChange={(e) => updateGenericDraft((p) => ({ ...p, rabCode: e.target.value }))}
+                        onChange={(e) => {
+                          const nextCode = e.target.value;
+                          const preset = getHonorTimPresetByRabCode(nextCode, currentGenericDraft.tanggalDokumen);
+                          updateGenericDraft((p) => ({
+                            ...p,
+                            rabCode: nextCode,
+                            items: preset.length > 0 ? preset : p.items,
+                          }));
+                          if (nextCode === "5") {
+                            setBanner({
+                              type: "ok",
+                              text: `Preset Tenaga Administrasi (Pos A.5) dimuat: 4 bulan × ${formatCurrency(SNT_RAB_TENAGA_ADMIN_UNIT_PRICE)} = ${formatCurrency(SNT_RAB_TENAGA_ADMIN_UNIT_PRICE * 4)}.`,
+                            });
+                          }
+                        }}
                         className="w-full h-9 px-2.5 rounded-md border border-slate-200 bg-white text-xs font-semibold"
                       >
-                        <option value="1">A.1 — Ketua Tim Pelaksana</option>
+                        <option value="1">A.1 — Ketua Tim Pelaksana (Rp3,6 jt/bln)</option>
                         <option value="2">A.2 — Tim Program Koding KA Robotika</option>
-                        <option value="3">A.3 — Koordinator Wilayah</option>
-                        <option value="5">A.5 — Tenaga Administrasi</option>
+                        <option value="3">A.3 — Koordinator Wilayah (Rp10,8 jt/bln)</option>
+                        <option value="5">A.5 — Tenaga Administrasi (Rp5.729.876/bln)</option>
                         <option value="4a">B.4a — Narasumber Pelatihan In</option>
                       </select>
                     </div>
@@ -914,6 +1177,29 @@ export function EvidenceDocsTab({
                     >
                       <Download className="w-3.5 h-3.5" /> Tarik dari Transaksi Pos {currentGenericDraft.rabCode}
                     </Button>
+                    {activeType === "HONOR_TIM" && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const preset = getHonorTimPresetByRabCode(
+                            currentGenericDraft.rabCode,
+                            currentGenericDraft.tanggalDokumen
+                          );
+                          if (preset.length > 0) {
+                            updateGenericDraft((p) => ({ ...p, items: preset }));
+                            setBanner({
+                              type: "ok",
+                              text: `Preset RAB Pos ${currentGenericDraft.rabCode} dimuat (${preset.length} baris).`,
+                            });
+                          }
+                        }}
+                        className="bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100 text-xs h-8 gap-1"
+                      >
+                        Muat Preset RAB Pos {currentGenericDraft.rabCode}
+                      </Button>
+                    )}
                     <Button
                       type="button"
                       size="sm"

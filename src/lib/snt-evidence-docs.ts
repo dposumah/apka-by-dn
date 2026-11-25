@@ -1,8 +1,17 @@
 import {
   RabRealizationSummary,
   SNT_WILAYAH_2_LOCATIONS,
+  SntFasilitatorRecord,
   SntRekapRecord,
 } from "./snt-report-templates";
+
+/** Harga satuan resmi RAB Wilayah 2 Pos A.4 (6 lokasi × 4 bln = Rp137.517.024) */
+export const SNT_RAB_HONOR_FASIL_UNIT_PRICE = 5729876;
+
+/** Harga satuan resmi RAB Wilayah 2 Pos A.5 Tenaga Administrasi (1 org × 4 bln = Rp22.919.504) */
+export const SNT_RAB_TENAGA_ADMIN_UNIT_PRICE = 5729876;
+
+export type HonorPricingMode = "RAB_SATUAN" | "REAL_JP";
 
 export type EvidenceDocType =
   | "HONOR_FASIL_BULANAN"
@@ -143,6 +152,8 @@ export interface MonthlyHonorReceiptRow {
   id: string;
   nama: string;
   lokasi: string;
+  locationId?: string;
+  isMultiFacilitatorLocation?: boolean;
   jpIntra: number;
   jpEkstra: number;
   totalJP: number;
@@ -155,12 +166,27 @@ export interface MonthlyHonorReceiptRow {
 export interface MonthlyHonorReceiptSheet {
   monthKey: string;
   monthLabel: string;
+  pricingMode?: HonorPricingMode;
   rows: MonthlyHonorReceiptRow[];
   totalJpIntra: number;
   totalJpEkstra: number;
   totalJP: number;
   totalHonor: number;
   totalTransport: number;
+}
+
+export function matchWilayah2LocationId(rawLokasi?: string | null): string | null {
+  const hay = (rawLokasi || "").toLowerCase();
+  if (!hay) return null;
+  for (const loc of SNT_WILAYAH_2_LOCATIONS) {
+    if (
+      hay.includes(loc.label.toLowerCase()) ||
+      loc.keywords.some((kw) => hay.includes(kw.toLowerCase()))
+    ) {
+      return loc.id;
+    }
+  }
+  return null;
 }
 
 const MONTH_LABELS: Record<string, string> = {
@@ -172,6 +198,81 @@ const MONTH_LABELS: Record<string, string> = {
 
 export function getMonthLabelId(monthKey: string): string {
   return MONTH_LABELS[monthKey] || monthKey;
+}
+
+/**
+ * Membangun Daftar Tanda Terima & Kwitansi Honor Fasilitator bulanan sesuai
+ * Harga Satuan RAB A.4 (Rp5.729.876 / lokasi / bulan × 6 lokasi = Rp34.379.256 / bln).
+ *
+ * Karena 5 lokasi menggunakan 2 fasilitator dalam 1 lokasi (kecuali Kota Tidore Kepulauan),
+ * nama penerima pada 5 lokasi tersebut dikosongkan default agar dapat dibiarkan kosong (blanko)
+ * atau dipilih salah satu fasilitator via dropdown pada daftar tanda terima & kwitansi.
+ */
+export function buildMonthlyRabUnitHonorReceipt(
+  monthKey: string,
+  rekaps: SntRekapRecord[],
+  fasilitators: SntFasilitatorRecord[]
+): MonthlyHonorReceiptSheet {
+  const monthRekaps = (rekaps || []).filter((r) => r.bulan === monthKey);
+
+  const rows: MonthlyHonorReceiptRow[] = SNT_WILAYAH_2_LOCATIONS.map((loc) => {
+    const locRekaps = monthRekaps.filter(
+      (r) => matchWilayah2LocationId(r.fasilitator?.lokasiSNT) === loc.id
+    );
+    const locFasils = (fasilitators || []).filter(
+      (f) => matchWilayah2LocationId(f.lokasiSNT) === loc.id
+    );
+
+    const isTidore = loc.id === "tidore";
+    const isMultiFacilitatorLocation = !isTidore;
+
+    // Untuk Tidore (1 fasil aktif), ambil nama fasil dari rekap bulan tsb jika ada;
+    // untuk 5 lokasi lain (2 fasil per lokasi), kosongkan default agar user pilih dari dropdown atau biarkan blanko.
+    let defaultNama = "";
+    if (isTidore) {
+      const fromRekap = locRekaps.find((r) => r.fasilitator?.namaLengkap)?.fasilitator?.namaLengkap;
+      if (fromRekap) {
+        defaultNama = fromRekap;
+      } else if (locFasils.length === 1) {
+        defaultNama = locFasils[0].namaLengkap;
+      }
+    }
+
+    const jpIntra = locRekaps.reduce((s, r) => s + (Number(r.totalJPIntra) || 0), 0);
+    const jpEkstra = locRekaps.reduce((s, r) => s + (Number(r.totalJPEkstra) || 0), 0);
+    const totalJP = locRekaps.reduce(
+      (s, r) => s + (Number(r.totalJP) || (Number(r.totalJPIntra) || 0) + (Number(r.totalJPEkstra) || 0)),
+      0
+    );
+    const totalTransport = locRekaps.reduce((s, r) => s + (Number(r.totalTransport) || 0), 0);
+
+    return {
+      id: `rab-${monthKey}-${loc.id}`,
+      nama: defaultNama,
+      lokasi: loc.label,
+      locationId: loc.id,
+      isMultiFacilitatorLocation,
+      jpIntra,
+      jpEkstra,
+      totalJP,
+      hargaSatuanReal: SNT_RAB_HONOR_FASIL_UNIT_PRICE,
+      totalHonor: SNT_RAB_HONOR_FASIL_UNIT_PRICE,
+      totalTransport,
+      status: "RAB_SATUAN",
+    };
+  });
+
+  return {
+    monthKey,
+    monthLabel: getMonthLabelId(monthKey),
+    pricingMode: "RAB_SATUAN",
+    rows,
+    totalJpIntra: rows.reduce((s, r) => s + r.jpIntra, 0),
+    totalJpEkstra: rows.reduce((s, r) => s + r.jpEkstra, 0),
+    totalJP: rows.reduce((s, r) => s + r.totalJP, 0),
+    totalHonor: rows.reduce((s, r) => s + r.totalHonor, 0),
+    totalTransport: rows.reduce((s, r) => s + r.totalTransport, 0),
+  };
 }
 
 /**
@@ -195,6 +296,7 @@ export function buildMonthlyFacilitatorHonorReceipt(
       id: r.id,
       nama: r.fasilitator?.namaLengkap || "-",
       lokasi: r.fasilitator?.lokasiSNT || "-",
+      locationId: matchWilayah2LocationId(r.fasilitator?.lokasiSNT) || undefined,
       jpIntra,
       jpEkstra,
       totalJP,
@@ -210,6 +312,7 @@ export function buildMonthlyFacilitatorHonorReceipt(
   return {
     monthKey,
     monthLabel: getMonthLabelId(monthKey),
+    pricingMode: "REAL_JP",
     rows,
     totalJpIntra: rows.reduce((s, r) => s + r.jpIntra, 0),
     totalJpEkstra: rows.reduce((s, r) => s + r.jpEkstra, 0),
@@ -278,6 +381,93 @@ export function getDefaultSewaRumahDraft(): SewaRumahContractDraft {
   };
 }
 
+export function getHonorTimPresetByRabCode(rabCode: string, tanggal?: string): EvidenceLineItem[] {
+  const t = tanggal || new Date().toISOString().slice(0, 10);
+  const c = (rabCode || "").trim().toLowerCase();
+  const months = [
+    { key: "sep", label: "September 2026", date: "2026-09-30" },
+    { key: "okt", label: "Oktober 2026", date: "2026-10-31" },
+    { key: "nov", label: "November 2026", date: "2026-11-30" },
+    { key: "des", label: "Desember 2026", date: "2026-12-20" },
+  ];
+
+  if (c === "5") {
+    return months.map((m) => ({
+      id: `adm-${m.key}`,
+      tanggal: m.date,
+      lokasi: "Wilayah 2",
+      uraian: `Honorarium Tenaga Administrasi — Bulan ${m.label}`,
+      penerima: "",
+      volume: 1,
+      satuan: "bulan",
+      hargaSatuan: SNT_RAB_TENAGA_ADMIN_UNIT_PRICE,
+      nominal: SNT_RAB_TENAGA_ADMIN_UNIT_PRICE,
+    }));
+  }
+
+  if (c === "1") {
+    return months.map((m) => ({
+      id: `ketua-${m.key}`,
+      tanggal: m.date,
+      lokasi: "Wilayah 2",
+      uraian: `Honorarium Ketua Tim Pelaksana — Bulan ${m.label} (4 jam)`,
+      penerima: "",
+      volume: 4,
+      satuan: "jam",
+      hargaSatuan: 900000,
+      nominal: 3600000,
+    }));
+  }
+
+  if (c === "2") {
+    return [
+      {
+        id: "tp-1",
+        tanggal: t,
+        lokasi: "Wilayah 2",
+        uraian: "Honorarium Tim Program Koding KA Robotika (Penyusunan Modul & Kurikulum SMP & SMA)",
+        penerima: "",
+        volume: 1,
+        satuan: "paket",
+        hargaSatuan: 133333334,
+        nominal: 133333334,
+      },
+    ];
+  }
+
+  if (c === "3") {
+    return months.map((m) => ({
+      id: `korwil-${m.key}`,
+      tanggal: m.date,
+      lokasi: "Wilayah 2",
+      uraian: `Honorarium Koordinator Wilayah 2 — Bulan ${m.label} (12 jam)`,
+      penerima: "",
+      volume: 12,
+      satuan: "jam",
+      hargaSatuan: 900000,
+      nominal: 10800000,
+    }));
+  }
+
+  if (c === "4a") {
+    return [
+      {
+        id: "narsum-1",
+        tanggal: t,
+        lokasi: "Jakarta / Wilayah 2",
+        uraian: "Honorarium Narasumber Pelatihan In oleh Tim Program (ToT Fasilitator)",
+        penerima: "",
+        volume: 1,
+        satuan: "paket",
+        hargaSatuan: 21200000,
+        nominal: 21200000,
+      },
+    ];
+  }
+
+  return [];
+}
+
 export function getDefaultGenericEvidenceDraft(
   type: EvidenceDocType,
   sudahTerimaDari: string
@@ -291,23 +481,34 @@ export function getDefaultGenericEvidenceDraft(
         id: "ht-1",
         tanggal: today,
         lokasi: "Wilayah 2",
-        uraian: "Honorarium Ketua Tim Pelaksana (4 jam × 3 bulan)",
+        uraian: "Honorarium Ketua Tim Pelaksana (4 jam × 4 bulan)",
         penerima: "",
-        volume: 12,
+        volume: 16,
         satuan: "jam",
         hargaSatuan: 900000,
-        nominal: 10800000,
+        nominal: 14400000,
       },
       {
         id: "ht-2",
         tanggal: today,
         lokasi: "Wilayah 2",
-        uraian: "Honorarium Koordinator Wilayah 2 (12 jam × 3 bulan)",
+        uraian: "Honorarium Koordinator Wilayah 2 (12 jam × 4 bulan)",
         penerima: "",
-        volume: 36,
+        volume: 48,
         satuan: "jam",
         hargaSatuan: 900000,
-        nominal: 32400000,
+        nominal: 43200000,
+      },
+      {
+        id: "ht-3",
+        tanggal: today,
+        lokasi: "Wilayah 2",
+        uraian: "Honorarium Tenaga Administrasi (Pos A.5 · Rp5.729.876/bulan)",
+        penerima: "",
+        volume: 1,
+        satuan: "bulan",
+        hargaSatuan: SNT_RAB_TENAGA_ADMIN_UNIT_PRICE,
+        nominal: SNT_RAB_TENAGA_ADMIN_UNIT_PRICE,
       },
     ],
     KORWIL_UANG_HARIAN: [

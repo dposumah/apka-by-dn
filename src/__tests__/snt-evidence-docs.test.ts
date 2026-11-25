@@ -2,10 +2,14 @@ import { describe, it, expect } from "vitest";
 import {
   BLANK_SIGNATURE_LINE,
   buildMonthlyFacilitatorHonorReceipt,
+  buildMonthlyRabUnitHonorReceipt,
   computeTarget80Strategy,
   getDefaultGenericEvidenceDraft,
   getDefaultSewaRumahDraft,
+  getHonorTimPresetByRabCode,
   resolveRecipientDisplay,
+  SNT_RAB_HONOR_FASIL_UNIT_PRICE,
+  SNT_RAB_TENAGA_ADMIN_UNIT_PRICE,
 } from "../lib/snt-evidence-docs";
 import {
   renderGenericEvidencePdfHtml,
@@ -15,6 +19,7 @@ import {
 import {
   computeRabRealizationSummary,
   getDefaultSntReportProfile,
+  SntFasilitatorRecord,
   SntRabCategoryRecord,
   SntRekapRecord,
 } from "../lib/snt-report-templates";
@@ -153,5 +158,67 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
     expect(html).toContain("Pembinaan Kompetisi Coding");
     expect(html).toContain("KWITANSI");
     expect(html).toContain(BLANK_SIGNATURE_LINE);
+  });
+
+  it("builds RAB unit rate Rp5.729.876/location for facilitators (blank on 2-fasil locations, selectable per row) and Tenaga Administrasi A.5", () => {
+    const fasilitators: SntFasilitatorRecord[] = [
+      { id: "f1", namaLengkap: "Muliyadi, S.Kom., M.Cs.", lokasiSNT: "Sulawesi Tenggara - Kab. Buton Tengah" },
+      { id: "f2", namaLengkap: "Rando, S.Kom., M.Eng.", lokasiSNT: "Sulawesi Tenggara - Kab. Buton Tengah" },
+      { id: "f3", namaLengkap: "Muh. Hanifudin H, S.Pd", lokasiSNT: "Maluku Utara - Kota Tidore Kepulauan" },
+    ];
+    const rekaps: SntRekapRecord[] = [
+      {
+        id: "rk-tidore",
+        bulan: "2026-10",
+        status: "APPROVED",
+        totalHonor: 6796741,
+        totalTransport: 0,
+        totalJP: 48,
+        totalJPIntra: 32,
+        totalJPEkstra: 16,
+        jumlahSesi: 4,
+        fasilitatorId: "f3",
+        fasilitator: { namaLengkap: "Muh. Hanifudin H, S.Pd", lokasiSNT: "Maluku Utara - Kota Tidore Kepulauan" },
+      },
+    ];
+
+    const sheet = buildMonthlyRabUnitHonorReceipt("2026-10", rekaps, fasilitators);
+    expect(sheet.pricingMode).toBe("RAB_SATUAN");
+    expect(sheet.rows).toHaveLength(6);
+    expect(sheet.totalHonor).toBe(SNT_RAB_HONOR_FASIL_UNIT_PRICE * 6);
+    expect(sheet.totalHonor).toBe(34379256);
+
+    // 5 lokasi multi-fasil kosong default; Tidore 1 fasil terisi dari rekap
+    const buton = sheet.rows.find((r) => r.locationId === "buton-tengah");
+    const tidore = sheet.rows.find((r) => r.locationId === "tidore");
+    expect(buton?.nama).toBe("");
+    expect(buton?.hargaSatuanReal).toBe(5729876);
+    expect(tidore?.nama).toBe("Muh. Hanifudin H, S.Pd");
+
+    // Simulasi user memilih 1 nama fasil untuk Buton Tengah dari dropdown, sementara Kupang tetap kosong
+    const customSheet = {
+      ...sheet,
+      rows: sheet.rows.map((r) =>
+        r.locationId === "buton-tengah" ? { ...r, nama: "Rando, S.Kom., M.Eng." } : r
+      ),
+    };
+    const html = renderMonthlyFacilitatorHonorPdfHtml({
+      sheet: customSheet,
+      profile: getDefaultSntReportProfile(),
+      includeTransportColumn: false,
+      recipientMode: "MANUAL",
+      tanggalCetak: "2026-10-31",
+      includeIndividualKwitansi: true,
+    });
+    expect(html).toMatch(/Rp\s+5\.729\.876/);
+    expect(html).toContain("Rando, S.Kom., M.Eng.");
+    expect(html).toContain("Muh. Hanifudin H, S.Pd");
+    expect(html).toContain(BLANK_SIGNATURE_LINE); // Kupang, Tebo, Tanjabtim, Minahasa Utara tetap kosong
+
+    // Preset Tenaga Administrasi Pos A.5 = 4 bulan × Rp5.729.876 = Rp22.919.504
+    const adminPreset = getHonorTimPresetByRabCode("5");
+    expect(adminPreset).toHaveLength(4);
+    expect(adminPreset.every((it) => it.hargaSatuan === SNT_RAB_TENAGA_ADMIN_UNIT_PRICE)).toBe(true);
+    expect(adminPreset.reduce((s, it) => s + it.nominal, 0)).toBe(22919504);
   });
 });

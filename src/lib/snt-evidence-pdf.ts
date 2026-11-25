@@ -1,6 +1,5 @@
 import { formatCurrency, terbilangRupiah } from "./format";
 import {
-  BLANK_SIGNATURE_LINE,
   EvidenceDocType,
   GenericEvidenceDraft,
   MonthlyHonorReceiptSheet,
@@ -104,11 +103,24 @@ export function renderMonthlyFacilitatorHonorPdfHtml(input: {
   const { sheet, profile, includeTransportColumn, recipientMode, tanggalCetak } = input;
   const sudahTerimaDari =
     profile.kopSurat === "maleo" ? "Yayasan Maleo Talenta Cendekia" : profile.namaYayasan;
+  const isRabSatuan = sheet.pricingMode === "RAB_SATUAN";
 
   const bodyRows = sheet.rows
     .map((r, idx) => {
-      const displayName =
-        recipientMode === "BLANK" ? BLANK_SIGNATURE_LINE : r.nama;
+      const displayName = resolveRecipientDisplay(recipientMode, r.nama);
+      if (isRabSatuan) {
+        return `
+        <tr>
+          <td class="ctr">${idx + 1}</td>
+          <td><strong>${esc(displayName)}</strong></td>
+          <td>${esc(r.lokasi)}</td>
+          <td class="ctr">1 Bulan</td>
+          <td class="num">${esc(formatCurrency(r.hargaSatuanReal))}</td>
+          <td class="num"><strong>${esc(formatCurrency(r.totalHonor))}</strong></td>
+          ${includeTransportColumn ? `<td class="num">${esc(formatCurrency(r.totalTransport))}</td>` : ""}
+          <td class="ttd-cell">${idx + 1}. ........................</td>
+        </tr>`;
+      }
       return `
       <tr>
         <td class="ctr">${idx + 1}</td>
@@ -135,11 +147,13 @@ export function renderMonthlyFacilitatorHonorPdfHtml(input: {
             noKwitansi: `KWT/HONOR/${sheet.monthKey}/${String(idx + 1).padStart(2, "0")}`,
             sudahTerimaDari,
             amount: r.totalHonor,
-            untukPembayaran: `Honorarium Fasilitator KKA & Robotika Bulan ${sheet.monthLabel} (${r.totalJP} JP × ${formatCurrency(r.hargaSatuanReal)}/JP)`,
+            untukPembayaran: isRabSatuan
+              ? `Honorarium Fasilitator KKA & Robotika Bulan ${sheet.monthLabel} (1 Bulan × ${formatCurrency(r.hargaSatuanReal)})`
+              : `Honorarium Fasilitator KKA & Robotika Bulan ${sheet.monthLabel} (${r.totalJP} JP × ${formatCurrency(r.hargaSatuanReal)}/JP)`,
             subLabel: `Pos RAB A.4 · Lokasi: ${r.lokasi}`,
             kota: profile.kotaPengesahan || "Jakarta",
             tanggal: tanggalCetak,
-            penerimaDisplay: recipientMode === "BLANK" ? BLANK_SIGNATURE_LINE : r.nama,
+            penerimaDisplay: resolveRecipientDisplay(recipientMode, r.nama),
             penerimaRole: "Fasilitator Penerima,",
           })}
         </div>`
@@ -147,18 +161,19 @@ export function renderMonthlyFacilitatorHonorPdfHtml(input: {
         .join("")
     : "";
 
-  return wrapPrintableHtml(
-    `Daftar Tanda Terima Honor Fasilitator — ${sheet.monthLabel}`,
-    `
-      ${renderKop(profile.kopSurat)}
-      <div class="doc-head">
-        <div class="badge">POS RAB A.4 · TEMPLATE 13 BUKTI WAJIB</div>
-        <h1>DAFTAR TANDA TERIMA HONORARIUM FASILITATOR KKA &amp; ROBOTIKA</h1>
-        <p class="subtitle">Periode: <strong>${esc(sheet.monthLabel)}</strong> · Wilayah 2 (6 Lokasi SNT) · Berdasarkan Realisasi Harga Satuan Riil</p>
-      </div>
-
-      <table class="data-table">
-        <thead>
+  const tableHead = isRabSatuan
+    ? `
+          <tr>
+            <th class="ctr" style="width:28px">No</th>
+            <th>Nama Fasilitator</th>
+            <th>Lokasi SNT</th>
+            <th class="ctr">Satuan</th>
+            <th class="num">Harga Satuan (Rp)</th>
+            <th class="num">Jumlah Honor (Rp)</th>
+            ${includeTransportColumn ? `<th class="num">Info Transport (Rp)</th>` : ""}
+            <th class="ctr" style="width:125px">Tanda Tangan</th>
+          </tr>`
+    : `
           <tr>
             <th class="ctr" style="width:28px">No</th>
             <th>Nama Fasilitator</th>
@@ -170,14 +185,25 @@ export function renderMonthlyFacilitatorHonorPdfHtml(input: {
             <th class="num">Jumlah Honor (Rp)</th>
             ${includeTransportColumn ? `<th class="num">Info Transport (Rp)</th>` : ""}
             <th class="ctr" style="width:125px">Tanda Tangan</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${
-            sheet.rows.length === 0
-              ? `<tr><td colspan="${includeTransportColumn ? 10 : 9}" class="ctr">Belum ada data rekap honorarium pada bulan ini.</td></tr>`
-              : bodyRows
-          }
+          </tr>`;
+
+  const emptyColSpan = isRabSatuan
+    ? includeTransportColumn
+      ? 8
+      : 7
+    : includeTransportColumn
+      ? 10
+      : 9;
+
+  const totalRowHtml = isRabSatuan
+    ? `
+          <tr class="total-row">
+            <td colspan="5"><strong>TOTAL HONORARIUM FASILITATOR BULAN ${esc(sheet.monthLabel.toUpperCase())} (${sheet.rows.length} LOKASI)</strong></td>
+            <td class="num"><strong>${esc(formatCurrency(sheet.totalHonor))}</strong></td>
+            ${includeTransportColumn ? `<td class="num"><strong>${esc(formatCurrency(sheet.totalTransport))}</strong></td>` : ""}
+            <td></td>
+          </tr>`
+    : `
           <tr class="total-row">
             <td colspan="3"><strong>TOTAL REALISASI HONOR BULAN ${esc(sheet.monthLabel.toUpperCase())}</strong></td>
             <td class="ctr"><strong>${sheet.totalJpIntra}</strong></td>
@@ -187,7 +213,33 @@ export function renderMonthlyFacilitatorHonorPdfHtml(input: {
             <td class="num"><strong>${esc(formatCurrency(sheet.totalHonor))}</strong></td>
             ${includeTransportColumn ? `<td class="num"><strong>${esc(formatCurrency(sheet.totalTransport))}</strong></td>` : ""}
             <td></td>
-          </tr>
+          </tr>`;
+
+  return wrapPrintableHtml(
+    `Daftar Tanda Terima Honor Fasilitator — ${sheet.monthLabel}`,
+    `
+      ${renderKop(profile.kopSurat)}
+      <div class="doc-head">
+        <div class="badge">POS RAB A.4 · TEMPLATE 13 BUKTI WAJIB</div>
+        <h1>DAFTAR TANDA TERIMA HONORARIUM FASILITATOR KKA &amp; ROBOTIKA</h1>
+        <p class="subtitle">Periode: <strong>${esc(sheet.monthLabel)}</strong> · Wilayah 2 (6 Lokasi SNT) · ${
+          isRabSatuan
+            ? "Harga Satuan RAB (Rp 5.729.876 / Fasilitator / Bulan)"
+            : "Berdasarkan Realisasi Harga Satuan Riil per JP"
+        }</p>
+      </div>
+
+      <table class="data-table">
+        <thead>
+          ${tableHead}
+        </thead>
+        <tbody>
+          ${
+            sheet.rows.length === 0
+              ? `<tr><td colspan="${emptyColSpan}" class="ctr">Belum ada data honorarium pada bulan ini.</td></tr>`
+              : bodyRows
+          }
+          ${totalRowHtml}
         </tbody>
       </table>
 
