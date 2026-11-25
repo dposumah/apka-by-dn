@@ -1009,3 +1009,20 @@ model IyrcBudgetItem {
 
   @@map("iyrc_budget_items")
 }
+
+// ==================== SNT PACKAGE REPORT DRAFTS (WILAYAH 2) ====================
+
+model SntReportDraft {
+  id           String   @id @default(cuid())
+  templateCode String   // "PROFILE", "01", "02", "03", "04", "11", "12", "13", "14"
+  periodKey    String   @default("DEFAULT") // "GLOBAL", "2026-09", "2026-10", "2026-11", "2026-12", "TAHAP_1", "FINAL"
+  title        String
+  content      Json
+  updatedById  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([templateCode, periodKey])
+  @@index([templateCode])
+  @@map("snt_report_drafts")
+}
