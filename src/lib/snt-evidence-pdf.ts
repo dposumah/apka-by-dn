@@ -1,0 +1,525 @@
+import { formatCurrency, terbilangRupiah } from "./format";
+import {
+  BLANK_SIGNATURE_LINE,
+  EvidenceDocType,
+  GenericEvidenceDraft,
+  MonthlyHonorReceiptSheet,
+  RecipientMode,
+  resolveRecipientDisplay,
+  SewaRumahContractDraft,
+} from "./snt-evidence-docs";
+import { KopSuratOption, SntReportProfile } from "./snt-report-templates";
+
+function esc(val: unknown): string {
+  return String(val ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function formatDateId(dateInput?: string | Date | null): string {
+  if (!dateInput) return "............................ 2026";
+  const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
+  if (Number.isNaN(d.getTime())) return String(dateInput);
+  return d.toLocaleDateString("id-ID", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function renderKop(kop: KopSuratOption): string {
+  if (kop === "maleo") {
+    return `<div class="kop-wrap"><img src="/kop-maleo.png" alt="Kop Yayasan Maleo" class="kop-img" onerror="this.style.display='none'" /></div>`;
+  }
+  if (kop === "robotic") {
+    return `<div class="kop-wrap"><img src="/kop-surat.png" alt="Kop Robotic Explorer" class="kop-img" onerror="this.style.display='none'" /></div>`;
+  }
+  return "";
+}
+
+function renderKwitansiSlipHtml(params: {
+  kopSurat: KopSuratOption;
+  noKwitansi: string;
+  sudahTerimaDari: string;
+  amount: number;
+  untukPembayaran: string;
+  subLabel?: string;
+  kota: string;
+  tanggal: string;
+  penerimaDisplay: string;
+  penerimaRole: string;
+}): string {
+  return `
+    <div class="kwt-card">
+      <div class="kwt-head">
+        <div>${params.kopSurat !== "none" ? `<img src="${params.kopSurat === "maleo" ? "/kop-maleo.png" : "/kop-surat.png"}" class="kwt-kop" alt="Kop" onerror="this.style.display='none'" />` : ""}</div>
+        <div class="kwt-head-right">
+          <div class="kwt-title">KWITANSI</div>
+          <div class="kwt-no">No: ${esc(params.noKwitansi || "................................")}</div>
+        </div>
+      </div>
+      <table class="kwt-table">
+        <tr>
+          <td class="kwt-label">Sudah Terima Dari</td>
+          <td class="kwt-colon">:</td>
+          <td><strong>${esc(params.sudahTerimaDari)}</strong></td>
+        </tr>
+        <tr>
+          <td class="kwt-label">Banyaknya Uang</td>
+          <td class="kwt-colon">:</td>
+          <td class="kwt-terbilang">${esc(params.amount > 0 ? terbilangRupiah(params.amount) : "................................................................")}</td>
+        </tr>
+        <tr>
+          <td class="kwt-label">Untuk Pembayaran</td>
+          <td class="kwt-colon">:</td>
+          <td>
+            <div>${esc(params.untukPembayaran)}</div>
+            ${params.subLabel ? `<div class="sub">${esc(params.subLabel)}</div>` : ""}
+          </td>
+        </tr>
+      </table>
+      <div class="kwt-foot">
+        <div class="kwt-amount">${params.amount > 0 ? esc(formatCurrency(params.amount)) : "Rp ........................"}</div>
+        <div class="kwt-sign">
+          <div>${esc(params.kota)}, ${esc(formatDateId(params.tanggal))}</div>
+          <div class="sub">${esc(params.penerimaRole)}</div>
+          <div class="sign-space"></div>
+          <div class="sign-name">${esc(params.penerimaDisplay)}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+export function renderMonthlyFacilitatorHonorPdfHtml(input: {
+  sheet: MonthlyHonorReceiptSheet;
+  profile: SntReportProfile;
+  includeTransportColumn: boolean;
+  recipientMode: RecipientMode;
+  tanggalCetak: string;
+  includeIndividualKwitansi?: boolean;
+}): string {
+  const { sheet, profile, includeTransportColumn, recipientMode, tanggalCetak } = input;
+  const sudahTerimaDari =
+    profile.kopSurat === "maleo" ? "Yayasan Maleo Talenta Cendekia" : profile.namaYayasan;
+
+  const bodyRows = sheet.rows
+    .map((r, idx) => {
+      const displayName =
+        recipientMode === "BLANK" ? BLANK_SIGNATURE_LINE : r.nama;
+      return `
+      <tr>
+        <td class="ctr">${idx + 1}</td>
+        <td><strong>${esc(displayName)}</strong></td>
+        <td>${esc(r.lokasi)}</td>
+        <td class="ctr">${r.jpIntra}</td>
+        <td class="ctr">${r.jpEkstra}</td>
+        <td class="ctr"><strong>${r.totalJP}</strong></td>
+        <td class="num">${esc(formatCurrency(r.hargaSatuanReal))}</td>
+        <td class="num"><strong>${esc(formatCurrency(r.totalHonor))}</strong></td>
+        ${includeTransportColumn ? `<td class="num">${esc(formatCurrency(r.totalTransport))}</td>` : ""}
+        <td class="ttd-cell">${idx + 1}. ........................</td>
+      </tr>`;
+    })
+    .join("");
+
+  const kwtPages = input.includeIndividualKwitansi
+    ? sheet.rows
+        .map(
+          (r, idx) => `
+        <div class="page-break">
+          ${renderKwitansiSlipHtml({
+            kopSurat: profile.kopSurat,
+            noKwitansi: `KWT/HONOR/${sheet.monthKey}/${String(idx + 1).padStart(2, "0")}`,
+            sudahTerimaDari,
+            amount: r.totalHonor,
+            untukPembayaran: `Honorarium Fasilitator KKA & Robotika Bulan ${sheet.monthLabel} (${r.totalJP} JP × ${formatCurrency(r.hargaSatuanReal)}/JP)`,
+            subLabel: `Pos RAB A.4 · Lokasi: ${r.lokasi}`,
+            kota: profile.kotaPengesahan || "Jakarta",
+            tanggal: tanggalCetak,
+            penerimaDisplay: recipientMode === "BLANK" ? BLANK_SIGNATURE_LINE : r.nama,
+            penerimaRole: "Fasilitator Penerima,",
+          })}
+        </div>`
+        )
+        .join("")
+    : "";
+
+  return wrapPrintableHtml(
+    `Daftar Tanda Terima Honor Fasilitator — ${sheet.monthLabel}`,
+    `
+      ${renderKop(profile.kopSurat)}
+      <div class="doc-head">
+        <div class="badge">POS RAB A.4 · TEMPLATE 13 BUKTI WAJIB</div>
+        <h1>DAFTAR TANDA TERIMA HONORARIUM FASILITATOR KKA &amp; ROBOTIKA</h1>
+        <p class="subtitle">Periode: <strong>${esc(sheet.monthLabel)}</strong> · Wilayah 2 (6 Lokasi SNT) · Berdasarkan Realisasi Harga Satuan Riil</p>
+      </div>
+
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th class="ctr" style="width:28px">No</th>
+            <th>Nama Fasilitator</th>
+            <th>Lokasi SNT</th>
+            <th class="ctr">JP Intra</th>
+            <th class="ctr">JP Ekstra</th>
+            <th class="ctr">Total JP</th>
+            <th class="num">Harga Satuan Real / JP</th>
+            <th class="num">Jumlah Honor (Rp)</th>
+            ${includeTransportColumn ? `<th class="num">Info Transport (Rp)</th>` : ""}
+            <th class="ctr" style="width:125px">Tanda Tangan</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${
+            sheet.rows.length === 0
+              ? `<tr><td colspan="${includeTransportColumn ? 10 : 9}" class="ctr">Belum ada data rekap honorarium pada bulan ini.</td></tr>`
+              : bodyRows
+          }
+          <tr class="total-row">
+            <td colspan="3"><strong>TOTAL REALISASI HONOR BULAN ${esc(sheet.monthLabel.toUpperCase())}</strong></td>
+            <td class="ctr"><strong>${sheet.totalJpIntra}</strong></td>
+            <td class="ctr"><strong>${sheet.totalJpEkstra}</strong></td>
+            <td class="ctr"><strong>${sheet.totalJP}</strong></td>
+            <td class="num">-</td>
+            <td class="num"><strong>${esc(formatCurrency(sheet.totalHonor))}</strong></td>
+            ${includeTransportColumn ? `<td class="num"><strong>${esc(formatCurrency(sheet.totalTransport))}</strong></td>` : ""}
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p class="terbilang-bar">Terbilang: <em>${esc(sheet.totalHonor > 0 ? terbilangRupiah(sheet.totalHonor) : "-")}</em></p>
+
+      <div class="sign-date">${esc(profile.kotaPengesahan || "Jakarta")}, ${esc(formatDateId(tanggalCetak))}</div>
+      <table class="sign-table">
+        <tr>
+          <td style="width:50%">
+            <div class="sign-role">Disusun / Dibayarkan oleh,<br/>Bagian Administrasi &amp; Keuangan</div>
+            <div class="sign-space"></div>
+            <div class="sign-name">${esc(profile.bagianAdministrasi)}</div>
+          </td>
+          <td style="width:50%">
+            <div class="sign-role">Mengetahui / Menyetujui,<br/>Ketua Tim Pelaksana — ${esc(profile.namaYayasan)}</div>
+            <div class="sign-space"></div>
+            <div class="sign-name">${esc(profile.ketuaTimPelaksana)}</div>
+          </td>
+        </tr>
+      </table>
+
+      ${kwtPages}
+    `
+  );
+}
+
+export function renderSewaRumahPdfHtml(input: {
+  draft: SewaRumahContractDraft;
+  profile: SntReportProfile;
+  includeMonthlyKwitansi: boolean;
+}): string {
+  const { draft, profile, includeMonthlyKwitansi } = input;
+  const sudahTerimaDari =
+    profile.kopSurat === "maleo" ? "Yayasan Maleo Talenta Cendekia" : profile.namaYayasan;
+  const pemilikDisplay = resolveRecipientDisplay(draft.recipientMode, draft.namaPemilik);
+  const fasilDisplay = resolveRecipientDisplay(draft.recipientMode, draft.namaFasilitator);
+  const totalKontrak = (Number(draft.jumlahBulan) || 0) * (Number(draft.tarifPerBulan) || 0);
+
+  const months =
+    draft.daftarBulan && draft.daftarBulan.length > 0
+      ? draft.daftarBulan.slice(0, Math.max(1, draft.jumlahBulan))
+      : Array.from({ length: Math.max(1, draft.jumlahBulan) }, (_, i) => `Bulan ke-${i + 1}`);
+
+  const monthlySlips = includeMonthlyKwitansi
+    ? months
+        .map(
+          (bulanLabel, idx) => `
+        <div class="page-break">
+          ${renderKwitansiSlipHtml({
+            kopSurat: profile.kopSurat,
+            noKwitansi: `${draft.nomorKontrak || "KWT-SEWA"}/BLN-${String(idx + 1).padStart(2, "0")}`,
+            sudahTerimaDari,
+            amount: draft.tarifPerBulan,
+            untukPembayaran: `Pembayaran Bantuan Sewa Rumah/Kost Fasilitator SNT (${draft.lokasiSnt}) — Periode ${bulanLabel}`,
+            subLabel: `Pos RAB B.3b · Alamat Sewa: ${draft.alamatRumahSewa || "................................"} · Penghuni: ${fasilDisplay}`,
+            kota: draft.lokasiSnt || profile.kotaPengesahan || "Jakarta",
+            tanggal: "",
+            penerimaDisplay: pemilikDisplay,
+            penerimaRole: "Pemilik / Pengelola Rumah (Penerima),",
+          })}
+        </div>`
+        )
+        .join("")
+    : "";
+
+  return wrapPrintableHtml(
+    `Kontrak Sewa & Kwitansi Bulanan — ${draft.lokasiSnt}`,
+    `
+      ${renderKop(profile.kopSurat)}
+      <div class="doc-head">
+        <div class="badge">POS RAB B.3b · TEMPLATE 13 BUKTI WAJIB</div>
+        <h1>SURAT PERJANJIAN SEWA MENYEWA RUMAH / KOST</h1>
+        <p class="subtitle">Nomor: ${esc(draft.nomorKontrak || "................................")}</p>
+      </div>
+
+      <p>Pada hari ini, tanggal ${esc(formatDateId(draft.tanggalKontrak))}, kami yang bertanda tangan di bawah ini:</p>
+      <table class="meta-table">
+        <tr><td class="meta-k"><strong>PIHAK PERTAMA (Pemilik/Pengelola)</strong></td><td>Nama: <strong>${esc(pemilikDisplay)}</strong><br/>NIK: ${esc(draft.nikPemilik || "................................")}<br/>Alamat: ${esc(draft.alamatPemilik || "................................................................")}</td></tr>
+        <tr><td class="meta-k"><strong>PIHAK KEDUA (Penyewa / Pelaksana)</strong></td><td>Instansi: <strong>${esc(profile.namaYayasan)}</strong><br/>Diwakili oleh / Fasilitator: ${esc(fasilDisplay)}<br/>Lokasi Penugasan: ${esc(draft.lokasiSnt)}</td></tr>
+      </table>
+
+      <p>Kedua belah pihak sepakat mengadakan perjanjian sewa menyewa tempat tinggal (rumah/kost) untuk menunjang pelaksanaan tugas Fasilitator Program KKA &amp; Robotika SNT Tahun 2026 dengan ketentuan sebagai berikut:</p>
+      <ol class="clause-list">
+        <li><strong>Objek Sewa:</strong> Rumah / kamar kost berlokasi di ${esc(draft.alamatRumahSewa || "................................................................")} (${esc(draft.lokasiSnt)}).</li>
+        <li><strong>Jangka Waktu:</strong> Selama <strong>${draft.jumlahBulan} (${draft.jumlahBulan}) bulan</strong>, mulai ${esc(draft.periodeMulai || "September 2026")} (${esc(months.join(", "))}).</li>
+        <li><strong>Nilai Sewa &amp; Pembayaran:</strong> Biaya sewa disepakati sebesar <strong>${esc(formatCurrency(draft.tarifPerBulan))} / bulan</strong> (Total: <strong>${esc(formatCurrency(totalKontrak))}</strong> — <em>${esc(totalKontrak > 0 ? terbilangRupiah(totalKontrak) : "-")}</em>), dibayarkan secara bulanan disertai tanda bukti kwitansi resmi.</li>
+        <li><strong>Kewajiban &amp; Pemeliharaan:</strong> Pihak Kedua menjaga kebersihan dan ketertiban objek sewa, serta Pihak Pertama menjamin ketersediaan hunian layak selama masa sewa.</li>
+      </ol>
+
+      <div class="sign-date">${esc(draft.lokasiSnt || profile.kotaPengesahan)}, ${esc(formatDateId(draft.tanggalKontrak))}</div>
+      <table class="sign-table">
+        <tr>
+          <td style="width:50%">
+            <div class="sign-role">PIHAK PERTAMA,<br/>Pemilik / Pengelola Rumah</div>
+            <div class="sign-space"><em>(Meterai Rp10.000)</em></div>
+            <div class="sign-name">${esc(pemilikDisplay)}</div>
+          </td>
+          <td style="width:50%">
+            <div class="sign-role">PIHAK KEDUA,<br/>${esc(profile.namaYayasan)} / Fasilitator</div>
+            <div class="sign-space"></div>
+            <div class="sign-name">${esc(fasilDisplay)}</div>
+          </td>
+        </tr>
+      </table>
+
+      ${monthlySlips}
+    `
+  );
+}
+
+export function renderGenericEvidencePdfHtml(input: {
+  type: EvidenceDocType;
+  draft: GenericEvidenceDraft;
+  profile: SntReportProfile;
+  includeKwitansiSlips: boolean;
+}): string {
+  const { type, draft, profile, includeKwitansiSlips } = input;
+  const totalNominal = draft.items.reduce((s, it) => s + (Number(it.nominal) || 0), 0);
+  const isBillHotel = type === "KORWIL_PENGINAPAN";
+
+  const rowsHtml = draft.items
+    .map((it, idx) => {
+      const recDisplay = resolveRecipientDisplay(draft.recipientMode, it.penerima);
+      return `
+      <tr>
+        <td class="ctr">${idx + 1}</td>
+        <td>${esc(formatDateId(it.tanggal))}</td>
+        <td>${esc(it.lokasi || "-")}</td>
+        <td>${esc(it.uraian)}</td>
+        <td>${esc(recDisplay)}</td>
+        <td class="ctr">${it.volume} ${esc(it.satuan)}</td>
+        <td class="num">${esc(formatCurrency(it.hargaSatuan))}</td>
+        <td class="num"><strong>${esc(formatCurrency(it.nominal))}</strong></td>
+        <td class="ttd-cell">${idx + 1}. ....................</td>
+      </tr>`;
+    })
+    .join("");
+
+  const kwitansiPages = includeKwitansiSlips
+    ? draft.items
+        .map((it, idx) => {
+          const recDisplay = resolveRecipientDisplay(draft.recipientMode, it.penerima);
+          return `
+          <div class="page-break">
+            ${renderKwitansiSlipHtml({
+              kopSurat: profile.kopSurat,
+              noKwitansi: it.noDokumen || `KWT/${draft.rabCode.toUpperCase()}/${String(idx + 1).padStart(3, "0")}`,
+              sudahTerimaDari: draft.sudahTerimaDari || profile.namaYayasan,
+              amount: Number(it.nominal) || 0,
+              untukPembayaran: `${it.uraian} (${it.volume} ${it.satuan} × ${formatCurrency(it.hargaSatuan)})`,
+              subLabel: `Pos RAB ${draft.rabCode} · Lokasi: ${it.lokasi || "Wilayah 2"}`,
+              kota: profile.kotaPengesahan || "Jakarta",
+              tanggal: it.tanggal || draft.tanggalDokumen,
+              penerimaDisplay: recDisplay,
+              penerimaRole: isBillHotel ? "Pengelola Hotel / Penginapan," : "Yang Menerima,",
+            })}
+          </div>`;
+        })
+        .join("")
+    : "";
+
+  return wrapPrintableHtml(
+    `${draft.judulDokumen} — Pos RAB ${draft.rabCode}`,
+    `
+      ${renderKop(profile.kopSurat)}
+      <div class="doc-head">
+        <div class="badge">POS RAB ${esc(draft.rabCode.toUpperCase())} · TEMPLATE 13 BUKTI WAJIB</div>
+        <h1>${esc(draft.judulDokumen)}</h1>
+        <p class="subtitle">Periode: ${esc(draft.periodeLabel)} · ${esc(profile.namaYayasan)}</p>
+      </div>
+
+      ${
+        isBillHotel
+          ? `<p class="note-box"><strong>Keterangan Bill / Rincian Penginapan:</strong> Dokumen ini digunakan sebagai rincian bill &amp; bukti pertanggungjawaban biaya penginapan Perjalanan Dinas Koordinator Wilayah 2 (Pos B.2c).</p>`
+          : ""
+      }
+
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th class="ctr" style="width:28px">No</th>
+            <th>Tanggal</th>
+            <th>Lokasi / SNT</th>
+            <th>Uraian / Rincian Kegiatan</th>
+            <th>Nama Penerima</th>
+            <th class="ctr">Vol</th>
+            <th class="num">Harga Satuan</th>
+            <th class="num">Jumlah (Rp)</th>
+            <th class="ctr" style="width:110px">Tanda Tangan</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${
+            draft.items.length === 0
+              ? `<tr><td colspan="9" class="ctr">Belum ada baris rincian.</td></tr>`
+              : rowsHtml
+          }
+          <tr class="total-row">
+            <td colspan="7"><strong>TOTAL PEMBAYARAN</strong></td>
+            <td class="num"><strong>${esc(formatCurrency(totalNominal))}</strong></td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p class="terbilang-bar">Terbilang: <em>${esc(totalNominal > 0 ? terbilangRupiah(totalNominal) : "-")}</em></p>
+      ${draft.catatan ? `<p class="note-box"><strong>Catatan:</strong> ${esc(draft.catatan)}</p>` : ""}
+
+      <div class="sign-date">${esc(profile.kotaPengesahan || "Jakarta")}, ${esc(formatDateId(draft.tanggalDokumen))}</div>
+      <table class="sign-table">
+        <tr>
+          <td style="width:50%">
+            <div class="sign-role">Dibayarkan oleh,<br/>Bagian Administrasi &amp; Keuangan</div>
+            <div class="sign-space"></div>
+            <div class="sign-name">${esc(profile.bagianAdministrasi)}</div>
+          </td>
+          <td style="width:50%">
+            <div class="sign-role">Mengetahui / Menyetujui,<br/>Ketua Tim Pelaksana</div>
+            <div class="sign-space"></div>
+            <div class="sign-name">${esc(profile.ketuaTimPelaksana)}</div>
+          </td>
+        </tr>
+      </table>
+
+      ${kwitansiPages}
+    `
+  );
+}
+
+function wrapPrintableHtml(title: string, innerHtml: string): string {
+  return `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>${esc(title)}</title>
+  <style>
+    @page { size: A4; margin: 14mm 13mm 14mm 13mm; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+      color: #0f172a;
+      font-size: 10.5px;
+      line-height: 1.45;
+      margin: 0;
+      padding: 16px;
+      background: #f1f5f9;
+    }
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      max-width: 210mm;
+      margin: 0 auto 14px auto;
+      background: #0f172a;
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+    }
+    .toolbar button {
+      background: #10b981;
+      color: #fff;
+      border: none;
+      padding: 7px 14px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .sheet {
+      max-width: 210mm;
+      margin: 0 auto;
+      background: #fff;
+      padding: 20px 22px;
+      box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+    }
+    .page-break { page-break-before: always; break-before: page; padding-top: 8px; }
+    .kop-wrap { border-bottom: 3px solid #1e293b; padding-bottom: 8px; margin-bottom: 12px; text-align: center; }
+    .kop-img { width: 100%; max-height: 95px; object-fit: contain; }
+    .doc-head { text-align: center; margin-bottom: 14px; }
+    .badge { display: inline-block; font-size: 9px; font-weight: 700; color: #1d4ed8; background: #eff6ff; border: 1px solid #bfdbfe; padding: 2px 8px; border-radius: 99px; margin-bottom: 5px; }
+    h1 { font-size: 15px; margin: 2px 0 4px 0; text-transform: uppercase; }
+    .subtitle { font-size: 10px; color: #475569; margin: 0; }
+    .sub { font-size: 9px; color: #64748b; margin-top: 2px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+    .meta-table td { border: 1px solid #cbd5e1; padding: 6px 8px; vertical-align: top; }
+    .meta-k { width: 32%; background: #f8fafc; }
+    .data-table th, .data-table td { border: 1px solid #cbd5e1; padding: 5px 6px; vertical-align: top; font-size: 9.5px; }
+    .data-table th { background: #e2e8f0; font-weight: 700; text-align: left; }
+    .num { text-align: right !important; white-space: nowrap; }
+    .ctr { text-align: center !important; }
+    .ttd-cell { height: 34px; vertical-align: bottom !important; color: #475569; }
+    .total-row td { background: #dbeafe; }
+    .terbilang-bar { background: #f8fafc; border: 1px solid #cbd5e1; padding: 7px 10px; border-radius: 4px; font-size: 10.5px; }
+    .note-box { background: #f8fafc; border: 1px solid #e2e8f0; padding: 7px 10px; border-radius: 6px; margin-bottom: 10px; }
+    .clause-list { padding-left: 18px; margin: 8px 0 14px 0; }
+    .clause-list li { margin-bottom: 6px; text-align: justify; }
+    .sign-date { text-align: right; margin-top: 16px; margin-bottom: 6px; font-size: 10.5px; }
+    .sign-table td { border: none; text-align: center; vertical-align: top; padding: 4px 8px; }
+    .sign-role { font-weight: 600; font-size: 10px; }
+    .sign-space { height: 54px; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 9.5px; }
+    .sign-name { font-weight: 700; text-decoration: underline; font-size: 10.5px; }
+    .kwt-card { border: 2px solid #000; padding: 22px 24px; background: #fff; }
+    .kwt-head { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 16px; }
+    .kwt-kop { max-height: 54px; max-width: 380px; object-fit: contain; }
+    .kwt-head-right { text-align: right; }
+    .kwt-title { font-size: 19px; font-weight: 800; letter-spacing: 1px; }
+    .kwt-no { font-family: monospace; font-size: 11.5px; font-weight: 700; margin-top: 2px; }
+    .kwt-table td { padding: 6px 0; vertical-align: top; font-size: 12px; }
+    .kwt-label { width: 150px; color: #334155; }
+    .kwt-colon { width: 12px; }
+    .kwt-terbilang { background: #f3f4f6; padding: 7px 10px !important; font-style: italic; font-weight: 600; border-radius: 4px; }
+    .kwt-foot { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 22px; }
+    .kwt-amount { border: 2px solid #000; background: #f8fafc; padding: 8px 18px; font-family: monospace; font-size: 16px; font-weight: 800; border-radius: 4px; }
+    .kwt-sign { text-align: center; min-width: 220px; }
+    @media print {
+      body { background: #fff; padding: 0; }
+      .toolbar { display: none !important; }
+      .sheet { max-width: none; box-shadow: none; padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <strong>${esc(title)}</strong>
+    <button type="button" onclick="window.print()">Cetak / Simpan PDF (A4)</button>
+  </div>
+  <div class="sheet">${innerHtml}</div>
+</body>
+</html>`;
+}

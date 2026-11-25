@@ -10,6 +10,8 @@ import {
   CheckSquare,
   Square,
   SlidersHorizontal,
+  FolderCheck,
+  Target,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,6 +35,9 @@ import {
 import { renderSntReportBundleHtml } from "@/lib/snt-report-pdf";
 import { KwitansiAuditTab } from "./KwitansiAuditTab";
 import { TemplateEditorTab } from "./TemplateEditorTab";
+import { EvidenceDocsTab } from "./EvidenceDocsTab";
+import { TargetStrategyTab } from "./TargetStrategyTab";
+import { EvidenceDocType } from "@/lib/snt-evidence-docs";
 
 interface DraftRecordItem {
   id: string;
@@ -58,7 +63,8 @@ interface WorkspaceInitialData {
 }
 
 export function PaketLaporanClientPage({ initialData }: { initialData: WorkspaceInitialData }) {
-  const [activeTab, setActiveTab] = useState<"export" | "editor" | "kwitansi">("export");
+  const [activeTab, setActiveTab] = useState<"export" | "editor" | "kwitansi" | "evidence" | "strategy">("export");
+  const [jumpEvidenceDocType, setJumpEvidenceDocType] = useState<EvidenceDocType | undefined>(undefined);
   const [periodKey, setPeriodKey] = useState<string>("TAHAP_1");
   const [selectedTemplates, setSelectedTemplates] = useState<SntTemplateCode[]>(["13", "02"]);
   const [includePpn11, setIncludePpn11] = useState<boolean>(false);
@@ -132,10 +138,50 @@ export function PaketLaporanClientPage({ initialData }: { initialData: Workspace
   const savedTemplateCodes = useMemo(() => {
     const set = new Set<string>();
     for (const d of draftRecords) {
-      if (d.templateCode !== "PROFILE") set.add(d.templateCode);
+      if (d.templateCode !== "PROFILE" && !d.templateCode.startsWith("EVIDENCE_")) {
+        set.add(d.templateCode);
+      }
     }
     return set;
   }, [draftRecords]);
+
+  const evidenceDraftsMap = useMemo(() => {
+    const map: Record<string, Record<string, unknown>> = {};
+    for (const d of draftRecords) {
+      if (d.templateCode.startsWith("EVIDENCE_") && d.content && typeof d.content === "object") {
+        map[d.templateCode] = d.content;
+      }
+    }
+    return map;
+  }, [draftRecords]);
+
+  const handleEvidenceDraftSaved = (
+    templateCode: string,
+    targetPeriod: string,
+    content: Record<string, unknown>
+  ) => {
+    setDraftRecords((prev) => {
+      const idx = prev.findIndex(
+        (d) => d.templateCode === templateCode && d.periodKey === targetPeriod
+      );
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = { ...next[idx], content, updatedAt: new Date().toISOString() };
+        return next;
+      }
+      return [
+        ...prev,
+        {
+          id: `local-${templateCode}-${targetPeriod}`,
+          templateCode,
+          periodKey: targetPeriod,
+          title: templateCode,
+          content,
+          updatedAt: new Date().toISOString(),
+        },
+      ];
+    });
+  };
 
   const toggleTemplateSelection = (code: SntTemplateCode) => {
     setSelectedTemplates((prev) =>
@@ -342,6 +388,30 @@ export function PaketLaporanClientPage({ initialData }: { initialData: Workspace
               {officialAudit.missingKwitansiCount + officialAudit.missingReceiptCount}
             </span>
           )}
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("evidence")}
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+            activeTab === "evidence"
+              ? "bg-slate-900 text-white shadow-xs"
+              : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"
+          }`}
+        >
+          <FolderCheck className="w-4 h-4" />
+          4. Dokumen Bukti Wajib (10 Jenis)
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("strategy")}
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+            activeTab === "strategy"
+              ? "bg-slate-900 text-white shadow-xs"
+              : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"
+          }`}
+        >
+          <Target className="w-4 h-4" />
+          5. Target &gt; 80% &amp; Strategi AI
         </button>
       </div>
 
@@ -692,6 +762,31 @@ export function PaketLaporanClientPage({ initialData }: { initialData: Workspace
       {/* TAB 3: AUDIT & KELENGKAPAN KWITANSI */}
       {activeTab === "kwitansi" && (
         <KwitansiAuditTab categories={categories} rabSummary={rabSummary} profile={profile} />
+      )}
+
+      {/* TAB 4: DOKUMEN BUKTI WAJIB (10 JENIS + DAFTAR TANDA TERIMA HONOR BULANAN) */}
+      {activeTab === "evidence" && (
+        <EvidenceDocsTab
+          activeDocType={jumpEvidenceDocType || "HONOR_FASIL_BULANAN"}
+          onSelectDocType={setJumpEvidenceDocType}
+          profile={profile}
+          categories={categories}
+          rekaps={initialData.rekaps || []}
+          fasilitators={initialData.fasilitators || []}
+          evidenceDrafts={evidenceDraftsMap}
+          onDraftSaved={handleEvidenceDraftSaved}
+        />
+      )}
+
+      {/* TAB 5: TARGET > 80% RAB & STRATEGI EFISIENSI AI */}
+      {activeTab === "strategy" && (
+        <TargetStrategyTab
+          rabSummary={rabSummary}
+          onJumpToEvidenceDoc={(docType) => {
+            setJumpEvidenceDocType(docType);
+            setActiveTab("evidence");
+          }}
+        />
       )}
     </div>
   );
