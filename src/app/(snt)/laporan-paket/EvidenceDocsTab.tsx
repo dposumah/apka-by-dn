@@ -49,7 +49,10 @@ import {
   renderSewaRumahPdfHtml,
 } from "@/lib/snt-evidence-pdf";
 import {
+  getValidKwitansiNumber,
+  normalizeExpenseRealizationType,
   SNT_WILAYAH_2_LOCATIONS,
+  SntExpenseRecord,
   SntFasilitatorRecord,
   SntRabCategoryRecord,
   SntRekapRecord,
@@ -84,6 +87,9 @@ export function EvidenceDocsTab({
   const [isSaving, setIsSaving] = useState(false);
   const [recordingId, setRecordingId] = useState<string | null>(null);
   const [recordTargetType, setRecordTargetType] = useState<"PELAPORAN" | "REAL">("PELAPORAN");
+  const [newlyRecordedMap, setNewlyRecordedMap] = useState<
+    Record<string, { noKwitansi?: string | null; realizationType: "PELAPORAN" | "REAL" }>
+  >({});
   const [banner, setBanner] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   // State khusus Daftar Tanda Terima Honor Fasilitator Bulanan (A.4)
@@ -319,12 +325,72 @@ export function EvidenceDocsTab({
     });
   };
 
+  // Indeks transaksi APPROVED per kode RAB dari database untuk mendeteksi status checklist "Sudah Masuk RAB"
+  const approvedExpensesByRabCode = useMemo(() => {
+    const map = new Map<string, SntExpenseRecord[]>();
+    for (const cat of categories || []) {
+      for (const item of cat.items || []) {
+        const codeKey = (item.code || "").trim().toLowerCase();
+        const existing = map.get(codeKey) || [];
+        const approved = (item.expenses || []).filter((e) => !e.status || e.status === "APPROVED");
+        map.set(codeKey, [...existing, ...approved]);
+      }
+    }
+    return map;
+  }, [categories]);
+
+  const checkHonorRowRecorded = (row: MonthlyHonorReceiptRow, monthKey: string) => {
+    const localKey = `honor:${recordTargetType}:${monthKey}:${row.id}`;
+    const list = (approvedExpensesByRabCode.get("4") || []).filter(
+      (e) => normalizeExpenseRealizationType(e.realizationType) === recordTargetType
+    );
+    const monthLabelLower = getMonthLabelId(monthKey).toLowerCase();
+    const lokasiLower = (row.lokasi || "").trim().toLowerCase();
+    const matches = list.filter((e) => {
+      const desc = (e.description || "").toLowerCase();
+      return (
+        lokasiLower.length > 0 &&
+        desc.includes(lokasiLower) &&
+        (desc.includes(monthLabelLower) || desc.includes(monthKey.toLowerCase()))
+      );
+    });
+    const localRec = newlyRecordedMap[localKey];
+    const count = Math.max(matches.length, localRec ? 1 : 0);
+    const noKwitansi =
+      (matches[0] ? getValidKwitansiNumber(matches[0]) : null) || localRec?.noKwitansi || null;
+    return { isRecorded: count > 0, count, noKwitansi, localKey };
+  };
+
+  const checkGenericLineRecorded = (
+    rabCode: string,
+    rowId: string,
+    description: string,
+    amount: number
+  ) => {
+    const codeKey = (rabCode || "").trim().toLowerCase();
+    const localKey = `gen:${recordTargetType}:${codeKey}:${rowId}`;
+    const list = (approvedExpensesByRabCode.get(codeKey) || []).filter(
+      (e) => normalizeExpenseRealizationType(e.realizationType) === recordTargetType
+    );
+    const descNorm = (description || "").trim().toLowerCase();
+    const matches = list.filter((e) => {
+      const expDesc = (e.description || "").trim().toLowerCase();
+      return descNorm.length > 0 && expDesc === descNorm && Math.abs((Number(e.amount) || 0) - amount) < 1;
+    });
+    const localRec = newlyRecordedMap[localKey];
+    const count = Math.max(matches.length, localRec ? 1 : 0);
+    const noKwitansi =
+      (matches[0] ? getValidKwitansiNumber(matches[0]) : null) || localRec?.noKwitansi || null;
+    return { isRecorded: count > 0, count, noKwitansi, localKey };
+  };
+
   const handleRecordLineToRab = async (
     rowKey: string,
     rabCode: string,
     date: string,
     description: string,
-    amount: number
+    amount: number,
+    options?: { dedupeTokens?: string[]; localRecordKey?: string }
   ) => {
     if (amount <= 0) {
       setBanner({ type: "err", text: "Nominal harus lebih dari Rp 0 untuk dicatat ke RAB." });
@@ -349,10 +415,29 @@ export function EvidenceDocsTab({
         generateKwitansi: true,
         kwitansiOwner: defaultPayer,
         realizationType: recordTargetType,
+        dedupeTokens: options?.dedupeTokens,
       });
       if (!res.success) {
+        if ("duplicate" in res && res.duplicate && options?.localRecordKey) {
+          setNewlyRecordedMap((prev) => ({
+            ...prev,
+            [options.localRecordKey as string]: {
+              noKwitansi: "existingNoKwitansi" in res ? res.existingNoKwitansi : null,
+              realizationType: recordTargetType,
+            },
+          }));
+        }
         setBanner({ type: "err", text: res.error || "Gagal mencatat ke Realisasi RAB." });
         return;
+      }
+      if (options?.localRecordKey) {
+        setNewlyRecordedMap((prev) => ({
+          ...prev,
+          [options.localRecordKey as string]: {
+            noKwitansi: res.noKwitansi,
+            realizationType: recordTargetType,
+          },
+        }));
       }
       setBanner({
         type: "ok",
@@ -625,6 +710,48 @@ export function EvidenceDocsTab({
                   </label>
                 </div>
 
+                {/* Status Ringkasan Pencatatan Masuk RAB untuk Bulan Terpilih */}
+                {(() => {
+                  const statuses = activeHonorRows.map((r) => checkHonorRowRecorded(r, honorMonth));
+                  const recordedCount = statuses.filter((s) => s.isRecorded).length;
+                  const duplicateCount = statuses.filter((s) => s.count > 1).length;
+                  return (
+                    <div
+                      className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs ${
+                        duplicateCount > 0
+                          ? "bg-amber-50 border-amber-300 text-amber-900"
+                          : recordedCount > 0
+                            ? "bg-emerald-50/80 border-emerald-200 text-emerald-900"
+                            : "bg-slate-50 border-slate-200 text-slate-600"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 font-medium">
+                        <CheckCircle2
+                          className={`w-4 h-4 shrink-0 ${
+                            duplicateCount > 0
+                              ? "text-amber-600"
+                              : recordedCount > 0
+                                ? "text-emerald-600"
+                                : "text-slate-400"
+                          }`}
+                        />
+                        <span>
+                          Status Masuk RAB ({getMonthLabelId(honorMonth)} · Mode{" "}
+                          <strong>{recordTargetType === "PELAPORAN" ? "Pelaporan" : "Real Kas"}</strong>):{" "}
+                          <strong>
+                            {recordedCount}/{activeHonorRows.length} Lokasi Sudah Tercatat
+                          </strong>
+                        </span>
+                      </div>
+                      {duplicateCount > 0 && (
+                        <span className="text-[11px] font-semibold text-amber-800">
+                          ⚠ Terdeteksi {duplicateCount} lokasi tercatat &gt;1x (cek &amp; hapus duplikat di Pengeluaran Lapangan)
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 <div className="overflow-x-auto border rounded-lg">
                   <table className="w-full text-xs text-left">
                     <thead className="bg-slate-100 border-b text-slate-700">
@@ -755,8 +882,9 @@ export function EvidenceDocsTab({
                           );
 
                           if (honorPricingMode === "RAB_SATUAN") {
+                            const recStatus = checkHonorRowRecorded(row, honorMonth);
                             return (
-                              <tr key={row.id || idx}>
+                              <tr key={row.id || idx} className={recStatus.isRecorded ? "bg-emerald-50/30" : ""}>
                                 {facilitatorSelectorCell}
                                 <td className="py-1.5 px-2 text-center whitespace-nowrap">
                                   <span className="font-semibold text-slate-700">1 Bulan</span>
@@ -782,23 +910,45 @@ export function EvidenceDocsTab({
                                 </td>
                                 <td className="py-1.5 px-2 text-center whitespace-nowrap">
                                   <div className="flex items-center justify-center gap-1">
-                                    <button
-                                      type="button"
-                                      disabled={recordingId === row.id || row.totalHonor <= 0}
-                                      onClick={() =>
-                                        handleRecordLineToRab(
-                                          row.id,
-                                          "4",
-                                          honorTanggalCetak,
-                                          `Honorarium Fasilitator ${row.lokasi} (${row.nama || "Fasilitator SNT"}) - ${getMonthLabelId(honorMonth)}`,
-                                          row.totalHonor
-                                        )
-                                      }
-                                      className="px-1.5 py-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-semibold disabled:opacity-40"
-                                      title="Catat honor bulan ini ke Realisasi Pos RAB A.4"
-                                    >
-                                      {recordingId === row.id ? "..." : "+ RAB"}
-                                    </button>
+                                    {recStatus.isRecorded ? (
+                                      <span
+                                        className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold border ${
+                                          recStatus.count > 1
+                                            ? "bg-amber-50 text-amber-800 border-amber-300"
+                                            : "bg-emerald-50 text-emerald-700 border-emerald-300"
+                                        }`}
+                                        title={
+                                          recStatus.count > 1
+                                            ? `Tercatat ${recStatus.count}x di RAB Pos A.4 (${recordTargetType})${recStatus.noKwitansi ? ` · ${recStatus.noKwitansi}` : ""}. Hapus duplikat di Pengeluaran Lapangan.`
+                                            : `Sudah masuk RAB Pos A.4 (${recordTargetType})${recStatus.noKwitansi ? ` · ${recStatus.noKwitansi}` : ""}. Terkunci agar tidak terklik 2x.`
+                                        }
+                                      >
+                                        <CheckCircle2 className="w-3 h-3 shrink-0" />
+                                        {recStatus.count > 1 ? `${recStatus.count}x di RAB` : "Masuk RAB"}
+                                      </span>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        disabled={recordingId === row.id || row.totalHonor <= 0}
+                                        onClick={() =>
+                                          handleRecordLineToRab(
+                                            row.id,
+                                            "4",
+                                            honorTanggalCetak,
+                                            `Honorarium Fasilitator ${row.lokasi} (${row.nama || "Fasilitator SNT"}) - ${getMonthLabelId(honorMonth)}`,
+                                            row.totalHonor,
+                                            {
+                                              dedupeTokens: [row.lokasi, getMonthLabelId(honorMonth)],
+                                              localRecordKey: recStatus.localKey,
+                                            }
+                                          )
+                                        }
+                                        className="px-1.5 py-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-semibold disabled:opacity-40"
+                                        title={`Catat honor ${getMonthLabelId(honorMonth)} ke Pos RAB A.4 (${recordTargetType})`}
+                                      >
+                                        {recordingId === row.id ? "..." : "+ RAB"}
+                                      </button>
+                                    )}
                                     <button
                                       type="button"
                                       onClick={() => {
@@ -1086,29 +1236,51 @@ export function EvidenceDocsTab({
                       Sertakan cetak <strong>{sewaDraft.jumlahBulan} lembar Kwitansi Bulanan Sewa Rumah</strong> (Total: {formatCurrency(sewaDraft.jumlahBulan * sewaDraft.tarifPerBulan)})
                     </span>
                   </label>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={recordingId === "sewa-total"}
-                    onClick={() =>
-                      handleRecordLineToRab(
-                        "sewa-total",
-                        "3b",
-                        sewaDraft.tanggalKontrak,
-                        `Bantuan Sewa Rumah Fasilitator ${sewaDraft.lokasiSnt} (${sewaDraft.jumlahBulan} bln)`,
-                        sewaDraft.jumlahBulan * sewaDraft.tarifPerBulan
-                      )
+                  {(() => {
+                    const sewaDesc = `Bantuan Sewa Rumah Fasilitator ${sewaDraft.lokasiSnt} (${sewaDraft.jumlahBulan} bln)`;
+                    const sewaAmount = sewaDraft.jumlahBulan * sewaDraft.tarifPerBulan;
+                    const sewaRec = checkGenericLineRecorded("3b", `sewa-${sewaDraft.lokasiSnt}`, sewaDesc, sewaAmount);
+                    if (sewaRec.isRecorded) {
+                      return (
+                        <span
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-300 text-xs font-bold"
+                          title={`Sudah tercatat pada Pos RAB 3b (${recordTargetType})${sewaRec.noKwitansi ? ` · ${sewaRec.noKwitansi}` : ""}`}
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Sudah Masuk RAB (Pos 3b)
+                        </span>
+                      );
                     }
-                    className="bg-white border-blue-300 text-blue-800 hover:bg-blue-100 text-xs h-8 gap-1"
-                  >
-                    {recordingId === "sewa-total" ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Send className="w-3.5 h-3.5" />
-                    )}
-                    Catat ke Realisasi RAB (Pos 3b)
-                  </Button>
+                    return (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={recordingId === "sewa-total"}
+                        onClick={() =>
+                          handleRecordLineToRab(
+                            "sewa-total",
+                            "3b",
+                            sewaDraft.tanggalKontrak,
+                            sewaDesc,
+                            sewaAmount,
+                            {
+                              dedupeTokens: [sewaDraft.lokasiSnt, "sewa rumah"],
+                              localRecordKey: sewaRec.localKey,
+                            }
+                          )
+                        }
+                        className="bg-white border-blue-300 text-blue-800 hover:bg-blue-100 text-xs h-8 gap-1"
+                      >
+                        {recordingId === "sewa-total" ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Send className="w-3.5 h-3.5" />
+                        )}
+                        Catat ke Realisasi RAB (Pos 3b)
+                      </Button>
+                    );
+                  })()}
                 </div>
               </div>
             )}
@@ -1356,23 +1528,50 @@ export function EvidenceDocsTab({
                             </td>
                             <td className="py-1.5 px-2 text-center whitespace-nowrap">
                               <div className="flex items-center justify-center gap-1">
-                                <button
-                                  type="button"
-                                  disabled={recordingId === it.id || it.nominal <= 0}
-                                  onClick={() =>
-                                    handleRecordLineToRab(
-                                      it.id,
-                                      currentGenericDraft.rabCode,
-                                      it.tanggal,
-                                      it.uraian || activeMeta.shortTitle,
-                                      it.nominal
-                                    )
+                                {(() => {
+                                  const lineDesc = it.uraian || activeMeta.shortTitle;
+                                  const lineRec = checkGenericLineRecorded(
+                                    currentGenericDraft.rabCode,
+                                    it.id,
+                                    lineDesc,
+                                    it.nominal
+                                  );
+                                  if (lineRec.isRecorded) {
+                                    return (
+                                      <span
+                                        className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold border ${
+                                          lineRec.count > 1
+                                            ? "bg-amber-50 text-amber-800 border-amber-300"
+                                            : "bg-emerald-50 text-emerald-700 border-emerald-300"
+                                        }`}
+                                        title={`Sudah masuk Pos RAB ${currentGenericDraft.rabCode} (${recordTargetType})${lineRec.noKwitansi ? ` · ${lineRec.noKwitansi}` : ""}. Terkunci agar tidak terklik 2x.`}
+                                      >
+                                        <CheckCircle2 className="w-3 h-3 shrink-0" />
+                                        {lineRec.count > 1 ? `${lineRec.count}x` : "Masuk RAB"}
+                                      </span>
+                                    );
                                   }
-                                  className="px-1.5 py-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-semibold disabled:opacity-40"
-                                  title={`Catat baris ini ke Realisasi Pos RAB ${currentGenericDraft.rabCode}`}
-                                >
-                                  {recordingId === it.id ? "..." : "+ RAB"}
-                                </button>
+                                  return (
+                                    <button
+                                      type="button"
+                                      disabled={recordingId === it.id || it.nominal <= 0}
+                                      onClick={() =>
+                                        handleRecordLineToRab(
+                                          it.id,
+                                          currentGenericDraft.rabCode,
+                                          it.tanggal,
+                                          lineDesc,
+                                          it.nominal,
+                                          { localRecordKey: lineRec.localKey }
+                                        )
+                                      }
+                                      className="px-1.5 py-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-semibold disabled:opacity-40"
+                                      title={`Catat baris ini ke Realisasi Pos RAB ${currentGenericDraft.rabCode}`}
+                                    >
+                                      {recordingId === it.id ? "..." : "+ RAB"}
+                                    </button>
+                                  );
+                                })()}
                                 <button
                                   type="button"
                                   onClick={() =>

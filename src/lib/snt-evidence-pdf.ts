@@ -148,13 +148,12 @@ export function renderMonthlyFacilitatorHonorPdfHtml(input: {
             sudahTerimaDari,
             amount: r.totalHonor,
             untukPembayaran: isRabSatuan
-              ? `Honorarium Fasilitator KKA & Robotika Bulan ${sheet.monthLabel} (1 Bulan × ${formatCurrency(r.hargaSatuanReal)})`
-              : `Honorarium Fasilitator KKA & Robotika Bulan ${sheet.monthLabel} (${r.totalJP} JP × ${formatCurrency(r.hargaSatuanReal)}/JP)`,
-            subLabel: `Pos RAB A.4 · Lokasi: ${r.lokasi}`,
+              ? `Honorarium Fasilitator KKA & Robotika Bulan ${sheet.monthLabel} Lokasi SNT ${r.lokasi}`
+              : `Honorarium Fasilitator KKA & Robotika Bulan ${sheet.monthLabel} Lokasi SNT ${r.lokasi} (${r.totalJP} JP × ${formatCurrency(r.hargaSatuanReal)}/JP)`,
             kota: profile.kotaPengesahan || "Jakarta",
             tanggal: tanggalCetak,
             penerimaDisplay: resolveRecipientDisplay(recipientMode, r.nama),
-            penerimaRole: "Fasilitator Penerima,",
+            penerimaRole: "Fasilitator,",
           })}
         </div>`
         )
@@ -220,12 +219,9 @@ export function renderMonthlyFacilitatorHonorPdfHtml(input: {
     `
       ${renderKop(profile.kopSurat)}
       <div class="doc-head">
-        <div class="badge">POS RAB A.4 · TEMPLATE 13 BUKTI WAJIB</div>
         <h1>DAFTAR TANDA TERIMA HONORARIUM FASILITATOR KKA &amp; ROBOTIKA</h1>
-        <p class="subtitle">Periode: <strong>${esc(sheet.monthLabel)}</strong> · Wilayah 2 (6 Lokasi SNT) · ${
-          isRabSatuan
-            ? "Harga Satuan RAB (Rp 5.729.876 / Fasilitator / Bulan)"
-            : "Berdasarkan Realisasi Harga Satuan Riil per JP"
+        <p class="subtitle">Periode: <strong>${esc(sheet.monthLabel)}</strong> · Wilayah 2 (6 Lokasi SNT)${
+          isRabSatuan ? "" : " · Berdasarkan Realisasi Harga Satuan Riil per JP"
         }</p>
       </div>
 

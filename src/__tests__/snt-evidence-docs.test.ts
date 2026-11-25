@@ -214,6 +214,13 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
     expect(html).toContain("Rando, S.Kom., M.Eng.");
     expect(html).toContain("Muh. Hanifudin H, S.Pd");
     expect(html).toContain(BLANK_SIGNATURE_LINE); // Kupang, Tebo, Tanjabtim, Minahasa Utara tetap kosong
+    expect(html).not.toContain("POS RAB A.4");
+    expect(html).not.toContain("TEMPLATE 13 BUKTI WAJIB");
+    expect(html).not.toContain("Harga Satuan RAB");
+    expect(html).not.toContain("Pos RAB A.4");
+    expect(html).not.toContain("Fasilitator Penerima");
+    expect(html).toContain("Honorarium Fasilitator KKA &amp; Robotika Bulan Oktober 2026 Lokasi SNT Kab. Buton Tengah");
+    expect(html).toContain("Fasilitator,");
 
     // Preset Tenaga Administrasi Pos A.5 = 4 bulan × Rp5.729.876 = Rp22.919.504
     const adminPreset = getHonorTimPresetByRabCode("5");

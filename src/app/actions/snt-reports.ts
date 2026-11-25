@@ -507,6 +507,7 @@ export async function recordEvidenceToRabExpense(input: {
   generateKwitansi?: boolean;
   kwitansiOwner?: string;
   realizationType?: "REAL" | "PELAPORAN";
+  dedupeTokens?: string[];
 }) {
   try {
     const { error: authError, session } = await checkAuth(SNT_MANAGE_ROLES);
@@ -555,6 +556,48 @@ export async function recordEvidenceToRabExpense(input: {
     const safeDate = Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
 
     const realizationType = input.realizationType === "REAL" ? "REAL" : "PELAPORAN";
+
+    // Proteksi anti-duplikasi di sisi server (mencegah pencatatan ganda jika terklik 2x)
+    const existingCandidates = await prisma.expenseRequest.findMany({
+      where: {
+        rabItemId: matchedItemId,
+        status: "APPROVED",
+        realizationType,
+      },
+      select: {
+        id: true,
+        amount: true,
+        description: true,
+        kwitansiRecord: { select: { noKwitansi: true }, take: 1 },
+      },
+    });
+
+    const normalizedDesc = input.description.trim().toLowerCase();
+    const cleanTokens = (input.dedupeTokens || [])
+      .map((t) => String(t || "").trim().toLowerCase())
+      .filter((t) => t.length > 0);
+
+    const duplicateMatch = existingCandidates.find((exp) => {
+      const expDesc = (exp.description || "").trim().toLowerCase();
+      if (expDesc === normalizedDesc && Math.abs(exp.amount - amount) < 1) {
+        return true;
+      }
+      if (cleanTokens.length >= 2 && cleanTokens.every((tk) => expDesc.includes(tk))) {
+        return true;
+      }
+      return false;
+    });
+
+    if (duplicateMatch) {
+      const existingNoKwt = duplicateMatch.kwitansiRecord?.[0]?.noKwitansi || null;
+      return {
+        success: false,
+        duplicate: true,
+        existingExpenseId: duplicateMatch.id,
+        existingNoKwitansi: existingNoKwt,
+        error: `Transaksi ini sudah tercatat sebelumnya pada Pos RAB ${input.rabCode} (${realizationType})${existingNoKwt ? ` dengan No. Kwitansi ${existingNoKwt}` : ""}. Pencatatan dibatalkan agar tidak ganda.`,
+      };
+    }
 
     const result = await prisma.$transaction(
       async (tx) => {
