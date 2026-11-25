@@ -552,7 +552,11 @@ export interface KwitansiAuditRow {
   amount: number;
   receiptUrls: string[];
   hasReceipt: boolean;
+  kwitansiId: string | null;
   noKwitansi: string | null;
+  kwitansiTanggal: string | null;
+  kwitansiOwner: string | null;
+  kwitansiPerihal: string | null;
   hasKwitansi: boolean;
   requiredEvidence: string;
   rawExpense: SntExpenseRecord;
@@ -585,9 +589,13 @@ export function computeKwitansiAuditSummary(
       for (const exp of item.expenses || []) {
         if (exp.status && exp.status !== "APPROVED") continue;
         const urls = getExpenseReceiptUrls(exp);
-        const noKwt = getValidKwitansiNumber(exp);
+        const kwtRec = getPrimaryKwitansiRecord(exp.kwitansiRecord);
+        const noKwt = kwtRec?.noKwitansi || null;
         const d = exp.date || exp.createdAt;
         const dateIso = d ? new Date(d).toISOString().slice(0, 10) : "";
+        const kwtTanggalIso = kwtRec?.tanggal
+          ? new Date(kwtRec.tanggal).toISOString().slice(0, 10)
+          : null;
 
         rows.push({
           expenseId: exp.id,
@@ -601,7 +609,11 @@ export function computeKwitansiAuditSummary(
           amount: Number(exp.amount) || 0,
           receiptUrls: urls,
           hasReceipt: urls.length > 0,
+          kwitansiId: kwtRec?.id || null,
           noKwitansi: noKwt,
+          kwitansiTanggal: kwtTanggalIso,
+          kwitansiOwner: kwtRec?.owner || null,
+          kwitansiPerihal: kwtRec?.perihal || null,
           hasKwitansi: Boolean(noKwt),
           requiredEvidence: reqEvidence,
           rawExpense: exp,

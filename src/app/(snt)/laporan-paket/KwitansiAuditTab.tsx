@@ -3,7 +3,6 @@
 import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  CheckCircle2,
   AlertTriangle,
   FileCheck2,
   Paperclip,
@@ -13,6 +12,10 @@ import {
   Search,
   ChevronDown,
   ChevronUp,
+  Printer,
+  X,
+  Lock,
+  Save,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,29 +26,57 @@ import { uploadFileClient } from "@/lib/upload-client";
 import {
   appendExpenseReceipts,
   bulkGenerateMissingKwitansi,
+  updateKwitansiRecordDetails,
 } from "@/app/actions/snt-reports";
 import {
   computeKwitansiAuditSummary,
+  KopSuratOption,
+  KwitansiAuditRow,
   RabRealizationSummary,
   SntRabCategoryRecord,
+  SntReportProfile,
 } from "@/lib/snt-report-templates";
+import {
+  renderStandaloneKwitansiPdfHtml,
+  StandaloneKwitansiPdfItem,
+} from "@/lib/snt-report-pdf";
 
 interface KwitansiAuditTabProps {
   categories: SntRabCategoryRecord[];
   rabSummary: RabRealizationSummary;
+  profile: SntReportProfile;
 }
 
-export function KwitansiAuditTab({ categories, rabSummary }: KwitansiAuditTabProps) {
+interface QuickKwitansiModalState {
+  kwitansiId: string | null;
+  noKwitansi: string;
+  tanggal: string;
+  sudahTerimaDari: string;
+  penerima: string;
+  perihal: string;
+  rabLabel: string;
+  amount: number;
+  kopSurat: KopSuratOption;
+  includeReceipts: boolean;
+  receiptUrls: string[];
+}
+
+export function KwitansiAuditTab({ categories, rabSummary, profile }: KwitansiAuditTabProps) {
   const router = useRouter();
   const [onlyOfficialRab, setOnlyOfficialRab] = useState(true);
   const [filterMode, setFilterMode] = useState<"ALL" | "MISSING_RECEIPT" | "MISSING_KWT" | "READY">("ALL");
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkIncludeReceipts, setBulkIncludeReceipts] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatingSingleId, setGeneratingSingleId] = useState<string | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [showRabMatrix, setShowRabMatrix] = useState(true);
   const [statusBanner, setStatusBanner] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+
+  // Popup cepat Generate / Cetak Ulang PDF Kwitansi
+  const [pdfModal, setPdfModal] = useState<QuickKwitansiModalState | null>(null);
+  const [isSavingModal, setIsSavingModal] = useState(false);
 
   const audit = useMemo(
     () => computeKwitansiAuditSummary(categories, onlyOfficialRab),
@@ -74,10 +105,100 @@ export function KwitansiAuditTab({ categories, rabSummary }: KwitansiAuditTabPro
     [audit.rows]
   );
 
+  const rowsWithKwitansi = useMemo(
+    () => audit.rows.filter((r) => r.hasKwitansi),
+    [audit.rows]
+  );
+
+  const selectedMissingKwtIds = useMemo(
+    () => selectedIds.filter((id) => missingKwitansiIds.includes(id)),
+    [selectedIds, missingKwitansiIds]
+  );
+
+  const selectedReadyKwtRows = useMemo(
+    () => rowsWithKwitansi.filter((r) => selectedIds.includes(r.expenseId)),
+    [rowsWithKwitansi, selectedIds]
+  );
+
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
+  };
+
+  const openPrintKwitansiWindow = (
+    items: StandaloneKwitansiPdfItem[],
+    kopSurat: KopSuratOption,
+    includeReceipts: boolean
+  ) => {
+    if (items.length === 0) {
+      setStatusBanner({ type: "err", text: "Belum ada transaksi berkwitansi yang bisa dicetak." });
+      return;
+    }
+    const html = renderStandaloneKwitansiPdfHtml({
+      items,
+      kopSurat,
+      kotaPengesahan: profile.kotaPengesahan || "Jakarta",
+      includeReceipts,
+    });
+    const w = window.open("", "_blank");
+    if (!w) {
+      alert("Popup diblokir browser. Izinkan popup untuk mencetak / menyimpan PDF Kwitansi.");
+      return;
+    }
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+  };
+
+  const openQuickPdfModalFromRow = (
+    row: KwitansiAuditRow,
+    override?: {
+      id: string;
+      noKwitansi: string;
+      tanggal: string;
+      owner: string;
+      perihal: string;
+    }
+  ) => {
+    const noKwitansi = override?.noKwitansi || row.noKwitansi || "";
+    if (!noKwitansi) return;
+    const defaultOwner =
+      override?.owner ||
+      row.kwitansiOwner ||
+      (profile.kopSurat === "maleo" ? "Yayasan Maleo Talenta Cendekia" : profile.namaYayasan);
+
+    setPdfModal({
+      kwitansiId: override?.id || row.kwitansiId,
+      noKwitansi,
+      tanggal: override?.tanggal || row.kwitansiTanggal || row.date || new Date().toISOString().slice(0, 10),
+      sudahTerimaDari: defaultOwner,
+      penerima: row.penerima,
+      perihal: override?.perihal || row.kwitansiPerihal || `${row.description} - ${row.rabName}`,
+      rabLabel: `${row.rabCode} - ${row.rabName}`,
+      amount: row.amount,
+      kopSurat: profile.kopSurat,
+      includeReceipts: row.receiptUrls.length > 0,
+      receiptUrls: row.receiptUrls,
+    });
+  };
+
+  const handleBulkPrintKwitansi = (targetRows: KwitansiAuditRow[]) => {
+    const items: StandaloneKwitansiPdfItem[] = targetRows
+      .filter((r) => r.noKwitansi)
+      .map((r) => ({
+        noKwitansi: r.noKwitansi as string,
+        tanggal: r.kwitansiTanggal || r.date,
+        sudahTerimaDari:
+          r.kwitansiOwner ||
+          (profile.kopSurat === "maleo" ? "Yayasan Maleo Talenta Cendekia" : profile.namaYayasan),
+        perihal: r.kwitansiPerihal || `${r.description} - ${r.rabName}`,
+        rabLabel: `${r.rabCode} - ${r.rabName}`,
+        penerima: r.penerima,
+        amount: r.amount,
+        receiptUrls: r.receiptUrls,
+      }));
+    openPrintKwitansiWindow(items, profile.kopSurat, bulkIncludeReceipts);
   };
 
   const handleBulkGenerate = async (idsToGenerate: string[]) => {
@@ -104,7 +225,7 @@ export function KwitansiAuditTab({ categories, rabSummary }: KwitansiAuditTabPro
       setSelectedIds([]);
       setStatusBanner({
         type: "ok",
-        text: `Berhasil membuat ${res.generatedCount} nomor Kwitansi resmi baru (${res.skippedCount} dilewati karena sudah punya nomor resmi).`,
+        text: `Berhasil membuat ${res.generatedCount} nomor Kwitansi resmi baru (${res.skippedCount} dilewati karena sudah punya nomor resmi). Gunakan tombol "Cetak Semua PDF Kwitansi" untuk mencetak masal.`,
       });
       router.refresh();
     } finally {
@@ -112,26 +233,78 @@ export function KwitansiAuditTab({ categories, rabSummary }: KwitansiAuditTabPro
     }
   };
 
-  const handleSingleGenerate = async (expenseId: string) => {
-    setGeneratingSingleId(expenseId);
+  const handleSingleGenerate = async (row: KwitansiAuditRow) => {
+    setGeneratingSingleId(row.expenseId);
     setStatusBanner(null);
     try {
-      const res = await bulkGenerateMissingKwitansi([expenseId]);
+      const res = await bulkGenerateMissingKwitansi([row.expenseId]);
       if (!res.success) {
         setStatusBanner({ type: "err", text: res.error || "Gagal generate kwitansi" });
         return;
       }
-      const createdNo = res.createdNumbers?.[0]?.noKwitansi;
-      setStatusBanner({
-        type: "ok",
-        text: createdNo
-          ? `Nomor Kwitansi resmi berhasil dibuat: ${createdNo}`
-          : "Kwitansi resmi sudah tersedia.",
-      });
+      const created = res.createdNumbers?.[0];
+      if (created) {
+        setStatusBanner({
+          type: "ok",
+          text: `Nomor Kwitansi resmi berhasil dibuat: ${created.noKwitansi}`,
+        });
+        openQuickPdfModalFromRow(row, {
+          id: created.id,
+          noKwitansi: created.noKwitansi,
+          tanggal: created.tanggal,
+          owner: created.owner,
+          perihal: created.perihal,
+        });
+      }
       router.refresh();
     } finally {
       setGeneratingSingleId(null);
     }
+  };
+
+  const handleModalPrint = async (saveChangesFirst: boolean) => {
+    if (!pdfModal) return;
+
+    if (saveChangesFirst && pdfModal.kwitansiId) {
+      setIsSavingModal(true);
+      try {
+        const res = await updateKwitansiRecordDetails({
+          kwitansiId: pdfModal.kwitansiId,
+          tanggal: pdfModal.tanggal,
+          owner: pdfModal.sudahTerimaDari,
+          perihal: pdfModal.perihal,
+        });
+        if (!res.success) {
+          setStatusBanner({ type: "err", text: res.error || "Gagal menyimpan perubahan kwitansi." });
+          return;
+        }
+        setStatusBanner({
+          type: "ok",
+          text: `Detail kwitansi ${pdfModal.noKwitansi} diperbarui dan siap dicetak PDF.`,
+        });
+        router.refresh();
+      } finally {
+        setIsSavingModal(false);
+      }
+    }
+
+    openPrintKwitansiWindow(
+      [
+        {
+          noKwitansi: pdfModal.noKwitansi,
+          tanggal: pdfModal.tanggal,
+          sudahTerimaDari: pdfModal.sudahTerimaDari,
+          perihal: pdfModal.perihal,
+          rabLabel: pdfModal.rabLabel,
+          penerima: pdfModal.penerima,
+          amount: pdfModal.amount,
+          receiptUrls: pdfModal.receiptUrls,
+        },
+      ],
+      pdfModal.kopSurat,
+      pdfModal.includeReceipts
+    );
+    setPdfModal(null);
   };
 
   const handleUploadReceipt = async (expenseId: string, fileList: FileList | null) => {
@@ -165,6 +338,9 @@ export function KwitansiAuditTab({ categories, rabSummary }: KwitansiAuditTabPro
       setUploadingId(null);
     }
   };
+
+  const allFilteredSelected =
+    filteredRows.length > 0 && filteredRows.every((r) => selectedIds.includes(r.expenseId));
 
   return (
     <div className="space-y-6">
@@ -318,7 +494,7 @@ export function KwitansiAuditTab({ categories, rabSummary }: KwitansiAuditTabPro
                 Daftar Transaksi &amp; Generator Kwitansi Resmi
               </CardTitle>
               <p className="text-xs text-slate-500 mt-0.5">
-                Upload bukti multi-file (gambar/PDF) langsung tanpa menghapus file lama, atau generate nomor kwitansi resmi 1-klik.
+                Upload bukti multi-file (gambar/PDF), generate nomor kwitansi resmi, dan cetak/generate ulang PDF kwitansi satuan maupun masal.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -331,16 +507,16 @@ export function KwitansiAuditTab({ categories, rabSummary }: KwitansiAuditTabPro
               >
                 Cakupan: {onlyOfficialRab ? "Khusus RAB A & B" : "Semua Kategori A–F"}
               </Button>
-              {selectedIds.length > 0 && (
+              {selectedMissingKwtIds.length > 0 && (
                 <Button
                   type="button"
                   size="sm"
                   disabled={isGenerating}
-                  onClick={() => handleBulkGenerate(selectedIds)}
+                  onClick={() => handleBulkGenerate(selectedMissingKwtIds)}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs gap-1.5"
                 >
                   {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileCheck2 className="w-3.5 h-3.5" />}
-                  Generate Kwitansi Terpilih ({selectedIds.length})
+                  Generate Kwt Terpilih ({selectedMissingKwtIds.length})
                 </Button>
               )}
               <Button
@@ -351,7 +527,43 @@ export function KwitansiAuditTab({ categories, rabSummary }: KwitansiAuditTabPro
                 className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5"
               >
                 {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                Generate Semua yg Belum Ada Kwitansi ({missingKwitansiIds.length})
+                Generate Semua Belum Kwt ({missingKwitansiIds.length})
+              </Button>
+            </div>
+          </div>
+
+          {/* Baris Cetak PDF Kwitansi Masal */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50/60 px-3.5 py-2">
+            <label className="flex items-center gap-2 text-xs font-medium text-blue-900 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={bulkIncludeReceipts}
+                onChange={(e) => setBulkIncludeReceipts(e.target.checked)}
+              />
+              <span>Sertakan lampiran foto/PDF bukti nota saat cetak masal PDF Kwitansi</span>
+            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              {selectedReadyKwtRows.length > 0 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => handleBulkPrintKwitansi(selectedReadyKwtRows)}
+                  className="bg-blue-700 hover:bg-blue-800 text-white text-xs h-8 gap-1.5"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  Cetak PDF Kwt Terpilih ({selectedReadyKwtRows.length})
+                </Button>
+              )}
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={rowsWithKwitansi.length === 0}
+                onClick={() => handleBulkPrintKwitansi(rowsWithKwitansi)}
+                className="bg-white border-blue-300 text-blue-800 hover:bg-blue-100 text-xs h-8 gap-1.5"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                Cetak Semua PDF Kwitansi ({rowsWithKwitansi.length})
               </Button>
             </div>
           </div>
@@ -397,13 +609,12 @@ export function KwitansiAuditTab({ categories, rabSummary }: KwitansiAuditTabPro
                 <th className="py-2.5 px-3 w-8 text-center">
                   <input
                     type="checkbox"
-                    aria-label="Pilih semua transaksi belum berkwitansi"
-                    checked={
-                      missingKwitansiIds.length > 0 &&
-                      missingKwitansiIds.every((id) => selectedIds.includes(id))
-                    }
+                    aria-label="Pilih semua baris yang tampil"
+                    checked={allFilteredSelected}
                     onChange={(e) =>
-                      setSelectedIds(e.target.checked ? missingKwitansiIds : [])
+                      setSelectedIds(
+                        e.target.checked ? filteredRows.map((r) => r.expenseId) : []
+                      )
                     }
                   />
                 </th>
@@ -412,7 +623,7 @@ export function KwitansiAuditTab({ categories, rabSummary }: KwitansiAuditTabPro
                 <th className="py-2.5 px-3 text-right whitespace-nowrap">Nominal</th>
                 <th className="py-2.5 px-3 text-center whitespace-nowrap">Bukti Nota</th>
                 <th className="py-2.5 px-3 text-center whitespace-nowrap">Nomor Kwitansi</th>
-                <th className="py-2.5 px-3 text-center whitespace-nowrap">Lengkapi Langsung</th>
+                <th className="py-2.5 px-3 text-center whitespace-nowrap">Lengkapi / Cetak PDF</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
@@ -426,15 +637,12 @@ export function KwitansiAuditTab({ categories, rabSummary }: KwitansiAuditTabPro
                 filteredRows.map((row) => (
                   <tr key={row.expenseId} className="hover:bg-slate-50/80">
                     <td className="py-2.5 px-3 text-center">
-                      {!row.hasKwitansi ? (
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.includes(row.expenseId)}
-                          onChange={() => toggleSelect(row.expenseId)}
-                        />
-                      ) : (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 mx-auto" />
-                      )}
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(row.expenseId)}
+                        onChange={() => toggleSelect(row.expenseId)}
+                        aria-label={`Pilih ${row.description}`}
+                      />
                     </td>
                     <td className="py-2.5 px-3 whitespace-nowrap text-slate-600">
                       {row.date
@@ -518,12 +726,23 @@ export function KwitansiAuditTab({ categories, rabSummary }: KwitansiAuditTabPro
                           />
                         </label>
 
-                        {!row.hasKwitansi && (
+                        {row.hasKwitansi ? (
+                          <button
+                            type="button"
+                            onClick={() => openQuickPdfModalFromRow(row)}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-semibold transition-colors cursor-pointer"
+                            title="Buka popup koreksi cepat & generate ulang PDF Kwitansi"
+                          >
+                            <Printer className="w-3 h-3" />
+                            <span>PDF Kwt</span>
+                          </button>
+                        ) : (
                           <button
                             type="button"
                             disabled={generatingSingleId === row.expenseId || isGenerating}
-                            onClick={() => handleSingleGenerate(row.expenseId)}
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold disabled:opacity-50"
+                            onClick={() => handleSingleGenerate(row)}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold disabled:opacity-50 cursor-pointer"
+                            title="Generate nomor kwitansi resmi & langsung buka cetak PDF"
                           >
                             {generatingSingleId === row.expenseId ? (
                               <Loader2 className="w-3 h-3 animate-spin" />
@@ -542,6 +761,169 @@ export function KwitansiAuditTab({ categories, rabSummary }: KwitansiAuditTabPro
           </table>
         </CardContent>
       </Card>
+
+      {/* Popup Cepat Generate / Cetak Ulang PDF Kwitansi */}
+      {pdfModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setPdfModal(null)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl w-full max-w-xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b bg-slate-50 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Generate / Cetak Ulang PDF Kwitansi
+                </h3>
+                <div className="inline-flex items-center gap-1.5 mt-1 font-mono text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                  <Lock className="w-3 h-3" />
+                  <span>{pdfModal.noKwitansi} (Nomor Resmi Terkunci)</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPdfModal(null)}
+                className="p-1 text-slate-400 hover:text-slate-700 rounded-lg"
+                aria-label="Tutup popup cetak kwitansi"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3.5 text-xs">
+              <div className="rounded-lg bg-slate-50 border px-3 py-2 flex items-center justify-between">
+                <span className="text-slate-600">{pdfModal.rabLabel}</span>
+                <span className="font-bold text-slate-900 text-sm">
+                  {formatCurrency(pdfModal.amount)}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Tanggal Kwitansi
+                  </label>
+                  <Input
+                    type="date"
+                    value={pdfModal.tanggal}
+                    onChange={(e) => setPdfModal({ ...pdfModal, tanggal: e.target.value })}
+                    className="h-9 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Pilihan Kop Surat
+                  </label>
+                  <select
+                    value={pdfModal.kopSurat}
+                    onChange={(e) =>
+                      setPdfModal({ ...pdfModal, kopSurat: e.target.value as KopSuratOption })
+                    }
+                    className="w-full h-9 px-2.5 rounded-md border border-slate-200 bg-white text-xs font-medium"
+                  >
+                    <option value="maleo">Kop Yayasan Maleo (/kop-maleo.png)</option>
+                    <option value="robotic">Kop PT JT Robotic Explorer (/kop-surat.png)</option>
+                    <option value="none">Tanpa Kop Surat</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Sudah Terima Dari (Pemberi Dana / Yayasan)
+                </label>
+                <Input
+                  value={pdfModal.sudahTerimaDari}
+                  onChange={(e) =>
+                    setPdfModal({ ...pdfModal, sudahTerimaDari: e.target.value })
+                  }
+                  className="h-9 text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Nama Penerima / Pelaksana (di Blok Tanda Tangan)
+                </label>
+                <Input
+                  value={pdfModal.penerima}
+                  onChange={(e) => setPdfModal({ ...pdfModal, penerima: e.target.value })}
+                  placeholder="Nama lengkap penerima..."
+                  className="h-9 text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Untuk Pembayaran / Perihal
+                </label>
+                <textarea
+                  rows={2}
+                  value={pdfModal.perihal}
+                  onChange={(e) => setPdfModal({ ...pdfModal, perihal: e.target.value })}
+                  className="w-full rounded-md border border-slate-200 p-2 text-xs"
+                />
+              </div>
+
+              <label className="flex items-center gap-2 p-2.5 rounded-lg border bg-blue-50/60 border-blue-200 text-blue-900 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={pdfModal.includeReceipts}
+                  disabled={pdfModal.receiptUrls.length === 0}
+                  onChange={(e) =>
+                    setPdfModal({ ...pdfModal, includeReceipts: e.target.checked })
+                  }
+                />
+                <span>
+                  {pdfModal.receiptUrls.length > 0
+                    ? `Sertakan lampiran bukti nota (${pdfModal.receiptUrls.length} file) di halaman berikutnya`
+                    : "Belum ada file bukti nota yang terlampir pada transaksi ini"}
+                </span>
+              </label>
+            </div>
+
+            <div className="px-5 py-3.5 border-t bg-slate-50 flex flex-wrap items-center justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setPdfModal(null)}
+                disabled={isSavingModal}
+                className="text-xs bg-white"
+              >
+                Batal
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleModalPrint(false)}
+                disabled={isSavingModal}
+                className="text-xs bg-white border-slate-300 gap-1.5"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                Cetak PDF Langsung
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => handleModalPrint(true)}
+                disabled={isSavingModal || !pdfModal.kwitansiId}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5"
+              >
+                {isSavingModal ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Save className="w-3.5 h-3.5" />
+                )}
+                Simpan Detail &amp; Cetak PDF
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -691,7 +691,7 @@ export function PaketLaporanClientPage({ initialData }: { initialData: Workspace
 
       {/* TAB 3: AUDIT & KELENGKAPAN KWITANSI */}
       {activeTab === "kwitansi" && (
-        <KwitansiAuditTab categories={categories} rabSummary={rabSummary} />
+        <KwitansiAuditTab categories={categories} rabSummary={rabSummary} profile={profile} />
       )}
     </div>
   );

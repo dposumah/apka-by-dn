@@ -265,7 +265,15 @@ export async function bulkGenerateMissingKwitansi(expenseIds: string[]) {
 
     let generatedCount = 0;
     let skippedCount = 0;
-    const createdNumbers: Array<{ expenseId: string; noKwitansi: string }> = [];
+    const createdNumbers: Array<{
+      id: string;
+      expenseId: string;
+      noKwitansi: string;
+      tanggal: string;
+      perihal: string;
+      owner: string;
+      nominal: number;
+    }> = [];
 
     for (const exp of expenses) {
       const existingList = Array.isArray(exp.kwitansiRecord)
@@ -310,7 +318,14 @@ export async function bulkGenerateMissingKwitansi(expenseIds: string[]) {
                 nominal: exp.amount,
                 tipeKwitansi,
               },
-              select: { id: true, noKwitansi: true },
+              select: {
+                id: true,
+                noKwitansi: true,
+                tanggal: true,
+                perihal: true,
+                owner: true,
+                nominal: true,
+              },
             });
           }
 
@@ -340,14 +355,29 @@ export async function bulkGenerateMissingKwitansi(expenseIds: string[]) {
           return await tx.kwitansiRecord.update({
             where: { id: created.id },
             data: { noKwitansi: finalNo },
-            select: { id: true, noKwitansi: true },
+            select: {
+              id: true,
+              noKwitansi: true,
+              tanggal: true,
+              perihal: true,
+              owner: true,
+              nominal: true,
+            },
           });
         },
         { maxWait: 10000, timeout: 20000 }
       );
 
       generatedCount++;
-      createdNumbers.push({ expenseId: exp.id, noKwitansi: result.noKwitansi });
+      createdNumbers.push({
+        id: result.id,
+        expenseId: exp.id,
+        noKwitansi: result.noKwitansi,
+        tanggal: result.tanggal.toISOString().slice(0, 10),
+        perihal: result.perihal,
+        owner: result.owner,
+        nominal: result.nominal,
+      });
     }
 
     revalidateSntReportPaths();
@@ -408,6 +438,56 @@ export async function appendExpenseReceipts(expenseId: string, newUrls: string[]
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Gagal menambahkan file bukti";
     console.error("Error in appendExpenseReceipts:", err);
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Memperbarui metadata cetak KwitansiRecord (tanggal, Sudah Terima Dari / owner, perihal)
+ * tanpa pernah mengubah nomor kwitansi resmi (noKwitansi / noUrut) maupun nominal transaksi.
+ */
+export async function updateKwitansiRecordDetails(input: {
+  kwitansiId: string;
+  tanggal: string;
+  owner: string;
+  perihal: string;
+}) {
+  try {
+    const { error: authError } = await checkAuth(SNT_MANAGE_ROLES);
+    if (authError) {
+      return { success: false, error: authError };
+    }
+
+    if (!input.kwitansiId) {
+      return { success: false, error: "ID Kwitansi tidak valid" };
+    }
+
+    const parsedDate = input.tanggal ? new Date(`${input.tanggal}T00:00:00.000Z`) : new Date();
+    if (Number.isNaN(parsedDate.getTime())) {
+      return { success: false, error: "Tanggal kwitansi tidak valid" };
+    }
+
+    const updated = await prisma.kwitansiRecord.update({
+      where: { id: input.kwitansiId },
+      data: {
+        tanggal: parsedDate,
+        owner: input.owner.trim() || "Yayasan Maleo Talenta Cendekia",
+        perihal: input.perihal.trim(),
+      },
+      select: {
+        id: true,
+        noKwitansi: true,
+        tanggal: true,
+        owner: true,
+        perihal: true,
+      },
+    });
+
+    revalidateSntReportPaths();
+    return { success: true, kwitansi: JSON.parse(JSON.stringify(updated)) };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Gagal memperbarui detail kwitansi";
+    console.error("Error in updateKwitansiRecordDetails:", err);
     return { success: false, error: msg };
   }
 }

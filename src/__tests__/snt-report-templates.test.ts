@@ -8,7 +8,10 @@ import {
   isOfficialRabCategory,
   SntRabCategoryRecord,
 } from "../lib/snt-report-templates";
-import { renderSntReportBundleHtml } from "../lib/snt-report-pdf";
+import {
+  renderSntReportBundleHtml,
+  renderStandaloneKwitansiPdfHtml,
+} from "../lib/snt-report-pdf";
 
 const SAMPLE_CATEGORIES: SntRabCategoryRecord[] = [
   {
@@ -174,5 +177,61 @@ describe("snt-report-templates & PDF bundle", () => {
     expect(html).toContain("KWC/MTC/2026.09.30.001");
     expect(html).toContain("https://example.com/nota-1.jpg");
     expect(html).toContain("Lampiran Tambahan: Pengeluaran di Luar RAB Resmi KAK");
+  });
+
+  it("renders standalone single and bulk kwitansi PDF HTML with optional receipt attachments", () => {
+    const htmlWithReceipts = renderStandaloneKwitansiPdfHtml({
+      items: [
+        {
+          noKwitansi: "KWC/MTC/2026.11.15.016",
+          tanggal: "2026-11-15",
+          sudahTerimaDari: "Yayasan Maleo Talenta Cendekia",
+          perihal: "Jasa tenaga Admin Nov - Tenaga Administrasi",
+          rabLabel: "5 - Tenaga Administrasi",
+          penerima: "Donny Posumah",
+          amount: 2500000,
+          receiptUrls: ["https://example.com/admin-nov.jpg"],
+        },
+        {
+          noKwitansi: "KWC/MTC/2026.11.11.017",
+          tanggal: "2026-11-11",
+          sudahTerimaDari: "Yayasan Maleo Talenta Cendekia",
+          perihal: "Honorarium Fasilitator",
+          rabLabel: "4 - Fasilitator Koding & KA",
+          penerima: "Rocky Smart Lumowa",
+          amount: 1560000,
+          receiptUrls: [],
+        },
+      ],
+      kopSurat: "maleo",
+      kotaPengesahan: "Jakarta",
+      includeReceipts: true,
+    });
+
+    expect(htmlWithReceipts).toContain("KWC/MTC/2026.11.15.016");
+    expect(htmlWithReceipts).toContain("KWC/MTC/2026.11.11.017");
+    expect(htmlWithReceipts).toContain("Donny Posumah");
+    expect(htmlWithReceipts).toContain("/kop-maleo.png");
+    expect(htmlWithReceipts).toContain("https://example.com/admin-nov.jpg");
+
+    const htmlNoReceipts = renderStandaloneKwitansiPdfHtml({
+      items: [
+        {
+          noKwitansi: "KWC/MTC/2026.11.15.016",
+          tanggal: "2026-11-15",
+          sudahTerimaDari: "Yayasan Maleo Talenta Cendekia",
+          perihal: "Jasa tenaga Admin Nov",
+          rabLabel: "5 - Tenaga Administrasi",
+          penerima: "Donny Posumah",
+          amount: 2500000,
+          receiptUrls: ["https://example.com/admin-nov.jpg"],
+        },
+      ],
+      kopSurat: "none",
+      kotaPengesahan: "Jakarta",
+      includeReceipts: false,
+    });
+    expect(htmlNoReceipts).not.toContain("https://example.com/admin-nov.jpg");
+    expect(htmlNoReceipts).not.toContain("/kop-maleo.png");
   });
 });

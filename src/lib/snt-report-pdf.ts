@@ -1,6 +1,7 @@
 import { formatCurrency, terbilangRupiah } from "./format";
 import { getExpenseReceiptUrls, renderReceiptAttachmentPagesHtml } from "./expense-receipts";
 import {
+  KopSuratOption,
   KwitansiAuditRow,
   LocationActivityRow,
   RabRealizationSummary,
@@ -1140,6 +1141,240 @@ export function renderSntReportBundleHtml(input: SntExportBundleInput): string {
   </div>
   <div class="sheet-container">
     ${sections.join("\n")}
+  </div>
+</body>
+</html>`;
+}
+
+export interface StandaloneKwitansiPdfItem {
+  noKwitansi: string;
+  tanggal: string;
+  sudahTerimaDari: string;
+  perihal: string;
+  rabLabel: string;
+  penerima: string;
+  amount: number;
+  receiptUrls?: string[];
+}
+
+export function renderStandaloneKwitansiPdfHtml(input: {
+  items: StandaloneKwitansiPdfItem[];
+  kopSurat: KopSuratOption;
+  kotaPengesahan: string;
+  includeReceipts: boolean;
+}): string {
+  const kopImgHtml =
+    input.kopSurat === "maleo"
+      ? `<img src="/kop-maleo.png" alt="Yayasan Maleo Talenta Cendekia" class="kwt-kop-img" onerror="this.style.display='none'" />`
+      : input.kopSurat === "robotic"
+        ? `<img src="/kop-surat.png" alt="PT Jully Tjindrawan Robotik" class="kwt-kop-img" onerror="this.style.display='none'" />`
+        : "";
+
+  const pagesHtml = input.items
+    .map((item, idx) => {
+      const tanggalText = formatDateId(item.tanggal);
+      const receiptsHtml =
+        input.includeReceipts && item.receiptUrls && item.receiptUrls.length > 0
+          ? renderReceiptAttachmentPagesHtml(item.receiptUrls)
+          : "";
+
+      return `
+        <section class="kwt-page${idx > 0 ? " page-break" : ""}">
+          <div class="kwt-card">
+            <div class="kwt-head">
+              <div class="kwt-kop-wrap">${kopImgHtml}</div>
+              <div class="kwt-head-right">
+                <div class="kwt-title">KWITANSI</div>
+                <div class="kwt-no">No: ${esc(item.noKwitansi)}</div>
+              </div>
+            </div>
+
+            <table class="kwt-table">
+              <tr>
+                <td class="kwt-label">Sudah Terima Dari</td>
+                <td class="kwt-colon">:</td>
+                <td class="kwt-val"><strong>${esc(item.sudahTerimaDari)}</strong></td>
+              </tr>
+              <tr>
+                <td class="kwt-label">Banyaknya Uang</td>
+                <td class="kwt-colon">:</td>
+                <td class="kwt-terbilang">${esc(terbilangRupiah(item.amount))}</td>
+              </tr>
+              <tr>
+                <td class="kwt-label">Untuk Pembayaran</td>
+                <td class="kwt-colon">:</td>
+                <td class="kwt-val">
+                  <div>${nl2br(item.perihal)}</div>
+                  ${item.rabLabel ? `<div class="kwt-sub">Pos RAB: ${esc(item.rabLabel)}</div>` : ""}
+                </td>
+              </tr>
+            </table>
+
+            <div class="kwt-foot">
+              <div class="kwt-amount">${esc(formatCurrency(item.amount))}</div>
+              <div class="kwt-sign">
+                <div class="kwt-sign-date">${esc(input.kotaPengesahan || "Jakarta")}, ${esc(tanggalText)}</div>
+                <div class="kwt-sign-space"></div>
+                <div class="kwt-sign-name">${esc(item.penerima)}</div>
+                <div class="kwt-sign-role">Penerima / Pelaksana</div>
+              </div>
+            </div>
+          </div>
+          ${receiptsHtml}
+        </section>
+      `;
+    })
+    .join("\n");
+
+  const docTitle =
+    input.items.length === 1
+      ? `Kwitansi ${input.items[0].noKwitansi}`
+      : `Kumpulan Kwitansi SNT (${input.items.length} Dokumen)`;
+
+  return `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>${esc(docTitle)}</title>
+  <style>
+    @page { size: A4; margin: 15mm 14mm 15mm 14mm; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      color: #0f172a;
+      margin: 0;
+      padding: 16px;
+      background: #f1f5f9;
+    }
+    .print-toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: #0f172a;
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 8px;
+      margin: 0 auto 16px auto;
+      max-width: 820px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+    }
+    .print-toolbar button {
+      background: #10b981;
+      color: #fff;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .kwt-container {
+      max-width: 820px;
+      margin: 0 auto;
+    }
+    .page-break { page-break-before: always; break-before: page; }
+    .kwt-card {
+      background: #fff;
+      border: 2px solid #000;
+      padding: 30px 32px;
+      margin-bottom: 20px;
+    }
+    .kwt-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      border-bottom: 2px solid #000;
+      padding-bottom: 12px;
+      margin-bottom: 22px;
+    }
+    .kwt-kop-img {
+      max-height: 62px;
+      max-width: 440px;
+      object-fit: contain;
+    }
+    .kwt-head-right { text-align: right; }
+    .kwt-title {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 1px;
+    }
+    .kwt-no {
+      margin-top: 4px;
+      font-family: monospace;
+      font-size: 13px;
+      font-weight: 700;
+      color: #1e293b;
+    }
+    .kwt-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13.5px;
+      margin-bottom: 24px;
+    }
+    .kwt-table td { padding: 7px 0; vertical-align: top; }
+    .kwt-label { width: 165px; color: #334155; }
+    .kwt-colon { width: 14px; }
+    .kwt-terbilang {
+      background: #f3f4f6;
+      padding: 8px 12px !important;
+      font-style: italic;
+      font-weight: 600;
+      border-radius: 4px;
+    }
+    .kwt-sub {
+      margin-top: 4px;
+      font-size: 11px;
+      color: #64748b;
+    }
+    .kwt-foot {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-top: 30px;
+      padding-top: 8px;
+    }
+    .kwt-amount {
+      border: 2px solid #000;
+      background: #f8fafc;
+      padding: 10px 22px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 19px;
+      font-weight: 800;
+    }
+    .kwt-sign { text-align: center; min-width: 230px; }
+    .kwt-sign-date { font-size: 13px; color: #334155; }
+    .kwt-sign-space { height: 58px; }
+    .kwt-sign-name {
+      font-size: 14px;
+      font-weight: 700;
+      text-decoration: underline;
+    }
+    .kwt-sign-role {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+    @media print {
+      body { background: #fff; padding: 0; }
+      .print-toolbar { display: none !important; }
+      .kwt-container { max-width: none; }
+      .kwt-card { margin-bottom: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-toolbar">
+    <div><strong>${esc(docTitle)}</strong>${input.includeReceipts ? " · Termasuk Lampiran Bukti Nota" : ""}</div>
+    <button type="button" onclick="window.print()">Cetak / Simpan PDF (A4)</button>
+  </div>
+  <div class="kwt-container">
+    ${pagesHtml}
   </div>
 </body>
 </html>`;
