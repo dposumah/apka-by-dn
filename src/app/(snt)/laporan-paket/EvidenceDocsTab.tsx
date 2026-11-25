@@ -83,6 +83,7 @@ export function EvidenceDocsTab({
 
   const [isSaving, setIsSaving] = useState(false);
   const [recordingId, setRecordingId] = useState<string | null>(null);
+  const [recordTargetType, setRecordTargetType] = useState<"PELAPORAN" | "REAL">("PELAPORAN");
   const [banner, setBanner] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   // State khusus Daftar Tanda Terima Honor Fasilitator Bulanan (A.4)
@@ -331,7 +332,7 @@ export function EvidenceDocsTab({
     }
     if (
       !confirm(
-        `Catat transaksi sebesar ${formatCurrency(amount)} ("${description}") ke Realisasi Pos RAB ${rabCode} (status APPROVED + auto buat nomor Kwitansi resmi)? Pastikan transaksi ini belum tercatat sebelumnya agar tidak ganda.`
+        `Catat transaksi sebesar ${formatCurrency(amount)} ("${description}") ke Pos RAB ${rabCode} sebagai [${recordTargetType === "PELAPORAN" ? "PELAPORAN TEMPLATE — tidak menggandakan jurnal kas" : "REAL — kas aktual"}] (status APPROVED + auto buat nomor Kwitansi resmi)?`
       )
     ) {
       return;
@@ -347,6 +348,7 @@ export function EvidenceDocsTab({
         amount,
         generateKwitansi: true,
         kwitansiOwner: defaultPayer,
+        realizationType: recordTargetType,
       });
       if (!res.success) {
         setBanner({ type: "err", text: res.error || "Gagal mencatat ke Realisasi RAB." });
@@ -354,7 +356,7 @@ export function EvidenceDocsTab({
       }
       setBanner({
         type: "ok",
-        text: `Berhasil mencatat ke Pos RAB ${rabCode} (${formatCurrency(amount)})${res.noKwitansi ? ` dengan Kwitansi ${res.noKwitansi}` : ""}.`,
+        text: `Berhasil mencatat ke Pos RAB ${rabCode} sebagai ${recordTargetType} (${formatCurrency(amount)})${res.noKwitansi ? ` dengan Kwitansi ${res.noKwitansi}` : ""}.`,
       });
       router.refresh();
     } finally {
@@ -419,6 +421,34 @@ export function EvidenceDocsTab({
               <p className="text-xs text-slate-500 mt-0.5">{activeMeta.template13Ref}</p>
             </div>
             <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <div
+                className="inline-flex items-center rounded-md border border-slate-200 bg-white p-0.5 text-[11px] font-semibold"
+                title="Tag yang digunakan saat klik tombol + RAB"
+              >
+                <span className="px-1.5 text-[10px] text-slate-400">+RAB:</span>
+                <button
+                  type="button"
+                  onClick={() => setRecordTargetType("PELAPORAN")}
+                  className={`px-2 py-1 rounded ${
+                    recordTargetType === "PELAPORAN"
+                      ? "bg-blue-700 text-white"
+                      : "text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  Pelaporan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRecordTargetType("REAL")}
+                  className={`px-2 py-1 rounded ${
+                    recordTargetType === "REAL"
+                      ? "bg-emerald-700 text-white"
+                      : "text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  Real Kas
+                </button>
+              </div>
               <Button
                 type="button"
                 size="sm"

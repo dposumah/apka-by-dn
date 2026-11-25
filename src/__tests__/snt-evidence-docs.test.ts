@@ -221,4 +221,55 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
     expect(adminPreset.every((it) => it.hargaSatuan === SNT_RAB_TENAGA_ADMIN_UNIT_PRICE)).toBe(true);
     expect(adminPreset.reduce((s, it) => s + it.nominal, 0)).toBe(22919504);
   });
+
+  it("separates REAL vs PELAPORAN_SMART vs PELAPORAN_ONLY without double counting and computes variance", () => {
+    const cats: SntRabCategoryRecord[] = [
+      {
+        id: "a",
+        name: "A. BIAYA PERSONEL",
+        items: [
+          {
+            id: "a4",
+            code: "4",
+            name: "Fasilitator Koding & KA",
+            totalBudget: 137517024,
+            expenses: [
+              { id: "r-1", rabItemId: "a4", amount: 22396741, description: "Real 2 fasil/lokasi", date: "2026-10-31", status: "APPROVED", realizationType: "REAL" },
+              { id: "p-1", rabItemId: "a4", amount: 34379256, description: "Pelaporan 6x5.729.876", date: "2026-10-31", status: "APPROVED", realizationType: "PELAPORAN" },
+            ],
+          },
+        ],
+      },
+      {
+        id: "b",
+        name: "B. BIAYA NONPERSONEL",
+        items: [
+          {
+            id: "b4b",
+            code: "4b",
+            name: "Sertifikasi STEM.org",
+            totalBudget: 24000000,
+            expenses: [
+              { id: "r-2", rabItemId: "b4b", amount: 22000000, description: "Invoice STEM.org", date: "2026-10-15", status: "APPROVED", realizationType: "REAL" },
+            ],
+          },
+        ],
+      },
+    ];
+
+    const realSummary = computeRabRealizationSummary(cats, { includePpn11: false, basis: "REAL" });
+    expect(realSummary.subtotalOfficialRealizedTotal).toBe(22396741 + 22000000);
+    expect(realSummary.realTxCount).toBe(2);
+    expect(realSummary.pelaporanTxCount).toBe(1);
+
+    // PELAPORAN_SMART: pakai PELAPORAN pada A.4 (34.379.256, bukan dobel!), fallback ke REAL pada B.4b (22.000.000)
+    const smartSummary = computeRabRealizationSummary(cats, { includePpn11: false, basis: "PELAPORAN_SMART" });
+    expect(smartSummary.subtotalOfficialRealizedTotal).toBe(34379256 + 22000000);
+    expect(smartSummary.subtotalOfficialRealizedReal).toBe(22396741 + 22000000);
+    expect(smartSummary.subtotalOfficialRealizedTemplate).toBe(34379256 + 22000000);
+    expect(smartSummary.varianceOfficialRealVsTemplate).toBe(34379256 - 22396741);
+
+    const pelaporanOnly = computeRabRealizationSummary(cats, { includePpn11: false, basis: "PELAPORAN_ONLY" });
+    expect(pelaporanOnly.subtotalOfficialRealizedTotal).toBe(34379256);
+  });
 });

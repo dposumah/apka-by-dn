@@ -20,6 +20,7 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
   const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split('T')[0])
   const [selectedItemId, setSelectedItemId] = useState('')
   const [selectedFasilitatorId, setSelectedFasilitatorId] = useState('')
+  const [realizationType, setRealizationType] = useState<'REAL' | 'PELAPORAN'>('REAL')
   const [files, setFiles] = useState<File[]>([])
 
   const handleAddFiles = (incoming: FileList | null) => {
@@ -99,7 +100,8 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
         receiptUrls: uploadedUrls,
         userId: 'demo-user-id',
         fasilitatorId: isHonorarium ? selectedFasilitatorId : undefined,
-        date: expenseDate
+        date: expenseDate,
+        realizationType,
       })
 
       if (res?.error) {
@@ -112,6 +114,7 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
       formElement.reset()
       setSelectedItemId('')
       setSelectedFasilitatorId('')
+      setRealizationType('REAL')
       setFiles([])
       setExpenseDate(new Date().toISOString().split('T')[0])
       
@@ -364,6 +367,40 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
             <p className="text-xs text-gray-500">Karena pengeluaran ini terkait Fasilitator, mohon pilih penerimanya.</p>
           </div>
         )}
+
+        <div className="space-y-2">
+          <Label>Jenis Realisasi</Label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <button
+              type="button"
+              onClick={() => setRealizationType('REAL')}
+              className={`text-left p-3 rounded-lg border transition-all ${
+                realizationType === 'REAL'
+                  ? 'bg-emerald-50 border-emerald-500 ring-1 ring-emerald-500'
+                  : 'bg-white border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              <div className="text-xs font-bold text-emerald-900">Realisasi Real (Kas Aktual)</div>
+              <div className="text-[11px] text-slate-600 mt-0.5">
+                Pengeluaran kas nyata; otomatis tercatat ke jurnal akuntansi &amp; monitoring kas.
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setRealizationType('PELAPORAN')}
+              className={`text-left p-3 rounded-lg border transition-all ${
+                realizationType === 'PELAPORAN'
+                  ? 'bg-blue-50 border-blue-500 ring-1 ring-blue-500'
+                  : 'bg-white border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              <div className="text-xs font-bold text-blue-900">Realisasi Pelaporan (Template SNT)</div>
+              <div className="text-[11px] text-slate-600 mt-0.5">
+                Khusus angka SPJ/template PPK; tidak menggandakan jurnal kas internal.
+              </div>
+            </button>
+          </div>
+        </div>
 
         <div className="space-y-2">
             <Label>Tanggal Pengeluaran</Label>

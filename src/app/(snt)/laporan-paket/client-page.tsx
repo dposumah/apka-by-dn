@@ -23,6 +23,7 @@ import {
   computeLocationActivityStats,
   computeRabRealizationSummary,
   KopSuratOption,
+  RealizationBasisMode,
   SNT_PERIOD_OPTIONS,
   SNT_REPORT_TEMPLATES,
   SntFasilitatorRecord,
@@ -66,6 +67,7 @@ export function PaketLaporanClientPage({ initialData }: { initialData: Workspace
   const [activeTab, setActiveTab] = useState<"export" | "editor" | "kwitansi" | "evidence" | "strategy">("export");
   const [jumpEvidenceDocType, setJumpEvidenceDocType] = useState<EvidenceDocType | undefined>(undefined);
   const [periodKey, setPeriodKey] = useState<string>("TAHAP_1");
+  const [realizationBasis, setRealizationBasis] = useState<RealizationBasisMode>("PELAPORAN_SMART");
   const [selectedTemplates, setSelectedTemplates] = useState<SntTemplateCode[]>(["13", "02"]);
   const [includePpn11, setIncludePpn11] = useState<boolean>(false);
   const [includeExtraCategories, setIncludeExtraCategories] = useState<boolean>(false);
@@ -96,13 +98,22 @@ export function PaketLaporanClientPage({ initialData }: { initialData: Workspace
         termin1Persen: profile.termin1Persen,
         termin2Persen: profile.termin2Persen,
         customPaguKontrak: profile.customPaguKontrak,
+        basis: realizationBasis,
       }),
-    [categories, periodOption.monthPrefix, includePpn11, profile.termin1Persen, profile.termin2Persen, profile.customPaguKontrak]
+    [
+      categories,
+      periodOption.monthPrefix,
+      includePpn11,
+      profile.termin1Persen,
+      profile.termin2Persen,
+      profile.customPaguKontrak,
+      realizationBasis,
+    ]
   );
 
   const officialAudit = useMemo(
-    () => computeKwitansiAuditSummary(categories, !includeExtraCategories),
-    [categories, includeExtraCategories]
+    () => computeKwitansiAuditSummary(categories, !includeExtraCategories, realizationBasis),
+    [categories, includeExtraCategories, realizationBasis]
   );
 
   const locationStats = useMemo(
@@ -298,6 +309,40 @@ export function PaketLaporanClientPage({ initialData }: { initialData: Workspace
         </div>
       </div>
 
+      {/* Sakelar Basis Sumber Angka Laporan: Pelaporan Template vs Realisasi Real */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50/50 p-3.5">
+        <div>
+          <div className="text-xs font-bold text-slate-900">
+            Basis Sumber Angka Laporan (PDF Template 02, 03, 12, 13 &amp; Target &gt; 80%)
+          </div>
+          <p className="text-[11px] text-slate-600 mt-0.5">
+            Real Kas: <strong className="text-emerald-700">{formatCurrency(rabSummary.subtotalOfficialRealizedReal)}</strong> ({rabSummary.realTxCount} tx) · Pelaporan Template: <strong className="text-blue-700">{formatCurrency(rabSummary.subtotalOfficialRealizedTemplate)}</strong> ({rabSummary.pelaporanTxCount} entri override) · Selisih: <strong className="text-amber-800">{rabSummary.varianceOfficialRealVsTemplate >= 0 ? "+" : ""}{formatCurrency(rabSummary.varianceOfficialRealVsTemplate)}</strong>
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-1.5 shrink-0">
+          {([
+            { key: "PELAPORAN_SMART" as const, label: "Pelaporan Template (Prioritas SPJ, Fallback Real)" },
+            { key: "REAL" as const, label: "Khusus Realisasi Real (Kas)" },
+            { key: "PELAPORAN_ONLY" as const, label: "Hanya Entri PELAPORAN" },
+          ]).map((opt) => (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() => setRealizationBasis(opt.key)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                realizationBasis === opt.key
+                  ? opt.key === "REAL"
+                    ? "bg-emerald-700 text-white border-emerald-700"
+                    : "bg-blue-700 text-white border-blue-700"
+                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Ringkasan KPI Live Wilayah 2 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border-slate-200">
@@ -313,7 +358,9 @@ export function PaketLaporanClientPage({ initialData }: { initialData: Workspace
         </Card>
         <Card className="border-blue-200 bg-blue-50/40">
           <CardContent className="p-4">
-            <div className="text-xs text-blue-700 font-medium">Realisasi Kumulatif (A + B)</div>
+            <div className="text-xs text-blue-700 font-medium">
+              Realisasi Kumulatif ({realizationBasis === "REAL" ? "Basis Real Kas" : realizationBasis === "PELAPORAN_ONLY" ? "Khusus Entri SPJ" : "Basis Pelaporan Template"})
+            </div>
             <div className="text-xl font-bold text-blue-800 mt-1">
               {formatCurrency(rabSummary.grandTotalRealizedTotal)}
             </div>
@@ -761,7 +808,12 @@ export function PaketLaporanClientPage({ initialData }: { initialData: Workspace
 
       {/* TAB 3: AUDIT & KELENGKAPAN KWITANSI */}
       {activeTab === "kwitansi" && (
-        <KwitansiAuditTab categories={categories} rabSummary={rabSummary} profile={profile} />
+        <KwitansiAuditTab
+          categories={categories}
+          rabSummary={rabSummary}
+          profile={profile}
+          realizationBasis={realizationBasis}
+        />
       )}
 
       {/* TAB 4: DOKUMEN BUKTI WAJIB (10 JENIS + DAFTAR TANDA TERIMA HONOR BULANAN) */}

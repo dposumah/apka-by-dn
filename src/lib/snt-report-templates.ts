@@ -159,6 +159,34 @@ export function getDefaultSntReportProfile(): SntReportProfile {
   };
 }
 
+export type ExpenseRealizationType = "REAL" | "PELAPORAN";
+
+export type RealizationBasisMode = "REAL" | "PELAPORAN_SMART" | "PELAPORAN_ONLY";
+
+export function normalizeExpenseRealizationType(val?: string | null): ExpenseRealizationType {
+  return String(val || "").toUpperCase() === "PELAPORAN" ? "PELAPORAN" : "REAL";
+}
+
+export function selectExpensesForBasis<T extends { realizationType?: string | null }>(
+  approvedExpenses: T[],
+  basis: RealizationBasisMode = "REAL"
+): { selected: T[]; usesPelaporanOverride: boolean } {
+  const realList = approvedExpenses.filter((e) => normalizeExpenseRealizationType(e.realizationType) === "REAL");
+  const pelaporanList = approvedExpenses.filter((e) => normalizeExpenseRealizationType(e.realizationType) === "PELAPORAN");
+
+  if (basis === "REAL") {
+    return { selected: realList, usesPelaporanOverride: false };
+  }
+  if (basis === "PELAPORAN_ONLY") {
+    return { selected: pelaporanList, usesPelaporanOverride: pelaporanList.length > 0 };
+  }
+  // PELAPORAN_SMART: gunakan entri PELAPORAN pada pos ini jika tersedia; jika belum ada, fallback ke REAL
+  if (pelaporanList.length > 0) {
+    return { selected: pelaporanList, usesPelaporanOverride: true };
+  }
+  return { selected: realList, usesPelaporanOverride: false };
+}
+
 export interface SntExpenseRecord {
   id: string;
   rabItemId: string;
@@ -167,6 +195,7 @@ export interface SntExpenseRecord {
   date: string | Date;
   createdAt?: string | Date;
   status: string;
+  realizationType?: ExpenseRealizationType | string | null;
   receiptUrl?: string | null;
   receiptUrls?: string[] | null;
   paymentReceiptUrl?: string | null;
@@ -351,6 +380,11 @@ export interface RabItemComputedRow {
   budget: number;
   realizedPeriod: number;
   realizedTotal: number;
+  realizedRealTotal: number;
+  realizedPelaporanTotal: number;
+  realizedTemplateTotal: number;
+  varianceRealVsTemplate: number;
+  usesPelaporanOverride: boolean;
   remaining: number;
   serapanPct: number;
   requiredEvidence: string;
@@ -361,6 +395,7 @@ export interface RabItemComputedRow {
 }
 
 export interface RabRealizationSummary {
+  basis: RealizationBasisMode;
   officialRows: RabItemComputedRow[];
   extraRows: RabItemComputedRow[];
   personelBudget: number;
@@ -372,6 +407,12 @@ export interface RabRealizationSummary {
   subtotalOfficialBudget: number;
   subtotalOfficialRealizedPeriod: number;
   subtotalOfficialRealizedTotal: number;
+  subtotalOfficialRealizedReal: number;
+  subtotalOfficialRealizedPelaporanOnly: number;
+  subtotalOfficialRealizedTemplate: number;
+  varianceOfficialRealVsTemplate: number;
+  realTxCount: number;
+  pelaporanTxCount: number;
   ppnBudget: number;
   ppnRealizedPeriod: number;
   ppnRealizedTotal: number;
@@ -397,8 +438,10 @@ export function computeRabRealizationSummary(
     termin1Persen?: number;
     termin2Persen?: number;
     customPaguKontrak?: number;
+    basis?: RealizationBasisMode;
   }
 ): RabRealizationSummary {
+  const basis: RealizationBasisMode = options.basis || "REAL";
   const officialRows: RabItemComputedRow[] = [];
   const extraRows: RabItemComputedRow[] = [];
 
@@ -414,6 +457,12 @@ export function computeRabRealizationSummary(
   let extraRealizedPeriod = 0;
   let extraRealizedTotal = 0;
 
+  let subtotalOfficialRealizedReal = 0;
+  let subtotalOfficialRealizedPelaporanOnly = 0;
+  let subtotalOfficialRealizedTemplate = 0;
+  let realTxCount = 0;
+  let pelaporanTxCount = 0;
+
   const targetMonth = options.monthKey && /^\d{4}-\d{2}$/.test(options.monthKey)
     ? options.monthKey
     : undefined;
@@ -423,13 +472,29 @@ export function computeRabRealizationSummary(
     const isPersonel = isOfficial && isPersonelCategory(cat.name);
 
     for (const item of cat.items || []) {
-      const approvedExpenses = (item.expenses || []).filter(
+      const allApproved = (item.expenses || []).filter(
         (e) => !e.status || e.status === "APPROVED"
       );
 
-      const realizedTotal = approvedExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+      const realExpenses = allApproved.filter(
+        (e) => normalizeExpenseRealizationType(e.realizationType) === "REAL"
+      );
+      const pelaporanExpenses = allApproved.filter(
+        (e) => normalizeExpenseRealizationType(e.realizationType) === "PELAPORAN"
+      );
+      const realizedRealTotal = realExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+      const realizedPelaporanTotal = pelaporanExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+      const realizedTemplateTotal = pelaporanExpenses.length > 0 ? realizedPelaporanTotal : realizedRealTotal;
+      const varianceRealVsTemplate = realizedTemplateTotal - realizedRealTotal;
+
+      const { selected: activeExpenses, usesPelaporanOverride } = selectExpensesForBasis(
+        allApproved,
+        basis
+      );
+
+      const realizedTotal = activeExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
       const realizedPeriod = targetMonth
-        ? approvedExpenses
+        ? activeExpenses
             .filter((e) => getExpenseMonthKey(e.date || e.createdAt) === targetMonth)
             .reduce((s, e) => s + (Number(e.amount) || 0), 0)
         : realizedTotal;
@@ -438,10 +503,10 @@ export function computeRabRealizationSummary(
       const remaining = budget - realizedTotal;
       const serapanPct = budget > 0 ? (realizedTotal / budget) * 100 : 0;
 
-      const withReceiptCount = approvedExpenses.filter(
+      const withReceiptCount = activeExpenses.filter(
         (e) => getExpenseReceiptUrls(e).length > 0
       ).length;
-      const withKwitansiCount = approvedExpenses.filter((e) => hasValidKwitansi(e)).length;
+      const withKwitansiCount = activeExpenses.filter((e) => hasValidKwitansi(e)).length;
 
       const row: RabItemComputedRow = {
         id: item.id,
@@ -455,17 +520,27 @@ export function computeRabRealizationSummary(
         budget,
         realizedPeriod,
         realizedTotal,
+        realizedRealTotal,
+        realizedPelaporanTotal,
+        realizedTemplateTotal,
+        varianceRealVsTemplate,
+        usesPelaporanOverride,
         remaining,
         serapanPct,
         requiredEvidence: getRequiredEvidenceForRabItem(item.code, item.name),
-        txCount: approvedExpenses.length,
+        txCount: activeExpenses.length,
         withReceiptCount,
         withKwitansiCount,
-        expenses: approvedExpenses,
+        expenses: activeExpenses,
       };
 
       if (isOfficial) {
         officialRows.push(row);
+        subtotalOfficialRealizedReal += realizedRealTotal;
+        subtotalOfficialRealizedPelaporanOnly += realizedPelaporanTotal;
+        subtotalOfficialRealizedTemplate += realizedTemplateTotal;
+        realTxCount += realExpenses.length;
+        pelaporanTxCount += pelaporanExpenses.length;
         if (isPersonel) {
           personelBudget += budget;
           personelRealizedPeriod += realizedPeriod;
@@ -487,6 +562,8 @@ export function computeRabRealizationSummary(
   const subtotalOfficialBudget = personelBudget + nonPersonelBudget;
   const subtotalOfficialRealizedPeriod = personelRealizedPeriod + nonPersonelRealizedPeriod;
   const subtotalOfficialRealizedTotal = personelRealizedTotal + nonPersonelRealizedTotal;
+  const varianceOfficialRealVsTemplate =
+    subtotalOfficialRealizedTemplate - subtotalOfficialRealizedReal;
 
   const ppnRate = options.includePpn11 ? 0.11 : 0;
   const ppnBudget = Math.round(subtotalOfficialBudget * ppnRate);
@@ -512,6 +589,7 @@ export function computeRabRealizationSummary(
     termin1Pagu > 0 ? (grandTotalRealizedTotal / termin1Pagu) * 100 : 0;
 
   return {
+    basis,
     officialRows,
     extraRows,
     personelBudget,
@@ -523,6 +601,12 @@ export function computeRabRealizationSummary(
     subtotalOfficialBudget,
     subtotalOfficialRealizedPeriod,
     subtotalOfficialRealizedTotal,
+    subtotalOfficialRealizedReal,
+    subtotalOfficialRealizedPelaporanOnly,
+    subtotalOfficialRealizedTemplate,
+    varianceOfficialRealVsTemplate,
+    realTxCount,
+    pelaporanTxCount,
     ppnBudget,
     ppnRealizedPeriod,
     ppnRealizedTotal,
@@ -551,6 +635,7 @@ export interface KwitansiAuditRow {
   description: string;
   penerima: string;
   amount: number;
+  realizationType: ExpenseRealizationType;
   receiptUrls: string[];
   hasReceipt: boolean;
   kwitansiId: string | null;
@@ -577,7 +662,8 @@ export interface KwitansiAuditSummary {
 
 export function computeKwitansiAuditSummary(
   categories: SntRabCategoryRecord[],
-  onlyOfficialRab = true
+  onlyOfficialRab = true,
+  basis: "ALL" | RealizationBasisMode = "ALL"
 ): KwitansiAuditSummary {
   const rows: KwitansiAuditRow[] = [];
 
@@ -587,8 +673,13 @@ export function computeKwitansiAuditSummary(
 
     for (const item of cat.items || []) {
       const reqEvidence = getRequiredEvidenceForRabItem(item.code, item.name);
-      for (const exp of item.expenses || []) {
-        if (exp.status && exp.status !== "APPROVED") continue;
+      const allApproved = (item.expenses || []).filter(
+        (exp) => !exp.status || exp.status === "APPROVED"
+      );
+      const targetExpenses =
+        basis === "ALL" ? allApproved : selectExpensesForBasis(allApproved, basis).selected;
+
+      for (const exp of targetExpenses) {
         const urls = getExpenseReceiptUrls(exp);
         const kwtRec = getPrimaryKwitansiRecord(exp.kwitansiRecord);
         const noKwt = kwtRec?.noKwitansi || null;
@@ -608,6 +699,7 @@ export function computeKwitansiAuditSummary(
           description: exp.description || "",
           penerima: exp.fasilitator?.namaLengkap || exp.createdBy?.name || "Tim Pelaksana SNT",
           amount: Number(exp.amount) || 0,
+          realizationType: normalizeExpenseRealizationType(exp.realizationType),
           receiptUrls: urls,
           hasReceipt: urls.length > 0,
           kwitansiId: kwtRec?.id || null,

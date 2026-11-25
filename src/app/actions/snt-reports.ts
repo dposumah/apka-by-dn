@@ -506,6 +506,7 @@ export async function recordEvidenceToRabExpense(input: {
   fasilitatorId?: string;
   generateKwitansi?: boolean;
   kwitansiOwner?: string;
+  realizationType?: "REAL" | "PELAPORAN";
 }) {
   try {
     const { error: authError, session } = await checkAuth(SNT_MANAGE_ROLES);
@@ -553,6 +554,8 @@ export async function recordEvidenceToRabExpense(input: {
     const parsedDate = input.date ? new Date(`${input.date}T00:00:00.000Z`) : new Date();
     const safeDate = Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
 
+    const realizationType = input.realizationType === "REAL" ? "REAL" : "PELAPORAN";
+
     const result = await prisma.$transaction(
       async (tx) => {
         const expense = await tx.expenseRequest.create({
@@ -562,11 +565,12 @@ export async function recordEvidenceToRabExpense(input: {
             description: input.description.trim(),
             date: safeDate,
             status: "APPROVED",
+            realizationType,
             createdById: session.user.id,
             approvedById: session.user.id,
             fasilitatorId: input.fasilitatorId || null,
           },
-          select: { id: true, amount: true, description: true, date: true },
+          select: { id: true, amount: true, description: true, date: true, realizationType: true },
         });
 
         let noKwitansi: string | null = null;

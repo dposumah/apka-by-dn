@@ -33,6 +33,7 @@ import {
   KopSuratOption,
   KwitansiAuditRow,
   RabRealizationSummary,
+  RealizationBasisMode,
   SntRabCategoryRecord,
   SntReportProfile,
 } from "@/lib/snt-report-templates";
@@ -45,6 +46,7 @@ interface KwitansiAuditTabProps {
   categories: SntRabCategoryRecord[];
   rabSummary: RabRealizationSummary;
   profile: SntReportProfile;
+  realizationBasis?: RealizationBasisMode;
 }
 
 interface QuickKwitansiModalState {
@@ -61,9 +63,10 @@ interface QuickKwitansiModalState {
   receiptUrls: string[];
 }
 
-export function KwitansiAuditTab({ categories, rabSummary, profile }: KwitansiAuditTabProps) {
+export function KwitansiAuditTab({ categories, rabSummary, profile, realizationBasis }: KwitansiAuditTabProps) {
   const router = useRouter();
   const [onlyOfficialRab, setOnlyOfficialRab] = useState(true);
+  const [typeFilter, setTypeFilter] = useState<"ALL" | "REAL" | "PELAPORAN">("ALL");
   const [filterMode, setFilterMode] = useState<"ALL" | "MISSING_RECEIPT" | "MISSING_KWT" | "READY">("ALL");
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -79,8 +82,13 @@ export function KwitansiAuditTab({ categories, rabSummary, profile }: KwitansiAu
   const [isSavingModal, setIsSavingModal] = useState(false);
 
   const audit = useMemo(
-    () => computeKwitansiAuditSummary(categories, onlyOfficialRab),
-    [categories, onlyOfficialRab]
+    () =>
+      computeKwitansiAuditSummary(
+        categories,
+        onlyOfficialRab,
+        typeFilter === "ALL" ? (realizationBasis || "ALL") : typeFilter === "REAL" ? "REAL" : "PELAPORAN_ONLY"
+      ),
+    [categories, onlyOfficialRab, typeFilter, realizationBasis]
   );
 
   const filteredRows = useMemo(() => {
@@ -518,6 +526,30 @@ export function KwitansiAuditTab({ categories, rabSummary, profile }: KwitansiAu
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex rounded-md border border-slate-200 bg-white p-0.5 text-[11px] font-semibold">
+                {([
+                  { k: "ALL" as const, label: "Ikuti Basis" },
+                  { k: "REAL" as const, label: "Real" },
+                  { k: "PELAPORAN" as const, label: "Pelaporan" },
+                ]).map((opt) => (
+                  <button
+                    key={opt.k}
+                    type="button"
+                    onClick={() => setTypeFilter(opt.k)}
+                    className={`px-2 py-1 rounded ${
+                      typeFilter === opt.k
+                        ? opt.k === "REAL"
+                          ? "bg-emerald-700 text-white"
+                          : opt.k === "PELAPORAN"
+                            ? "bg-blue-700 text-white"
+                            : "bg-slate-900 text-white"
+                        : "text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
               <Button
                 type="button"
                 variant="outline"
@@ -674,8 +706,19 @@ export function KwitansiAuditTab({ categories, rabSummary, profile }: KwitansiAu
                         : "-"}
                     </td>
                     <td className="py-2.5 px-3">
-                      <div className="font-semibold text-slate-900">
-                        {row.rabCode} - {row.rabName}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                            row.realizationType === "PELAPORAN"
+                              ? "bg-blue-50 text-blue-700 border-blue-200"
+                              : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          }`}
+                        >
+                          {row.realizationType === "PELAPORAN" ? "PELAPORAN" : "REAL"}
+                        </span>
+                        <span className="font-semibold text-slate-900">
+                          {row.rabCode} - {row.rabName}
+                        </span>
                       </div>
                       <div className="text-slate-600 mt-0.5">{row.description}</div>
                       <div className="text-[10px] text-slate-400 mt-0.5">

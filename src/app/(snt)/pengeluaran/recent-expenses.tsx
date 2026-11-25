@@ -51,6 +51,7 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
   const [filterFasilitator, setFilterFasilitator] = useState('ALL')
   const [filterKwitansi, setFilterKwitansi] = useState('ALL') // 'ALL' | 'HAS_KWITANSI' | 'NO_KWITANSI'
   const [filterStatus, setFilterStatus] = useState('ALL') // 'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED'
+  const [filterRealizationType, setFilterRealizationType] = useState<'ALL' | 'REAL' | 'PELAPORAN'>('ALL')
 
   // Pagination states (default: 5 transaksi per halaman)
   const [currentPage, setCurrentPage] = useState(1)
@@ -97,7 +98,7 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
   // Reset current page when filters or page size change
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, filterCategory, filterFasilitator, filterKwitansi, filterStatus, pageSize])
+  }, [searchQuery, filterCategory, filterFasilitator, filterKwitansi, filterStatus, filterRealizationType, pageSize])
 
   // Memoized category options
   const categoryOptions = useMemo(() => {
@@ -163,6 +164,12 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
         return false
       }
 
+      // Realization type filter (REAL vs PELAPORAN)
+      if (filterRealizationType !== 'ALL') {
+        const t = expense.realizationType === 'PELAPORAN' ? 'PELAPORAN' : 'REAL'
+        if (t !== filterRealizationType) return false
+      }
+
       // Search query filter
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim()
@@ -194,7 +201,7 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
 
       return true
     })
-  }, [expenses, filterCategory, filterFasilitator, filterKwitansi, filterStatus, searchQuery])
+  }, [expenses, filterCategory, filterFasilitator, filterKwitansi, filterStatus, filterRealizationType, searchQuery])
 
   // Summary statistics
   const totalFilteredAmount = useMemo(() => {
@@ -217,7 +224,8 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
     filterCategory !== 'ALL' || 
     filterFasilitator !== 'ALL' || 
     filterKwitansi !== 'ALL' || 
-    filterStatus !== 'ALL'
+    filterStatus !== 'ALL' ||
+    filterRealizationType !== 'ALL'
 
   const handleResetFilters = () => {
     setSearchQuery('')
@@ -225,6 +233,7 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
     setFilterFasilitator('ALL')
     setFilterKwitansi('ALL')
     setFilterStatus('ALL')
+    setFilterRealizationType('ALL')
     setCurrentPage(1)
   }
 
@@ -239,6 +248,7 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
       amount: expense.amount || 0,
       rabItemId: expense.rabItemId || '',
       fasilitatorId: expense.fasilitatorId || '',
+      realizationType: expense.realizationType === 'PELAPORAN' ? 'PELAPORAN' : 'REAL',
       keptUrls: getEditableExpenseNotaUrls(expense),
     })
     setNewFiles([])
@@ -276,6 +286,7 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
         amount: Number(editData.amount),
         rabItemId: editData.rabItemId,
         fasilitatorId: editData.fasilitatorId || undefined,
+        realizationType: editData.realizationType === 'PELAPORAN' ? 'PELAPORAN' : 'REAL',
         receiptUrls: finalReceiptUrls,
         receiptUrl: finalReceiptUrls[0] || undefined,
       })
@@ -593,6 +604,31 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
 
           {/* SEARCH & FILTER CONTROLS */}
           <div className="mt-4 pt-4 border-t border-slate-200/80 space-y-3">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-semibold text-slate-600 mr-1">Jenis Realisasi:</span>
+              {(['ALL', 'REAL', 'PELAPORAN'] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setFilterRealizationType(t)}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${
+                    filterRealizationType === t
+                      ? t === 'REAL'
+                        ? 'bg-emerald-700 text-white border-emerald-700'
+                        : t === 'PELAPORAN'
+                          ? 'bg-blue-700 text-white border-blue-700'
+                          : 'bg-slate-900 text-white border-slate-900'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  {t === 'ALL'
+                    ? `Semua (${expenses.length})`
+                    : t === 'REAL'
+                      ? `Real / Kas (${expenses.filter((e: any) => e.realizationType !== 'PELAPORAN').length})`
+                      : `Pelaporan Template (${expenses.filter((e: any) => e.realizationType === 'PELAPORAN').length})`}
+                </button>
+              ))}
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {/* 1. Search Box */}
               <div className="relative">
@@ -768,6 +804,15 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
 
                         {/* 4. Deskripsi */}
                         <td className="py-3 px-3 align-top text-slate-600">
+                          <span
+                            className={`inline-block mb-1 text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                              expense.realizationType === 'PELAPORAN'
+                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            }`}
+                          >
+                            {expense.realizationType === 'PELAPORAN' ? 'PELAPORAN' : 'REAL'}
+                          </span>
                           <p className="line-clamp-2" title={expense.description}>
                             {expense.description}
                           </p>
@@ -1452,6 +1497,20 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
                       {f.namaLengkap} {f.lokasiSNT ? `(${f.lokasiSNT})` : ''}
                     </option>
                   ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Jenis Realisasi <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={editData.realizationType || 'REAL'}
+                  onChange={e => setEditData({ ...editData, realizationType: e.target.value })}
+                  className="w-full border rounded-md px-3 py-2 text-sm bg-white"
+                >
+                  <option value="REAL">Realisasi Real (Kas Aktual)</option>
+                  <option value="PELAPORAN">Realisasi Pelaporan (Template SNT)</option>
                 </select>
               </div>
 

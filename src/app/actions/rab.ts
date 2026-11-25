@@ -51,34 +51,63 @@ export async function getRabDashboardData() {
 
   if (!project) return null
 
-  // Calculate totals
-  let totalBudget = project.totalBudget
+  // Calculate totals (pisahkan Realisasi REAL kas aktual vs PELAPORAN template)
+  const totalBudget = project.totalBudget
   let totalRealized = 0
+  let totalRealizedPelaporan = 0
+  let totalRealizedTemplate = 0
+  let totalRealCount = 0
+  let totalPelaporanCount = 0
 
   const categories = project.categories.map(cat => {
     let catBudget = 0
     let catRealized = 0
+    let catRealizedPelaporan = 0
+    let catRealizedTemplate = 0
 
     const items = cat.items.map(item => {
-      const realized = item.expenses.reduce((sum, exp) => sum + exp.amount, 0)
+      const realExps = item.expenses.filter(exp => exp.realizationType !== 'PELAPORAN')
+      const pelaporanExps = item.expenses.filter(exp => exp.realizationType === 'PELAPORAN')
+      const realized = realExps.reduce((sum, exp) => sum + exp.amount, 0)
+      const realizedPelaporan = pelaporanExps.reduce((sum, exp) => sum + exp.amount, 0)
+      const realizedTemplate = pelaporanExps.length > 0 ? realizedPelaporan : realized
+      const variance = realizedTemplate - realized
+
       catBudget += item.totalBudget
       catRealized += realized
+      catRealizedPelaporan += realizedPelaporan
+      catRealizedTemplate += realizedTemplate
+      totalRealCount += realExps.length
+      totalPelaporanCount += pelaporanExps.length
 
       return {
         ...item,
         realized,
-        remaining: item.totalBudget - realized
+        realizedPelaporan,
+        realizedTemplate,
+        variance,
+        usesPelaporanOverride: pelaporanExps.length > 0,
+        realCount: realExps.length,
+        pelaporanCount: pelaporanExps.length,
+        remaining: item.totalBudget - realized,
+        remainingTemplate: item.totalBudget - realizedTemplate,
       }
     })
 
     totalRealized += catRealized
+    totalRealizedPelaporan += catRealizedPelaporan
+    totalRealizedTemplate += catRealizedTemplate
 
     return {
       ...cat,
       items,
       budget: catBudget,
       realized: catRealized,
-      remaining: catBudget - catRealized
+      realizedPelaporan: catRealizedPelaporan,
+      realizedTemplate: catRealizedTemplate,
+      variance: catRealizedTemplate - catRealized,
+      remaining: catBudget - catRealized,
+      remainingTemplate: catBudget - catRealizedTemplate,
     }
   })
 
@@ -87,8 +116,15 @@ export async function getRabDashboardData() {
     categories,
     totalBudget,
     totalRealized,
+    totalRealizedPelaporan,
+    totalRealizedTemplate,
+    totalVariance: totalRealizedTemplate - totalRealized,
+    totalRealCount,
+    totalPelaporanCount,
     totalRemaining: totalBudget - totalRealized,
-    percentage: totalBudget > 0 ? (totalRealized / totalBudget) * 100 : 0
+    totalRemainingTemplate: totalBudget - totalRealizedTemplate,
+    percentage: totalBudget > 0 ? (totalRealized / totalBudget) * 100 : 0,
+    percentageTemplate: totalBudget > 0 ? (totalRealizedTemplate / totalBudget) * 100 : 0,
   }
 }
 
@@ -165,6 +201,7 @@ export async function submitExpense(data: {
   userId?: string;
   fasilitatorId?: string;
   date?: string;
+  realizationType?: 'REAL' | 'PELAPORAN';
 }) {
   const { error: authError, session } = await checkAuth(SNT_MANAGE_ROLES);
   if (authError) return { error: authError };
@@ -184,6 +221,7 @@ export async function submitExpense(data: {
       ...(data.receiptUrls || []),
       data.receiptUrl,
     ]);
+    const realizationType = data.realizationType === 'PELAPORAN' ? 'PELAPORAN' : 'REAL';
 
     const expense = await prisma.expenseRequest.create({
       data: {
@@ -195,6 +233,7 @@ export async function submitExpense(data: {
         createdById,
         fasilitatorId: data.fasilitatorId || null,
         status: 'APPROVED',
+        realizationType,
         date: data.date ? new Date(data.date) : new Date()
       },
       include: {
@@ -203,58 +242,61 @@ export async function submitExpense(data: {
       }
     });
 
-    // Auto-sync journal entry for accounting
-    try {
-      const kkaAccount = await prisma.account.findUnique({ where: { code: '600.10.034' } });
-      const kasAccount = await prisma.account.findUnique({ where: { code: '111.10.101' } });
-      const period = await prisma.fiscalPeriod.findFirst({ where: { name: '2026' } });
-      if (kkaAccount && kasAccount) {
-        const lastEntry = await prisma.journalEntry.findFirst({
-          where: { entryNumber: { startsWith: 'JU-2026-' } },
-          orderBy: { entryNumber: 'desc' }
-        });
-        let nextSeq = 850;
-        if (lastEntry) {
-          const num = parseInt(lastEntry.entryNumber.split('-')[2] || '0', 10);
-          if (!isNaN(num)) nextSeq = num + 1;
-        }
-        await prisma.journalEntry.create({
-          data: {
-            entryNumber: `JU-2026-${String(nextSeq).padStart(4, '0')}`,
-            date: expense.date,
-            description: `[KKA SNT] ${expense.description}`,
-            reference: `SNT-EXP-${expense.id.slice(-8)}`,
-            status: 'POSTED',
-            totalDebit: expense.amount,
-            totalCredit: expense.amount,
-            fiscalPeriodId: period?.id || null,
-            createdById,
-            lines: {
-              create: [
-                {
-                  accountId: kkaAccount.id,
-                  debit: expense.amount,
-                  credit: 0,
-                  description: `[KKA SNT] ${expense.description}`
-                },
-                {
-                  accountId: kasAccount.id,
-                  debit: 0,
-                  credit: expense.amount,
-                  description: `Kas Keluar Proyek SNT: ${expense.description}`
-                }
-              ]
-            }
+    // Auto-sync journal entry HANYA untuk transaksi REAL (Kas Aktual) agar tidak menggandakan arus kas akuntansi
+    if (realizationType === 'REAL') {
+      try {
+        const kkaAccount = await prisma.account.findUnique({ where: { code: '600.10.034' } });
+        const kasAccount = await prisma.account.findUnique({ where: { code: '111.10.101' } });
+        const period = await prisma.fiscalPeriod.findFirst({ where: { name: '2026' } });
+        if (kkaAccount && kasAccount) {
+          const lastEntry = await prisma.journalEntry.findFirst({
+            where: { entryNumber: { startsWith: 'JU-2026-' } },
+            orderBy: { entryNumber: 'desc' }
+          });
+          let nextSeq = 850;
+          if (lastEntry) {
+            const num = parseInt(lastEntry.entryNumber.split('-')[2] || '0', 10);
+            if (!isNaN(num)) nextSeq = num + 1;
           }
-        });
+          await prisma.journalEntry.create({
+            data: {
+              entryNumber: `JU-2026-${String(nextSeq).padStart(4, '0')}`,
+              date: expense.date,
+              description: `[KKA SNT] ${expense.description}`,
+              reference: `SNT-EXP-${expense.id.slice(-8)}`,
+              status: 'POSTED',
+              totalDebit: expense.amount,
+              totalCredit: expense.amount,
+              fiscalPeriodId: period?.id || null,
+              createdById,
+              lines: {
+                create: [
+                  {
+                    accountId: kkaAccount.id,
+                    debit: expense.amount,
+                    credit: 0,
+                    description: `[KKA SNT] ${expense.description}`
+                  },
+                  {
+                    accountId: kasAccount.id,
+                    debit: 0,
+                    credit: expense.amount,
+                    description: `Kas Keluar Proyek SNT: ${expense.description}`
+                  }
+                ]
+              }
+            }
+          });
+        }
+      } catch (jErr) {
+        console.error('Non-blocking journal auto-sync error:', jErr);
       }
-    } catch (jErr) {
-      console.error('Non-blocking journal auto-sync error:', jErr);
     }
 
     revalidatePath('/dashboard-rab');
     revalidatePath('/pengeluaran');
     revalidatePath('/laporan-pengeluaran');
+    revalidatePath('/laporan-paket');
     revalidatePath('/laporan/kka-snt');
     revalidatePath('/jurnal');
     return { ...expense, success: true, expense };
@@ -909,7 +951,8 @@ export async function updateExpense(
     fasilitatorId?: string,
     date?: Date,
     receiptUrl?: string,
-    receiptUrls?: string[]
+    receiptUrls?: string[],
+    realizationType?: 'REAL' | 'PELAPORAN'
   }
 ) {
   const { error: authError, session } = await checkAuth(SNT_MANAGE_ROLES);
@@ -936,6 +979,7 @@ export async function updateExpense(
         amount: data.amount,
         description: data.description,
         fasilitatorId: data.fasilitatorId || null,
+        ...(data.realizationType ? { realizationType: data.realizationType } : {}),
         ...(data.date ? { date: data.date } : {}),
         ...(hasReceiptUrlsOverride
           ? {
@@ -959,6 +1003,7 @@ export async function updateExpense(
     revalidatePath('/dashboard-rab');
     revalidatePath('/laporan-pengeluaran');
     revalidatePath('/pengeluaran');
+    revalidatePath('/laporan-paket');
     return { success: true, expense: updated };
   } catch (error: any) {
     return { error: error.message };

@@ -560,23 +560,29 @@ enum ExpenseStatus {
   REJECTED
 }
 
+enum ExpenseRealizationType {
+  REAL
+  PELAPORAN
+}
+
 model ExpenseRequest {
-  id                String        @id @default(cuid())
+  id                String                 @id @default(cuid())
   rabItemId         String
-  rabItem           RabItem       @relation(fields: [rabItemId], references: [id])
+  rabItem           RabItem                @relation(fields: [rabItemId], references: [id])
   amount            Float
   description       String
   receiptUrl        String?
-  receiptUrls       String[]      @default([])
+  receiptUrls       String[]               @default([])
   paymentReceiptUrl String?
-  date              DateTime      @default(now())
-  status            ExpenseStatus @default(PENDING)
+  date              DateTime               @default(now())
+  status            ExpenseStatus          @default(PENDING)
+  realizationType   ExpenseRealizationType @default(REAL)
   createdById       String
-  createdBy         User          @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
+  createdBy         User                   @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
   approvedById      String?
-  approvedBy        User?         @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
+  approvedBy        User?                  @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
   fasilitatorId     String?
-  fasilitator       Fasilitator?  @relation(fields: [fasilitatorId], references: [id])
+  fasilitator       Fasilitator?           @relation(fields: [fasilitatorId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -586,6 +592,7 @@ model ExpenseRequest {
   paketIoT       PaketPengadaanIoT?
 
   @@index([rabItemId, status])
+  @@index([realizationType])
   @@index([fasilitatorId])
   @@index([date])
   @@map("expense_requests")

@@ -25,6 +25,7 @@ export function LaporanClientPage({
   
   const [expensesList, setExpensesList] = useState<any[]>(initialData || [])
   const [searchQuery, setSearchQuery] = useState('')
+  const [realizationView, setRealizationView] = useState<'COMPARE' | 'REAL' | 'PELAPORAN'>('COMPARE')
   const [startDate, setStartDate] = useState(searchParams.get('startDate') || '')
   const [endDate, setEndDate] = useState(searchParams.get('endDate') || '')
   const [selectedCategory, setSelectedCategory] = useState(initialCategoryId || searchParams.get('categoryId') || '')
@@ -85,11 +86,17 @@ export function LaporanClientPage({
 
   const activeCategoryObj = rabData?.categories?.find((c: any) => c.id === selectedCategory)
 
-  // Real-time filtering based on search query
+  // Real-time filtering based on search query & realizationView
   const filteredExpenses = useMemo(() => {
-    if (!searchQuery.trim()) return expensesList;
+    const byType = expensesList.filter((exp) => {
+      const t = exp.realizationType === 'PELAPORAN' ? 'PELAPORAN' : 'REAL';
+      if (realizationView === 'REAL') return t === 'REAL';
+      if (realizationView === 'PELAPORAN') return t === 'PELAPORAN';
+      return true;
+    });
+    if (!searchQuery.trim()) return byType;
     const q = searchQuery.toLowerCase().trim();
-    return expensesList.filter((exp) => {
+    return byType.filter((exp) => {
       const catName = exp.rabItem?.category?.name?.toLowerCase() || '';
       const itemName = exp.rabItem?.name?.toLowerCase() || '';
       const itemCode = exp.rabItem?.code?.toLowerCase() || '';
@@ -108,7 +115,7 @@ export function LaporanClientPage({
         dateStr.includes(q)
       );
     });
-  }, [expensesList, searchQuery]);
+  }, [expensesList, searchQuery, realizationView]);
 
   const openEditModal = (expense: any) => {
     setEditData({
@@ -116,7 +123,8 @@ export function LaporanClientPage({
       date: expense.date ? new Date(expense.date).toISOString().substring(0,10) : new Date(expense.createdAt).toISOString().substring(0,10),
       description: expense.description,
       amount: expense.amount,
-      rabItemId: expense.rabItemId
+      rabItemId: expense.rabItemId,
+      realizationType: expense.realizationType === 'PELAPORAN' ? 'PELAPORAN' : 'REAL',
     })
     setShowEditModal(true)
   }
@@ -129,7 +137,8 @@ export function LaporanClientPage({
         date: new Date(editData.date),
         description: editData.description,
         amount: parseFloat(editData.amount),
-        rabItemId: editData.rabItemId
+        rabItemId: editData.rabItemId,
+        realizationType: editData.realizationType === 'PELAPORAN' ? 'PELAPORAN' : 'REAL',
       });
       if (res?.error) throw new Error(res.error);
       setShowEditModal(false);
@@ -256,6 +265,10 @@ export function LaporanClientPage({
     return acc + (c.items || []).reduce((sum: number, it: any) => sum + (it.realized || 0), 0);
   }, 0) || 0;
 
+  const totalDisplayRealizedTemplate = displayCategories?.reduce((acc: number, c: any) => {
+    return acc + (c.items || []).reduce((sum: number, it: any) => sum + (it.realizedTemplate ?? it.realized ?? 0), 0);
+  }, 0) || 0;
+
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">
       <div className="flex justify-between items-end print:hidden">
@@ -278,7 +291,36 @@ export function LaporanClientPage({
       </div>
 
       <Card className="print:hidden">
-        <CardHeader className="bg-slate-50 border-b">
+        <CardHeader className="bg-slate-50 border-b space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200/80">
+            <div className="text-xs font-semibold text-slate-700">
+              Mode Tampilan Realisasi:
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { key: 'COMPARE' as const, label: 'Perbandingan (Real vs Pelaporan)' },
+                { key: 'REAL' as const, label: 'Khusus Real (Kas Aktual)' },
+                { key: 'PELAPORAN' as const, label: 'Khusus Pelaporan (Template)' },
+              ].map((opt) => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => setRealizationView(opt.key)}
+                  className={`px-3 py-1 rounded-md text-xs font-semibold border transition-colors ${
+                    realizationView === opt.key
+                      ? opt.key === 'REAL'
+                        ? 'bg-emerald-700 text-white border-emerald-700'
+                        : opt.key === 'PELAPORAN'
+                          ? 'bg-blue-700 text-white border-blue-700'
+                          : 'bg-slate-900 text-white border-slate-900'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="flex flex-wrap gap-4 items-end">
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">Kategori RAB</label>
@@ -383,11 +425,23 @@ export function LaporanClientPage({
               <table className="w-full text-sm text-left">
                 <thead className="bg-slate-100 border-b border-t print:bg-slate-200">
                   <tr>
-                    <th className="py-2 px-4">Kategori & Item</th>
+                    <th className="py-2 px-4">Kategori &amp; Item</th>
                     <th className="py-2 px-4 text-right w-32">Anggaran (Rp)</th>
-                    <th className="py-2 px-4 text-right w-32">Realisasi (Rp)</th>
-                    <th className="py-2 px-4 text-center w-24">% Pakai</th>
-                    <th className="py-2 px-4 text-right w-32">Sisa (Rp)</th>
+                    {realizationView === 'COMPARE' ? (
+                      <>
+                        <th className="py-2 px-4 text-right w-32 text-emerald-700">Real Kas (Rp)</th>
+                        <th className="py-2 px-4 text-right w-32 text-blue-700">Pelaporan (Rp)</th>
+                        <th className="py-2 px-4 text-right w-28 text-amber-800">Selisih (Rp)</th>
+                      </>
+                    ) : (
+                      <>
+                        <th className="py-2 px-4 text-right w-32">
+                          {realizationView === 'PELAPORAN' ? 'Pelaporan (Rp)' : 'Realisasi (Rp)'}
+                        </th>
+                        <th className="py-2 px-4 text-center w-24">% Pakai</th>
+                        <th className="py-2 px-4 text-right w-32">Sisa (Rp)</th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -397,13 +451,23 @@ export function LaporanClientPage({
                         <td colSpan={5} className="py-2 px-4">{cat.name}</td>
                       </tr>
                       {cat.items.map((item: any) => {
-                        const sisa = item.totalBudget - item.realized;
-                        const persen = item.totalBudget > 0 ? (item.realized / item.totalBudget) * 100 : 0;
+                        const itTemplate = item.realizedTemplate ?? item.realized ?? 0;
+                        const itActive = realizationView === 'PELAPORAN' ? itTemplate : (item.realized || 0);
+                        const sisa = item.totalBudget - itActive;
+                        const persen = item.totalBudget > 0 ? (itActive / item.totalBudget) * 100 : 0;
+                        const variance = itTemplate - (item.realized || 0);
                         return (
                           <tr key={item.id} className="hover:bg-slate-50/50">
                             <td className="py-2 px-4 pl-8 text-slate-700">
                               <div className="flex items-center justify-between gap-2">
-                                <span>{item.code} - {item.name}</span>
+                                <span>
+                                  {item.code} - {item.name}
+                                  {item.usesPelaporanOverride && (
+                                    <span className="ml-1.5 print:hidden text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200">
+                                      SPJ
+                                    </span>
+                                  )}
+                                </span>
                                 <button
                                   type="button"
                                   onClick={() => openEditItemModal(item, cat.id)}
@@ -415,31 +479,66 @@ export function LaporanClientPage({
                               </div>
                             </td>
                             <td className="py-2 px-4 text-right">{formatCurrency(item.totalBudget)}</td>
-                            <td className="py-2 px-4 text-right">
-                              <button
-                                type="button"
-                                onClick={() => setDetailRealizationItem({ ...item, categoryName: cat.name })}
-                                className={`inline-flex items-center justify-end gap-1.5 font-medium transition-colors cursor-pointer print:pointer-events-none print:no-underline ${
-                                  item.realized > 0 || (item.expenses?.length || 0) > 0
-                                    ? 'text-blue-600 hover:text-blue-800 hover:underline'
-                                    : 'text-blue-500/80 hover:text-blue-700 hover:underline'
-                                }`}
-                                title="Klik untuk melihat rincian realisasi item ini"
-                              >
-                                <span>{formatCurrency(item.realized)}</span>
-                                {(item.expenses?.length || 0) > 0 && (
-                                  <span className="print:hidden text-[10px] font-semibold bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0.5 rounded-full">
-                                    {item.expenses.length}
-                                  </span>
-                                )}
-                              </button>
-                            </td>
-                            <td className="py-2 px-4 text-center">
-                              <Badge variant={persen > 100 ? "destructive" : persen > 80 ? "default" : "secondary"}>
-                                {persen.toFixed(1)}%
-                              </Badge>
-                            </td>
-                            <td className="py-2 px-4 text-right">{formatCurrency(sisa)}</td>
+                            {realizationView === 'COMPARE' ? (
+                              <>
+                                <td className="py-2 px-4 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => setDetailRealizationItem({ ...item, categoryName: cat.name })}
+                                    className="inline-flex items-center justify-end gap-1.5 font-medium text-emerald-700 hover:underline cursor-pointer"
+                                    title="Klik untuk melihat rincian realisasi item ini"
+                                  >
+                                    <span>{formatCurrency(item.realized || 0)}</span>
+                                  </button>
+                                </td>
+                                <td className="py-2 px-4 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => setDetailRealizationItem({ ...item, categoryName: cat.name })}
+                                    className="inline-flex items-center justify-end gap-1.5 font-semibold text-blue-700 hover:underline cursor-pointer"
+                                    title="Klik untuk melihat rincian realisasi item ini"
+                                  >
+                                    <span>{formatCurrency(itTemplate)}</span>
+                                    {(item.expenses?.length || 0) > 0 && (
+                                      <span className="print:hidden text-[10px] font-semibold bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0.5 rounded-full">
+                                        {item.expenses.length}
+                                      </span>
+                                    )}
+                                  </button>
+                                </td>
+                                <td className={`py-2 px-4 text-right font-medium ${variance >= 0 ? 'text-amber-700' : 'text-rose-600'}`}>
+                                  {variance === 0 ? '-' : `${variance > 0 ? '+' : ''}${formatCurrency(variance)}`}
+                                </td>
+                              </>
+                            ) : (
+                              <>
+                                <td className="py-2 px-4 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => setDetailRealizationItem({ ...item, categoryName: cat.name })}
+                                    className={`inline-flex items-center justify-end gap-1.5 font-medium transition-colors cursor-pointer print:pointer-events-none print:no-underline ${
+                                      itActive > 0 || (item.expenses?.length || 0) > 0
+                                        ? 'text-blue-600 hover:text-blue-800 hover:underline'
+                                        : 'text-blue-500/80 hover:text-blue-700 hover:underline'
+                                    }`}
+                                    title="Klik untuk melihat rincian realisasi item ini"
+                                  >
+                                    <span>{formatCurrency(itActive)}</span>
+                                    {(item.expenses?.length || 0) > 0 && (
+                                      <span className="print:hidden text-[10px] font-semibold bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0.5 rounded-full">
+                                        {item.expenses.length}
+                                      </span>
+                                    )}
+                                  </button>
+                                </td>
+                                <td className="py-2 px-4 text-center">
+                                  <Badge variant={persen > 100 ? "destructive" : persen > 80 ? "default" : "secondary"}>
+                                    {persen.toFixed(1)}%
+                                  </Badge>
+                                </td>
+                                <td className="py-2 px-4 text-right">{formatCurrency(sisa)}</td>
+                              </>
+                            )}
                           </tr>
                         )
                       })}
@@ -447,17 +546,34 @@ export function LaporanClientPage({
                   ))}
                 </tbody>
                 <tfoot className="bg-slate-100 font-bold border-t-2 border-slate-300 print:bg-slate-200">
-                  <tr>
-                    <td className="py-3 px-4 text-right">TOTAL {selectedCategory ? 'KATEGORI' : 'KESELURUHAN'}:</td>
-                    <td className="py-3 px-4 text-right">{formatCurrency(totalDisplayBudget)}</td>
-                    <td className="py-3 px-4 text-right text-blue-600">{formatCurrency(totalDisplayRealized)}</td>
-                    <td className="py-3 px-4 text-center">
-                      {totalDisplayBudget > 0 ? ((totalDisplayRealized / totalDisplayBudget) * 100).toFixed(1) : 0}%
-                    </td>
-                    <td className="py-3 px-4 text-right text-green-600">
-                      {formatCurrency(totalDisplayBudget - totalDisplayRealized)}
-                    </td>
-                  </tr>
+                  {realizationView === 'COMPARE' ? (
+                    <tr>
+                      <td className="py-3 px-4 text-right">TOTAL {selectedCategory ? 'KATEGORI' : 'KESELURUHAN'}:</td>
+                      <td className="py-3 px-4 text-right">{formatCurrency(totalDisplayBudget)}</td>
+                      <td className="py-3 px-4 text-right text-emerald-700">{formatCurrency(totalDisplayRealized)}</td>
+                      <td className="py-3 px-4 text-right text-blue-700">{formatCurrency(totalDisplayRealizedTemplate)}</td>
+                      <td className="py-3 px-4 text-right text-amber-800">
+                        {totalDisplayRealizedTemplate - totalDisplayRealized >= 0 ? '+' : ''}
+                        {formatCurrency(totalDisplayRealizedTemplate - totalDisplayRealized)}
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr>
+                      <td className="py-3 px-4 text-right">TOTAL {selectedCategory ? 'KATEGORI' : 'KESELURUHAN'}:</td>
+                      <td className="py-3 px-4 text-right">{formatCurrency(totalDisplayBudget)}</td>
+                      <td className="py-3 px-4 text-right text-blue-600">
+                        {formatCurrency(realizationView === 'PELAPORAN' ? totalDisplayRealizedTemplate : totalDisplayRealized)}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        {totalDisplayBudget > 0
+                          ? (((realizationView === 'PELAPORAN' ? totalDisplayRealizedTemplate : totalDisplayRealized) / totalDisplayBudget) * 100).toFixed(1)
+                          : 0}%
+                      </td>
+                      <td className="py-3 px-4 text-right text-green-600">
+                        {formatCurrency(totalDisplayBudget - (realizationView === 'PELAPORAN' ? totalDisplayRealizedTemplate : totalDisplayRealized))}
+                      </td>
+                    </tr>
+                  )}
                 </tfoot>
               </table>
             </div>
@@ -534,6 +650,15 @@ export function LaporanClientPage({
                         </td>
                         <td className="py-2 px-4">{exp.rabItem?.name || '-'}</td>
                         <td className="py-2 px-4 text-slate-600" title={exp.description}>
+                          <span
+                            className={`inline-block mr-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                              exp.realizationType === 'PELAPORAN'
+                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            }`}
+                          >
+                            {exp.realizationType === 'PELAPORAN' ? 'PELAPORAN' : 'REAL'}
+                          </span>
                           {exp.description}
                         </td>
                         <td className="py-2 px-4 whitespace-nowrap">{exp.fasilitator ? exp.fasilitator.namaLengkap : (exp.createdBy?.name || 'Lainnya')}</td>
@@ -652,6 +777,17 @@ export function LaporanClientPage({
                       <option key={item.id} value={item.id}>{cat.name} - {item.name}</option>
                     ))
                   )}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Jenis Realisasi</label>
+                <select
+                  value={editData.realizationType || 'REAL'}
+                  onChange={e => setEditData({ ...editData, realizationType: e.target.value })}
+                  className="w-full border rounded px-3 py-2 text-sm bg-white"
+                >
+                  <option value="REAL">Realisasi Real (Kas Aktual)</option>
+                  <option value="PELAPORAN">Realisasi Pelaporan (Template SNT)</option>
                 </select>
               </div>
             </div>

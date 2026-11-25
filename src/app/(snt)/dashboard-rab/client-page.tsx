@@ -68,6 +68,10 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
   const [editData, setEditData] = useState<any>(null)
   const [isSaving, setIsSaving] = useState(false)
 
+  // Mode tampilan REAL vs PELAPORAN vs COMPARE
+  const [viewMode, setViewMode] = useState<'REAL' | 'PELAPORAN' | 'COMPARE'>('COMPARE')
+  const [recentTypeFilter, setRecentTypeFilter] = useState<'ALL' | 'REAL' | 'PELAPORAN'>('ALL')
+
   // RAB Item Management State
   const [showItemModal, setShowItemModal] = useState(false)
   const [itemModalMode, setItemModalMode] = useState<'create' | 'edit'>('create')
@@ -96,7 +100,8 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
       date: expense.date ? new Date(expense.date).toISOString().substring(0,10) : new Date(expense.createdAt).toISOString().substring(0,10),
       description: expense.description,
       amount: expense.amount,
-      rabItemId: expense.rabItemId
+      rabItemId: expense.rabItemId,
+      realizationType: expense.realizationType === 'PELAPORAN' ? 'PELAPORAN' : 'REAL',
     })
     setShowEditModal(true)
   }
@@ -109,7 +114,8 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
         date: new Date(editData.date),
         description: editData.description,
         amount: parseFloat(editData.amount),
-        rabItemId: editData.rabItemId
+        rabItemId: editData.rabItemId,
+        realizationType: editData.realizationType === 'PELAPORAN' ? 'PELAPORAN' : 'REAL',
       });
       if (res?.error) throw new Error(res.error);
       setShowEditModal(false);
@@ -746,24 +752,106 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
         </Link>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500 font-medium">Total Anggaran RAB</CardTitle></CardHeader>
-          <CardContent><p className="text-2xl font-bold text-slate-900">{formatCurrency(data.totalBudget)}</p></CardContent>
-        </Card>
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500 font-medium">Total Realisasi Pengeluaran</CardTitle></CardHeader>
-          <CardContent><p className="text-2xl font-bold text-red-600">{formatCurrency(data.totalRealized)}</p></CardContent>
-        </Card>
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500 font-medium">Sisa Anggaran Tersedia</CardTitle></CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-green-600">{formatCurrency(data.totalRemaining)}</p>
-            <p className="text-xs text-slate-500 mt-1">Terserap: {data.percentage.toFixed(2)}%</p>
-          </CardContent>
-        </Card>
+      {/* Sakelar Mode Realisasi: REAL (Kas Aktual) vs PELAPORAN (Template SNT) vs PERBANDINGAN */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3.5">
+        <div>
+          <div className="text-xs font-bold text-slate-900">Mode Tampilan Realisasi RAB</div>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            Memisahkan transaksi <strong className="text-emerald-700">Real (Kas Aktual: {data.totalRealCount ?? 0} tx)</strong> dengan entri <strong className="text-blue-700">Pelaporan Template SNT ({data.totalPelaporanCount ?? 0} tx)</strong> tanpa menggandakan arus kas.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-1.5 shrink-0">
+          {[
+            { key: 'COMPARE' as const, label: 'Perbandingan (Real vs Pelaporan)' },
+            { key: 'REAL' as const, label: 'Realisasi Real (Kas)' },
+            { key: 'PELAPORAN' as const, label: 'Pelaporan Template SNT' },
+          ].map((opt) => (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() => setViewMode(opt.key)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                viewMode === opt.key
+                  ? opt.key === 'REAL'
+                    ? 'bg-emerald-700 text-white shadow-xs'
+                    : opt.key === 'PELAPORAN'
+                      ? 'bg-blue-700 text-white shadow-xs'
+                      : 'bg-slate-900 text-white shadow-xs'
+                  : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {/* Summary Cards */}
+      {viewMode === 'COMPARE' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader className="pb-2"><CardTitle className="text-xs text-slate-500 font-medium">Total Anggaran RAB</CardTitle></CardHeader>
+            <CardContent><p className="text-xl font-bold text-slate-900">{formatCurrency(data.totalBudget)}</p></CardContent>
+          </Card>
+          <Card className="border-emerald-200 bg-emerald-50/40 shadow-sm">
+            <CardHeader className="pb-2"><CardTitle className="text-xs text-emerald-800 font-semibold">Realisasi Real (Kas Aktual)</CardTitle></CardHeader>
+            <CardContent>
+              <p className="text-xl font-bold text-emerald-700">{formatCurrency(data.totalRealized)}</p>
+              <p className="text-[11px] text-emerald-700/80 mt-1">Serapan Kas: {(data.percentage || 0).toFixed(2)}%</p>
+            </CardContent>
+          </Card>
+          <Card className="border-blue-200 bg-blue-50/40 shadow-sm">
+            <CardHeader className="pb-2"><CardTitle className="text-xs text-blue-800 font-semibold">Realisasi Pelaporan (Template)</CardTitle></CardHeader>
+            <CardContent>
+              <p className="text-xl font-bold text-blue-700">{formatCurrency(data.totalRealizedTemplate ?? data.totalRealized)}</p>
+              <p className="text-[11px] text-blue-700/80 mt-1">
+                Serapan SPJ: {(data.percentageTemplate ?? data.percentage ?? 0).toFixed(2)}% ({data.totalPelaporanCount ?? 0} entri override)
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="border-amber-200 bg-amber-50/40 shadow-sm">
+            <CardHeader className="pb-2"><CardTitle className="text-xs text-amber-900 font-semibold">Selisih (Pelaporan − Real)</CardTitle></CardHeader>
+            <CardContent>
+              <p className={`text-xl font-bold ${(data.totalVariance ?? 0) >= 0 ? 'text-amber-800' : 'text-rose-700'}`}>
+                {(data.totalVariance ?? 0) >= 0 ? '+' : ''}{formatCurrency(data.totalVariance ?? 0)}
+              </p>
+              <p className="text-[11px] text-amber-800/80 mt-1">
+                Sisa Pagu (Template): {formatCurrency(data.totalRemainingTemplate ?? data.totalRemaining)}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500 font-medium">Total Anggaran RAB</CardTitle></CardHeader>
+            <CardContent><p className="text-2xl font-bold text-slate-900">{formatCurrency(data.totalBudget)}</p></CardContent>
+          </Card>
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-slate-500 font-medium">
+                {viewMode === 'PELAPORAN' ? 'Total Realisasi Pelaporan (Template)' : 'Total Realisasi Real (Kas Aktual)'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className={`text-2xl font-bold ${viewMode === 'PELAPORAN' ? 'text-blue-700' : 'text-red-600'}`}>
+                {formatCurrency(viewMode === 'PELAPORAN' ? (data.totalRealizedTemplate ?? data.totalRealized) : data.totalRealized)}
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500 font-medium">Sisa Anggaran Tersedia</CardTitle></CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold text-green-600">
+                {formatCurrency(viewMode === 'PELAPORAN' ? (data.totalRemainingTemplate ?? data.totalRemaining) : data.totalRemaining)}
+              </p>
+              <p className="text-xs text-slate-500 mt-1">
+                Terserap: {(viewMode === 'PELAPORAN' ? (data.percentageTemplate ?? data.percentage) : data.percentage).toFixed(2)}%
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Category Breakdown & Item Management */}
       <div className="space-y-6">
@@ -775,9 +863,14 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-stretch">
           {data.categories.map((cat: any) => {
             const isExpanded = expandedCategories[cat.id]
-            const warningItems = cat.items.filter((item: any) => item.realized > item.totalBudget * 0.8)
-            const percentAbsorbed = cat.budget > 0 ? Math.min(Math.round((cat.realized / cat.budget) * 100), 999) : 0
-            const isOverbudget = cat.remaining < 0
+            const activeCatRealized = viewMode === 'REAL' ? cat.realized : (cat.realizedTemplate ?? cat.realized)
+            const activeCatRemaining = cat.budget - activeCatRealized
+            const warningItems = cat.items.filter((item: any) => {
+              const r = viewMode === 'REAL' ? item.realized : (item.realizedTemplate ?? item.realized)
+              return r > item.totalBudget * 0.8
+            })
+            const percentAbsorbed = cat.budget > 0 ? Math.min(Math.round((activeCatRealized / cat.budget) * 100), 999) : 0
+            const isOverbudget = activeCatRemaining < 0
 
             return (
               <Card key={cat.id} className="border-slate-200/90 shadow-sm rounded-xl overflow-hidden flex flex-col justify-between bg-white hover:border-slate-300 transition-all">
@@ -838,26 +931,57 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
 
                   <CardContent className="p-4 space-y-3">
                     {/* Financial Figures Bar */}
-                    <div className="grid grid-cols-3 gap-2 bg-slate-50/70 p-3 rounded-lg border border-slate-100 text-center">
-                      <div>
-                        <span className="text-[11px] font-medium text-slate-500 block">Pagu Anggaran</span>
-                        <span className="font-bold text-slate-900 text-xs sm:text-sm">
-                          {formatCurrency(cat.budget)}
-                        </span>
+                    {viewMode === 'COMPARE' ? (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50/70 p-3 rounded-lg border border-slate-100 text-center">
+                        <div>
+                          <span className="text-[10px] font-medium text-slate-500 block">Pagu Anggaran</span>
+                          <span className="font-bold text-slate-900 text-xs">
+                            {formatCurrency(cat.budget)}
+                          </span>
+                        </div>
+                        <div className="border-l border-slate-200/80 px-1">
+                          <span className="text-[10px] font-medium text-emerald-700 block">Real (Kas)</span>
+                          <span className="font-bold text-emerald-700 text-xs">
+                            {formatCurrency(cat.realized)}
+                          </span>
+                        </div>
+                        <div className="border-l border-slate-200/80 px-1">
+                          <span className="text-[10px] font-medium text-blue-700 block">Pelaporan (TPL)</span>
+                          <span className="font-bold text-blue-700 text-xs">
+                            {formatCurrency(cat.realizedTemplate ?? cat.realized)}
+                          </span>
+                        </div>
+                        <div className="border-l border-slate-200/80 px-1">
+                          <span className="text-[10px] font-medium text-amber-800 block">Selisih</span>
+                          <span className={`font-bold text-xs ${(cat.variance ?? 0) >= 0 ? 'text-amber-700' : 'text-rose-600'}`}>
+                            {(cat.variance ?? 0) >= 0 ? '+' : ''}{formatCurrency(cat.variance ?? 0)}
+                          </span>
+                        </div>
                       </div>
-                      <div className="border-x border-slate-200/80 px-1">
-                        <span className="text-[11px] font-medium text-slate-500 block">Realisasi</span>
-                        <span className="font-bold text-red-600 text-xs sm:text-sm">
-                          {formatCurrency(cat.realized)}
-                        </span>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-2 bg-slate-50/70 p-3 rounded-lg border border-slate-100 text-center">
+                        <div>
+                          <span className="text-[11px] font-medium text-slate-500 block">Pagu Anggaran</span>
+                          <span className="font-bold text-slate-900 text-xs sm:text-sm">
+                            {formatCurrency(cat.budget)}
+                          </span>
+                        </div>
+                        <div className="border-x border-slate-200/80 px-1">
+                          <span className="text-[11px] font-medium text-slate-500 block">
+                            {viewMode === 'PELAPORAN' ? 'Pelaporan (TPL)' : 'Realisasi (Kas)'}
+                          </span>
+                          <span className={`font-bold text-xs sm:text-sm ${viewMode === 'PELAPORAN' ? 'text-blue-700' : 'text-red-600'}`}>
+                            {formatCurrency(activeCatRealized)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[11px] font-medium text-slate-500 block">Sisa Anggaran</span>
+                          <span className={`font-bold text-xs sm:text-sm ${activeCatRemaining < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                            {formatCurrency(activeCatRemaining)}
+                          </span>
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-[11px] font-medium text-slate-500 block">Sisa Anggaran</span>
-                        <span className={`font-bold text-xs sm:text-sm ${cat.remaining < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                          {formatCurrency(cat.remaining)}
-                        </span>
-                      </div>
-                    </div>
+                    )}
 
                     {/* Progress Absorption bar */}
                     {cat.budget > 0 && (
@@ -924,19 +1048,39 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
                                 <th className="px-3 py-2">Kode</th>
                                 <th className="px-3 py-2">Uraian Item</th>
                                 <th className="px-3 py-2 text-right">Anggaran</th>
-                                <th className="px-3 py-2 text-right">Realisasi</th>
-                                <th className="px-3 py-2 text-right">Sisa</th>
+                                {viewMode === 'COMPARE' ? (
+                                  <>
+                                    <th className="px-3 py-2 text-right text-emerald-700">Real (Kas)</th>
+                                    <th className="px-3 py-2 text-right text-blue-700">Pelaporan</th>
+                                    <th className="px-3 py-2 text-right text-amber-800">Selisih</th>
+                                  </>
+                                ) : (
+                                  <>
+                                    <th className="px-3 py-2 text-right">
+                                      {viewMode === 'PELAPORAN' ? 'Pelaporan' : 'Realisasi'}
+                                    </th>
+                                    <th className="px-3 py-2 text-right">Sisa</th>
+                                  </>
+                                )}
                                 <th className="px-3 py-2 text-center">Aksi</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y">
-                              {cat.items.map((item: any) => (
+                              {cat.items.map((item: any) => {
+                                const itRealized = viewMode === 'REAL' ? item.realized : (item.realizedTemplate ?? item.realized)
+                                const itRemaining = item.totalBudget - itRealized
+                                return (
                                 <tr key={item.id} className="hover:bg-slate-50/70">
                                   <td className="px-3 py-2 font-mono font-medium text-slate-500 whitespace-nowrap">
                                     {item.code}
                                   </td>
                                   <td className="px-3 py-2 font-medium text-slate-800">
                                     {item.name}
+                                    {item.usesPelaporanOverride && (
+                                      <span className="ml-1.5 inline-block text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200">
+                                        Ada Override SPJ
+                                      </span>
+                                    )}
                                     {item.volume && (
                                       <span className="block text-[10px] text-slate-400 font-normal">
                                         Vol: {item.volume}
@@ -946,12 +1090,28 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
                                   <td className="px-3 py-2 text-right font-medium whitespace-nowrap">
                                     {formatCurrency(item.totalBudget)}
                                   </td>
-                                  <td className="px-3 py-2 text-right text-red-600 whitespace-nowrap font-medium">
-                                    {formatCurrency(item.realized)}
-                                  </td>
-                                  <td className="px-3 py-2 text-right text-green-600 whitespace-nowrap font-medium">
-                                    {formatCurrency(item.remaining)}
-                                  </td>
+                                  {viewMode === 'COMPARE' ? (
+                                    <>
+                                      <td className="px-3 py-2 text-right text-emerald-700 whitespace-nowrap font-medium">
+                                        {formatCurrency(item.realized)}
+                                      </td>
+                                      <td className="px-3 py-2 text-right text-blue-700 whitespace-nowrap font-semibold">
+                                        {formatCurrency(item.realizedTemplate ?? item.realized)}
+                                      </td>
+                                      <td className={`px-3 py-2 text-right whitespace-nowrap font-medium ${(item.variance ?? 0) >= 0 ? 'text-amber-700' : 'text-rose-600'}`}>
+                                        {(item.variance ?? 0) === 0 ? '-' : `${(item.variance ?? 0) > 0 ? '+' : ''}${formatCurrency(item.variance ?? 0)}`}
+                                      </td>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <td className={`px-3 py-2 text-right whitespace-nowrap font-medium ${viewMode === 'PELAPORAN' ? 'text-blue-700' : 'text-red-600'}`}>
+                                        {formatCurrency(itRealized)}
+                                      </td>
+                                      <td className="px-3 py-2 text-right text-green-600 whitespace-nowrap font-medium">
+                                        {formatCurrency(itRemaining)}
+                                      </td>
+                                    </>
+                                  )}
                                   <td className="px-3 py-2 text-center whitespace-nowrap">
                                     <div className="flex items-center justify-center gap-1">
                                       <button
@@ -962,7 +1122,7 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
                                       >
                                         <Pencil className="w-3 h-3" />
                                       </button>
-                                      {item.realized === 0 && (
+                                      {item.realized === 0 && (item.realizedPelaporan ?? 0) === 0 && (
                                         <button
                                           type="button"
                                           disabled={deletingItemId === item.id}
@@ -980,7 +1140,8 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
                                     </div>
                                   </td>
                                 </tr>
-                              ))}
+                                )
+                              })}
                             </tbody>
                           </table>
                         </div>
@@ -994,7 +1155,29 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
 
       {/* Recent Expenses Table */}
       <Card className="border-slate-200 shadow-sm">
-        <CardHeader><CardTitle>Riwayat Pengeluaran Terbaru</CardTitle></CardHeader>
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <CardTitle>Riwayat Pengeluaran Terbaru</CardTitle>
+          <div className="flex gap-1.5">
+            {(['ALL', 'REAL', 'PELAPORAN'] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setRecentTypeFilter(t)}
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold border ${
+                  recentTypeFilter === t
+                    ? t === 'REAL'
+                      ? 'bg-emerald-700 text-white border-emerald-700'
+                      : t === 'PELAPORAN'
+                        ? 'bg-blue-700 text-white border-blue-700'
+                        : 'bg-slate-900 text-white border-slate-900'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                {t === 'ALL' ? 'Semua' : t === 'REAL' ? 'Real (Kas)' : 'Pelaporan (TPL)'}
+              </button>
+            ))}
+          </div>
+        </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
@@ -1003,19 +1186,36 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
                   <th className="px-6 py-3">Tanggal</th>
                   <th className="px-6 py-3">Pengaju</th>
                   <th className="px-6 py-3">Item RAB</th>
-                  <th className="px-6 py-3">Deskripsi</th>
+                  <th className="px-6 py-3">Deskripsi &amp; Jenis</th>
                   <th className="px-6 py-3">Nominal</th>
                   <th className="px-6 py-3">Status</th>
                   <th className="px-6 py-3 text-center">Aksi</th>
                 </tr>
               </thead>
               <tbody>
-                {expenses.map((exp: any) => (
+                {expenses
+                  .filter((exp: any) =>
+                    recentTypeFilter === 'ALL'
+                      ? true
+                      : (exp.realizationType === 'PELAPORAN' ? 'PELAPORAN' : 'REAL') === recentTypeFilter
+                  )
+                  .map((exp: any) => (
                   <tr key={exp.id} className="border-b hover:bg-slate-50/50">
                     <td className="px-6 py-4">{new Date(exp.date || exp.createdAt).toLocaleDateString('id-ID')}</td>
                     <td className="px-6 py-4">{exp.createdBy?.name || '-'}</td>
                     <td className="px-6 py-4">{exp.rabItem?.name || '-'}</td>
                     <td className="px-6 py-4">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                            exp.realizationType === 'PELAPORAN'
+                              ? 'bg-blue-50 text-blue-700 border-blue-200'
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          }`}
+                        >
+                          {exp.realizationType === 'PELAPORAN' ? 'PELAPORAN' : 'REAL'}
+                        </span>
+                      </div>
                       {exp.description}
                       {(() => {
                         const receipts = getExpenseReceiptUrls(exp)
@@ -1113,6 +1313,17 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
                       <option key={item.id} value={item.id}>{cat.name} - {item.name}</option>
                     ))
                   )}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Jenis Realisasi</label>
+                <select
+                  value={editData.realizationType || 'REAL'}
+                  onChange={e => setEditData({ ...editData, realizationType: e.target.value })}
+                  className="w-full border rounded px-3 py-2 text-sm bg-white"
+                >
+                  <option value="REAL">Realisasi Real (Kas Aktual)</option>
+                  <option value="PELAPORAN">Realisasi Pelaporan (Template SNT)</option>
                 </select>
               </div>
             </div>
