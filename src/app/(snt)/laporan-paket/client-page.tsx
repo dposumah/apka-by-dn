@@ -659,8 +659,9 @@ export function PaketLaporanClientPage({ initialData }: { initialData: Workspace
                     onChange={(e) => setProfile({ ...profile, kopSurat: e.target.value as KopSuratOption })}
                     className="w-full h-9 px-3 rounded-md border border-slate-200 bg-white text-xs font-medium"
                   >
-                    <option value="maleo">Kop Yayasan Maleo (/kop-maleo.png)</option>
-                    <option value="robotic">Kop PT Jully Tjindrawan Robotik (/kop-surat.png)</option>
+                    <option value="maleo">Yayasan Maleo Talenta Cendekia</option>
+                    <option value="lpd">LPD Jully Tjindrawan Robotik (Kop Baru)</option>
+                    <option value="robotic">Robotic Explorer — PT Jully Tjindrawan Robotik (Kop Baru)</option>
                     <option value="none">Tanpa Kop Surat</option>
                   </select>
                 </div>
@@ -784,6 +785,110 @@ export function PaketLaporanClientPage({ initialData }: { initialData: Workspace
                       onChange={(e) => setProfile({ ...profile, customPaguKontrak: Number(e.target.value) || 0 })}
                       className="h-9 text-xs"
                     />
+                  </div>
+                </div>
+
+                {/* Pengaturan Kontak & Rekening Kop Baru (LPD & Robotic Explorer) */}
+                <div className="pt-3 mt-2 border-t border-slate-200 space-y-2.5">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-blue-900">
+                    Kontak &amp; Rekening Kop LPD Jully Tjindrawan Robotik
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Telp / WA LPD</label>
+                      <Input
+                        value={profile.lpdTelp || ""}
+                        onChange={(e) => setProfile({ ...profile, lpdTelp: e.target.value })}
+                        placeholder="08xx-xxxx-xxxx"
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Email LPD</label>
+                      <Input
+                        value={profile.lpdEmail || ""}
+                        onChange={(e) => setProfile({ ...profile, lpdEmail: e.target.value })}
+                        placeholder="email@domain.com"
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Bank LPD</label>
+                      <Input
+                        value={profile.lpdBankName || ""}
+                        onChange={(e) => setProfile({ ...profile, lpdBankName: e.target.value })}
+                        placeholder="BCA / Mandiri"
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">No. Rekening LPD</label>
+                      <Input
+                        value={profile.lpdBankAccount || ""}
+                        onChange={(e) => setProfile({ ...profile, lpdBankAccount: e.target.value })}
+                        placeholder="No. rekening..."
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Atas Nama LPD</label>
+                      <Input
+                        value={profile.lpdBankHolder || ""}
+                        onChange={(e) => setProfile({ ...profile, lpdBankHolder: e.target.value })}
+                        placeholder="LPD Jully Tjindrawan Robotik"
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-sky-800 pt-1">
+                    Kontak &amp; Rekening Kop Robotic Explorer (PT JTR)
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">WhatsApp RE</label>
+                      <Input
+                        value={profile.reTelp || ""}
+                        onChange={(e) => setProfile({ ...profile, reTelp: e.target.value })}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Website RE</label>
+                      <Input
+                        value={profile.reWebsite || ""}
+                        onChange={(e) => setProfile({ ...profile, reWebsite: e.target.value })}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Bank RE</label>
+                      <Input
+                        value={profile.reBankName || ""}
+                        onChange={(e) => setProfile({ ...profile, reBankName: e.target.value })}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">No. Rekening RE</label>
+                      <Input
+                        value={profile.reBankAccount || ""}
+                        onChange={(e) => setProfile({ ...profile, reBankAccount: e.target.value })}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Atas Nama RE</label>
+                      <Input
+                        value={profile.reBankHolder || ""}
+                        onChange={(e) => setProfile({ ...profile, reBankHolder: e.target.value })}
+                        className="h-8 text-xs"
+                      />
+                    </div>
                   </div>
                 </div>
               </CardContent>

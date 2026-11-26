@@ -1,8 +1,10 @@
 import {
+  KopSuratOption,
   RabRealizationSummary,
   SNT_WILAYAH_2_LOCATIONS,
   SntFasilitatorRecord,
   SntRekapRecord,
+  SntReportProfile,
 } from "./snt-report-templates";
 
 /** Harga satuan resmi RAB Wilayah 2 Pos A.4 (6 lokasi × 4 bln = Rp137.517.024) */
@@ -15,6 +17,7 @@ export type HonorPricingMode = "RAB_SATUAN" | "REAL_JP";
 
 export type EvidenceDocType =
   | "HONOR_FASIL_BULANAN"
+  | "INVOICE_KUITANSI_MITRA"
   | "HONOR_TIM"
   | "KORWIL_TRANSPORT"
   | "KORWIL_UANG_HARIAN"
@@ -42,11 +45,21 @@ export const EVIDENCE_DOC_CATALOG: EvidenceDocMeta[] = [
     type: "HONOR_FASIL_BULANAN",
     rabCode: "4",
     shortTitle: "Daftar Tanda Terima Honor Fasil (Bulanan)",
-    fullTitle: "Daftar Tanda Terima Honorarium Fasilitator KKA & Robotika (Harga Satuan Real)",
+    fullTitle: "Daftar Tanda Terima Honorarium Fasilitator KKA & Robotika",
     template13Ref: "Pos A.4 · Kontrak/SK, absensi/rekap JP, daftar tanda terima, kwitansi honor",
     defaultRecipientMode: "MANUAL",
     description:
-      "Otomatis menarik Rekap Honorarium bulanan (JP Intra, JP Ekstra, Total JP, Harga Satuan Real/JP, Total Honor) dengan kolom tanda tangan kosong + opsi edit/tambah bulan Nov–Des.",
+      "Daftar tanda terima & kwitansi honor fasilitator bulanan (Standar RAB Rp5.729.876/lokasi atau Real/JP DB) dengan dropdown pilih nama fasil atau blanko kosong.",
+  },
+  {
+    type: "INVOICE_KUITANSI_MITRA",
+    rabCode: "3",
+    shortTitle: "Invoice & Kuitansi Mitra (LPD / Robotic Explorer)",
+    fullTitle: "Paket Invoice, Kuitansi & Daftar Tanda Terima (Kop LPD / Robotic Explorer)",
+    template13Ref: "Preset 6 Paket Mockup Drive · LPD 1–3 (A.3, A.5, B.1a–c) & RE 1–3 (B.4a, B.4b, B.6a)",
+    defaultRecipientMode: "MANUAL",
+    description:
+      "Generator Invoice resmi (PPN 0%/11%, jatuh tempo, rekening transfer), Kuitansi modern 2-warna, & Daftar Tanda Terima (dengan PPh %) memakai Kop baru LPD & Robotic Explorer.",
   },
   {
     type: "HONOR_TIM",
@@ -354,6 +367,27 @@ export interface SewaRumahContractDraft {
 
 export interface GenericEvidenceDraft {
   rabCode: string;
+  rabCodeLabel?: string;
+  kopSurat?: KopSuratOption;
+  showRabCode?: boolean;
+  includeInvoice?: boolean;
+  includeDaftarTandaTerima?: boolean;
+  invoiceNo?: string;
+  kuitansiNoPrefix?: string;
+  jatuhTempo?: string;
+  ditagihkanKepada?: string;
+  alamatTagihan?: string;
+  upTagihan?: string;
+  programLabel?: string;
+  ppnPct?: number;
+  includePphColumn?: boolean;
+  pphPct?: number;
+  bankName?: string;
+  bankAccount?: string;
+  bankHolder?: string;
+  catatanInvoice?: string;
+  signerName?: string;
+  signerTitle?: string;
   recipientMode: RecipientMode;
   judulDokumen: string;
   periodeLabel: string;
@@ -361,6 +395,405 @@ export interface GenericEvidenceDraft {
   sudahTerimaDari: string;
   catatan: string;
   items: EvidenceLineItem[];
+}
+
+export type DriveMockupPresetId =
+  | "LPD_A3"
+  | "LPD_A5"
+  | "LPD_B1"
+  | "RE_B4A"
+  | "RE_B4B"
+  | "RE_B6A";
+
+export interface DriveMockupPresetMeta {
+  id: DriveMockupPresetId;
+  badge: string;
+  kopSurat: KopSuratOption;
+  rabCode: string;
+  rabCodeLabel: string;
+  title: string;
+  subtitle: string;
+  totalAmount: number;
+}
+
+export const DRIVE_MOCKUP_PRESETS: DriveMockupPresetMeta[] = [
+  {
+    id: "LPD_A3",
+    badge: "LPD 1 · A.3",
+    kopSurat: "lpd",
+    rabCode: "3",
+    rabCodeLabel: "A.3",
+    title: "Honor Koordinator Wilayah 2",
+    subtitle: "Invoice + Kuitansi · Kop LPD",
+    totalAmount: 32018823,
+  },
+  {
+    id: "LPD_A5",
+    badge: "LPD 2 · A.5",
+    kopSurat: "lpd",
+    rabCode: "5",
+    rabCodeLabel: "A.5",
+    title: "Honor Tenaga Administrasi",
+    subtitle: "Invoice + Kuitansi · Kop LPD",
+    totalAmount: 9987397,
+  },
+  {
+    id: "LPD_B1",
+    badge: "LPD 3 · B.1a–c",
+    kopSurat: "lpd",
+    rabCode: "1b",
+    rabCodeLabel: "B.1a, B.1b, B.1c",
+    title: "Penyusunan & Pencetakan Laporan",
+    subtitle: "Invoice (3 item) + Kuitansi · Kop LPD",
+    totalAmount: 3218824,
+  },
+  {
+    id: "RE_B4A",
+    badge: "RE 1 · B.4a",
+    kopSurat: "robotic",
+    rabCode: "4a",
+    rabCodeLabel: "B.4a",
+    title: "Pelatihan In/On Boarding Fasilitator",
+    subtitle: "Invoice + Kuitansi · Kop Robotic Explorer",
+    totalAmount: 17957647,
+  },
+  {
+    id: "RE_B4B",
+    badge: "RE 2 · B.4b",
+    kopSurat: "robotic",
+    rabCode: "4b",
+    rabCodeLabel: "B.4b",
+    title: "Pelatihan Persiapan Sertifikasi STEM.org",
+    subtitle: "Invoice + Kuitansi · Kop Robotic Explorer",
+    totalAmount: 2000000,
+  },
+  {
+    id: "RE_B6A",
+    badge: "RE 3 · B.6a",
+    kopSurat: "robotic",
+    rabCode: "6a",
+    rabCodeLabel: "B.6a",
+    title: "Tanda Terima & Kuitansi Pembinaan Kompetisi",
+    subtitle: "6 Lokasi × 24 Pert × Rp700rb · Kop Robotic Explorer",
+    totalAmount: 100800000,
+  },
+];
+
+export function buildDraftFromDriveMockupPreset(
+  presetId: DriveMockupPresetId,
+  profile?: Partial<SntReportProfile>
+): GenericEvidenceDraft {
+  const tgl = "2026-11-26";
+  const jatuhTempo = "2026-12-10";
+  const maleoName = "Yayasan Maleo Talenta Cendekia";
+  const maleoAddr = profile?.alamatYayasanMaleo || "";
+  const maleoUp = profile?.upYayasanMaleo || "";
+  const lpdBank = {
+    bankName: profile?.lpdBankName || "",
+    bankAccount: profile?.lpdBankAccount || "",
+    bankHolder: profile?.lpdBankHolder || "LPD Jully Tjindrawan Robotik",
+  };
+  const reBank = {
+    bankName: profile?.reBankName || "BCA",
+    bankAccount: profile?.reBankAccount || "7040827000",
+    bankHolder: profile?.reBankHolder || "PT Jully Tjindrawan Robotik",
+  };
+  const signerName = profile?.ketuaTimPelaksana || "Jully Tjindrawan, MBA";
+
+  if (presetId === "LPD_A3") {
+    return {
+      rabCode: "3",
+      rabCodeLabel: "A.3",
+      kopSurat: "lpd",
+      showRabCode: true,
+      includeInvoice: true,
+      includeDaftarTandaTerima: false,
+      invoiceNo: "INV/LPD/SNT-W2/001/XI/2026",
+      kuitansiNoPrefix: "KW/LPD/SNT-W2/001/XI/2026",
+      jatuhTempo,
+      ditagihkanKepada: maleoName,
+      alamatTagihan: maleoAddr,
+      upTagihan: maleoUp,
+      programLabel: "Sekolah Nasional Terintegrasi (SNT) 2026 — Koordinator Wilayah 2",
+      ppnPct: 0,
+      includePphColumn: false,
+      pphPct: 0,
+      ...lpdBank,
+      signerName,
+      signerTitle: "Direktur, LPD Jully Tjindrawan Robotik",
+      recipientMode: "MANUAL",
+      judulDokumen: "Honorarium Koordinator Wilayah 2 — SNT 2026",
+      periodeLabel: "September – November 2026",
+      tanggalDokumen: tgl,
+      sudahTerimaDari: maleoName,
+      catatan: "Mohon cantumkan No. Invoice pada berita transfer.",
+      items: [
+        {
+          id: "lpd-a3-1",
+          tanggal: tgl,
+          lokasi: "Wilayah 2",
+          uraian: "Honorarium Koordinator Wilayah 2 — SNT 2026, periode September–November 2026",
+          penerima: signerName,
+          volume: 1,
+          satuan: "paket",
+          hargaSatuan: 32018823,
+          nominal: 32018823,
+          noDokumen: "KW/LPD/SNT-W2/001/XI/2026",
+        },
+      ],
+    };
+  }
+
+  if (presetId === "LPD_A5") {
+    return {
+      rabCode: "5",
+      rabCodeLabel: "A.5",
+      kopSurat: "lpd",
+      showRabCode: true,
+      includeInvoice: true,
+      includeDaftarTandaTerima: false,
+      invoiceNo: "INV/LPD/SNT-W2/002/XI/2026",
+      kuitansiNoPrefix: "KW/LPD/SNT-W2/002/XI/2026",
+      jatuhTempo,
+      ditagihkanKepada: maleoName,
+      alamatTagihan: maleoAddr,
+      upTagihan: maleoUp,
+      programLabel: "Sekolah Nasional Terintegrasi (SNT) 2026 — Koordinator Wilayah 2",
+      ppnPct: 0,
+      includePphColumn: false,
+      pphPct: 0,
+      ...lpdBank,
+      signerName,
+      signerTitle: "Direktur, LPD Jully Tjindrawan Robotik",
+      recipientMode: "MANUAL",
+      judulDokumen: "Honorarium Tenaga Administrasi — SNT Wilayah 2",
+      periodeLabel: "September – November 2026",
+      tanggalDokumen: tgl,
+      sudahTerimaDari: maleoName,
+      catatan: "Mohon cantumkan No. Invoice pada berita transfer.",
+      items: [
+        {
+          id: "lpd-a5-1",
+          tanggal: tgl,
+          lokasi: "Wilayah 2",
+          uraian: "Honorarium Tenaga Administrasi — SNT Wilayah 2, periode September–November 2026",
+          penerima: signerName,
+          volume: 1,
+          satuan: "paket",
+          hargaSatuan: 9987397,
+          nominal: 9987397,
+          noDokumen: "KW/LPD/SNT-W2/002/XI/2026",
+        },
+      ],
+    };
+  }
+
+  if (presetId === "LPD_B1") {
+    return {
+      rabCode: "1b",
+      rabCodeLabel: "B.1a, B.1b, B.1c",
+      kopSurat: "lpd",
+      showRabCode: true,
+      includeInvoice: true,
+      includeDaftarTandaTerima: false,
+      invoiceNo: "INV/LPD/SNT-W2/003/XI/2026",
+      kuitansiNoPrefix: "KW/LPD/SNT-W2/003/XI/2026",
+      jatuhTempo,
+      ditagihkanKepada: maleoName,
+      alamatTagihan: maleoAddr,
+      upTagihan: maleoUp,
+      programLabel: "Sekolah Nasional Terintegrasi (SNT) 2026 — Koordinator Wilayah 2",
+      ppnPct: 0,
+      includePphColumn: false,
+      pphPct: 0,
+      ...lpdBank,
+      signerName,
+      signerTitle: "Direktur, LPD Jully Tjindrawan Robotik",
+      recipientMode: "MANUAL",
+      judulDokumen: "Penyusunan & Pencetakan Laporan Pendahuluan, Bulanan dan Akhir SNT Wilayah 2",
+      periodeLabel: "September – November 2026",
+      tanggalDokumen: tgl,
+      sudahTerimaDari: maleoName,
+      catatan: "Mohon cantumkan No. Invoice pada berita transfer.",
+      items: [
+        {
+          id: "lpd-b1a",
+          tanggal: tgl,
+          lokasi: "Wilayah 2",
+          uraian: "B.1a Penyusunan & pencetakan Laporan Pendahuluan",
+          penerima: signerName,
+          volume: 1,
+          satuan: "paket",
+          hargaSatuan: 169412,
+          nominal: 169412,
+          noDokumen: "KW/LPD/SNT-W2/003/XI/2026",
+        },
+        {
+          id: "lpd-b1b",
+          tanggal: tgl,
+          lokasi: "Wilayah 2",
+          uraian: "B.1b Penyusunan & pencetakan Laporan Bulanan (6 lokasi × 3 kali)",
+          penerima: signerName,
+          volume: 18,
+          satuan: "laporan",
+          hargaSatuan: 160000,
+          nominal: 2880000,
+          noDokumen: "KW/LPD/SNT-W2/003/XI/2026",
+        },
+        {
+          id: "lpd-b1c",
+          tanggal: tgl,
+          lokasi: "Wilayah 2",
+          uraian: "B.1c Penyusunan & pencetakan Laporan Akhir",
+          penerima: signerName,
+          volume: 1,
+          satuan: "paket",
+          hargaSatuan: 169412,
+          nominal: 169412,
+          noDokumen: "KW/LPD/SNT-W2/003/XI/2026",
+        },
+      ],
+    };
+  }
+
+  if (presetId === "RE_B4A") {
+    return {
+      rabCode: "4a",
+      rabCodeLabel: "B.4a",
+      kopSurat: "robotic",
+      showRabCode: true,
+      includeInvoice: true,
+      includeDaftarTandaTerima: false,
+      invoiceNo: "INV/RE/SNT-W2/001/XI/2026",
+      kuitansiNoPrefix: "KW/RE/SNT-W2/001/XI/2026",
+      jatuhTempo,
+      ditagihkanKepada: maleoName,
+      alamatTagihan: maleoAddr,
+      upTagihan: maleoUp,
+      programLabel: "Sekolah Nasional Terintegrasi (SNT) 2026 — Koordinator Wilayah 2",
+      ppnPct: 0,
+      includePphColumn: false,
+      pphPct: 0,
+      ...reBank,
+      signerName,
+      signerTitle: "Direktur, PT Jully Tjindrawan Robotik",
+      recipientMode: "MANUAL",
+      judulDokumen: "Pelatihan In/On Boarding Calon Fasilitator SNT Wilayah 2",
+      periodeLabel: "September – November 2026",
+      tanggalDokumen: tgl,
+      sudahTerimaDari: maleoName,
+      catatan: "Mohon cantumkan No. Invoice pada berita transfer.",
+      items: [
+        {
+          id: "re-b4a-1",
+          tanggal: tgl,
+          lokasi: "Wilayah 2 (6 Lokasi)",
+          uraian: "Pelatihan in/on boarding calon fasilitator SNT Wilayah 2 (6 lokasi) oleh Tim Program Koding, KA & Robotika",
+          penerima: signerName,
+          volume: 1,
+          satuan: "paket",
+          hargaSatuan: 17957647,
+          nominal: 17957647,
+          noDokumen: "KW/RE/SNT-W2/001/XI/2026",
+        },
+      ],
+    };
+  }
+
+  if (presetId === "RE_B4B") {
+    return {
+      rabCode: "4b",
+      rabCodeLabel: "B.4b",
+      kopSurat: "robotic",
+      showRabCode: true,
+      includeInvoice: true,
+      includeDaftarTandaTerima: false,
+      invoiceNo: "INV/RE/SNT-W2/002/XI/2026",
+      kuitansiNoPrefix: "KW/RE/SNT-W2/002/XI/2026",
+      jatuhTempo,
+      ditagihkanKepada: maleoName,
+      alamatTagihan: maleoAddr,
+      upTagihan: maleoUp,
+      programLabel: "Sekolah Nasional Terintegrasi (SNT) 2026 — Koordinator Wilayah 2",
+      ppnPct: 0,
+      includePphColumn: false,
+      pphPct: 0,
+      ...reBank,
+      signerName,
+      signerTitle: "Direktur, PT Jully Tjindrawan Robotik",
+      recipientMode: "MANUAL",
+      judulDokumen: "Pelatihan Persiapan Sertifikasi Internasional STEM.org (Master of Trainer)",
+      periodeLabel: "September – November 2026",
+      tanggalDokumen: tgl,
+      sudahTerimaDari: maleoName,
+      catatan: "Mohon cantumkan No. Invoice pada berita transfer.",
+      items: [
+        {
+          id: "re-b4b-1",
+          tanggal: tgl,
+          lokasi: "Wilayah 2 (6 Lokasi)",
+          uraian: "Pelatihan persiapan sertifikasi internasional STEM.org (Master of Trainer) untuk fasilitator SNT Wilayah 2",
+          penerima: signerName,
+          volume: 1,
+          satuan: "paket",
+          hargaSatuan: 2000000,
+          nominal: 2000000,
+          noDokumen: "KW/RE/SNT-W2/002/XI/2026",
+        },
+      ],
+    };
+  }
+
+  // RE_B6A: Daftar Tanda Terima & 6 Kuitansi Pembinaan Kompetisi
+  const b6aRows: Array<{ nama: string; snt: string }> = [
+    { nama: "Chindra Saputra, S.Kom., M.S.I.", snt: "SNT 17 Tanjung Jabung Timur" },
+    { nama: "Cahyana Putra Pratama", snt: "SNT 16 Tebo" },
+    { nama: "Rando, S.Kom., M.Eng.", snt: "SNT 15 Buton Tengah" },
+    { nama: "Dr. Ir. Almido H. Ginting, S.T., M.Eng.", snt: "SNT 10 Kupang" },
+    { nama: "Rocky Smart Lumowa, S.Pd., M.Pd.", snt: "SNT 4 Minahasa Utara" },
+    { nama: "Muh. Hanifudin H, S.Pd", snt: "SNT 5 Tidore Kepulauan" },
+  ];
+
+  return {
+    rabCode: "6a",
+    rabCodeLabel: "B.6a",
+    kopSurat: "robotic",
+    showRabCode: true,
+    includeInvoice: false,
+    includeDaftarTandaTerima: true,
+    invoiceNo: "",
+    kuitansiNoPrefix: "KW/RE/SNT-W2-B6a",
+    jatuhTempo,
+    ditagihkanKepada: maleoName,
+    alamatTagihan: maleoAddr,
+    upTagihan: maleoUp,
+    programLabel: "Honorarium Pembinaan Kompetisi Coding, KA & Robotika — SNT Wilayah 2",
+    ppnPct: 0,
+    includePphColumn: true,
+    pphPct: 0,
+    ...reBank,
+    signerName,
+    signerTitle: "Direktur",
+    recipientMode: "MANUAL",
+    judulDokumen: "Honorarium Pembinaan Kompetisi Coding, KA & Robotika — SNT Wilayah 2",
+    periodeLabel: "September – November 2026",
+    tanggalDokumen: tgl,
+    sudahTerimaDari: "Robotic Explorer (PT Jully Tjindrawan Robotik)",
+    catatan: "",
+    items: b6aRows.map((r, idx) => ({
+      id: `re-b6a-${idx + 1}`,
+      tanggal: tgl,
+      lokasi: r.snt,
+      uraian: `Honorarium pembinaan kompetisi coding, KA & robotika ${r.snt}, 24 pertemuan × Rp700.000, periode September–November 2026`,
+      penerima: r.nama,
+      volume: 24,
+      satuan: "pertemuan",
+      hargaSatuan: 700000,
+      nominal: 16800000,
+      noDokumen: `KW/RE/SNT-W2-B6a/${String(idx + 1).padStart(3, "0")}/XI/2026`,
+      catatan: `Fasilitator, ${r.snt}`,
+    })),
+  };
 }
 
 export function getDefaultSewaRumahDraft(): SewaRumahContractDraft {
@@ -472,7 +905,10 @@ export function getDefaultGenericEvidenceDraft(
   type: EvidenceDocType,
   sudahTerimaDari: string
 ): GenericEvidenceDraft {
-  const meta = EVIDENCE_DOC_CATALOG.find((m) => m.type === type) || EVIDENCE_DOC_CATALOG[1];
+  if (type === "INVOICE_KUITANSI_MITRA") {
+    return buildDraftFromDriveMockupPreset("LPD_A3");
+  }
+  const meta = EVIDENCE_DOC_CATALOG.find((m) => m.type === type) || EVIDENCE_DOC_CATALOG[2];
   const today = new Date().toISOString().slice(0, 10);
 
   const presets: Partial<Record<EvidenceDocType, EvidenceLineItem[]>> = {

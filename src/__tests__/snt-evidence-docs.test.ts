@@ -1,9 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
   BLANK_SIGNATURE_LINE,
+  buildDraftFromDriveMockupPreset,
   buildMonthlyFacilitatorHonorReceipt,
   buildMonthlyRabUnitHonorReceipt,
   computeTarget80Strategy,
+  DRIVE_MOCKUP_PRESETS,
   getDefaultGenericEvidenceDraft,
   getDefaultSewaRumahDraft,
   getHonorTimPresetByRabCode,
@@ -156,7 +158,7 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
       includeKwitansiSlips: true,
     });
     expect(html).toContain("Pembinaan Kompetisi Coding");
-    expect(html).toContain("KWITANSI");
+    expect(html).toContain("KUITANSI");
     expect(html).toContain(BLANK_SIGNATURE_LINE);
   });
 
@@ -278,5 +280,43 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
 
     const pelaporanOnly = computeRabRealizationSummary(cats, { includePpn11: false, basis: "PELAPORAN_ONLY" });
     expect(pelaporanOnly.subtotalOfficialRealizedTotal).toBe(34379256);
+  });
+
+  it("renders all 6 Drive mockup presets with dual-tone LPD & Robotic Explorer kop, modern Invoice, Kuitansi, and PPh honor table without MOCKUP watermark", () => {
+    expect(DRIVE_MOCKUP_PRESETS).toHaveLength(6);
+    const profile = getDefaultSntReportProfile();
+
+    // LPD 1 (A.3): Invoice + Kuitansi Kop LPD
+    const lpdA3 = buildDraftFromDriveMockupPreset("LPD_A3", profile);
+    const lpdHtml = renderGenericEvidencePdfHtml({
+      type: "INVOICE_KUITANSI_MITRA",
+      draft: lpdA3,
+      profile,
+      includeKwitansiSlips: true,
+    });
+    expect(lpdHtml).toContain("/logo-lpd.png");
+    expect(lpdHtml).toContain("LPD JULLY TJINDRAWAN ROBOTIK");
+    expect(lpdHtml).toContain("INVOICE");
+    expect(lpdHtml).toContain("KUITANSI");
+    expect(lpdHtml).toContain("INV/LPD/SNT-W2/001/XI/2026");
+    expect(lpdHtml).toContain("Tempel materai Rp10.000");
+    expect(lpdHtml).not.toContain("MOCKUP");
+
+    // RE 3 (B.6a): Daftar Tanda Terima (dengan PPh %) + 6 Kuitansi Kop Robotic Explorer
+    const reB6a = buildDraftFromDriveMockupPreset("RE_B6A", profile);
+    expect(reB6a.items).toHaveLength(6);
+    expect(reB6a.items.reduce((s, it) => s + it.nominal, 0)).toBe(100800000);
+    const reHtml = renderGenericEvidencePdfHtml({
+      type: "INVOICE_KUITANSI_MITRA",
+      draft: reB6a,
+      profile,
+      includeKwitansiSlips: true,
+    });
+    expect(reHtml).toContain("/logo-robotic-explorer.png");
+    expect(reHtml).toContain("ROBOTIC EXPLORER");
+    expect(reHtml).toContain("DAFTAR TANDA TERIMA HONORARIUM");
+    expect(reHtml).toContain("Diterima (Neto)");
+    expect(reHtml).toContain("SNT 17 Tanjung Jabung Timur");
+    expect(reHtml).not.toContain("MOCKUP");
   });
 });

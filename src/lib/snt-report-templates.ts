@@ -2,7 +2,7 @@ import { getExpenseReceiptUrls } from "./expense-receipts";
 
 export type SntTemplateCode = "01" | "02" | "03" | "04" | "11" | "12" | "13" | "14";
 
-export type KopSuratOption = "maleo" | "robotic" | "none";
+export type KopSuratOption = "maleo" | "lpd" | "robotic" | "none";
 
 export interface SntTemplateMeta {
   code: SntTemplateCode;
@@ -16,12 +16,12 @@ export interface SntTemplateMeta {
 }
 
 export const SNT_WILAYAH_2_LOCATIONS = [
-  { id: "buton-tengah", label: "Kab. Buton Tengah", province: "Sulawesi Tenggara", keywords: ["buton tengah", "bau-bau", "baubau"] },
-  { id: "tidore", label: "Kota Tidore Kepulauan", province: "Maluku Utara", keywords: ["tidore"] },
-  { id: "kupang", label: "Kab. Kupang", province: "Nusa Tenggara Timur", keywords: ["kupang"] },
-  { id: "tebo", label: "Kab. Tebo", province: "Jambi", keywords: ["tebo"] },
-  { id: "tanjabtim", label: "Kab. Tanjung Jabung Timur", province: "Jambi", keywords: ["tanjung jabung timur", "tanjab"] },
-  { id: "minahasa-utara", label: "Kab. Minahasa Utara", province: "Sulawesi Utara", keywords: ["minahasa utara", "minut"] },
+  { id: "buton-tengah", label: "Kab. Buton Tengah", sntLabel: "SNT 15 Buton Tengah", province: "Sulawesi Tenggara", keywords: ["buton tengah", "bau-bau", "baubau"] },
+  { id: "tidore", label: "Kota Tidore Kepulauan", sntLabel: "SNT 5 Tidore Kepulauan", province: "Maluku Utara", keywords: ["tidore"] },
+  { id: "kupang", label: "Kab. Kupang", sntLabel: "SNT 10 Kupang", province: "Nusa Tenggara Timur", keywords: ["kupang"] },
+  { id: "tebo", label: "Kab. Tebo", sntLabel: "SNT 16 Tebo", province: "Jambi", keywords: ["tebo"] },
+  { id: "tanjabtim", label: "Kab. Tanjung Jabung Timur", sntLabel: "SNT 17 Tanjung Jabung Timur", province: "Jambi", keywords: ["tanjung jabung timur", "tanjab"] },
+  { id: "minahasa-utara", label: "Kab. Minahasa Utara", sntLabel: "SNT 4 Minahasa Utara", province: "Sulawesi Utara", keywords: ["minahasa utara", "minut"] },
 ] as const;
 
 export const SNT_REPORT_TEMPLATES: SntTemplateMeta[] = [
@@ -132,6 +132,19 @@ export interface SntReportProfile {
   termin1Persen: number; // default 70
   termin2Persen: number; // default 30
   namaMitraModul: string;
+  // Kontak & Rekening Kop Baru (LPD Jully Tjindrawan Robotik & Robotic Explorer)
+  lpdTelp?: string;
+  lpdEmail?: string;
+  lpdBankName?: string;
+  lpdBankAccount?: string;
+  lpdBankHolder?: string;
+  reTelp?: string;
+  reWebsite?: string;
+  reBankName?: string;
+  reBankAccount?: string;
+  reBankHolder?: string;
+  alamatYayasanMaleo?: string;
+  upYayasanMaleo?: string;
 }
 
 export function getDefaultSntReportProfile(): SntReportProfile {
@@ -156,6 +169,19 @@ export function getDefaultSntReportProfile(): SntReportProfile {
     termin1Persen: 70,
     termin2Persen: 30,
     namaMitraModul: "PT Jully Tjindrawan Robotik (Robotic Explorer)",
+    lpdTelp: "",
+    lpdEmail: "",
+    lpdBankName: "",
+    lpdBankAccount: "",
+    lpdBankHolder: "LPD Jully Tjindrawan Robotik",
+    reTelp: "0822-9898-4848",
+    reWebsite: "www.worldroboticexplorer.com",
+    reBankName: "BCA",
+    reBankAccount: "7040827000",
+    reBankHolder: "PT Jully Tjindrawan Robotik",
+    alamatYayasanMaleo:
+      "Intermark Indonesia, Ruko Alfresco Dining No.8, Jl. Lingkar Timur, BSD City, Tangerang Selatan 15310",
+    upYayasanMaleo: "Ketua / Bagian Keuangan Yayasan Maleo Talenta Cendekia",
   };
 }
 

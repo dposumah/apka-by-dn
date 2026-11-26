@@ -148,6 +148,7 @@ export function KwitansiAuditTab({ categories, rabSummary, profile, realizationB
       kopSurat,
       kotaPengesahan: profile.kotaPengesahan || "Jakarta",
       includeReceipts,
+      profile,
     });
     const w = window.open("", "_blank");
     if (!w) {
@@ -886,8 +887,9 @@ export function KwitansiAuditTab({ categories, rabSummary, profile, realizationB
                     }
                     className="w-full h-9 px-2.5 rounded-md border border-slate-200 bg-white text-xs font-medium"
                   >
-                    <option value="maleo">Kop Yayasan Maleo (/kop-maleo.png)</option>
-                    <option value="robotic">Kop PT JT Robotic Explorer (/kop-surat.png)</option>
+                    <option value="maleo">Yayasan Maleo Talenta Cendekia</option>
+                    <option value="lpd">LPD Jully Tjindrawan Robotik (Kop Baru)</option>
+                    <option value="robotic">Robotic Explorer — PT JTR (Kop Baru)</option>
                     <option value="none">Tanpa Kop Surat</option>
                   </select>
                 </div>

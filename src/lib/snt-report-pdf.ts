@@ -1,5 +1,6 @@
 import { formatCurrency, terbilangRupiah } from "./format";
 import { getExpenseReceiptUrls, renderReceiptAttachmentPagesHtml } from "./expense-receipts";
+import { renderBrandKopHtml, renderModernKuitansiHtml } from "./snt-brand-kop";
 import {
   KopSuratOption,
   KwitansiAuditRow,
@@ -59,13 +60,7 @@ function formatDateId(dateInput?: string | Date | null): string {
 }
 
 function renderKopSurat(profile: SntReportProfile): string {
-  if (profile.kopSurat === "maleo") {
-    return `<div class="kop-wrap"><img src="/kop-maleo.png" alt="Kop Yayasan Maleo" class="kop-img" /></div>`;
-  }
-  if (profile.kopSurat === "robotic") {
-    return `<div class="kop-wrap"><img src="/kop-surat.png" alt="Kop PT Jully Tjindrawan Robotik" class="kop-img" /></div>`;
-  }
-  return "";
+  return renderBrandKopHtml(profile.kopSurat, profile);
 }
 
 function renderSignatureBlock(
@@ -1162,17 +1157,10 @@ export function renderStandaloneKwitansiPdfHtml(input: {
   kopSurat: KopSuratOption;
   kotaPengesahan: string;
   includeReceipts: boolean;
+  profile?: Partial<SntReportProfile>;
 }): string {
-  const kopImgHtml =
-    input.kopSurat === "maleo"
-      ? `<img src="/kop-maleo.png" alt="Yayasan Maleo Talenta Cendekia" class="kwt-kop-img" onerror="this.style.display='none'" />`
-      : input.kopSurat === "robotic"
-        ? `<img src="/kop-surat.png" alt="PT Jully Tjindrawan Robotik" class="kwt-kop-img" onerror="this.style.display='none'" />`
-        : "";
-
   const pagesHtml = input.items
     .map((item, idx) => {
-      const tanggalText = formatDateId(item.tanggal);
       const receiptsHtml =
         input.includeReceipts && item.receiptUrls && item.receiptUrls.length > 0
           ? renderReceiptAttachmentPagesHtml(item.receiptUrls)
@@ -1180,46 +1168,20 @@ export function renderStandaloneKwitansiPdfHtml(input: {
 
       return `
         <section class="kwt-page${idx > 0 ? " page-break" : ""}">
-          <div class="kwt-card">
-            <div class="kwt-head">
-              <div class="kwt-kop-wrap">${kopImgHtml}</div>
-              <div class="kwt-head-right">
-                <div class="kwt-title">KWITANSI</div>
-                <div class="kwt-no">No: ${esc(item.noKwitansi)}</div>
-              </div>
-            </div>
-
-            <table class="kwt-table">
-              <tr>
-                <td class="kwt-label">Sudah Terima Dari</td>
-                <td class="kwt-colon">:</td>
-                <td class="kwt-val"><strong>${esc(item.sudahTerimaDari)}</strong></td>
-              </tr>
-              <tr>
-                <td class="kwt-label">Banyaknya Uang</td>
-                <td class="kwt-colon">:</td>
-                <td class="kwt-terbilang">${esc(terbilangRupiah(item.amount))}</td>
-              </tr>
-              <tr>
-                <td class="kwt-label">Untuk Pembayaran</td>
-                <td class="kwt-colon">:</td>
-                <td class="kwt-val">
-                  <div>${nl2br(item.perihal)}</div>
-                  ${item.rabLabel ? `<div class="kwt-sub">Pos RAB: ${esc(item.rabLabel)}</div>` : ""}
-                </td>
-              </tr>
-            </table>
-
-            <div class="kwt-foot">
-              <div class="kwt-amount">${esc(formatCurrency(item.amount))}</div>
-              <div class="kwt-sign">
-                <div class="kwt-sign-date">${esc(input.kotaPengesahan || "Jakarta")}, ${esc(tanggalText)}</div>
-                <div class="kwt-sign-space"></div>
-                <div class="kwt-sign-name">${esc(item.penerima)}</div>
-                <div class="kwt-sign-role">Penerima / Pelaksana</div>
-              </div>
-            </div>
-          </div>
+          ${renderModernKuitansiHtml({
+            kopSurat: input.kopSurat,
+            profile: input.profile,
+            noKwitansi: item.noKwitansi,
+            sudahTerimaDari: item.sudahTerimaDari,
+            amount: item.amount,
+            untukPembayaran: item.perihal,
+            rabCode: item.rabLabel || undefined,
+            showRabCode: Boolean(item.rabLabel),
+            kota: input.kotaPengesahan || "Jakarta",
+            tanggal: item.tanggal,
+            penerimaDisplay: item.penerima,
+            penerimaRole: "Yang menerima,",
+          })}
           ${receiptsHtml}
         </section>
       `;

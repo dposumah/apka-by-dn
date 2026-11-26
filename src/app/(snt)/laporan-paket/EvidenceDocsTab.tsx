@@ -25,8 +25,11 @@ import {
   saveSntReportDraft,
 } from "@/app/actions/snt-reports";
 import {
+  buildDraftFromDriveMockupPreset,
   buildMonthlyFacilitatorHonorReceipt,
   buildMonthlyRabUnitHonorReceipt,
+  DRIVE_MOCKUP_PRESETS,
+  DriveMockupPresetId,
   EVIDENCE_DOC_CATALOG,
   EvidenceDocType,
   EvidenceLineItem,
@@ -43,6 +46,7 @@ import {
   SNT_RAB_HONOR_FASIL_UNIT_PRICE,
   SNT_RAB_TENAGA_ADMIN_UNIT_PRICE,
 } from "@/lib/snt-evidence-docs";
+import { KOP_OPTIONS_LIST, resolveBrandKopTheme } from "@/lib/snt-brand-kop";
 import {
   renderGenericEvidencePdfHtml,
   renderMonthlyFacilitatorHonorPdfHtml,
@@ -50,6 +54,7 @@ import {
 } from "@/lib/snt-evidence-pdf";
 import {
   getValidKwitansiNumber,
+  KopSuratOption,
   normalizeExpenseRealizationType,
   SNT_WILAYAH_2_LOCATIONS,
   SntExpenseRecord,
@@ -95,6 +100,7 @@ export function EvidenceDocsTab({
   // State khusus Daftar Tanda Terima Honor Fasilitator Bulanan (A.4)
   const [honorMonth, setHonorMonth] = useState<string>("2026-10");
   const [honorPricingMode, setHonorPricingMode] = useState<HonorPricingMode>("RAB_SATUAN");
+  const [honorKopSurat, setHonorKopSurat] = useState<KopSuratOption>(profile.kopSurat || "maleo");
   const [honorIncludeTransport, setHonorIncludeTransport] = useState<boolean>(false);
   const [honorRecipientMode, setHonorRecipientMode] = useState<RecipientMode>("MANUAL");
   const [honorIncludeKwitansi, setHonorIncludeKwitansi] = useState<boolean>(true);
@@ -257,6 +263,7 @@ export function EvidenceDocsTab({
       const html = renderMonthlyFacilitatorHonorPdfHtml({
         sheet: activeHonorSheet,
         profile,
+        kopSuratOverride: honorKopSurat,
         includeTransportColumn: honorIncludeTransport,
         recipientMode: honorRecipientMode,
         tanggalCetak: honorTanggalCetak,
@@ -612,7 +619,7 @@ export function EvidenceDocsTab({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">Pilih Bulan Honorarium</label>
                     <select
@@ -623,6 +630,20 @@ export function EvidenceDocsTab({
                       {HONOR_MONTHS.map((m) => (
                         <option key={m} value={m}>
                           {getMonthLabelId(m)} ({m})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Kop Surat PDF</label>
+                    <select
+                      value={honorKopSurat}
+                      onChange={(e) => setHonorKopSurat(e.target.value as KopSuratOption)}
+                      className="w-full h-9 px-2.5 rounded-md border border-slate-200 bg-white text-xs font-semibold"
+                    >
+                      {KOP_OPTIONS_LIST.map((k) => (
+                        <option key={k.value} value={k.value}>
+                          {k.shortLabel}
                         </option>
                       ))}
                     </select>
@@ -1285,9 +1306,65 @@ export function EvidenceDocsTab({
               </div>
             )}
 
-            {/* ==================== 3. 8 DOKUMEN BUKTI WAJIB LAINNYA (GENERIC TABLE + KWITANSI SLIPS) ==================== */}
+            {/* ==================== 3. INVOICE MITRA & 8 DOKUMEN BUKTI WAJIB LAINNYA ==================== */}
             {activeType !== "HONOR_FASIL_BULANAN" && activeType !== "SEWA_RUMAH" && (
               <div className="space-y-4">
+                {/* Preset 1-Klik 6 Paket Mockup Drive (LPD 1-3 & RE 1-3) */}
+                {activeType === "INVOICE_KUITANSI_MITRA" && (
+                  <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-3.5 space-y-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <div className="text-xs font-bold text-indigo-950">
+                          Preset 1-Klik Paket Mockup Drive (Kop Baru LPD &amp; Robotic Explorer)
+                        </div>
+                        <p className="text-[11px] text-indigo-800/80">
+                          Klik salah satu paket di bawah untuk mengisi otomatis Invoice, Kuitansi &amp; Daftar Tanda Terima sesuai template Drive (tanpa label MOCKUP saat dicetak).
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {DRIVE_MOCKUP_PRESETS.map((preset) => (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => {
+                            const built = buildDraftFromDriveMockupPreset(
+                              preset.id as DriveMockupPresetId,
+                              profile
+                            );
+                            updateGenericDraft(() => built);
+                            setGenericIncludeKwitansi(true);
+                            setBanner({
+                              type: "ok",
+                              text: `Preset "${preset.badge} — ${preset.title}" (${formatCurrency(preset.totalAmount)}) dimuat dengan Kop ${preset.kopSurat === "lpd" ? "LPD Jully Tjindrawan Robotik" : "Robotic Explorer"}.`,
+                            });
+                          }}
+                          className="text-left p-2.5 rounded-lg border border-indigo-200 bg-white hover:bg-indigo-50 hover:border-indigo-400 transition-all"
+                        >
+                          <div className="flex items-center justify-between gap-1.5">
+                            <span
+                              className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                preset.kopSurat === "lpd"
+                                  ? "bg-slate-900 text-white"
+                                  : "bg-sky-600 text-white"
+                              }`}
+                            >
+                              {preset.badge}
+                            </span>
+                            <span className="text-[11px] font-bold text-slate-900">
+                              {formatCurrency(preset.totalAmount)}
+                            </span>
+                          </div>
+                          <div className="text-xs font-semibold text-slate-900 mt-1 line-clamp-1">
+                            {preset.title}
+                          </div>
+                          <div className="text-[10px] text-slate-500 mt-0.5">{preset.subtitle}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50/70 p-3">
                   <div className="text-xs font-semibold text-amber-900">
                     Mode Nama Penerima pada Daftar &amp; Kwitansi:
@@ -1318,34 +1395,68 @@ export function EvidenceDocsTab({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                  {activeType === "HONOR_TIM" && (
+                {/* Pilihan Kop Surat & Opsi Cetak Dokumen */}
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Kop Surat Dokumen</label>
+                    <select
+                      value={currentGenericDraft.kopSurat || profile.kopSurat}
+                      onChange={(e) => {
+                        const nextKop = e.target.value as KopSuratOption;
+                        const theme = resolveBrandKopTheme(nextKop, profile);
+                        updateGenericDraft((p) => ({
+                          ...p,
+                          kopSurat: nextKop,
+                          bankName: p.bankName || theme.defaultBankName,
+                          bankAccount: p.bankAccount || theme.defaultBankAccount,
+                          bankHolder: p.bankHolder || theme.defaultBankHolder,
+                        }));
+                      }}
+                      className="w-full h-9 px-2.5 rounded-md border border-slate-200 bg-white text-xs font-semibold"
+                    >
+                      {KOP_OPTIONS_LIST.map((k) => (
+                        <option key={k.value} value={k.value}>
+                          {k.shortLabel}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {(activeType === "HONOR_TIM" || activeType === "INVOICE_KUITANSI_MITRA") && (
                     <div>
                       <label className="block font-semibold text-slate-700 mb-1">Pos RAB Target</label>
                       <select
                         value={currentGenericDraft.rabCode}
                         onChange={(e) => {
                           const nextCode = e.target.value;
-                          const preset = getHonorTimPresetByRabCode(nextCode, currentGenericDraft.tanggalDokumen);
-                          updateGenericDraft((p) => ({
-                            ...p,
-                            rabCode: nextCode,
-                            items: preset.length > 0 ? preset : p.items,
-                          }));
-                          if (nextCode === "5") {
-                            setBanner({
-                              type: "ok",
-                              text: `Preset Tenaga Administrasi (Pos A.5) dimuat: 4 bulan × ${formatCurrency(SNT_RAB_TENAGA_ADMIN_UNIT_PRICE)} = ${formatCurrency(SNT_RAB_TENAGA_ADMIN_UNIT_PRICE * 4)}.`,
-                            });
+                          if (activeType === "HONOR_TIM") {
+                            const preset = getHonorTimPresetByRabCode(nextCode, currentGenericDraft.tanggalDokumen);
+                            updateGenericDraft((p) => ({
+                              ...p,
+                              rabCode: nextCode,
+                              items: preset.length > 0 ? preset : p.items,
+                            }));
+                            if (nextCode === "5") {
+                              setBanner({
+                                type: "ok",
+                                text: `Preset Tenaga Administrasi (Pos A.5) dimuat: 4 bulan × ${formatCurrency(SNT_RAB_TENAGA_ADMIN_UNIT_PRICE)} = ${formatCurrency(SNT_RAB_TENAGA_ADMIN_UNIT_PRICE * 4)}.`,
+                              });
+                            }
+                          } else {
+                            updateGenericDraft((p) => ({ ...p, rabCode: nextCode }));
                           }
                         }}
                         className="w-full h-9 px-2.5 rounded-md border border-slate-200 bg-white text-xs font-semibold"
                       >
                         <option value="1">A.1 — Ketua Tim Pelaksana (Rp3,6 jt/bln)</option>
                         <option value="2">A.2 — Tim Program Koding KA Robotika</option>
-                        <option value="3">A.3 — Koordinator Wilayah (Rp10,8 jt/bln)</option>
+                        <option value="3">A.3 — Koordinator Wilayah</option>
                         <option value="5">A.5 — Tenaga Administrasi (Rp5.729.876/bln)</option>
-                        <option value="4a">B.4a — Narasumber Pelatihan In</option>
+                        <option value="1a">B.1a — Laporan Pendahuluan</option>
+                        <option value="1b">B.1b — Laporan Bulanan</option>
+                        <option value="1c">B.1c — Laporan Akhir</option>
+                        <option value="4a">B.4a — Pelatihan In / Narasumber</option>
+                        <option value="4b">B.4b — Sertifikasi STEM.org</option>
+                        <option value="6a">B.6a — Pembinaan Kompetisi</option>
                       </select>
                     </div>
                   )}
@@ -1367,6 +1478,194 @@ export function EvidenceDocsTab({
                     />
                   </div>
                 </div>
+
+                {/* Sakelar Output Cetak: Invoice, Daftar Tanda Terima, Kuitansi, Kode RAB, PPh */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-slate-200 bg-slate-50/80 p-3 text-xs">
+                  <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-blue-900">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(currentGenericDraft.includeInvoice)}
+                      onChange={(e) =>
+                        updateGenericDraft((p) => ({ ...p, includeInvoice: e.target.checked }))
+                      }
+                    />
+                    <span>Cetak INVOICE Resmi</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-800">
+                    <input
+                      type="checkbox"
+                      checked={currentGenericDraft.includeDaftarTandaTerima ?? !currentGenericDraft.includeInvoice}
+                      onChange={(e) =>
+                        updateGenericDraft((p) => ({
+                          ...p,
+                          includeDaftarTandaTerima: e.target.checked,
+                        }))
+                      }
+                    />
+                    <span>Cetak Daftar Tanda Terima</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-800">
+                    <input
+                      type="checkbox"
+                      checked={genericIncludeKwitansi}
+                      onChange={(e) => setGenericIncludeKwitansi(e.target.checked)}
+                    />
+                    <span>Cetak Kuitansi</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={currentGenericDraft.showRabCode ?? true}
+                      onChange={(e) =>
+                        updateGenericDraft((p) => ({ ...p, showRabCode: e.target.checked }))
+                      }
+                    />
+                    <span>Tampilkan Kode RAB</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(currentGenericDraft.includePphColumn)}
+                      onChange={(e) =>
+                        updateGenericDraft((p) => ({ ...p, includePphColumn: e.target.checked }))
+                      }
+                    />
+                    <span>Kolom PPh % (Neto)</span>
+                  </label>
+                  {currentGenericDraft.includePphColumn && (
+                    <div className="flex items-center gap-1">
+                      <span className="text-[11px] font-semibold text-slate-600">Tarif PPh (%):</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={30}
+                        step={0.5}
+                        value={currentGenericDraft.pphPct ?? 0}
+                        onChange={(e) =>
+                          updateGenericDraft((p) => ({ ...p, pphPct: Number(e.target.value) || 0 }))
+                        }
+                        className="w-16 h-7 px-1.5 border rounded bg-white text-xs text-center font-semibold"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Pengaturan Khusus INVOICE (tampil bila Cetak INVOICE Resmi dicentang) */}
+                {currentGenericDraft.includeInvoice && (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-3.5 space-y-2.5 text-xs">
+                    <div className="font-bold text-blue-950">Pengaturan INVOICE Resmi &amp; Rekening Transfer</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">No. Invoice</label>
+                        <Input
+                          value={currentGenericDraft.invoiceNo || ""}
+                          onChange={(e) => updateGenericDraft((p) => ({ ...p, invoiceNo: e.target.value }))}
+                          placeholder="INV/LPD/SNT-W2/001/XI/2026"
+                          className="h-8 text-xs bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">No. Kuitansi</label>
+                        <Input
+                          value={currentGenericDraft.kuitansiNoPrefix || ""}
+                          onChange={(e) =>
+                            updateGenericDraft((p) => ({ ...p, kuitansiNoPrefix: e.target.value }))
+                          }
+                          placeholder="KW/LPD/SNT-W2/001/XI/2026"
+                          className="h-8 text-xs bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Jatuh Tempo</label>
+                        <Input
+                          type="date"
+                          value={currentGenericDraft.jatuhTempo || ""}
+                          onChange={(e) => updateGenericDraft((p) => ({ ...p, jatuhTempo: e.target.value }))}
+                          className="h-8 text-xs bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">PPN (%)</label>
+                        <select
+                          value={currentGenericDraft.ppnPct ?? 0}
+                          onChange={(e) =>
+                            updateGenericDraft((p) => ({ ...p, ppnPct: Number(e.target.value) || 0 }))
+                          }
+                          className="w-full h-8 px-2 rounded border border-slate-200 bg-white text-xs font-semibold"
+                        >
+                          <option value={0}>0% (Non-PPN)</option>
+                          <option value={11}>11% (PPN)</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Ditagihkan Kepada</label>
+                        <Input
+                          value={currentGenericDraft.ditagihkanKepada || "Yayasan Maleo Talenta Cendekia"}
+                          onChange={(e) =>
+                            updateGenericDraft((p) => ({
+                              ...p,
+                              ditagihkanKepada: e.target.value,
+                              sudahTerimaDari: e.target.value,
+                            }))
+                          }
+                          className="h-8 text-xs bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Label Kode RAB</label>
+                        <Input
+                          value={currentGenericDraft.rabCodeLabel || currentGenericDraft.rabCode}
+                          onChange={(e) =>
+                            updateGenericDraft((p) => ({ ...p, rabCodeLabel: e.target.value }))
+                          }
+                          placeholder="A.3 / B.4a / B.1a, B.1b, B.1c"
+                          className="h-8 text-xs bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Penandatangan</label>
+                        <Input
+                          value={currentGenericDraft.signerName || profile.ketuaTimPelaksana}
+                          onChange={(e) =>
+                            updateGenericDraft((p) => ({ ...p, signerName: e.target.value }))
+                          }
+                          className="h-8 text-xs bg-white"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Bank Transfer</label>
+                        <Input
+                          value={currentGenericDraft.bankName ?? ""}
+                          onChange={(e) => updateGenericDraft((p) => ({ ...p, bankName: e.target.value }))}
+                          placeholder="BCA / Mandiri..."
+                          className="h-8 text-xs bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">No. Rekening</label>
+                        <Input
+                          value={currentGenericDraft.bankAccount ?? ""}
+                          onChange={(e) => updateGenericDraft((p) => ({ ...p, bankAccount: e.target.value }))}
+                          placeholder="7040827000"
+                          className="h-8 text-xs bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Atas Nama Rekening</label>
+                        <Input
+                          value={currentGenericDraft.bankHolder ?? ""}
+                          onChange={(e) => updateGenericDraft((p) => ({ ...p, bankHolder: e.target.value }))}
+                          placeholder="PT Jully Tjindrawan Robotik"
+                          className="h-8 text-xs bg-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap gap-2">

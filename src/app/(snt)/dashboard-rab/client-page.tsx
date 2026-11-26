@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency, terbilangRupiah } from '@/lib/format'
 import { Badge } from '@/components/ui/badge'
 import { getExpenseReceiptUrls, renderReceiptAttachmentPagesHtml } from '@/lib/expense-receipts'
+import { renderModernInvoiceHtml, renderModernKuitansiHtml, resolveBrandKopTheme } from '@/lib/snt-brand-kop'
+import type { KopSuratOption } from '@/lib/snt-report-templates'
 import { DeleteExpenseButton } from './DeleteExpenseButton'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
@@ -38,7 +40,7 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
   
   const [printInvoice, setPrintInvoice] = useState(false)
   const [printKwitansi, setPrintKwitansi] = useState(false)
-  const [selectedKop, setSelectedKop] = useState<'maleo' | 'robotic'>('maleo')
+  const [selectedKop, setSelectedKop] = useState<KopSuratOption>('maleo')
   
   const [inputNoUrut, setInputNoUrut] = useState("")
   const [inputInvoiceNoUrut, setInputInvoiceNoUrut] = useState("")
@@ -285,132 +287,45 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
   }
 
   const getKwitansiHtml = (expense: any, record: any) => {
-    const tanggalStr = record.tanggal 
-      ? new Date(record.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
-      : new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-
-    return `
-      <div style="font-family: Arial, sans-serif; padding: 30px; border: 2px solid #000; max-width: 800px; margin: 0 auto; box-sizing: border-box;">
-        <div style="border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;">
-          <img src="/kop-maleo.png" style="height: 60px;" alt="Logo" onerror="this.style.display='none'" />
-          <div style="text-align: right;">
-            <h2 style="margin: 0; font-size: 20px; font-weight: bold;">KWITANSI</h2>
-            <p style="margin: 5px 0 0 0; font-size: 14px;">No: ${record.noKwitansi || '-'}</p>
-          </div>
-        </div>
-
-        <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 20px;">
-          <tr>
-            <td style="width: 180px; padding: 6px 0;">Sudah Terima Dari</td>
-            <td style="width: 10px;">:</td>
-            <td style="padding: 6px 0; font-weight: bold;">${record.owner || 'Yayasan Maleo Talenta Cendekia'}</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0;">Banyaknya Uang</td>
-            <td>:</td>
-            <td style="padding: 6px 0; font-style: italic; background-color: #f0f0f0; padding-left: 8px;">${terbilangRupiah(expense.amount)} Rupiah</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; vertical-align: top;">Untuk Pembayaran</td>
-            <td style="vertical-align: top;">:</td>
-            <td style="padding: 6px 0;">${record.perihal}</td>
-          </tr>
-        </table>
-
-        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 40px;">
-          <div style="border: 2px solid #000; padding: 10px 20px; font-size: 18px; font-weight: bold; background-color: #f9f9f9;">
-            Rp ${formatCurrency(expense.amount)}
-          </div>
-          <div style="text-align: center; width: 220px;">
-            <p style="margin: 0 0 50px 0; font-size: 14px;">Jakarta, ${tanggalStr}</p>
-            <p style="margin: 0; font-weight: bold; text-decoration: underline;">${expense.fasilitator ? expense.fasilitator.namaLengkap : (record.owner || 'Yayasan Maleo')}</p>
-          </div>
-        </div>
-      </div>
-    `;
+    const theme = resolveBrandKopTheme(selectedKop);
+    return renderModernKuitansiHtml({
+      kopSurat: selectedKop,
+      noKwitansi: record.noKwitansi || '-',
+      sudahTerimaDari: record.owner || theme.entityName || 'Yayasan Maleo Talenta Cendekia',
+      amount: Number(expense.amount) || 0,
+      untukPembayaran: record.perihal || expense.description || '-',
+      rabCode: expense.rabItem?.code || undefined,
+      showRabCode: Boolean(expense.rabItem?.code),
+      kota: 'Jakarta',
+      tanggal: record.tanggal || expense.date || new Date(),
+      penerimaDisplay: expense.fasilitator ? expense.fasilitator.namaLengkap : (record.owner || theme.entityName || 'Yayasan Maleo'),
+      penerimaRole: 'Yang menerima,',
+    });
   }
 
-  const getInvoiceHtml = (expense: any, invRecord?: any, kopType: string = 'maleo') => {
-    const tanggalStr = invRecord?.tanggal 
-      ? new Date(invRecord.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
-      : (expense.date 
-          ? new Date(expense.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
-          : new Date(expense.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }));
-
-    const kopImage = kopType === 'robotic' ? '/kop-robotic.png' : '/kop-maleo.png';
-    const isRobotic = kopType === 'robotic';
-
+  const getInvoiceHtml = (expense: any, invRecord?: any, kopType: KopSuratOption = 'maleo') => {
+    const tgl = invRecord?.tanggal || expense.date || expense.createdAt;
+    const invoiceHtml = renderModernInvoiceHtml({
+      kopSurat: kopType,
+      noInvoice: invRecord?.noInvoice || '-',
+      tanggal: tgl,
+      ditagihkanKepada: 'Yayasan Maleo Talenta Cendekia',
+      rabCode: expense.rabItem?.code || undefined,
+      showRabCode: Boolean(expense.rabItem?.code),
+      items: [
+        {
+          uraian: `${expense.rabItem?.name ? `${expense.rabItem.name} — ` : ''}${expense.description}`,
+          qty: 1,
+          satuan: 'paket',
+          hargaSatuan: Number(expense.amount) || 0,
+          jumlah: Number(expense.amount) || 0,
+        },
+      ],
+      ppnPct: 0,
+    });
     return `
       <div>
-        <div style="font-family: Arial, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; box-sizing: border-box; border: 1px solid #ccc; min-height: 1000px; position: relative;">
-          <div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 25px;">
-            <img src="${kopImage}" style="height: 70px; margin-bottom: 10px;" alt="Logo" onerror="this.style.display='none'" />
-            <h2 style="margin: 0; font-size: 20px; font-weight: bold; text-transform: uppercase;">
-              ${isRobotic ? 'INVOICE PENGELUARAN PROGRAM' : 'INVOICE PENGELUARAN LAPANGAN'}
-            </h2>
-            <p style="margin: 5px 0 0 0; font-size: 14px; color: #555;">
-              ${isRobotic ? 'Program Koding & Kecerdasan Artifisial (KKA) 2026' : 'KKA Sekolah Nasional Terintegrasi Tahun 2026'}
-            </p>
-          </div>
-
-          <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 20px;">
-            <tr>
-              <td style="width: 140px; padding: 4px 0;">Nomor Invoice</td>
-              <td style="width: 10px;">:</td>
-              <td style="padding: 4px 0; font-weight: bold;">${invRecord?.noInvoice || '-'}</td>
-            </tr>
-            <tr>
-              <td style="padding: 4px 0;">Tanggal</td>
-              <td>:</td>
-              <td style="padding: 4px 0;">${tanggalStr}</td>
-            </tr>
-            <tr>
-              <td style="padding: 4px 0;">Penerima / Pemohon</td>
-              <td>:</td>
-              <td style="padding: 4px 0;">${expense.fasilitator ? expense.fasilitator.namaLengkap : (expense.createdBy?.name || 'Staf Lapangan')}</td>
-            </tr>
-          </table>
-
-          <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 30px;">
-            <thead>
-              <tr style="background-color: #f2f2f2;">
-                <th style="border: 1px solid #000; padding: 8px; text-align: left;">Pos Anggaran (RAB)</th>
-                <th style="border: 1px solid #000; padding: 8px; text-align: left;">Keterangan / Deskripsi</th>
-                <th style="border: 1px solid #000; padding: 8px; text-align: right; width: 150px;">Jumlah</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style="border: 1px solid #000; padding: 10px;">${expense.rabItem?.name || '-'}</td>
-                <td style="border: 1px solid #000; padding: 10px;">${expense.description}</td>
-                <td style="border: 1px solid #000; padding: 10px; text-align: right; font-weight: bold;">Rp ${formatCurrency(expense.amount)}</td>
-              </tr>
-              <tr style="background-color: #f9f9f9;">
-                <td colspan="2" style="border: 1px solid #000; padding: 8px; text-align: right; font-weight: bold;">TOTAL:</td>
-                <td style="border: 1px solid #000; padding: 8px; text-align: right; font-weight: bold;">Rp ${formatCurrency(expense.amount)}</td>
-              </tr>
-            </tbody>
-          </table>
-
-          <div style="margin-bottom: 40px; font-size: 14px; font-style: italic;">
-            Terbilang: <strong>${terbilangRupiah(expense.amount)} Rupiah</strong>
-          </div>
-
-          <div style="display: flex; justify-content: space-between; text-align: center; font-size: 14px; margin-top: 50px;">
-            <p>
-              Menyetujui,<br/>
-              <strong>${isRobotic ? 'Robotic Explorer' : 'Yayasan Maleo'}</strong>
-              <br/><br/><br/><br/>
-              (_____________________)
-            </p>
-            <p>
-              Penerima / Pelaksana,
-              <br/><br/><br/><br/>
-              (${expense.fasilitator ? expense.fasilitator.namaLengkap : '_____________________'})
-            </p>
-          </div>
-        </div>
-
+        ${invoiceHtml}
         ${renderReceiptAttachmentPagesHtml(getExpenseReceiptUrls(expense))}
       </div>
     `;
@@ -1553,8 +1468,8 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
               </div>
 
               <div className="space-y-4">
-                {/* Pilihan Dokumen */}
-                <div className="p-3 bg-slate-50 border rounded-lg space-y-2">
+                {/* Pilihan Dokumen & Kop Surat */}
+                <div className="p-3 bg-slate-50 border rounded-lg space-y-2.5">
                   <span className="text-xs font-semibold text-slate-700 block">Pilih Dokumen yang Dicetak:</span>
                   <div className="flex flex-col gap-2">
                     <label className="flex items-center space-x-2 text-sm cursor-pointer">
@@ -1574,8 +1489,20 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
                         onChange={(e) => setPrintKwitansi(e.target.checked)}
                         className="w-4 h-4 text-emerald-600 rounded"
                       />
-                      <span>Kwitansi Resmi (Yayasan Maleo)</span>
+                      <span>Kwitansi Resmi</span>
                     </label>
+                  </div>
+                  <div className="pt-2 border-t border-slate-200">
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Pilihan Kop Surat:</label>
+                    <select
+                      value={selectedKop}
+                      onChange={(e) => setSelectedKop(e.target.value as KopSuratOption)}
+                      className="w-full h-9 px-2.5 rounded-md border border-slate-200 bg-white text-xs font-semibold"
+                    >
+                      <option value="maleo">Yayasan Maleo Talenta Cendekia</option>
+                      <option value="lpd">LPD Jully Tjindrawan Robotik (Kop Baru)</option>
+                      <option value="robotic">Robotic Explorer — PT JTR (Kop Baru)</option>
+                    </select>
                   </div>
                 </div>
 
