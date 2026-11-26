@@ -20,6 +20,9 @@ import {
   RefreshCw,
   X,
   FileText,
+  Download,
+  Wrench,
+  Filter,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/format";
@@ -28,6 +31,7 @@ import {
   IYRC_EXPENSE_BUDGET_POSITIONS,
   IYRC_PNL_VERSION,
   IYRC_PROGRAM_BREAKDOWN,
+  IYRC_PROGRAM_OPTIONS,
   IYRC_PROFIT_LOSS_TOTALS,
   IYRC_REVENUE_ITEMS,
   IYRC_UNBUDGETED_NOTES,
@@ -53,6 +57,14 @@ interface IyrcPnLTabProps {
   coaAccounts: CashflowCoaOption[];
 }
 
+const PROGRAM_LABEL_MAP = new Map<string, string>(
+  IYRC_PROGRAM_OPTIONS.map((p) => [p.key, p.shortLabel])
+);
+
+const BUDGET_POS_LABEL_MAP = new Map<string, string>(
+  IYRC_EXPENSE_BUDGET_POSITIONS.map((p) => [p.key, `${p.code}: ${p.shortLabel}`])
+);
+
 export default function IyrcPnLTab({
   iyrcProject,
   initialTransactions,
@@ -60,10 +72,15 @@ export default function IyrcPnLTab({
 }: IyrcPnLTabProps) {
   const router = useRouter();
   const [txFilter, setTxFilter] = useState<"ALL" | "EXPENSE" | "INCOME">("EXPENSE");
+  const [posFilter, setPosFilter] = useState<string>("ALL");
+  const [programFilter, setProgramFilter] = useState<string>("ALL");
+
   const [showFormModal, setShowFormModal] = useState(false);
   const [autoOpenScanner, setAutoOpenScanner] = useState(false);
   const [editingTx, setEditingTx] = useState<CashflowTxRecord | null>(null);
   const [defaultBudgetPos, setDefaultBudgetPos] = useState<string>("");
+  const [defaultProgram, setDefaultProgram] = useState<string>("");
+  const [defaultDescription, setDefaultDescription] = useState<string>("");
   const [defaultType, setDefaultType] = useState<"INCOME" | "EXPENSE">("EXPENSE");
   const [markPaidTx, setMarkPaidTx] = useState<CashflowTxRecord | null>(null);
   const [waModalTx, setWaModalTx] = useState<CashflowTxRecord | null>(null);
@@ -104,6 +121,11 @@ export default function IyrcPnLTab({
       (t) => t.status === "COMPLETED" && Boolean(t.journalEntry?.id)
     ).length;
 
+    const hasEquipmentTx = expenses.some((t) =>
+      `${t.description || ""} ${t.category || ""}`.toLowerCase().includes("alat-alat") ||
+      `${t.description || ""} ${t.category || ""}`.toLowerCase().includes("pembelian alat")
+    );
+
     return {
       incomeCompleted,
       incomePending,
@@ -117,10 +139,11 @@ export default function IyrcPnLTab({
         IYRC_PROFIT_LOSS_TOTALS.totalExpenseBudget - (expenseCompleted + expensePending),
       completedCount,
       syncedJournalCount,
+      hasEquipmentTx,
     };
   }, [initialTransactions]);
 
-  // Realisasi per Pos Biaya Excel
+  // Realisasi per Pos Biaya Excel (Pos 2 - Pos 6)
   const posStats = useMemo(() => {
     return IYRC_EXPENSE_BUDGET_POSITIONS.map((pos) => {
       const matching = initialTransactions.filter(
@@ -149,6 +172,61 @@ export default function IyrcPnLTab({
     });
   }, [initialTransactions]);
 
+  // Realisasi Live per Program (Bagian 7: Pagu Excel vs Aktual Cashflow)
+  const programStats = useMemo(() => {
+    const knownKeys = new Set(IYRC_PROGRAM_BREAKDOWN.map((p) => p.program));
+
+    const rows = IYRC_PROGRAM_BREAKDOWN.map((row) => {
+      const progTxs = initialTransactions.filter((t) => t.iyrcProgram === row.program);
+      const actualRevCompleted = progTxs
+        .filter((t) => t.type === "INCOME" && t.status === "COMPLETED")
+        .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+      const actualExpCompleted = progTxs
+        .filter((t) => t.type === "EXPENSE" && t.status === "COMPLETED")
+        .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+      const actualExpPending = progTxs
+        .filter((t) => t.type === "EXPENSE" && t.status === "PENDING")
+        .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+      const actualExpCommitted = actualExpCompleted + actualExpPending;
+      const budgetMarginPct =
+        row.revenueBudget > 0 ? (row.profitBudget / row.revenueBudget) * 100 : null;
+
+      return {
+        ...row,
+        budgetMarginPct,
+        actualRevCompleted,
+        actualExpCompleted,
+        actualExpPending,
+        actualExpCommitted,
+        actualCashNet: actualRevCompleted - actualExpCompleted,
+      };
+    });
+
+    // Cek transaksi yang belum masuk ke salah satu 5 program
+    const unallocatedTxs = initialTransactions.filter(
+      (t) => !t.iyrcProgram || !knownKeys.has(t.iyrcProgram as any)
+    );
+    const unallocatedRev = unallocatedTxs
+      .filter((t) => t.type === "INCOME" && t.status === "COMPLETED")
+      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const unallocatedExpCompleted = unallocatedTxs
+      .filter((t) => t.type === "EXPENSE" && t.status === "COMPLETED")
+      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const unallocatedExpPending = unallocatedTxs
+      .filter((t) => t.type === "EXPENSE" && t.status === "PENDING")
+      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+
+    return {
+      rows,
+      unallocatedCount: unallocatedTxs.length,
+      unallocatedRev,
+      unallocatedExpCompleted,
+      unallocatedExpPending,
+      unallocatedExpCommitted: unallocatedExpCompleted + unallocatedExpPending,
+      unallocatedCashNet: unallocatedRev - unallocatedExpCompleted,
+    };
+  }, [initialTransactions]);
+
   // Pemasukan final 6 sumber (matching existing cashflow transactions)
   const revenueRows = useMemo(() => {
     const incomeTxs = initialTransactions.filter((t) => t.type === "INCOME");
@@ -162,22 +240,48 @@ export default function IyrcPnLTab({
   }, [initialTransactions]);
 
   const filteredTransactions = useMemo(() => {
+    const knownPrograms = new Set(IYRC_PROGRAM_OPTIONS.map((p) => p.key));
     return initialTransactions.filter((t) => {
-      if (txFilter === "ALL") return true;
-      return t.type === txFilter;
+      if (txFilter !== "ALL" && t.type !== txFilter) return false;
+      if (posFilter !== "ALL") {
+        if (t.type !== "EXPENSE") return false;
+        const txPos = t.iyrcBudgetPos || "TAMBAHAN";
+        if (txPos !== posFilter) return false;
+      }
+      if (programFilter !== "ALL") {
+        if (programFilter === "UNASSIGNED") {
+          if (t.iyrcProgram && knownPrograms.has(t.iyrcProgram as any)) return false;
+        } else if (t.iyrcProgram !== programFilter) {
+          return false;
+        }
+      }
+      return true;
     });
-  }, [initialTransactions, txFilter]);
+  }, [initialTransactions, txFilter, posFilter, programFilter]);
 
   const openNewForm = (
     type: "INCOME" | "EXPENSE",
     budgetPos = "",
-    scanMode = false
+    scanMode = false,
+    program = "",
+    description = ""
   ) => {
     setEditingTx(null);
     setDefaultType(type);
     setDefaultBudgetPos(budgetPos);
+    setDefaultProgram(program);
+    setDefaultDescription(description);
     setAutoOpenScanner(scanMode);
     setShowFormModal(true);
+  };
+
+  const closeFormModal = () => {
+    setShowFormModal(false);
+    setAutoOpenScanner(false);
+    setEditingTx(null);
+    setDefaultBudgetPos("");
+    setDefaultProgram("");
+    setDefaultDescription("");
   };
 
   const handleDelete = async (tx: CashflowTxRecord) => {
@@ -210,6 +314,93 @@ export default function IyrcPnLTab({
     }
   };
 
+  const handleExportPnLCsv = () => {
+    const rows: Array<Array<string | number>> = [
+      ["LAPORAN LABA RUGI & REALISASI IYRC CHINA 2026", IYRC_PNL_VERSION, "", "", "", "", ""],
+      [],
+      ["RINGKASAN KPI", "Pagu Excel (IDR)", "Realisasi Lunas (IDR)", "Pending (IDR)", "Sisa Pagu / Keterangan", "", ""],
+      [
+        "Pendapatan",
+        IYRC_PROFIT_LOSS_TOTALS.totalRevenueBudget,
+        summary.incomeCompleted,
+        summary.incomePending,
+        `Potongan Pajak: ${summary.totalTaxWithheld}`,
+        "",
+        "",
+      ],
+      [
+        "Pengeluaran",
+        IYRC_PROFIT_LOSS_TOTALS.totalExpenseBudget,
+        summary.expenseCompleted,
+        summary.expensePending,
+        `Sisa Pagu: ${summary.remainingExpenseBudget}`,
+        "",
+        "",
+      ],
+      [
+        "Laba / (Rugi) Bersih",
+        IYRC_PROFIT_LOSS_TOTALS.projectedProfit,
+        summary.actualCashProfit,
+        "",
+        `Margin Proyeksi: ${IYRC_PROFIT_LOSS_TOTALS.projectedMarginPct.toFixed(1)}%`,
+        "",
+        "",
+      ],
+      [],
+      ["PAGU VS REALISASI PER POS BIAYA", "Pagu (IDR)", "Lunas (IDR)", "Pending (IDR)", "Sisa Pagu (IDR)", "Jumlah Trx", ""],
+      ...posStats.map((p) => [
+        `${p.code} - ${p.label}`,
+        p.budgetAmount,
+        p.completed,
+        p.pending,
+        p.remaining,
+        p.txCount,
+        "",
+      ]),
+      [],
+      ["PROYEKSI VS AKTUAL PER PROGRAM", "Pagu Pendapatan", "Pagu Biaya", "Pagu Laba", "Aktual Cair", "Aktual Biaya (Lunas+Pending)", "Kas Neto Aktual"],
+      ...programStats.rows.map((r) => [
+        r.label,
+        r.revenueBudget,
+        r.expenseBudget,
+        r.profitBudget,
+        r.actualRevCompleted,
+        r.actualExpCommitted,
+        r.actualCashNet,
+      ]),
+      [],
+      ["RIWAYAT TRANSAKSI IYRC", "Tanggal", "Tipe", "Pos", "Program", "Status", "Nominal (IDR)"],
+      ...initialTransactions.map((t) => [
+        t.description,
+        new Date(t.date).toISOString().split("T")[0],
+        t.type,
+        t.iyrcBudgetPos || "-",
+        t.iyrcProgram || "-",
+        t.status,
+        t.amount,
+      ]),
+    ];
+
+    const escapeCsv = (val: string | number) => {
+      const str = String(val ?? "");
+      if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const csvString = "\uFEFF" + rows.map((r) => r.map(escapeCsv).join(",")).join("\n");
+    const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Laba_Rugi_IYRC_China_2026_upNov26.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6">
       {/* Banner Header & Quick Actions */}
@@ -227,9 +418,10 @@ export default function IyrcPnLTab({
             Laba Rugi Terpadu &amp; Buku Pengeluaran Proyek IYRC China 2026
           </h2>
           <p className="text-xs text-slate-500">
-            Pendapatan final dikunci sebesar{" "}
-            <strong>{formatCurrency(IYRC_PROFIT_LOSS_TOTALS.totalRevenueBudget)}</strong> (4 Program).
-            Setiap transaksi berstatus <strong>Lunas (COMPLETED)</strong> otomatis ter-posting ke{" "}
+            Pendapatan final{" "}
+            <strong>{formatCurrency(IYRC_PROFIT_LOSS_TOTALS.totalRevenueBudget)}</strong> · Pagu biaya{" "}
+            <strong>{formatCurrency(IYRC_PROFIT_LOSS_TOTALS.totalExpenseBudget)}</strong> (termasuk Bagian 8 realisasi s.d. 26 Nov). Setiap transaksi{" "}
+            <strong>Lunas (COMPLETED)</strong> otomatis ter-posting ke{" "}
             <Link href="/jurnal" className="text-indigo-600 font-semibold hover:underline">
               Jurnal Umum
             </Link>{" "}
@@ -241,7 +433,7 @@ export default function IyrcPnLTab({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={() => openNewForm("EXPENSE", "", true)}
@@ -258,10 +450,18 @@ export default function IyrcPnLTab({
           </button>
           <button
             type="button"
+            onClick={handleExportPnLCsv}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 cursor-pointer"
+            title="Unduh laporan Laba Rugi, Pagu per Pos, dan Riwayat Transaksi IYRC dalam format CSV"
+          >
+            <Download size={13} /> Export CSV
+          </button>
+          <button
+            type="button"
             onClick={handleResync}
             disabled={isSyncing}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 cursor-pointer disabled:opacity-50"
-            title="Sinkronkan ulang item pendapatan final & transaksi COMPLETED yang belum memiliki Jurnal Umum"
+            title="Sinkronkan ulang item pendapatan, 13 biaya tambahan upNov26 & transaksi COMPLETED yang belum memiliki Jurnal Umum"
           >
             <RefreshCw size={13} className={isSyncing ? "animate-spin" : ""} /> Sinkronisasi
           </button>
@@ -296,7 +496,7 @@ export default function IyrcPnLTab({
               {formatCurrency(summary.expenseCompleted)}
             </div>
             <div className="text-[11px] text-slate-500 flex justify-between pt-1 border-t border-slate-100">
-              <span>Pagu Excel:</span>
+              <span>Pagu Excel upNov26:</span>
               <span className="font-bold text-slate-700">
                 {formatCurrency(IYRC_PROFIT_LOSS_TOTALS.totalExpenseBudget)}
               </span>
@@ -318,7 +518,7 @@ export default function IyrcPnLTab({
               {formatCurrency(summary.remainingExpenseBudget)}
             </div>
             <div className="text-[11px] text-slate-500 flex justify-between pt-1 border-t border-slate-100">
-              <span>Menunggu TF:</span>
+              <span>Menunggu TF (Pending):</span>
               <span className="font-bold text-amber-700">{formatCurrency(summary.expensePending)}</span>
             </div>
           </CardContent>
@@ -327,7 +527,7 @@ export default function IyrcPnLTab({
         <Card className="border-l-4 border-l-amber-500 bg-white shadow-xs">
           <CardContent className="p-4 space-y-1.5">
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 uppercase">
-              <span>Laba Proyeksi / Aktual</span>
+              <span>Laba Proyeksi ({IYRC_PROFIT_LOSS_TOTALS.projectedMarginPct.toFixed(1)}%)</span>
               <FileText size={15} className="text-amber-600" />
             </div>
             <div className="text-xl font-extrabold text-slate-900">
@@ -473,14 +673,14 @@ export default function IyrcPnLTab({
         </div>
       </div>
 
-      {/* SECTION 2: PAGU VS REALISASI PENGELUARAN (POS 2 - 5 + TAMBAHAN) */}
+      {/* SECTION 2: PAGU VS REALISASI PENGELUARAN (POS 2 - 6) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/70">
           <h3 className="font-bold text-slate-900 text-sm">
-            2. Pagu Anggaran vs Realisasi Pengeluaran per Pos (Rp 297.451.802)
+            2. Pagu Anggaran vs Realisasi Pengeluaran per Pos ({formatCurrency(IYRC_PROFIT_LOSS_TOTALS.totalExpenseBudget)})
           </h3>
           <p className="text-xs text-slate-500">
-            Klik <strong>+ Catat</strong> di pos terkait untuk mencatat tagihan/pengeluaran baru agar Pagu ter-update otomatis.
+            Klik <strong>+ Catat</strong> di pos terkait untuk mencatat tagihan/pengeluaran baru agar serapan Pagu ter-update otomatis.
           </p>
         </div>
 
@@ -488,7 +688,7 @@ export default function IyrcPnLTab({
           <table className="min-w-full divide-y divide-slate-200 text-xs">
             <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider">
               <tr>
-                <th className="px-4 py-3 text-left">Pos Biaya Excel</th>
+                <th className="px-4 py-3 text-left">Pos Biaya Excel (upNov26)</th>
                 <th className="px-4 py-3 text-right">Pagu Anggaran</th>
                 <th className="px-4 py-3 text-right">Realisasi Lunas</th>
                 <th className="px-4 py-3 text-right">Pending TF</th>
@@ -564,56 +764,121 @@ export default function IyrcPnLTab({
         </div>
       </div>
 
-      {/* SECTION 3: RINCIAN PER PROGRAM & RISIKO BELUM DIHITUNG */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+      {/* SECTION 3: RINCIAN PER PROGRAM (LIVE PAGU VS AKTUAL) & RISIKO BELUM DIHITUNG */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
           <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
             <h3 className="font-bold text-slate-900 text-sm">
-              3. Proyeksi Laba / (Rugi) per Program (Excel Bagian 7)
+              3. Proyeksi Pagu vs Realisasi Aktual per Program (Excel Bagian 7 · upNov26)
             </h3>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Kolom <strong>Aktual Cashflow</strong> terhitung otomatis dari transaksi yang dialokasikan ke masing-masing program.
+            </p>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-xs">
               <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider">
                 <tr>
                   <th className="px-4 py-2.5 text-left">Program</th>
-                  <th className="px-4 py-2.5 text-right">Pendapatan</th>
-                  <th className="px-4 py-2.5 text-right">Pagu Biaya</th>
-                  <th className="px-4 py-2.5 text-right">Laba / (Rugi)</th>
+                  <th className="px-3 py-2.5 text-right">Pagu Pendapatan</th>
+                  <th className="px-3 py-2.5 text-right">Pagu Biaya</th>
+                  <th className="px-3 py-2.5 text-right">Pagu Laba/(Rugi)</th>
+                  <th className="px-3 py-2.5 text-right bg-indigo-50/50 text-indigo-900">Aktual Cair</th>
+                  <th className="px-3 py-2.5 text-right bg-indigo-50/50 text-indigo-900">Aktual Biaya</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {IYRC_PROGRAM_BREAKDOWN.map((row) => (
-                  <tr key={row.program} className="hover:bg-slate-50/60">
-                    <td className="px-4 py-2.5">
-                      <div className="font-bold text-slate-900">{row.label}</div>
-                      <div className="text-[11px] text-slate-500">{row.allocationNote}</div>
-                    </td>
-                    <td className="px-4 py-2.5 text-right font-mono font-semibold text-emerald-700">
-                      {row.revenueBudget > 0 ? formatCurrency(row.revenueBudget) : "-"}
-                    </td>
-                    <td className="px-4 py-2.5 text-right font-mono font-semibold text-rose-700">
-                      {formatCurrency(row.expenseBudget)}
-                    </td>
-                    <td
-                      className={`px-4 py-2.5 text-right font-mono font-bold ${
-                        row.profitBudget >= 0 ? "text-indigo-700" : "text-rose-700"
-                      }`}
+                {programStats.rows.map((row) => {
+                  const isThinMargin =
+                    row.budgetMarginPct !== null && row.budgetMarginPct < 5 && row.revenueBudget > 0;
+                  return (
+                    <tr
+                      key={row.program}
+                      className={`hover:bg-slate-50/60 ${isThinMargin ? "bg-amber-50/40" : ""}`}
                     >
-                      {formatCurrency(row.profitBudget)}
+                      <td className="px-4 py-2.5">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="font-bold text-slate-900">{row.label}</span>
+                          {isThinMargin && (
+                            <span className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 border border-rose-200 text-[10px] font-bold">
+                              Margin Tipis {row.budgetMarginPct?.toFixed(1)}%
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">{row.allocationNote}</div>
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-mono font-semibold text-emerald-700 whitespace-nowrap">
+                        {row.revenueBudget > 0 ? formatCurrency(row.revenueBudget) : "-"}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-mono font-semibold text-rose-700 whitespace-nowrap">
+                        {formatCurrency(row.expenseBudget)}
+                      </td>
+                      <td
+                        className={`px-3 py-2.5 text-right font-mono font-bold whitespace-nowrap ${
+                          row.profitBudget >= 0 ? "text-indigo-700" : "text-rose-700"
+                        }`}
+                      >
+                        <div>{formatCurrency(row.profitBudget)}</div>
+                        {row.budgetMarginPct !== null && (
+                          <div className="text-[10px] font-medium text-slate-500">
+                            {row.budgetMarginPct.toFixed(1)}%
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-mono font-semibold text-emerald-700 bg-indigo-50/20 whitespace-nowrap">
+                        {row.actualRevCompleted > 0 ? formatCurrency(row.actualRevCompleted) : "-"}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-mono bg-indigo-50/20 whitespace-nowrap">
+                        <div className="font-bold text-rose-700">
+                          {row.actualExpCommitted > 0 ? formatCurrency(row.actualExpCommitted) : "-"}
+                        </div>
+                        {row.actualExpPending > 0 && (
+                          <div className="text-[10px] text-amber-700 font-medium">
+                            Pending: {formatCurrency(row.actualExpPending)}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {programStats.unallocatedCount > 0 && (
+                  <tr className="bg-slate-50/70">
+                    <td className="px-4 py-2 text-slate-600 italic">
+                      Transaksi Belum Dialokasikan ke Program ({programStats.unallocatedCount} trx)
+                    </td>
+                    <td className="px-3 py-2 text-right text-slate-400">-</td>
+                    <td className="px-3 py-2 text-right text-slate-400">-</td>
+                    <td className="px-3 py-2 text-right text-slate-400">-</td>
+                    <td className="px-3 py-2 text-right font-mono text-emerald-700 bg-indigo-50/20">
+                      {programStats.unallocatedRev > 0 ? formatCurrency(programStats.unallocatedRev) : "-"}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono text-rose-700 bg-indigo-50/20">
+                      {programStats.unallocatedExpCommitted > 0
+                        ? formatCurrency(programStats.unallocatedExpCommitted)
+                        : "-"}
                     </td>
                   </tr>
-                ))}
-                <tr className="bg-slate-50 font-extrabold text-slate-900">
-                  <td className="px-4 py-3">Total Gabungan (Margin {IYRC_PROFIT_LOSS_TOTALS.projectedMarginPct.toFixed(1)}%)</td>
-                  <td className="px-4 py-3 text-right font-mono text-emerald-700">
+                )}
+
+                <tr className="bg-slate-100 font-extrabold text-slate-900">
+                  <td className="px-4 py-3">
+                    Total Gabungan (Margin {IYRC_PROFIT_LOSS_TOTALS.projectedMarginPct.toFixed(1)}%)
+                  </td>
+                  <td className="px-3 py-3 text-right font-mono text-emerald-700 whitespace-nowrap">
                     {formatCurrency(IYRC_PROFIT_LOSS_TOTALS.totalRevenueBudget)}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono text-rose-700">
+                  <td className="px-3 py-3 text-right font-mono text-rose-700 whitespace-nowrap">
                     {formatCurrency(IYRC_PROFIT_LOSS_TOTALS.totalExpenseBudget)}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono text-indigo-800">
+                  <td className="px-3 py-3 text-right font-mono text-indigo-800 whitespace-nowrap">
                     {formatCurrency(IYRC_PROFIT_LOSS_TOTALS.projectedProfit)}
+                  </td>
+                  <td className="px-3 py-3 text-right font-mono text-emerald-700 bg-indigo-100/50 whitespace-nowrap">
+                    {formatCurrency(summary.incomeCompleted)}
+                  </td>
+                  <td className="px-3 py-3 text-right font-mono text-rose-700 bg-indigo-100/50 whitespace-nowrap">
+                    {formatCurrency(summary.totalExpenseCommitted)}
                   </td>
                 </tr>
               </tbody>
@@ -621,25 +886,66 @@ export default function IyrcPnLTab({
           </div>
         </div>
 
-        <div className="bg-amber-50/70 rounded-2xl border border-amber-200 p-5 space-y-3">
-          <div className="flex items-center gap-2 text-amber-900 font-bold text-sm">
-            <AlertTriangle size={17} className="text-amber-600 shrink-0" />
-            <span>Catatan Item Belum Masuk Pagu (Bisa Mengurangi Laba)</span>
+        {/* KOTAK RISIKO & SHORTCUT PEMBELIAN ALAT-ALAT */}
+        <div className="bg-amber-50/70 rounded-2xl border border-amber-200 p-5 flex flex-col justify-between space-y-4">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-amber-900 font-bold text-sm">
+              <AlertTriangle size={17} className="text-amber-600 shrink-0" />
+              <span>Catatan Item Belum Masuk Pagu (Bisa Mengurangi Laba)</span>
+            </div>
+
+            {/* Highlight Khusus Baris 89 Excel: Pembelian alat-alat */}
+            <div
+              className={`rounded-xl p-3 border text-xs space-y-2 ${
+                summary.hasEquipmentTx
+                  ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                  : "bg-amber-100/80 border-amber-300 text-amber-950"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2 font-bold">
+                <span className="flex items-center gap-1.5">
+                  <Wrench size={14} className={summary.hasEquipmentTx ? "text-emerald-600" : "text-amber-700"} />
+                  Pembelian Alat-Alat (Baris 89 Excel)
+                </span>
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    summary.hasEquipmentTx
+                      ? "bg-emerald-200 text-emerald-900"
+                      : "bg-amber-200 text-amber-900"
+                  }`}
+                >
+                  {summary.hasEquipmentTx ? "Sudah Dicatat" : "Belum Ada Nota"}
+                </span>
+              </div>
+              {!summary.hasEquipmentTx && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    openNewForm("EXPENSE", "TAMBAHAN", false, "STAF_RE", "Pembelian alat-alat IYRC")
+                  }
+                  className="w-full py-1.5 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] shadow-2xs cursor-pointer"
+                >
+                  + Catat Nota Pembelian Alat-Alat
+                </button>
+              )}
+            </div>
+
+            <ul className="space-y-2 text-xs text-amber-950 list-disc pl-4">
+              {IYRC_UNBUDGETED_NOTES.map((note, idx) => (
+                <li key={idx} className="leading-relaxed">
+                  {note}
+                </li>
+              ))}
+            </ul>
           </div>
-          <ul className="space-y-2 text-xs text-amber-950 list-disc pl-4">
-            {IYRC_UNBUDGETED_NOTES.map((note, idx) => (
-              <li key={idx} className="leading-relaxed">
-                {note}
-              </li>
-            ))}
-          </ul>
+
           <div className="pt-2">
             <button
               type="button"
-              onClick={() => openNewForm("EXPENSE", "TAMBAHAN", false)}
-              className="w-full py-2 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-2xs cursor-pointer"
+              onClick={() => openNewForm("EXPENSE", "TAMBAHAN", false, "STAF_RE")}
+              className="w-full py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-2xs cursor-pointer"
             >
-              + Catat ke Pos 6 (Biaya Tambahan)
+              + Catat Pengeluaran Lain ke Pos 6 (Tambahan)
             </button>
           </div>
         </div>
@@ -647,13 +953,13 @@ export default function IyrcPnLTab({
 
       {/* SECTION 4: RIWAYAT TRANSAKSI PROYEK IYRC */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70">
+        <div className="px-5 py-4 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-slate-50/70">
           <div>
             <h3 className="font-bold text-slate-900 text-sm">
               4. Riwayat Pengeluaran &amp; Pemasukan Proyek IYRC ({filteredTransactions.length})
             </h3>
             <p className="text-xs text-slate-500">
-              Terhubung dua arah dengan menu{" "}
+              Terhubung dua arah dengan{" "}
               <Link href="/cashflow/transactions" className="text-indigo-600 font-semibold hover:underline">
                 Kelola Transaksi Cashflow
               </Link>{" "}
@@ -665,21 +971,67 @@ export default function IyrcPnLTab({
             </p>
           </div>
 
-          <div className="inline-flex bg-slate-200/70 p-1 rounded-xl text-xs font-bold">
-            {(["EXPENSE", "INCOME", "ALL"] as const).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setTxFilter(tab)}
-                className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                  txFilter === tab
-                    ? "bg-white text-slate-900 shadow-2xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Filter Pos Biaya */}
+            <div className="inline-flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-2.5 py-1 text-xs">
+              <Filter size={12} className="text-slate-400" />
+              <select
+                value={posFilter}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setPosFilter(val);
+                  if (val !== "ALL") setTxFilter("EXPENSE");
+                }}
+                className="bg-transparent font-semibold text-slate-700 focus:outline-none text-xs cursor-pointer"
+                aria-label="Filter Pos Biaya"
               >
-                {tab === "EXPENSE" ? "Pengeluaran" : tab === "INCOME" ? "Pemasukan" : "Semua"}
-              </button>
-            ))}
+                <option value="ALL">Semua Pos</option>
+                {IYRC_EXPENSE_BUDGET_POSITIONS.map((p) => (
+                  <option key={p.key} value={p.key}>
+                    {p.code}: {p.shortLabel}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Filter Alokasi Program */}
+            <div className="inline-flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-2.5 py-1 text-xs">
+              <select
+                value={programFilter}
+                onChange={(e) => setProgramFilter(e.target.value)}
+                className="bg-transparent font-semibold text-slate-700 focus:outline-none text-xs cursor-pointer"
+                aria-label="Filter Alokasi Program"
+              >
+                <option value="ALL">Semua Program</option>
+                {IYRC_PROGRAM_OPTIONS.map((p) => (
+                  <option key={p.key} value={p.key}>
+                    {p.shortLabel}
+                  </option>
+                ))}
+                <option value="UNASSIGNED">Belum Dialokasikan</option>
+              </select>
+            </div>
+
+            {/* Toggle Pengeluaran / Pemasukan / Semua */}
+            <div className="inline-flex bg-slate-200/70 p-1 rounded-xl text-xs font-bold">
+              {(["EXPENSE", "INCOME", "ALL"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => {
+                    setTxFilter(tab);
+                    if (tab === "INCOME") setPosFilter("ALL");
+                  }}
+                  className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                    txFilter === tab
+                      ? "bg-white text-slate-900 shadow-2xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  {tab === "EXPENSE" ? "Pengeluaran" : tab === "INCOME" ? "Pemasukan" : "Semua"}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -688,7 +1040,7 @@ export default function IyrcPnLTab({
             <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider">
               <tr>
                 <th className="px-4 py-3 text-left">Tanggal</th>
-                <th className="px-4 py-3 text-left">Uraian, Pos &amp; Akun COA</th>
+                <th className="px-4 py-3 text-left">Uraian, Pos, Program &amp; COA</th>
                 <th className="px-4 py-3 text-center">Status &amp; Jurnal</th>
                 <th className="px-4 py-3 text-right">Nominal</th>
                 <th className="px-4 py-3 text-center">Bukti &amp; WA</th>
@@ -699,14 +1051,22 @@ export default function IyrcPnLTab({
               {filteredTransactions.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-10 text-center text-slate-400">
-                    Belum ada transaksi pengeluaran IYRC yang dicatat. Klik{" "}
-                    <strong>Catat Pengeluaran</strong> atau <strong>Scan PDF Invoice (AI)</strong> di atas.
+                    Tidak ada transaksi yang cocok dengan filter saat ini. Klik{" "}
+                    <strong>Catat Pengeluaran</strong> atau ubah filter di atas.
                   </td>
                 </tr>
               ) : (
                 filteredTransactions.map((tx) => {
                   const cur = (tx.currency || "IDR").toUpperCase();
                   const isFx = cur !== "IDR" && cur !== "RP";
+                  const progLabel = tx.iyrcProgram
+                    ? PROGRAM_LABEL_MAP.get(tx.iyrcProgram) || tx.iyrcProgram
+                    : null;
+                  const posLabel =
+                    tx.type === "EXPENSE" && tx.iyrcBudgetPos
+                      ? BUDGET_POS_LABEL_MAP.get(tx.iyrcBudgetPos) || tx.iyrcBudgetPos
+                      : null;
+
                   return (
                     <tr key={tx.id} className="hover:bg-slate-50/60">
                       <td className="px-4 py-3 whitespace-nowrap text-slate-600 font-medium">
@@ -716,10 +1076,19 @@ export default function IyrcPnLTab({
                           year: "numeric",
                         })}
                       </td>
-                      <td className="px-4 py-3 max-w-sm">
+                      <td className="px-4 py-3 max-w-md">
                         <div className="font-semibold text-slate-900">{tx.description}</div>
-                        <div className="text-[11px] text-slate-500 mt-0.5 flex flex-wrap gap-1.5 items-center">
-                          <span>{tx.category}</span>
+                        <div className="text-[11px] text-slate-500 mt-1 flex flex-wrap gap-1.5 items-center">
+                          {posLabel && (
+                            <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-bold text-[10px]">
+                              {posLabel}
+                            </span>
+                          )}
+                          {progLabel && (
+                            <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 font-bold text-[10px]">
+                              {progLabel}
+                            </span>
+                          )}
                           {tx.vendorName && <span>&bull; {tx.vendorName}</span>}
                           {tx.invoiceNumber && (
                             <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-[10px]">
@@ -756,7 +1125,7 @@ export default function IyrcPnLTab({
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right font-mono font-bold">
+                      <td className="px-4 py-3 text-right font-mono font-bold whitespace-nowrap">
                         <span className={tx.type === "INCOME" ? "text-emerald-700" : "text-rose-700"}>
                           {tx.type === "INCOME" ? "+" : "-"} {formatCurrency(tx.amount)}
                         </span>
@@ -845,12 +1214,7 @@ export default function IyrcPnLTab({
               </h3>
               <button
                 type="button"
-                onClick={() => {
-                  setShowFormModal(false);
-                  setAutoOpenScanner(false);
-                  setEditingTx(null);
-                  setDefaultBudgetPos("");
-                }}
+                onClick={closeFormModal}
                 className="p-1.5 rounded-lg hover:bg-white/10 text-white cursor-pointer"
               >
                 <X size={18} />
@@ -864,20 +1228,14 @@ export default function IyrcPnLTab({
                 autoOpenScanner={autoOpenScanner}
                 defaultProjectId={iyrcProject?.id}
                 defaultIyrcBudgetPos={defaultBudgetPos}
+                defaultIyrcProgram={defaultProgram}
+                defaultDescription={defaultDescription}
                 defaultType={defaultType}
                 onSuccess={() => {
-                  setShowFormModal(false);
-                  setAutoOpenScanner(false);
-                  setEditingTx(null);
-                  setDefaultBudgetPos("");
+                  closeFormModal();
                   router.refresh();
                 }}
-                onCancel={() => {
-                  setShowFormModal(false);
-                  setAutoOpenScanner(false);
-                  setEditingTx(null);
-                  setDefaultBudgetPos("");
-                }}
+                onCancel={closeFormModal}
               />
             </div>
           </div>

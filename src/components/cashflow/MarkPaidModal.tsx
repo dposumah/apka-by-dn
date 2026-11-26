@@ -27,9 +27,11 @@ export interface CashflowTxRecord {
   invoiceNumber?: string | null;
   currency?: string | null;
   originalAmount?: number | null;
+  exchangeRate?: number | null;
   accountId?: string | null;
   taxWithheldAmount?: number | null;
   iyrcBudgetPos?: string | null;
+  iyrcProgram?: string | null;
   account?: { id: string; code: string; name: string; type: string } | null;
   journalEntry?: { id: string; entryNumber: string; status: string } | null;
 }

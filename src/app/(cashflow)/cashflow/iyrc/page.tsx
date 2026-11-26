@@ -5,7 +5,7 @@ import IyrcClientPage from "./IyrcClientPage";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "IYRC China 2026 - Rencana Anggaran & Kontingen",
+  title: "IYRC China 2026 - Laba Rugi & RAB (upNov26)",
 };
 
 export default async function IyrcPage() {

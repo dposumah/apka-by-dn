@@ -48,7 +48,7 @@ export function suggestCashflowAccountCode(params: {
   }
 
   // EXPENSE
-  if (iyrcBudgetPos === "MY_ROBOT" || text.includes("my-robot") || text.includes("registrasi")) {
+  if (iyrcBudgetPos === "MY_ROBOT" || text.includes("my-robot") || text.includes("registrasi") || text.includes("trainer") || text.includes("instructor training")) {
     return "600.10.027"; // Biaya Event
   }
   if (iyrcBudgetPos === "KIT_PPN") {
@@ -104,6 +104,21 @@ export function inferIyrcBudgetPos(params: {
   const text = `${params.category || ""} ${params.vendorName || ""} ${params.description || ""}`.toLowerCase();
 
   if (params.type === "EXPENSE") {
+    // Bagian 8 (Biaya Tambahan) dicek terlebih dahulu agar tidak tertukar dengan Pos 2 / Pos 5
+    if (
+      text.includes("ww2611-00009") ||
+      text.includes("trainer") ||
+      text.includes("instructor training") ||
+      text.includes("lauw mei hoa") ||
+      text.includes("laundry") ||
+      text.includes("print") ||
+      text.includes("banner") ||
+      text.includes("maket") ||
+      text.includes("game mat") ||
+      text.includes("alat-alat")
+    ) {
+      return "TAMBAHAN";
+    }
     if (text.includes("my-robot") || text.includes("ww2611") || text.includes("registrasi")) {
       return "MY_ROBOT";
     }

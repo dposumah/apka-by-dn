@@ -15,6 +15,7 @@ import {
 } from "@/lib/cashflow-invoice";
 import {
   IYRC_EXPENSE_BUDGET_POSITIONS,
+  IYRC_PROGRAM_OPTIONS,
   IYRC_REVENUE_ITEMS,
 } from "@/lib/iyrc-utils";
 import {
@@ -46,6 +47,8 @@ interface TransactionFormProps {
   autoOpenScanner?: boolean;
   defaultProjectId?: string;
   defaultIyrcBudgetPos?: string;
+  defaultIyrcProgram?: string;
+  defaultDescription?: string;
   defaultType?: "INCOME" | "EXPENSE";
 }
 
@@ -58,6 +61,8 @@ export default function TransactionForm({
   autoOpenScanner = false,
   defaultProjectId,
   defaultIyrcBudgetPos,
+  defaultIyrcProgram,
+  defaultDescription,
   defaultType,
 }: TransactionFormProps) {
   const existingMeta: any = initialData?.invoiceMetadata || {};
@@ -94,14 +99,14 @@ export default function TransactionForm({
       : new Date().toISOString().split("T")[0],
     type: initialData?.type || defaultType || "EXPENSE",
     amount: initialData?.amount !== undefined ? String(initialData.amount) : "",
-    description: initialData?.description || "",
+    description: initialData?.description || defaultDescription || "",
     category: initialData?.category || initialExpensePos?.defaultCategory || "",
     paymentMethod: initialData?.paymentMethod || "TRANSFER",
     status: initialData?.status || (autoOpenScanner ? "PENDING" : "COMPLETED"),
     receiptUrl: initialData?.receiptUrl || "",
     accountId: initialAccountId,
     iyrcBudgetPos: initialData?.iyrcBudgetPos || defaultIyrcBudgetPos || "",
-    iyrcProgram: initialData?.iyrcProgram || "",
+    iyrcProgram: initialData?.iyrcProgram || defaultIyrcProgram || "",
     taxWithheldAmount:
       initialData?.taxWithheldAmount !== undefined &&
       initialData?.taxWithheldAmount !== null
@@ -839,57 +844,79 @@ export default function TransactionForm({
           </select>
         </div>
 
-        {/* Pos Anggaran IYRC bila proyek = IYRC */}
+        {/* Pos Anggaran & Alokasi Program IYRC bila proyek = IYRC */}
         {selectedProjectName.toUpperCase() === "IYRC" && (
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-indigo-700 mb-1">
-              Pos Laba Rugi IYRC (upNov10)
-            </label>
-            <select
-              className="block w-full rounded-xl border-indigo-300 shadow-xs border p-2.5 text-sm bg-indigo-50/40 focus:ring-2 focus:ring-indigo-500"
-              value={formData.iyrcBudgetPos}
-              onChange={(e) => {
-                const posKey = e.target.value;
-                const expPos = IYRC_EXPENSE_BUDGET_POSITIONS.find((p) => p.key === posKey);
-                const revPos = IYRC_REVENUE_ITEMS.find((r) => r.budgetPos === posKey);
-                const matchedAccCode = expPos?.defaultAccountCode || revPos?.defaultAccountCode;
-                const matchedAcc = matchedAccCode
-                  ? accounts.find((a) => a.code === matchedAccCode)
-                  : undefined;
+          <>
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-indigo-700 mb-1">
+                Pos Laba Rugi IYRC (upNov26)
+              </label>
+              <select
+                className="block w-full rounded-xl border-indigo-300 shadow-xs border p-2.5 text-sm bg-indigo-50/40 focus:ring-2 focus:ring-indigo-500"
+                value={formData.iyrcBudgetPos}
+                onChange={(e) => {
+                  const posKey = e.target.value;
+                  const expPos = IYRC_EXPENSE_BUDGET_POSITIONS.find((p) => p.key === posKey);
+                  const revPos = IYRC_REVENUE_ITEMS.find((r) => r.budgetPos === posKey);
+                  const matchedAccCode = expPos?.defaultAccountCode || revPos?.defaultAccountCode;
+                  const matchedAcc = matchedAccCode
+                    ? accounts.find((a) => a.code === matchedAccCode)
+                    : undefined;
 
-                setFormData((prev) => ({
-                  ...prev,
-                  iyrcBudgetPos: posKey,
-                  iyrcProgram: revPos?.program || prev.iyrcProgram || "GABUNGAN",
-                  category:
-                    expPos?.defaultCategory ||
-                    revPos?.category ||
-                    prev.category,
-                  accountId: matchedAcc?.id || prev.accountId,
-                }));
-              }}
-            >
-              <option value="">Otomatis deteksi pos</option>
-              {formData.type === "EXPENSE" ? (
-                IYRC_EXPENSE_BUDGET_POSITIONS.map((p) => (
-                  <option key={p.key} value={p.key}>
-                    {p.code}: {p.shortLabel}
+                  setFormData((prev) => ({
+                    ...prev,
+                    iyrcBudgetPos: posKey,
+                    iyrcProgram: revPos?.program || prev.iyrcProgram || "STAF_RE",
+                    category:
+                      expPos?.defaultCategory ||
+                      revPos?.category ||
+                      prev.category,
+                    accountId: matchedAcc?.id || prev.accountId,
+                  }));
+                }}
+              >
+                <option value="">Otomatis deteksi pos</option>
+                {formData.type === "EXPENSE" ? (
+                  IYRC_EXPENSE_BUDGET_POSITIONS.map((p) => (
+                    <option key={p.key} value={p.key}>
+                      {p.code}: {p.shortLabel}
+                    </option>
+                  ))
+                ) : (
+                  IYRC_REVENUE_ITEMS.map((r) => (
+                    <option key={r.budgetPos} value={r.budgetPos}>
+                      {r.programLabel}: {r.description.slice(0, 42)}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-indigo-700 mb-1">
+                Alokasi Program IYRC (Bagian 7)
+              </label>
+              <select
+                className="block w-full rounded-xl border-indigo-300 shadow-xs border p-2.5 text-sm bg-indigo-50/40 focus:ring-2 focus:ring-indigo-500"
+                value={formData.iyrcProgram}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, iyrcProgram: e.target.value }))
+                }
+              >
+                <option value="">Pilih alokasi program...</option>
+                {IYRC_PROGRAM_OPTIONS.map((prog) => (
+                  <option key={prog.key} value={prog.key}>
+                    {prog.label}
                   </option>
-                ))
-              ) : (
-                IYRC_REVENUE_ITEMS.map((r) => (
-                  <option key={r.budgetPos} value={r.budgetPos}>
-                    {r.programLabel}: {r.description.slice(0, 42)}
-                  </option>
-                ))
-              )}
-            </select>
-          </div>
+                ))}
+              </select>
+            </div>
+          </>
         )}
 
         {/* Pilihan Akun COA Akuntansi Utama */}
         {accounts.length > 0 && (
-          <div className={selectedProjectName.toUpperCase() === "IYRC" ? "" : "md:col-span-2"}>
+          <div className="md:col-span-2">
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
               Akun Akuntansi Utama (COA → Jurnal Umum)
             </label>

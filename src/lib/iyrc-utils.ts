@@ -620,9 +620,9 @@ export function terbilang(n: number): string {
   return s.charAt(0).toUpperCase() + s.slice(1) + " rupiah";
 }
 
-// ==================== LABA RUGI & PAGU IYRC CHINA 2026 (upNov10) ====================
+// ==================== LABA RUGI, RAB & PAGU IYRC CHINA 2026 (upNov26) ====================
 
-export const IYRC_PNL_VERSION = "10 November 2026 (upNov10)";
+export const IYRC_PNL_VERSION = "26 November 2026 (upNov26)";
 
 export const IYRC_PNL_ASSUMPTIONS = {
   usdToIdr: 18500,
@@ -632,7 +632,7 @@ export const IYRC_PNL_ASSUMPTIONS = {
   ticketVisaInsurancePerPerson: 8300000,
   sntTravelCount: 6,
   grethaTravelCount: 1,
-  reStaffTravelCount: 4,
+  reStaffTravelCount: 3, // Wisnu Budi Prasetyo, Agung Ramadhan, Jully Tjindrawan (tiket Lauw Mei Hoa dipisah di Bagian 8)
   tunasBangsaTravelCount: 0,
   kitModalUsdPerChild: 190,
   creativeKitModalIdrPerChild: 2000000,
@@ -641,12 +641,28 @@ export const IYRC_PNL_ASSUMPTIONS = {
   kitCountTunasBangsa: 2,
 };
 
+export type IyrcProgramKey = "SNT" | "GRETHA" | "TUNAS_BANGSA" | "KIT_SNT" | "STAF_RE";
+
+export const IYRC_PROGRAM_OPTIONS: Array<{
+  key: IyrcProgramKey;
+  label: string;
+  shortLabel: string;
+}> = [
+  { key: "SNT", label: "SNT – RAB Kemendikdasmen", shortLabel: "SNT" },
+  { key: "GRETHA", label: "Gretha – Pemda Kab. Kupang", shortLabel: "Gretha" },
+  { key: "TUNAS_BANGSA", label: "Tunas Bangsa – 2 Siswa + Pak Hardian", shortLabel: "Tunas Bangsa" },
+  { key: "KIT_SNT", label: "Pengadaan Kit SNT – Surat Penawaran 001", shortLabel: "Kit SNT" },
+  { key: "STAF_RE", label: "Staf RE & Biaya Bersama", shortLabel: "Staf RE / Bersama" },
+];
+
 export interface IyrcRevenueSeedItem {
   budgetPos: string;
   program: "SNT" | "GRETHA" | "TUNAS_BANGSA" | "KIT_SNT";
   programLabel: string;
   description: string;
   category: string;
+  qty: number;
+  unitPrice: number;
   amount: number;
   initialStatus: "PENDING" | "COMPLETED";
   defaultDate: string;
@@ -668,12 +684,53 @@ export interface IyrcExpenseBudgetPos {
 }
 
 export interface IyrcProgramSummaryBudget {
-  program: "SNT" | "GRETHA" | "TUNAS_BANGSA" | "KIT_SNT" | "STAF_RE";
+  program: IyrcProgramKey;
   label: string;
   revenueBudget: number;
   expenseBudget: number;
   profitBudget: number;
   allocationNote: string;
+}
+
+export interface IyrcMyRobotLineItem {
+  id: string;
+  description: string;
+  qty: number;
+  unitUsd: number;
+  totalUsd: number;
+  program: IyrcProgramKey;
+  participants: string;
+}
+
+export interface IyrcHotel88LineItem {
+  id: string;
+  description: string;
+  qty: number;
+  nightsOrDays: number;
+  unitPrice: number;
+  totalIdr: number;
+  period: string;
+  sharedWithGretha: boolean;
+}
+
+export interface IyrcAdditionalExpenseSeedItem {
+  seedKey: string;
+  date: string; // YYYY-MM-DD
+  description: string;
+  category: string;
+  currency: "IDR" | "USD";
+  originalAmount: number;
+  exchangeRate: number;
+  amount: number;
+  program: IyrcProgramKey;
+  allocationLabel: string;
+  budgetPos: "TAMBAHAN";
+  initialStatus: "COMPLETED" | "PENDING";
+  paymentMethod: "TRANSFER" | "BANK" | "CASH";
+  vendorName: string;
+  invoiceNumber: string | null;
+  defaultAccountCode: string;
+  proofNote: string;
 }
 
 export const IYRC_REVENUE_ITEMS: IyrcRevenueSeedItem[] = [
@@ -683,6 +740,8 @@ export const IYRC_REVENUE_ITEMS: IyrcRevenueSeedItem[] = [
     programLabel: "SNT – Kemendikdasmen",
     description: "RAB SNT – Rincian I (kompetisi, guru, akomodasi Jakarta)",
     category: "Pendapatan RAB SNT Rincian I",
+    qty: 1,
+    unitPrice: 146400000,
     amount: 146400000,
     initialStatus: "PENDING",
     defaultDate: "2026-11-09",
@@ -697,6 +756,8 @@ export const IYRC_REVENUE_ITEMS: IyrcRevenueSeedItem[] = [
     programLabel: "SNT – Kemendikdasmen",
     description: "RAB SNT – Rincian II (visa, asuransi, perjalanan internasional)",
     category: "Pendapatan RAB SNT Rincian II",
+    qty: 1,
+    unitPrice: 61195360,
     amount: 61195360,
     initialStatus: "PENDING",
     defaultDate: "2026-11-09",
@@ -711,6 +772,8 @@ export const IYRC_REVENUE_ITEMS: IyrcRevenueSeedItem[] = [
     programLabel: "Gretha – Pemda Kab. Kupang",
     description: "Biaya Peserta IYRC Pemda Kupang a.n Gretha Gratia Tameno",
     category: "Peserta IYRC Pemda Kupang",
+    qty: 1,
+    unitPrice: 47150000,
     amount: 47150000,
     initialStatus: "COMPLETED",
     defaultDate: "2026-11-11",
@@ -725,6 +788,8 @@ export const IYRC_REVENUE_ITEMS: IyrcRevenueSeedItem[] = [
     programLabel: "Tunas Bangsa",
     description: "Tunas Bangsa – 2 siswa (Benjamin & Sebastian, tidak termasuk tiket & visa)",
     category: "Peserta IYRC Tunas Bangsa",
+    qty: 2,
+    unitPrice: 36500000,
     amount: 73000000,
     initialStatus: "PENDING",
     defaultDate: "2026-11-10",
@@ -739,6 +804,8 @@ export const IYRC_REVENUE_ITEMS: IyrcRevenueSeedItem[] = [
     programLabel: "Tunas Bangsa",
     description: "Pak Hardian – tambahan extend paket 4D3N → 6D5N",
     category: "Tambahan Paket IYRC",
+    qty: 1,
+    unitPrice: 6500000,
     amount: 6500000,
     initialStatus: "PENDING",
     defaultDate: "2026-11-10",
@@ -753,6 +820,8 @@ export const IYRC_REVENUE_ITEMS: IyrcRevenueSeedItem[] = [
     programLabel: "Pengadaan Kit SNT",
     description: "Surat Penawaran pengadaan robot kit + creative kit SNT (termasuk PPN)",
     category: "Penjualan Kit SNT IYRC",
+    qty: 1,
+    unitPrice: 42400000,
     amount: 42400000,
     initialStatus: "PENDING",
     defaultDate: "2026-11-10",
@@ -760,6 +829,388 @@ export const IYRC_REVENUE_ITEMS: IyrcRevenueSeedItem[] = [
     invoiceNumber: "001/SPH/REX/XI/2026",
     defaultAccountCode: "400.10.102",
     sourceNote: "001/SPH/REX/XI/2026 (4 siswa × Rp 10.600.000 incl. PPN)",
+  },
+];
+
+/** Bagian 2 Excel: Rincian Invoice MY-ROBOT WW2611-00002 (USD 7.070) */
+export const IYRC_MY_ROBOT_ITEMS: IyrcMyRobotLineItem[] = [
+  {
+    id: "mr-tb-siswa",
+    description: "Students Registration Fee – 6D5N (Tunas Bangsa)",
+    qty: 2,
+    unitUsd: 780,
+    totalUsd: 1560,
+    program: "TUNAS_BANGSA",
+    participants: "Benjamin Jonathan Sudartha, Sebastian Daryl Limanus",
+  },
+  {
+    id: "mr-tb-hardian",
+    description: "Parents/Instructors – 6D5N (Tunas Bangsa)",
+    qty: 1,
+    unitUsd: 880,
+    totalUsd: 880,
+    program: "TUNAS_BANGSA",
+    participants: "Hardian",
+  },
+  {
+    id: "mr-snt-siswa",
+    description: "Students Registration Fee – 4D3N (SNT)",
+    qty: 4,
+    unitUsd: 530,
+    totalUsd: 2120,
+    program: "SNT",
+    participants: "Nahjul, Prince, Bunga, Shabiq",
+  },
+  {
+    id: "mr-gretha",
+    description: "Students Registration Fee – 4D3N (Gretha)",
+    qty: 1,
+    unitUsd: 590,
+    totalUsd: 590,
+    program: "GRETHA",
+    participants: "Gretha Gratia Tameno",
+  },
+  {
+    id: "mr-snt-guru",
+    description: "Parents/Instructors – 4D3N (guru SNT)",
+    qty: 2,
+    unitUsd: 480,
+    totalUsd: 960,
+    program: "SNT",
+    participants: "Chindra Saputra, Farid AM",
+  },
+  {
+    id: "mr-staf-re",
+    description: "Parents/Instructors – 4D3N (staf RE)",
+    qty: 2,
+    unitUsd: 480,
+    totalUsd: 960,
+    program: "STAF_RE",
+    participants: "Wisnu Budi Prasetyo, Agung Ramadhan",
+  },
+  {
+    id: "mr-jully-foc",
+    description: "Parents/Instructors – 4D3N (FOC)",
+    qty: 1,
+    unitUsd: 0,
+    totalUsd: 0,
+    program: "STAF_RE",
+    participants: "Jully Tjindrawan",
+  },
+];
+
+/** Bagian 4 Excel: Rincian Hotel 88 Kedoya (Jakarta) – Total Rp 32.550.000 */
+export const IYRC_HOTEL_88_ITEMS: IyrcHotel88LineItem[] = [
+  {
+    id: "h88-putra",
+    description: "Superior Twin – siswa putra",
+    qty: 1,
+    nightsOrDays: 26,
+    unitPrice: 350000,
+    totalIdr: 9100000,
+    period: "15 Nov – 11 Des",
+    sharedWithGretha: true,
+  },
+  {
+    id: "h88-putri",
+    description: "Deluxe Double Bed – siswa putri",
+    qty: 1,
+    nightsOrDays: 26,
+    unitPrice: 350000,
+    totalIdr: 9100000,
+    period: "15 Nov – 11 Des",
+    sharedWithGretha: true,
+  },
+  {
+    id: "h88-extrabed",
+    description: "Extrabed – kamar putri",
+    qty: 1,
+    nightsOrDays: 26,
+    unitPrice: 150000,
+    totalIdr: 3900000,
+    period: "15 Nov – 11 Des",
+    sharedWithGretha: true,
+  },
+  {
+    id: "h88-chindra",
+    description: "Superior Double Bed – Pak Chindra",
+    qty: 1,
+    nightsOrDays: 10,
+    unitPrice: 350000,
+    totalIdr: 3500000,
+    period: "1 – 11 Des",
+    sharedWithGretha: false,
+  },
+  {
+    id: "h88-farid",
+    description: "Deluxe Double Bed – Pak Farid",
+    qty: 1,
+    nightsOrDays: 2,
+    unitPrice: 350000,
+    totalIdr: 700000,
+    period: "9 – 11 Des",
+    sharedWithGretha: false,
+  },
+  {
+    id: "h88-lunch",
+    description: "Lunch & Coffee Break – 5 siswa",
+    qty: 5,
+    nightsOrDays: 25,
+    unitPrice: 50000,
+    totalIdr: 6250000,
+    period: "16 Nov – 10 Des",
+    sharedWithGretha: true,
+  },
+];
+
+/** Bagian 8 Excel: 13 Item Realisasi Biaya Tambahan s.d. 26 Nov 2026 (Total Rp 29.577.800) */
+export const IYRC_ADDITIONAL_EXPENSE_ITEMS: IyrcAdditionalExpenseSeedItem[] = [
+  {
+    seedKey: "ADD_TIKET_LAUW",
+    date: "2026-11-16",
+    description: "Tiket pesawat Lauw Mei Hoa CGK–SZX PP (China Southern)",
+    category: "Pos 6 - Biaya Tambahan IYRC (Tiket)",
+    currency: "IDR",
+    originalAmount: 7361300,
+    exchangeRate: 1,
+    amount: 7361300,
+    program: "STAF_RE",
+    allocationLabel: "Bersama",
+    budgetPos: "TAMBAHAN",
+    initialStatus: "COMPLETED",
+    paymentMethod: "TRANSFER",
+    vendorName: "Traveloka / China Southern Airlines",
+    invoiceNumber: "TVLK-1881977519109862449",
+    defaultAccountCode: "600.10.026",
+    proofNote: "Traveloka #1881977519109862449; berangkat 11 Des, pulang 14 Des; termasuk service fee Rp67.500",
+  },
+  {
+    seedKey: "ADD_TRAINER_MRT",
+    date: "2026-11-25",
+    description: "Trainer MRT Malaysia – Instructor Training Fee 2 pax (2–3 Des)",
+    category: "Pos 6 - Biaya Tambahan IYRC (Trainer)",
+    currency: "USD",
+    originalAmount: 1166,
+    exchangeRate: 18500,
+    amount: 21571000,
+    program: "TUNAS_BANGSA",
+    allocationLabel: "Tunas Bangsa",
+    budgetPos: "TAMBAHAN",
+    initialStatus: "PENDING",
+    paymentMethod: "BANK",
+    vendorName: "MY-ROBOT WORLDWIDE SDN BHD",
+    invoiceNumber: "WW2611-00009",
+    defaultAccountCode: "600.10.027",
+    proofNote: "Invoice MY-ROBOT WW2611-00009 (USD 1.166 × kurs Rp18.500) – menunggu transfer/kurs aktual",
+  },
+  {
+    seedKey: "ADD_LAUNDRY_1",
+    date: "2026-11-18",
+    description: "Laundry – Kotak Laundry Green Garden (18 Nov)",
+    category: "Pos 6 - Biaya Tambahan IYRC (Laundry)",
+    currency: "IDR",
+    originalAmount: 77000,
+    exchangeRate: 1,
+    amount: 77000,
+    program: "SNT",
+    allocationLabel: "SNT",
+    budgetPos: "TAMBAHAN",
+    initialStatus: "COMPLETED",
+    paymentMethod: "TRANSFER",
+    vendorName: "Kotak Laundry Green Garden",
+    invoiceNumber: "SWY261118192558556",
+    defaultAccountCode: "600.10.032",
+    proofNote: "Nota SWY261118192558556",
+  },
+  {
+    seedKey: "ADD_LAUNDRY_2",
+    date: "2026-11-19",
+    description: "Laundry – Kotak Laundry Green Garden (19 Nov)",
+    category: "Pos 6 - Biaya Tambahan IYRC (Laundry)",
+    currency: "IDR",
+    originalAmount: 32000,
+    exchangeRate: 1,
+    amount: 32000,
+    program: "SNT",
+    allocationLabel: "SNT",
+    budgetPos: "TAMBAHAN",
+    initialStatus: "COMPLETED",
+    paymentMethod: "TRANSFER",
+    vendorName: "Kotak Laundry Green Garden",
+    invoiceNumber: "DOM261119135032102",
+    defaultAccountCode: "600.10.032",
+    proofNote: "Nota DOM261119135032102",
+  },
+  {
+    seedKey: "ADD_LAUNDRY_3",
+    date: "2026-11-23",
+    description: "Laundry – Kotak Laundry Green Garden (23 Nov)",
+    category: "Pos 6 - Biaya Tambahan IYRC (Laundry)",
+    currency: "IDR",
+    originalAmount: 135000,
+    exchangeRate: 1,
+    amount: 135000,
+    program: "SNT",
+    allocationLabel: "SNT",
+    budgetPos: "TAMBAHAN",
+    initialStatus: "COMPLETED",
+    paymentMethod: "TRANSFER",
+    vendorName: "Kotak Laundry Green Garden",
+    invoiceNumber: "SCO261123085814898",
+    defaultAccountCode: "600.10.032",
+    proofNote: "Nota SCO261123085814898",
+  },
+  {
+    seedKey: "ADD_PRINT_WINNER",
+    date: "2026-09-28",
+    description: "Print game mat trip bahan flexy cina 244×123 cm (Winner)",
+    category: "Pos 6 - Biaya Tambahan IYRC (Print & Maket)",
+    currency: "IDR",
+    originalAmount: 112000,
+    exchangeRate: 1,
+    amount: 112000,
+    program: "STAF_RE",
+    allocationLabel: "Bersama",
+    budgetPos: "TAMBAHAN",
+    initialStatus: "COMPLETED",
+    paymentMethod: "TRANSFER",
+    vendorName: "Winner Printing",
+    invoiceNumber: "38/WN/IX/26",
+    defaultAccountCode: "600.10.032",
+    proofNote: "Kwitansi Winner No. 38/WN/IX/26",
+  },
+  {
+    seedKey: "ADD_PRINT_MAKET_0411",
+    date: "2026-11-04",
+    description: "Print – bayar maket IYRC",
+    category: "Pos 6 - Biaya Tambahan IYRC (Print & Maket)",
+    currency: "IDR",
+    originalAmount: 23000,
+    exchangeRate: 1,
+    amount: 23000,
+    program: "STAF_RE",
+    allocationLabel: "Bersama",
+    budgetPos: "TAMBAHAN",
+    initialStatus: "COMPLETED",
+    paymentMethod: "TRANSFER",
+    vendorName: "Kijanto Sudarmawan",
+    invoiceNumber: "BCA-PRN-20261104",
+    defaultAccountCode: "600.10.032",
+    proofNote: "m-Transfer BCA ke Kijanto Sudarmawan",
+  },
+  {
+    seedKey: "ADD_PRINT_BANNER_0711",
+    date: "2026-11-07",
+    description: "Print – banner IYRC",
+    category: "Pos 6 - Biaya Tambahan IYRC (Print & Maket)",
+    currency: "IDR",
+    originalAmount: 23000,
+    exchangeRate: 1,
+    amount: 23000,
+    program: "STAF_RE",
+    allocationLabel: "Bersama",
+    budgetPos: "TAMBAHAN",
+    initialStatus: "COMPLETED",
+    paymentMethod: "TRANSFER",
+    vendorName: "Kijanto Sudarmawan",
+    invoiceNumber: "BCA-PRN-20261107",
+    defaultAccountCode: "600.10.032",
+    proofNote: "m-Transfer BCA ke Kijanto Sudarmawan",
+  },
+  {
+    seedKey: "ADD_PRINT_BANNER_MAKET_1211",
+    date: "2026-11-12",
+    description: "Print – cetak banner maket IYRC",
+    category: "Pos 6 - Biaya Tambahan IYRC (Print & Maket)",
+    currency: "IDR",
+    originalAmount: 23000,
+    exchangeRate: 1,
+    amount: 23000,
+    program: "STAF_RE",
+    allocationLabel: "Bersama",
+    budgetPos: "TAMBAHAN",
+    initialStatus: "COMPLETED",
+    paymentMethod: "TRANSFER",
+    vendorName: "Kijanto Sudarmawan",
+    invoiceNumber: "BCA-PRN-20261112",
+    defaultAccountCode: "600.10.032",
+    proofNote: "m-Transfer BCA ke Kijanto Sudarmawan",
+  },
+  {
+    seedKey: "ADD_PRINT_BANNER_2011",
+    date: "2026-11-20",
+    description: "Print – cetak banner",
+    category: "Pos 6 - Biaya Tambahan IYRC (Print & Maket)",
+    currency: "IDR",
+    originalAmount: 149500,
+    exchangeRate: 1,
+    amount: 149500,
+    program: "STAF_RE",
+    allocationLabel: "Bersama",
+    budgetPos: "TAMBAHAN",
+    initialStatus: "COMPLETED",
+    paymentMethod: "TRANSFER",
+    vendorName: "Kijanto Sudarmawan",
+    invoiceNumber: "BCA-PRN-20261120",
+    defaultAccountCode: "600.10.032",
+    proofNote: "m-Transfer BCA ke Kijanto Sudarmawan",
+  },
+  {
+    seedKey: "ADD_PRINT_NUSANTARA_2311",
+    date: "2026-11-23",
+    description: "Print – cetak banner Nusantara Bot",
+    category: "Pos 6 - Biaya Tambahan IYRC (Print & Maket)",
+    currency: "IDR",
+    originalAmount: 23000,
+    exchangeRate: 1,
+    amount: 23000,
+    program: "STAF_RE",
+    allocationLabel: "Bersama",
+    budgetPos: "TAMBAHAN",
+    initialStatus: "COMPLETED",
+    paymentMethod: "TRANSFER",
+    vendorName: "Kijanto Sudarmawan",
+    invoiceNumber: "BCA-PRN-20261123",
+    defaultAccountCode: "600.10.032",
+    proofNote: "m-Transfer BCA ke Kijanto Sudarmawan",
+  },
+  {
+    seedKey: "ADD_PRINT_KARTU_2511",
+    date: "2026-11-25",
+    description: "Print – cetak kartu Creative IYRC",
+    category: "Pos 6 - Biaya Tambahan IYRC (Print & Maket)",
+    currency: "IDR",
+    originalAmount: 25000,
+    exchangeRate: 1,
+    amount: 25000,
+    program: "STAF_RE",
+    allocationLabel: "Bersama",
+    budgetPos: "TAMBAHAN",
+    initialStatus: "COMPLETED",
+    paymentMethod: "TRANSFER",
+    vendorName: "Kijanto Sudarmawan",
+    invoiceNumber: "BCA-PRN-20261125",
+    defaultAccountCode: "600.10.032",
+    proofNote: "m-Transfer BCA ke Kijanto Sudarmawan",
+  },
+  {
+    seedKey: "ADD_PRINT_KARHUTLA_2611",
+    date: "2026-11-26",
+    description: "Print – maket Karhutla IYRC",
+    category: "Pos 6 - Biaya Tambahan IYRC (Print & Maket)",
+    currency: "IDR",
+    originalAmount: 23000,
+    exchangeRate: 1,
+    amount: 23000,
+    program: "STAF_RE",
+    allocationLabel: "Bersama",
+    budgetPos: "TAMBAHAN",
+    initialStatus: "COMPLETED",
+    paymentMethod: "TRANSFER",
+    vendorName: "Kijanto Sudarmawan",
+    invoiceNumber: "BCA-PRN-20261126",
+    defaultAccountCode: "600.10.032",
+    proofNote: "m-Transfer BCA ke Kijanto Sudarmawan",
   },
 ];
 
@@ -799,20 +1250,20 @@ export const IYRC_EXPENSE_BUDGET_POSITIONS: IyrcExpenseBudgetPos[] = [
     code: "Pos 5",
     label: "Tiket Pesawat, Visa China & Asuransi",
     shortLabel: "Tiket, Visa & Asuransi",
-    budgetAmount: 91300000,
+    budgetAmount: 83000000,
     defaultCategory: "Pos 5 - Tiket, Visa & Asuransi",
     defaultAccountCode: "600.10.026",
-    description: "11 orang × Rp 8.300.000 (Tiket Rp 6,5 jt + Visa Rp 1,5 jt + Asuransi Rp 300 rb): 6 SNT, 1 Gretha, 4 Staf RE",
+    description: "10 orang × Rp 8.300.000 (Tiket Rp 6,5 jt + Visa Rp 1,5 jt + Asuransi Rp 300 rb): 6 SNT, 1 Gretha, 3 Staf RE (Wisnu, Agung, Jully)",
   },
   {
     key: "TAMBAHAN",
     code: "Pos 6",
-    label: "Biaya Tambahan / Belum Dihitung di Pagu",
+    label: "Biaya Tambahan Realisasi (Bagian 8 · upNov26)",
     shortLabel: "Biaya Tambahan",
-    budgetAmount: 0,
+    budgetAmount: 29577800,
     defaultCategory: "Pos 6 - Biaya Tambahan IYRC",
     defaultAccountCode: "600.10.032",
-    description: "Makan malam siswa, transport bandara↔hotel Shenzhen, uang saku staf RE, honor pelatih, selisih kurs & fee transfer OCBC",
+    description: "Realisasi s.d. 26 Nov: Trainer MRT $1.166 (Rp 21,57 jt), Tiket Lauw Mei Hoa (Rp 7,36 jt), Laundry 3x (Rp 244 rb), Print/Banner/Maket 8x (Rp 401,5 rb); belum termasuk Pembelian alat-alat",
   },
 ];
 
@@ -821,9 +1272,9 @@ export const IYRC_PROGRAM_BREAKDOWN: IyrcProgramSummaryBudget[] = [
     program: "SNT",
     label: "SNT – RAB Kemendikdasmen (Versi 9 Nov)",
     revenueBudget: 207595360,
-    expenseBudget: 133660000,
-    profitBudget: 73935360,
-    allocationNote: "Paket MY-ROBOT 4 siswa + 2 guru, hotel (dikurangi porsi Gretha 1/5), tiket/visa/asuransi 6 orang",
+    expenseBudget: 133904000,
+    profitBudget: 73691360,
+    allocationNote: "Paket MY-ROBOT 4 siswa + 2 guru, hotel (dikurangi porsi Gretha 1/5), tiket/visa/asuransi 6 orang; + laundry 3 nota (Rp 244 rb)",
   },
   {
     program: "GRETHA",
@@ -831,15 +1282,15 @@ export const IYRC_PROGRAM_BREAKDOWN: IyrcProgramSummaryBudget[] = [
     revenueBudget: 47150000,
     expenseBudget: 30400000,
     profitBudget: 16750000,
-    allocationNote: "Paket MY-ROBOT, porsi 1/5 kamar siswa & lunch, tiket/visa/asuransi, kit",
+    allocationNote: "Paket MY-ROBOT ($590), porsi 1/5 kamar siswa & lunch, tiket/visa/asuransi, kit",
   },
   {
     program: "TUNAS_BANGSA",
     label: "Tunas Bangsa – 2 Siswa + Pak Hardian",
     revenueBudget: 79500000,
-    expenseBudget: 56170000,
-    profitBudget: 23330000,
-    allocationNote: "Paket 6D5N 2 siswa + Hardian, kit 2 siswa; pendapatan termasuk extend Rp 6,5 jt",
+    expenseBudget: 77741000,
+    profitBudget: 1759000,
+    allocationNote: "Paket 6D5N 2 siswa + Hardian, kit 2 siswa; pendapatan termasuk extend Rp 6,5 jt; + Trainer MRT 2–3 Des ($1.166 = Rp 21,57 jt)",
   },
   {
     program: "KIT_SNT",
@@ -851,11 +1302,11 @@ export const IYRC_PROGRAM_BREAKDOWN: IyrcProgramSummaryBudget[] = [
   },
   {
     program: "STAF_RE",
-    label: "Staf RE (Biaya Bersama)",
+    label: "Staf RE & Biaya Bersama",
     revenueBudget: 0,
-    expenseBudget: 50960000,
-    profitBudget: -50960000,
-    allocationNote: "Paket Wisnu & Agung (Jully FOC), tiket/visa/asuransi 4 staf RE",
+    expenseBudget: 50422800,
+    profitBudget: -50422800,
+    allocationNote: "Paket Wisnu & Agung (Jully FOC), tiket/visa/asuransi 3 staf RE; + tiket Lauw Mei Hoa (Rp 7,36 jt), print/banner/maket (Rp 401,5 rb)",
   },
 ];
 
@@ -864,12 +1315,210 @@ export const IYRC_UNBUDGETED_NOTES: string[] = [
   "Transport bandara ↔ hotel di Shenzhen, uang saku staf RE, dan honor pelatih internal.",
   "Potongan pajak oleh bendahara Kemendikdasmen / Pemda (PPN & PPh).",
   "Selisih kurs USD/IDR aktual dan biaya transfer internasional ke OCBC Malaysia.",
+  "Pembelian alat-alat belum ada nota/nominal (baris kuning di Bagian 8 Excel).",
 ];
 
 export const IYRC_PROFIT_LOSS_TOTALS = {
   totalRevenueBudget: 376645360,
-  totalExpenseBudget: 297451802,
-  projectedProfit: 79193558,
-  projectedMarginPct: 21.0,
+  totalExpenseBudget: 318729602,
+  projectedProfit: 57915758,
+  projectedMarginPct: 15.376734761846,
 };
+
+/**
+ * Simulator dinamis RAB & Laba Rugi IYRC upNov26 berdasarkan kurs USD aktual
+ * dan estimasi nominal 'Pembelian alat-alat' (baris kuning Bagian 8 Excel).
+ * Pada nilai default (usdToIdr = 18500, equipmentPurchaseEstimate = 0),
+ * seluruh angka cocok 100% dengan Excel IYRC_China_2026_upNov26.xlsx.
+ */
+export function calculateIyrcUpNov26Scenario(params?: {
+  usdToIdr?: number;
+  equipmentPurchaseEstimate?: number;
+}) {
+  const usdToIdr = Math.max(1000, Math.round(params?.usdToIdr ?? IYRC_PNL_ASSUMPTIONS.usdToIdr));
+  const equipmentPurchaseEstimate = Math.max(0, Math.round(params?.equipmentPurchaseEstimate ?? 0));
+
+  const totalRevenue = IYRC_REVENUE_ITEMS.reduce((s, r) => s + r.amount, 0);
+
+  // Bagian 2: MY-ROBOT WW2611-00002
+  const myRobotRows = IYRC_MY_ROBOT_ITEMS.map((item) => ({
+    ...item,
+    totalIdr: item.totalUsd * usdToIdr,
+  }));
+  const totalMyRobotUsd = myRobotRows.reduce((s, r) => s + r.totalUsd, 0);
+  const totalMyRobotIdr = myRobotRows.reduce((s, r) => s + r.totalIdr, 0);
+
+  // Bagian 3: Robot Kit & Creative Kit + PPN
+  const kitModalPerChild =
+    IYRC_PNL_ASSUMPTIONS.kitModalUsdPerChild * usdToIdr +
+    IYRC_PNL_ASSUMPTIONS.creativeKitModalIdrPerChild;
+  const kitSntCost = IYRC_PNL_ASSUMPTIONS.kitCountSnt * kitModalPerChild;
+  const kitGrethaCost = IYRC_PNL_ASSUMPTIONS.kitCountGretha * kitModalPerChild;
+  const kitTbCost = IYRC_PNL_ASSUMPTIONS.kitCountTunasBangsa * kitModalPerChild;
+  const kitSntRevenue = IYRC_REVENUE_ITEMS.find((r) => r.budgetPos === "REV_KIT_SNT")?.amount || 42400000;
+  const ppnKitSnt = Math.round((kitSntRevenue * 11) / 111);
+  const totalKitPpn = kitSntCost + kitGrethaCost + kitTbCost + ppnKitSnt;
+
+  // Bagian 4: Hotel 88 Kedoya
+  const totalHotel = IYRC_HOTEL_88_ITEMS.reduce((s, h) => s + h.totalIdr, 0);
+  const sharedStudentHotel = IYRC_HOTEL_88_ITEMS.filter((h) => h.sharedWithGretha).reduce(
+    (s, h) => s + h.totalIdr,
+    0
+  );
+  const grethaHotelShare = Math.round(sharedStudentHotel / 5);
+  const sntHotelShare = totalHotel - grethaHotelShare;
+
+  // Bagian 5: Tiket, Visa & Asuransi
+  const travelPerPerson = IYRC_PNL_ASSUMPTIONS.ticketVisaInsurancePerPerson;
+  const travelRows = [
+    {
+      id: "tv-snt",
+      label: "Peserta SNT (4 siswa + 2 guru)",
+      count: IYRC_PNL_ASSUMPTIONS.sntTravelCount,
+      perPerson: travelPerPerson,
+      totalIdr: IYRC_PNL_ASSUMPTIONS.sntTravelCount * travelPerPerson,
+      program: "SNT" as IyrcProgramKey,
+    },
+    {
+      id: "tv-gretha",
+      label: "Gretha",
+      count: IYRC_PNL_ASSUMPTIONS.grethaTravelCount,
+      perPerson: travelPerPerson,
+      totalIdr: IYRC_PNL_ASSUMPTIONS.grethaTravelCount * travelPerPerson,
+      program: "GRETHA" as IyrcProgramKey,
+    },
+    {
+      id: "tv-staf",
+      label: "Staf RE (Wisnu, Agung, Jully)",
+      count: IYRC_PNL_ASSUMPTIONS.reStaffTravelCount,
+      perPerson: travelPerPerson,
+      totalIdr: IYRC_PNL_ASSUMPTIONS.reStaffTravelCount * travelPerPerson,
+      program: "STAF_RE" as IyrcProgramKey,
+    },
+    {
+      id: "tv-tb",
+      label: "Tunas Bangsa",
+      count: IYRC_PNL_ASSUMPTIONS.tunasBangsaTravelCount,
+      perPerson: travelPerPerson,
+      totalIdr: IYRC_PNL_ASSUMPTIONS.tunasBangsaTravelCount * travelPerPerson,
+      program: "TUNAS_BANGSA" as IyrcProgramKey,
+    },
+  ];
+  const totalTravel = travelRows.reduce((s, t) => s + t.totalIdr, 0);
+
+  // Bagian 8: Biaya Tambahan Realisasi s.d. 26 Nov 2026
+  const additionalRows = IYRC_ADDITIONAL_EXPENSE_ITEMS.map((item) => ({
+    ...item,
+    computedIdr: item.currency === "USD" ? item.originalAmount * usdToIdr : item.originalAmount,
+  }));
+  const totalAdditionalRealized = additionalRows.reduce((s, a) => s + a.computedIdr, 0);
+  const totalAdditionalWithEquip = totalAdditionalRealized + equipmentPurchaseEstimate;
+
+  const totalExpense =
+    totalMyRobotIdr + totalKitPpn + totalHotel + totalTravel + totalAdditionalWithEquip;
+  const netProfit = totalRevenue - totalExpense;
+  const marginPct = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+
+  // Rincian per Program (Bagian 7)
+  const addByProgram = (prog: IyrcProgramKey) =>
+    additionalRows
+      .filter((a) => a.program === prog)
+      .reduce((s, a) => s + a.computedIdr, 0);
+  const mrByProgram = (prog: IyrcProgramKey) =>
+    myRobotRows
+      .filter((r) => r.program === prog)
+      .reduce((s, r) => s + r.totalIdr, 0);
+
+  const sntRev = 146400000 + 61195360;
+  const sntExp =
+    mrByProgram("SNT") +
+    sntHotelShare +
+    IYRC_PNL_ASSUMPTIONS.sntTravelCount * travelPerPerson +
+    addByProgram("SNT");
+
+  const grethaRev = 47150000;
+  const grethaExp =
+    mrByProgram("GRETHA") +
+    grethaHotelShare +
+    IYRC_PNL_ASSUMPTIONS.grethaTravelCount * travelPerPerson +
+    kitGrethaCost +
+    addByProgram("GRETHA");
+
+  const tbRev = 73000000 + 6500000;
+  const tbExp =
+    mrByProgram("TUNAS_BANGSA") +
+    IYRC_PNL_ASSUMPTIONS.tunasBangsaTravelCount * travelPerPerson +
+    kitTbCost +
+    addByProgram("TUNAS_BANGSA");
+
+  const kitSntExp = kitSntCost + ppnKitSnt + addByProgram("KIT_SNT");
+
+  const stafReExp =
+    mrByProgram("STAF_RE") +
+    IYRC_PNL_ASSUMPTIONS.reStaffTravelCount * travelPerPerson +
+    addByProgram("STAF_RE") +
+    equipmentPurchaseEstimate;
+
+  const programBreakdown: IyrcProgramSummaryBudget[] = [
+    {
+      ...IYRC_PROGRAM_BREAKDOWN[0],
+      revenueBudget: sntRev,
+      expenseBudget: sntExp,
+      profitBudget: sntRev - sntExp,
+    },
+    {
+      ...IYRC_PROGRAM_BREAKDOWN[1],
+      revenueBudget: grethaRev,
+      expenseBudget: grethaExp,
+      profitBudget: grethaRev - grethaExp,
+    },
+    {
+      ...IYRC_PROGRAM_BREAKDOWN[2],
+      revenueBudget: tbRev,
+      expenseBudget: tbExp,
+      profitBudget: tbRev - tbExp,
+    },
+    {
+      ...IYRC_PROGRAM_BREAKDOWN[3],
+      revenueBudget: kitSntRevenue,
+      expenseBudget: kitSntExp,
+      profitBudget: kitSntRevenue - kitSntExp,
+    },
+    {
+      ...IYRC_PROGRAM_BREAKDOWN[4],
+      revenueBudget: 0,
+      expenseBudget: stafReExp,
+      profitBudget: -stafReExp,
+    },
+  ];
+
+  return {
+    usdToIdr,
+    equipmentPurchaseEstimate,
+    totalRevenue,
+    myRobotRows,
+    totalMyRobotUsd,
+    totalMyRobotIdr,
+    kitModalPerChild,
+    kitSntCost,
+    kitGrethaCost,
+    kitTbCost,
+    ppnKitSnt,
+    totalKitPpn,
+    hotelRows: IYRC_HOTEL_88_ITEMS,
+    totalHotel,
+    grethaHotelShare,
+    sntHotelShare,
+    travelRows,
+    totalTravel,
+    additionalRows,
+    totalAdditionalRealized,
+    totalAdditionalWithEquip,
+    totalExpense,
+    netProfit,
+    marginPct,
+    programBreakdown,
+  };
+}
+
 

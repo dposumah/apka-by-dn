@@ -13,16 +13,20 @@ import {
   DEFAULT_IYRC_BUDGET_ITEMS,
   REPLACED_IYRC_PARTICIPANTS,
   IYRC_REVENUE_ITEMS,
+  IYRC_ADDITIONAL_EXPENSE_ITEMS,
   calculateDynamicRab,
 } from "@/lib/iyrc-utils";
 import { syncCashflowTransactionToJournal } from "@/lib/cashflow-accounting";
 
 const IYRC_PNL_SEEDED_KEY = "iyrc_upnov10_revenues_seeded_v1";
+const IYRC_UPNOV26_EXPENSES_SEEDED_KEY = "iyrc_upnov26_additional_expenses_seeded_v1";
 
 /**
  * Memastikan proyek Cashflow "IYRC" ada, menautkan transaksi Gretha Rp 47,15 jt
- * ke Jurnal Umum Akuntansi Utama, serta melakukan initial seed 5 pendapatan final
- * lainnya (upNov10) berstatus PENDING secara idempoten.
+ * ke Jurnal Umum Akuntansi Utama, melakukan initial seed 6 pendapatan final,
+ * serta melakukan initial seed 13 biaya tambahan realisasi upNov26 (12 COMPLETED
+ * berbukti nota/transfer → otomatis Jurnal Umum, 1 Trainer MRT $1.166 PENDING)
+ * secara idempoten dengan proteksi anti-duplikat.
  */
 export async function ensureIyrcPnLCashflowSeeded(userId?: string | null) {
   const iyrcProject = await prisma.cashflowProject.upsert({
@@ -34,118 +38,202 @@ export async function ensureIyrcPnLCashflowSeeded(userId?: string | null) {
     },
   });
 
-  const seededSetting = await prisma.appSetting.findUnique({
-    where: { key: IYRC_PNL_SEEDED_KEY },
-  });
+  const [revenuesSeeded, expensesSeeded] = await Promise.all([
+    prisma.appSetting.findUnique({ where: { key: IYRC_PNL_SEEDED_KEY } }),
+    prisma.appSetting.findUnique({ where: { key: IYRC_UPNOV26_EXPENSES_SEEDED_KEY } }),
+  ]);
 
-  if (seededSetting) {
-    return iyrcProject;
-  }
-
-  // 1. Pastikan transaksi Gretha (Rp 47.150.000) terhubung ke REV_GRETHA & Jurnal Umum
-  const grethaTx = await prisma.cashflowTransaction.findFirst({
-    where: {
-      projectId: iyrcProject.id,
-      type: "INCOME",
-      OR: [
-        { iyrcBudgetPos: "REV_GRETHA" },
-        { amount: 47150000 },
-        { description: { contains: "Greta", mode: "insensitive" } },
-        { description: { contains: "Gretha", mode: "insensitive" } },
-      ],
-    },
-    orderBy: { createdAt: "asc" },
-  });
-
-  if (grethaTx && (!grethaTx.iyrcBudgetPos || !grethaTx.journalEntryId)) {
-    const revEventAcc = await prisma.account.findUnique({
-      where: { code: "400.10.104" },
-      select: { id: true },
+  if (!revenuesSeeded) {
+    // 1. Pastikan transaksi Gretha (Rp 47.150.000) terhubung ke REV_GRETHA & Jurnal Umum
+    const grethaTx = await prisma.cashflowTransaction.findFirst({
+      where: {
+        projectId: iyrcProject.id,
+        type: "INCOME",
+        OR: [
+          { iyrcBudgetPos: "REV_GRETHA" },
+          { amount: 47150000 },
+          { description: { contains: "Greta", mode: "insensitive" } },
+          { description: { contains: "Gretha", mode: "insensitive" } },
+        ],
+      },
+      orderBy: { createdAt: "asc" },
     });
+
+    if (grethaTx && (!grethaTx.iyrcBudgetPos || !grethaTx.journalEntryId)) {
+      const revEventAcc = await prisma.account.findUnique({
+        where: { code: "400.10.104" },
+        select: { id: true },
+      });
+      await prisma.$transaction(async (tx) => {
+        await tx.cashflowTransaction.update({
+          where: { id: grethaTx.id },
+          data: {
+            iyrcBudgetPos: "REV_GRETHA",
+            iyrcProgram: "GRETHA",
+            vendorName: grethaTx.vendorName || "Pemda Kab. Kupang",
+            invoiceNumber: grethaTx.invoiceNumber || "INV/REX/SNT-IYRC/XI/2026/002",
+            accountId: grethaTx.accountId || revEventAcc?.id || null,
+          },
+        });
+        await syncCashflowTransactionToJournal(tx, grethaTx.id, userId);
+      }, { timeout: 20000, maxWait: 10000 });
+    }
+
+    // 2. One-time seed untuk 6 pendapatan final IYRC (5 PENDING + Gretha COMPLETED)
+    const existingRows = await prisma.cashflowTransaction.findMany({
+      where: { projectId: iyrcProject.id, type: "INCOME" },
+      select: { id: true, iyrcBudgetPos: true, amount: true },
+    });
+    const existingPositions = new Set(
+      existingRows.map((r) => r.iyrcBudgetPos).filter(Boolean)
+    );
+    const neededCodes = Array.from(
+      new Set(IYRC_REVENUE_ITEMS.map((item) => item.defaultAccountCode))
+    );
+    const coaRows = await prisma.account.findMany({
+      where: { code: { in: neededCodes } },
+      select: { id: true, code: true },
+    });
+    const coaByCode = new Map(coaRows.map((a) => [a.code, a.id]));
+
     await prisma.$transaction(async (tx) => {
-      await tx.cashflowTransaction.update({
-        where: { id: grethaTx.id },
-        data: {
-          iyrcBudgetPos: "REV_GRETHA",
-          iyrcProgram: "GRETHA",
-          vendorName: grethaTx.vendorName || "Pemda Kab. Kupang",
-          invoiceNumber: grethaTx.invoiceNumber || "INV/REX/SNT-IYRC/XI/2026/002",
-          accountId: grethaTx.accountId || revEventAcc?.id || null,
+      for (const rev of IYRC_REVENUE_ITEMS) {
+        if (existingPositions.has(rev.budgetPos)) continue;
+        if (
+          rev.budgetPos === "REV_GRETHA" &&
+          existingRows.some((r) => Math.abs(r.amount - 47150000) < 1)
+        ) {
+          continue;
+        }
+
+        const created = await tx.cashflowTransaction.create({
+          data: {
+            projectId: iyrcProject.id,
+            date: new Date(`${rev.defaultDate}T00:00:00.000Z`),
+            type: "INCOME",
+            amount: rev.amount,
+            description: rev.description,
+            category: rev.category,
+            paymentMethod: "TRANSFER",
+            status: rev.initialStatus,
+            vendorName: rev.vendorName,
+            invoiceNumber: rev.invoiceNumber,
+            currency: "IDR",
+            accountId: coaByCode.get(rev.defaultAccountCode) || null,
+            iyrcBudgetPos: rev.budgetPos,
+            iyrcProgram: rev.program,
+            createdById: userId || null,
+          },
+        });
+
+        if (rev.initialStatus === "COMPLETED") {
+          await syncCashflowTransactionToJournal(tx, created.id, userId);
+        }
+      }
+
+      await tx.appSetting.upsert({
+        where: { key: IYRC_PNL_SEEDED_KEY },
+        update: { value: "true" },
+        create: {
+          key: IYRC_PNL_SEEDED_KEY,
+          value: "true",
+          label: "Initial seed 6 pendapatan final IYRC ke Cashflow",
         },
       });
-      await syncCashflowTransactionToJournal(tx, grethaTx.id, userId);
     }, { timeout: 20000, maxWait: 10000 });
   }
 
-  // 2. One-time seed untuk 6 pendapatan final IYRC upNov10 (5 PENDING + Gretha COMPLETED)
-  const existingRows = await prisma.cashflowTransaction.findMany({
-    where: { projectId: iyrcProject.id, type: "INCOME" },
-    select: { id: true, iyrcBudgetPos: true, amount: true },
-  });
-  const existingPositions = new Set(
-    existingRows.map((r) => r.iyrcBudgetPos).filter(Boolean)
-  );
-  const neededCodes = Array.from(
-    new Set(IYRC_REVENUE_ITEMS.map((item) => item.defaultAccountCode))
-  );
-  const coaRows = await prisma.account.findMany({
-    where: { code: { in: neededCodes } },
-    select: { id: true, code: true },
-  });
-  const coaByCode = new Map(coaRows.map((a) => [a.code, a.id]));
-
-  await prisma.$transaction(async (tx) => {
-    for (const rev of IYRC_REVENUE_ITEMS) {
-      if (existingPositions.has(rev.budgetPos)) continue;
-      if (
-        rev.budgetPos === "REV_GRETHA" &&
-        existingRows.some((r) => Math.abs(r.amount - 47150000) < 1)
-      ) {
-        continue;
-      }
-
-      const created = await tx.cashflowTransaction.create({
-        data: {
-          projectId: iyrcProject.id,
-          date: new Date(`${rev.defaultDate}T00:00:00.000Z`),
-          type: "INCOME",
-          amount: rev.amount,
-          description: rev.description,
-          category: rev.category,
-          paymentMethod: "TRANSFER",
-          status: rev.initialStatus,
-          vendorName: rev.vendorName,
-          invoiceNumber: rev.invoiceNumber,
-          currency: "IDR",
-          accountId: coaByCode.get(rev.defaultAccountCode) || null,
-          iyrcBudgetPos: rev.budgetPos,
-          iyrcProgram: rev.program,
-          createdById: userId || null,
-        },
-      });
-
-      if (rev.initialStatus === "COMPLETED") {
-        await syncCashflowTransactionToJournal(tx, created.id, userId);
-      }
-    }
-
-    await tx.appSetting.upsert({
-      where: { key: IYRC_PNL_SEEDED_KEY },
-      update: { value: "true" },
-      create: {
-        key: IYRC_PNL_SEEDED_KEY,
-        value: "true",
-        label: "Initial seed 6 pendapatan final IYRC upNov10 ke Cashflow",
+  if (!expensesSeeded) {
+    // 3. One-time seed untuk 13 biaya tambahan realisasi Bagian 8 Excel (upNov26)
+    const existingExpenses = await prisma.cashflowTransaction.findMany({
+      where: { projectId: iyrcProject.id, type: "EXPENSE" },
+      select: {
+        id: true,
+        date: true,
+        amount: true,
+        description: true,
+        invoiceNumber: true,
+        vendorName: true,
       },
     });
-  }, { timeout: 20000, maxWait: 10000 });
+
+    const existingInvoiceSet = new Set(
+      existingExpenses
+        .map((e) => (e.invoiceNumber || "").trim().toLowerCase())
+        .filter(Boolean)
+    );
+
+    const neededExpCodes = Array.from(
+      new Set(IYRC_ADDITIONAL_EXPENSE_ITEMS.map((item) => item.defaultAccountCode))
+    );
+    const expCoaRows = await prisma.account.findMany({
+      where: { code: { in: neededExpCodes } },
+      select: { id: true, code: true },
+    });
+    const expCoaByCode = new Map(expCoaRows.map((a) => [a.code, a.id]));
+
+    await prisma.$transaction(async (tx) => {
+      for (const item of IYRC_ADDITIONAL_EXPENSE_ITEMS) {
+        const invLower = (item.invoiceNumber || "").trim().toLowerCase();
+        const isDuplicate =
+          (invLower && existingInvoiceSet.has(invLower)) ||
+          existingExpenses.some((e) => {
+            const eDate = new Date(e.date).toISOString().split("T")[0];
+            const sameAmount = Math.abs((Number(e.amount) || 0) - item.amount) < 1;
+            const sameDate = eDate === item.date;
+            const descMatch =
+              e.description.toLowerCase().includes(item.description.toLowerCase().slice(0, 18)) ||
+              (invLower && e.description.toLowerCase().includes(invLower));
+            return (sameDate && sameAmount) || (sameAmount && descMatch);
+          });
+
+        if (isDuplicate) continue;
+
+        const created = await tx.cashflowTransaction.create({
+          data: {
+            projectId: iyrcProject.id,
+            date: new Date(`${item.date}T00:00:00.000Z`),
+            type: "EXPENSE",
+            amount: item.amount,
+            description: `${item.description} (${item.proofNote})`,
+            category: item.category,
+            paymentMethod: item.paymentMethod,
+            status: item.initialStatus,
+            vendorName: item.vendorName,
+            invoiceNumber: item.invoiceNumber,
+            currency: item.currency,
+            originalAmount: item.currency === "USD" ? item.originalAmount : null,
+            exchangeRate: item.currency === "USD" ? item.exchangeRate : 1,
+            accountId: expCoaByCode.get(item.defaultAccountCode) || null,
+            iyrcBudgetPos: item.budgetPos,
+            iyrcProgram: item.program,
+            createdById: userId || null,
+          },
+        });
+
+        if (item.initialStatus === "COMPLETED") {
+          await syncCashflowTransactionToJournal(tx, created.id, userId);
+        }
+      }
+
+      await tx.appSetting.upsert({
+        where: { key: IYRC_UPNOV26_EXPENSES_SEEDED_KEY },
+        update: { value: "true" },
+        create: {
+          key: IYRC_UPNOV26_EXPENSES_SEEDED_KEY,
+          value: "true",
+          label: "Initial seed 13 biaya tambahan realisasi IYRC upNov26 ke Cashflow",
+        },
+      });
+    }, { timeout: 30000, maxWait: 10000 });
+  }
 
   return iyrcProject;
 }
 
 /**
- * Mengambil data Peserta dan Item RAB IYRC China.
- * Jika tabel masih kosong, otomatis melakukan initial seed dari data PDF.
+ * Mengambil data proyek Cashflow IYRC, riwayat transaksi, dan daftar COA
+ * untuk halaman Laba Rugi & RAB IYRC China 2026 (upNov26).
  */
 export async function getIyrcData() {
   try {
@@ -154,48 +242,10 @@ export async function getIyrcData() {
       return {
         unauthorized: true as const,
         error: authError,
-        participants: [],
-        budgetItems: [],
-        simulation: calculateDynamicRab(0, 0, []),
         iyrcProject: null,
         iyrcTransactions: [],
         coaAccounts: [],
       };
-    }
-    let participants = await prisma.iyrcParticipant.findMany({
-      orderBy: [{ peran: "asc" }, { nama: "asc" }],
-    });
-
-    let budgetItems = await prisma.iyrcBudgetItem.findMany({
-      orderBy: { urutan: "asc" },
-    });
-
-    // Inisialisasi default jika kosong
-    if (participants.length === 0) {
-      await prisma.iyrcParticipant.createMany({
-        data: DEFAULT_IYRC_PARTICIPANTS,
-      });
-      participants = await prisma.iyrcParticipant.findMany({
-        orderBy: [{ peran: "asc" }, { nama: "asc" }],
-      });
-    }
-
-    if (budgetItems.length === 0) {
-      await prisma.iyrcBudgetItem.createMany({
-        data: DEFAULT_IYRC_BUDGET_ITEMS,
-      });
-      budgetItems = await prisma.iyrcBudgetItem.findMany({
-        orderBy: { urutan: "asc" },
-      });
-    } else if (!budgetItems.some((item) => item.code === "A.5")) {
-      // Otomatis migrasi ke versi 5 Nov 2026 jika item A.5 belum ada di database (tetap menjaga status pembayaran)
-      await syncIyrcToLatestData(true);
-      participants = await prisma.iyrcParticipant.findMany({
-        orderBy: [{ peran: "asc" }, { nama: "asc" }],
-      });
-      budgetItems = await prisma.iyrcBudgetItem.findMany({
-        orderBy: { urutan: "asc" },
-      });
     }
 
     let iyrcProject;
@@ -238,15 +288,7 @@ export async function getIyrcData() {
       }),
     ]);
 
-    const countSiswa = participants.filter((p) => p.peran === "SISWA").length;
-    const countPendamping = participants.filter((p) => p.peran === "GURU_PENDAMPING").length;
-
-    const simulation = calculateDynamicRab(countSiswa, countPendamping, budgetItems);
-
     return {
-      participants,
-      budgetItems,
-      simulation,
       iyrcProject,
       iyrcTransactions,
       coaAccounts,
@@ -258,7 +300,7 @@ export async function getIyrcData() {
 }
 
 /**
- * Sinkronisasi ulang pendapatan IYRC yang mungkin terhapus/belum berjurnal.
+ * Sinkronisasi ulang pendapatan & 13 biaya tambahan IYRC (upNov26) yang mungkin belum masuk/belum berjurnal.
  */
 export async function resyncIyrcCashflowAndJournals() {
   try {
@@ -266,7 +308,9 @@ export async function resyncIyrcCashflowAndJournals() {
     if (authError || !session) return { success: false, error: authError || "Unauthorized" };
 
     await prisma.appSetting.deleteMany({
-      where: { key: IYRC_PNL_SEEDED_KEY },
+      where: {
+        key: { in: [IYRC_PNL_SEEDED_KEY, IYRC_UPNOV26_EXPENSES_SEEDED_KEY] },
+      },
     });
     const iyrcProject = await ensureIyrcPnLCashflowSeeded(session.user.id);
 

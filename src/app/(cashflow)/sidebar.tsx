@@ -45,7 +45,7 @@ const menuItems: MenuItem[] = [
     title: "IYRC China 2026", 
     href: "/cashflow/iyrc", 
     icon: Globe,
-    badge: "RAB & Kontingen"
+    badge: "RAB & Laba Rugi"
   },
 ]
 
