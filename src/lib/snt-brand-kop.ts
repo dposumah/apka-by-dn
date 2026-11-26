@@ -213,7 +213,6 @@ export interface ModernKuitansiInput {
 export function renderModernKuitansiHtml(params: ModernKuitansiInput): string {
   const theme = resolveBrandKopTheme(params.kopSurat, params.profile);
   const amount = Number(params.amount) || 0;
-  const showMaterai = params.showMateraiHint ?? amount >= 5000000;
   const formattedAmt = amount > 0 ? amount.toLocaleString("id-ID") : "........................";
   const terbilangText =
     amount > 0 ? `# ${terbilangRupiah(amount)} #` : "................................................................";
@@ -278,11 +277,6 @@ export function renderModernKuitansiHtml(params: ModernKuitansiInput): string {
                 ${esc(formattedAmt)}
               </div>
             </div>
-            ${
-              showMaterai
-                ? `<div style="margin-top:24px; margin-left:140px; font-size:9.5px; color:#94a3b8; font-style:italic;">Tempel materai Rp10.000</div>`
-                : ""
-            }
           </td>
           <td style="width:52%; text-align:center; vertical-align:top; border:none; font-size:11.5px;">
             <div>${esc(params.kota || "Jakarta")}, ${esc(formatDateSlashOrId(params.tanggal, "long"))}</div>
@@ -291,11 +285,6 @@ export function renderModernKuitansiHtml(params: ModernKuitansiInput): string {
             <div style="font-weight:800; color:${theme.primaryColor}; text-decoration:underline; font-size:12px;">
               ${esc(params.penerimaDisplay)}
             </div>
-            ${
-              params.penerimaJabatan
-                ? `<div style="font-size:10.5px; color:#1d4ed8; margin-top:2px;">${esc(params.penerimaJabatan)}</div>`
-                : ""
-            }
           </td>
         </tr>
       </table>

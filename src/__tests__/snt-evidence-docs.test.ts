@@ -299,7 +299,8 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
     expect(lpdHtml).toContain("INVOICE");
     expect(lpdHtml).toContain("KUITANSI");
     expect(lpdHtml).toContain("INV/LPD/SNT-W2/001/XI/2026");
-    expect(lpdHtml).toContain("Tempel materai Rp10.000");
+    expect(lpdHtml).not.toContain("Tempel materai Rp10.000");
+    expect(lpdHtml).not.toContain("Direktur, LPD Jully Tjindrawan Robotik");
     expect(lpdHtml).not.toContain("MOCKUP");
 
     // RE 3 (B.6a): Daftar Tanda Terima (dengan PPh %) + 6 Kuitansi Kop Robotic Explorer
