@@ -365,10 +365,26 @@ export interface SewaRumahContractDraft {
   nomorKontrak: string;
 }
 
+export type MonthlyPrintFilter =
+  | "ALL"
+  | "2026-09"
+  | "2026-10"
+  | "2026-11"
+  | "2026-12"
+  | "SPLIT_EACH_MONTH";
+
+export const SNT_HONOR_MONTH_OPTIONS = [
+  { key: "2026-09", label: "September 2026", short: "Sep 2026", roman: "IX", defaultDate: "2026-09-30", defaultDue: "2026-10-14", seq: "001" },
+  { key: "2026-10", label: "Oktober 2026", short: "Okt 2026", roman: "X", defaultDate: "2026-10-31", defaultDue: "2026-11-14", seq: "002" },
+  { key: "2026-11", label: "November 2026", short: "Nov 2026", roman: "XI", defaultDate: "2026-11-30", defaultDue: "2026-12-14", seq: "003" },
+  { key: "2026-12", label: "Desember 2026", short: "Des 2026", roman: "XII", defaultDate: "2026-12-20", defaultDue: "2026-12-30", seq: "004" },
+] as const;
+
 export interface GenericEvidenceDraft {
   rabCode: string;
   rabCodeLabel?: string;
   kopSurat?: KopSuratOption;
+  monthlyPrintFilter?: MonthlyPrintFilter;
   showRabCode?: boolean;
   includeInvoice?: boolean;
   includeDaftarTandaTerima?: boolean;
@@ -794,6 +810,216 @@ export function buildDraftFromDriveMockupPreset(
       catatan: `Fasilitator, ${r.snt}`,
     })),
   };
+}
+
+/**
+ * Mendeteksi bulan (2026-09 s.d. 2026-12) dari tanggal atau uraian item.
+ */
+export function detectItemMonthKey(
+  item: Pick<EvidenceLineItem, "tanggal" | "uraian">
+): string | null {
+  const t = (item.tanggal || "").trim();
+  if (/^\d{4}-\d{2}/.test(t)) {
+    const ym = t.slice(0, 7);
+    if (SNT_HONOR_MONTH_OPTIONS.some((m) => m.key === ym)) return ym;
+  }
+  const u = (item.uraian || "").toLowerCase();
+  if (u.includes("september") || /\bsep\b/.test(u)) return "2026-09";
+  if (u.includes("oktober") || /\bokt\b/.test(u)) return "2026-10";
+  if (u.includes("november") || /\bnov\b/.test(u)) return "2026-11";
+  if (u.includes("desember") || /\bdes\b/.test(u)) return "2026-12";
+  return null;
+}
+
+/**
+ * Membangun draft bulanan siap cetak (Invoice + Daftar Tanda Terima + Kuitansi)
+ * untuk Pos A.3 (Koordinator Wilayah) atau Pos A.5 (Tenaga Administrasi).
+ */
+export function buildMonthlyPersonnelDraft(
+  rabCode: "3" | "5",
+  mode: "RAB_4_BULAN" | "LPD_3_BULAN",
+  profile?: Partial<SntReportProfile>
+): GenericEvidenceDraft {
+  const maleoName = "Yayasan Maleo Talenta Cendekia";
+  const signerName = profile?.ketuaTimPelaksana || "Jully Tjindrawan, MBA";
+  const lpdBank = {
+    bankName: profile?.lpdBankName || "",
+    bankAccount: profile?.lpdBankAccount || "",
+    bankHolder: profile?.lpdBankHolder || "LPD Jully Tjindrawan Robotik",
+  };
+  const months =
+    mode === "LPD_3_BULAN"
+      ? SNT_HONOR_MONTH_OPTIONS.slice(0, 3)
+      : SNT_HONOR_MONTH_OPTIONS;
+
+  if (rabCode === "3") {
+    const isLpdSim = mode === "LPD_3_BULAN";
+    return {
+      rabCode: "3",
+      rabCodeLabel: "A.3",
+      kopSurat: "lpd",
+      monthlyPrintFilter: "SPLIT_EACH_MONTH",
+      showRabCode: true,
+      includeInvoice: true,
+      includeDaftarTandaTerima: true,
+      invoiceNo: "INV/LPD/SNT-W2-A3",
+      kuitansiNoPrefix: "KW/LPD/SNT-W2-A3",
+      jatuhTempo: months[months.length - 1].defaultDue,
+      ditagihkanKepada: maleoName,
+      alamatTagihan: profile?.alamatYayasanMaleo || "",
+      upTagihan: profile?.upYayasanMaleo || "",
+      programLabel: "Sekolah Nasional Terintegrasi (SNT) 2026 — Koordinator Wilayah 2",
+      ppnPct: 0,
+      includePphColumn: false,
+      pphPct: 0,
+      ...lpdBank,
+      signerName,
+      signerTitle: "Direktur",
+      recipientMode: "BLANK",
+      judulDokumen: "Honorarium Koordinator Wilayah 2 — SNT 2026",
+      periodeLabel: isLpdSim ? "September – November 2026" : "September – Desember 2026",
+      tanggalDokumen: months[0].defaultDate,
+      sudahTerimaDari: maleoName,
+      catatan: "Mohon cantumkan No. Invoice pada berita transfer.",
+      items: months.map((m) => ({
+        id: `a3-${m.key}`,
+        tanggal: m.defaultDate,
+        lokasi: "Wilayah 2 (6 Lokasi SNT)",
+        uraian: isLpdSim
+          ? `Honorarium Koordinator Wilayah 2 — SNT 2026, Bulan ${m.label}`
+          : `Honorarium Koordinator Wilayah 2 — SNT 2026, Bulan ${m.label} (12 jam × Rp900.000)`,
+        penerima: "",
+        volume: isLpdSim ? 1 : 12,
+        satuan: isLpdSim ? "bulan" : "jam",
+        hargaSatuan: isLpdSim ? 10672941 : 900000,
+        nominal: isLpdSim ? 10672941 : 10800000,
+        noDokumen: `KW/LPD/SNT-W2-A3/${m.seq}/${m.roman}/2026`,
+      })),
+    };
+  }
+
+  // Pos A.5 Tenaga Administrasi
+  const isLpdSim = mode === "LPD_3_BULAN";
+  const lpdA5Amounts = [3329132, 3329132, 3329133]; // Total tepat Rp9.987.397
+  return {
+    rabCode: "5",
+    rabCodeLabel: "A.5",
+    kopSurat: "lpd",
+    monthlyPrintFilter: "SPLIT_EACH_MONTH",
+    showRabCode: true,
+    includeInvoice: true,
+    includeDaftarTandaTerima: true,
+    invoiceNo: "INV/LPD/SNT-W2-A5",
+    kuitansiNoPrefix: "KW/LPD/SNT-W2-A5",
+    jatuhTempo: months[months.length - 1].defaultDue,
+    ditagihkanKepada: maleoName,
+    alamatTagihan: profile?.alamatYayasanMaleo || "",
+    upTagihan: profile?.upYayasanMaleo || "",
+    programLabel: "Sekolah Nasional Terintegrasi (SNT) 2026 — Koordinator Wilayah 2",
+    ppnPct: 0,
+    includePphColumn: false,
+    pphPct: 0,
+    ...lpdBank,
+    signerName,
+    signerTitle: "Direktur",
+    recipientMode: "BLANK",
+    judulDokumen: "Honorarium Tenaga Administrasi — SNT Wilayah 2",
+    periodeLabel: isLpdSim ? "September – November 2026" : "September – Desember 2026",
+    tanggalDokumen: months[0].defaultDate,
+    sudahTerimaDari: maleoName,
+    catatan: "Mohon cantumkan No. Invoice pada berita transfer.",
+    items: months.map((m, idx) => {
+      const amt = isLpdSim ? lpdA5Amounts[idx] ?? 3329132 : SNT_RAB_TENAGA_ADMIN_UNIT_PRICE;
+      return {
+        id: `a5-${m.key}`,
+        tanggal: m.defaultDate,
+        lokasi: "Wilayah 2 (6 Lokasi SNT)",
+        uraian: `Honorarium Tenaga Administrasi — SNT Wilayah 2, Bulan ${m.label}`,
+        penerima: "",
+        volume: 1,
+        satuan: "bulan",
+        hargaSatuan: amt,
+        nominal: amt,
+        noDokumen: `KW/LPD/SNT-W2-A5/${m.seq}/${m.roman}/2026`,
+      };
+    }),
+  };
+}
+
+/**
+ * Memecah atau menyaring GenericEvidenceDraft menjadi slice per bulan untuk
+ * pencetakan Invoice, Daftar Tanda Terima, dan Kuitansi bulanan.
+ */
+export function expandDraftIntoMonthlySlices(
+  draft: GenericEvidenceDraft,
+  filter: MonthlyPrintFilter = "ALL"
+): GenericEvidenceDraft[] {
+  if (filter === "ALL") {
+    return [draft];
+  }
+
+  const brandCode =
+    draft.kopSurat === "lpd" ? "LPD" : draft.kopSurat === "robotic" ? "RE" : "MTC";
+  const rabTag = (draft.rabCodeLabel || draft.rabCode || "SNT")
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .toUpperCase();
+
+  const buildSingleMonthSlice = (
+    m: (typeof SNT_HONOR_MONTH_OPTIONS)[number],
+    matchedItems: EvidenceLineItem[]
+  ): GenericEvidenceDraft => {
+    const invNo = `INV/${brandCode}/SNT-W2-${rabTag}/${m.seq}/${m.roman}/2026`;
+    const kwtNo = `KW/${brandCode}/SNT-W2-${rabTag}/${m.seq}/${m.roman}/2026`;
+    const tglDok = matchedItems[0]?.tanggal || m.defaultDate;
+
+    return {
+      ...draft,
+      monthlyPrintFilter: "ALL",
+      periodeLabel: m.label,
+      tanggalDokumen: tglDok,
+      jatuhTempo: m.defaultDue,
+      invoiceNo: invNo,
+      kuitansiNoPrefix: kwtNo,
+      items: matchedItems.map((it, idx) => ({
+        ...it,
+        noDokumen:
+          it.noDokumen ||
+          (matchedItems.length === 1
+            ? kwtNo
+            : `KW/${brandCode}/SNT-W2-${rabTag}/${String(idx + 1).padStart(3, "0")}/${m.roman}/2026`),
+      })),
+    };
+  };
+
+  if (filter === "SPLIT_EACH_MONTH") {
+    const slices: GenericEvidenceDraft[] = [];
+    for (const m of SNT_HONOR_MONTH_OPTIONS) {
+      const matched = draft.items.filter((it) => detectItemMonthKey(it) === m.key);
+      if (matched.length > 0) {
+        slices.push(buildSingleMonthSlice(m, matched));
+      }
+    }
+    return slices.length > 0 ? slices : [draft];
+  }
+
+  // Filter bulan tunggal (2026-09 / 2026-10 / 2026-11 / 2026-12)
+  const targetMonth = SNT_HONOR_MONTH_OPTIONS.find((m) => m.key === filter);
+  if (!targetMonth) return [draft];
+
+  const matched = draft.items.filter((it) => detectItemMonthKey(it) === targetMonth.key);
+  if (matched.length > 0) {
+    return [buildSingleMonthSlice(targetMonth, matched)];
+  }
+
+  // Fallback jika item belum bertag tanggal bulanan: adaptasikan item untuk bulan terpilih
+  const adapted = draft.items.map((it) => ({
+    ...it,
+    tanggal: targetMonth.defaultDate,
+    uraian: it.uraian.toLowerCase().includes(targetMonth.label.toLowerCase())
+      ? it.uraian
+      : `${it.uraian} — Bulan ${targetMonth.label}`,
+  }));
+  return [buildSingleMonthSlice(targetMonth, adapted)];
 }
 
 export function getDefaultSewaRumahDraft(): SewaRumahContractDraft {

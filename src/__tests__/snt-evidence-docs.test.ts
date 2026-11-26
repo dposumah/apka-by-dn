@@ -3,9 +3,11 @@ import {
   BLANK_SIGNATURE_LINE,
   buildDraftFromDriveMockupPreset,
   buildMonthlyFacilitatorHonorReceipt,
+  buildMonthlyPersonnelDraft,
   buildMonthlyRabUnitHonorReceipt,
   computeTarget80Strategy,
   DRIVE_MOCKUP_PRESETS,
+  expandDraftIntoMonthlySlices,
   getDefaultGenericEvidenceDraft,
   getDefaultSewaRumahDraft,
   getHonorTimPresetByRabCode,
@@ -319,5 +321,54 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
     expect(reHtml).toContain("Diterima (Neto)");
     expect(reHtml).toContain("SNT 17 Tanjung Jabung Timur");
     expect(reHtml).not.toContain("MOCKUP");
+  });
+
+  it("supports per-month Invoice, Daftar Tanda Terima, and Kuitansi printing for A.3, A.4, and A.5", () => {
+    const profile = getDefaultSntReportProfile();
+
+    // A.3 (4 bulan RAB = 4 × Rp10.800.000 = Rp43.200.000) & split per bulan
+    const a3Draft = buildMonthlyPersonnelDraft("3", "RAB_4_BULAN", profile);
+    expect(a3Draft.items).toHaveLength(4);
+    expect(a3Draft.items.reduce((s, it) => s + it.nominal, 0)).toBe(43200000);
+    const a3Slices = expandDraftIntoMonthlySlices(a3Draft, "SPLIT_EACH_MONTH");
+    expect(a3Slices).toHaveLength(4);
+    expect(a3Slices[1].periodeLabel).toBe("Oktober 2026");
+
+    const a3OctOnly = expandDraftIntoMonthlySlices(a3Draft, "2026-10");
+    expect(a3OctOnly).toHaveLength(1);
+    const a3OctHtml = renderGenericEvidencePdfHtml({
+      type: "INVOICE_KUITANSI_MITRA",
+      draft: { ...a3Draft, monthlyPrintFilter: "2026-10" },
+      profile,
+      includeKwitansiSlips: true,
+    });
+    expect(a3OctHtml).toContain("INVOICE");
+    expect(a3OctHtml).toContain("KUITANSI");
+    expect(a3OctHtml).toContain("Oktober 2026");
+    expect(a3OctHtml).toContain("INV/LPD/SNT-W2-A3/002/X/2026");
+
+    // A.5 (4 bulan RAB = 4 × Rp5.729.876 = Rp22.919.504 & 3 bulan LPD = Rp9.987.397)
+    const a5Rab = buildMonthlyPersonnelDraft("5", "RAB_4_BULAN", profile);
+    expect(a5Rab.items.reduce((s, it) => s + it.nominal, 0)).toBe(22919504);
+    const a5Lpd = buildMonthlyPersonnelDraft("5", "LPD_3_BULAN", profile);
+    expect(a5Lpd.items).toHaveLength(3);
+    expect(a5Lpd.items.reduce((s, it) => s + it.nominal, 0)).toBe(9987397);
+
+    // A.4 bulanan dengan Invoice + Daftar Tanda Terima + Kuitansi
+    const a4Sheet = buildMonthlyRabUnitHonorReceipt("2026-10", [], []);
+    const a4Html = renderMonthlyFacilitatorHonorPdfHtml({
+      sheet: a4Sheet,
+      profile,
+      kopSuratOverride: "lpd",
+      includeTransportColumn: false,
+      recipientMode: "MANUAL",
+      tanggalCetak: "2026-10-31",
+      includeIndividualKwitansi: true,
+      includeInvoice: true,
+    });
+    expect(a4Html).toContain("INVOICE");
+    expect(a4Html).toContain("DAFTAR TANDA TERIMA HONORARIUM FASILITATOR");
+    expect(a4Html).toContain("KUITANSI");
+    expect(a4Html).toContain("INV/LPD/SNT-W2-A4/002/X/2026");
   });
 });

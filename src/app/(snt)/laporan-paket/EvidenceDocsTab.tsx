@@ -27,6 +27,7 @@ import {
 import {
   buildDraftFromDriveMockupPreset,
   buildMonthlyFacilitatorHonorReceipt,
+  buildMonthlyPersonnelDraft,
   buildMonthlyRabUnitHonorReceipt,
   DRIVE_MOCKUP_PRESETS,
   DriveMockupPresetId,
@@ -41,8 +42,10 @@ import {
   HonorPricingMode,
   matchWilayah2LocationId,
   MonthlyHonorReceiptRow,
+  MonthlyPrintFilter,
   RecipientMode,
   SewaRumahContractDraft,
+  SNT_HONOR_MONTH_OPTIONS,
   SNT_RAB_HONOR_FASIL_UNIT_PRICE,
   SNT_RAB_TENAGA_ADMIN_UNIT_PRICE,
 } from "@/lib/snt-evidence-docs";
@@ -50,6 +53,7 @@ import { KOP_OPTIONS_LIST, resolveBrandKopTheme } from "@/lib/snt-brand-kop";
 import {
   renderGenericEvidencePdfHtml,
   renderMonthlyFacilitatorHonorPdfHtml,
+  renderMultiMonthFacilitatorHonorPdfHtml,
   renderSewaRumahPdfHtml,
 } from "@/lib/snt-evidence-pdf";
 import {
@@ -104,6 +108,12 @@ export function EvidenceDocsTab({
   const [honorIncludeTransport, setHonorIncludeTransport] = useState<boolean>(false);
   const [honorRecipientMode, setHonorRecipientMode] = useState<RecipientMode>("MANUAL");
   const [honorIncludeKwitansi, setHonorIncludeKwitansi] = useState<boolean>(true);
+  const [honorIncludeInvoice, setHonorIncludeInvoice] = useState<boolean>(false);
+  const [honorInvoiceNo, setHonorInvoiceNo] = useState<string>("");
+  const [honorInvoicePpnPct, setHonorInvoicePpnPct] = useState<number>(0);
+  const [honorDitagihkanKepada, setHonorDitagihkanKepada] = useState<string>(
+    "Yayasan Maleo Talenta Cendekia"
+  );
   const [honorTanggalCetak, setHonorTanggalCetak] = useState<string>(
     new Date().toISOString().slice(0, 10)
   );
@@ -268,6 +278,10 @@ export function EvidenceDocsTab({
         recipientMode: honorRecipientMode,
         tanggalCetak: honorTanggalCetak,
         includeIndividualKwitansi: honorIncludeKwitansi,
+        includeInvoice: honorIncludeInvoice,
+        invoiceNo: honorInvoiceNo,
+        ppnPct: honorInvoicePpnPct,
+        ditagihkanKepada: honorDitagihkanKepada,
       });
       openHtmlWindow(html);
       return;
@@ -704,22 +718,14 @@ export function EvidenceDocsTab({
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-3 rounded-lg border border-slate-200 bg-slate-50/70 p-3 text-xs">
-                  <label className="flex items-center gap-1.5 cursor-pointer">
+                <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-slate-50/70 p-3 text-xs">
+                  <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-blue-900">
                     <input
                       type="checkbox"
-                      checked={honorRecipientMode === "BLANK"}
-                      onChange={(e) => setHonorRecipientMode(e.target.checked ? "BLANK" : "MANUAL")}
+                      checked={honorIncludeInvoice}
+                      onChange={(e) => setHonorIncludeInvoice(e.target.checked)}
                     />
-                    <span>Paksa kosongkan semua nama saat cetak (blanko tulis tangan)</span>
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={honorIncludeTransport}
-                      onChange={(e) => setHonorIncludeTransport(e.target.checked)}
-                    />
-                    <span>Sertakan info kolom Transport</span>
+                    <span>Cetak INVOICE Resmi (per bulan)</span>
                   </label>
                   <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-emerald-900">
                     <input
@@ -729,7 +735,105 @@ export function EvidenceDocsTab({
                     />
                     <span>Lampirkan lembar Kwitansi Honor per baris</span>
                   </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={honorRecipientMode === "BLANK"}
+                      onChange={(e) => setHonorRecipientMode(e.target.checked ? "BLANK" : "MANUAL")}
+                    />
+                    <span>Paksa kosongkan semua nama saat cetak</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={honorIncludeTransport}
+                      onChange={(e) => setHonorIncludeTransport(e.target.checked)}
+                    />
+                    <span>Sertakan info kolom Transport</span>
+                  </label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const monthInputs = SNT_HONOR_MONTH_OPTIONS.map((m) => {
+                        const key = `${honorPricingMode}:${m.key}`;
+                        const savedKey = `EVIDENCE_HONOR_FASIL_${honorPricingMode}_${m.key}`;
+                        const saved = evidenceDrafts[savedKey];
+                        const rows =
+                          customHonorRowsByKey[key] ||
+                          (saved && Array.isArray((saved as { rows?: MonthlyHonorReceiptRow[] }).rows)
+                            ? (saved as { rows: MonthlyHonorReceiptRow[] }).rows
+                            : honorPricingMode === "RAB_SATUAN"
+                              ? buildMonthlyRabUnitHonorReceipt(m.key, rekaps, fasilitators).rows
+                              : buildMonthlyFacilitatorHonorReceipt(rekaps, m.key).rows);
+                        return {
+                          sheet: {
+                            monthKey: m.key,
+                            monthLabel: m.label,
+                            pricingMode: honorPricingMode,
+                            rows,
+                            totalJpIntra: rows.reduce((s, r) => s + (Number(r.jpIntra) || 0), 0),
+                            totalJpEkstra: rows.reduce((s, r) => s + (Number(r.jpEkstra) || 0), 0),
+                            totalJP: rows.reduce((s, r) => s + (Number(r.totalJP) || 0), 0),
+                            totalHonor: rows.reduce((s, r) => s + (Number(r.totalHonor) || 0), 0),
+                            totalTransport: rows.reduce((s, r) => s + (Number(r.totalTransport) || 0), 0),
+                          },
+                          profile,
+                          kopSuratOverride: honorKopSurat,
+                          includeTransportColumn: honorIncludeTransport,
+                          recipientMode: honorRecipientMode,
+                          tanggalCetak: m.defaultDate,
+                          includeIndividualKwitansi: honorIncludeKwitansi,
+                          includeInvoice: honorIncludeInvoice,
+                          ppnPct: honorInvoicePpnPct,
+                          ditagihkanKepada: honorDitagihkanKepada,
+                        };
+                      });
+                      openHtmlWindow(renderMultiMonthFacilitatorHonorPdfHtml(monthInputs));
+                    }}
+                    className="ml-auto bg-white border-blue-300 text-blue-800 hover:bg-blue-50 text-[11px] h-7 gap-1"
+                  >
+                    <Printer className="w-3 h-3" /> Cetak Sekaligus 4 Bulan (Sep–Des)
+                  </Button>
                 </div>
+
+                {honorIncludeInvoice && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 rounded-lg border border-blue-200 bg-blue-50/40 p-3 text-xs">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                        No. Invoice (Kosong = Otomatis per Bulan)
+                      </label>
+                      <Input
+                        value={honorInvoiceNo}
+                        onChange={(e) => setHonorInvoiceNo(e.target.value)}
+                        placeholder={`INV/MTC/SNT-W2-A4/.../${honorMonth}`}
+                        className="h-8 text-xs bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                        Ditagihkan Kepada
+                      </label>
+                      <Input
+                        value={honorDitagihkanKepada}
+                        onChange={(e) => setHonorDitagihkanKepada(e.target.value)}
+                        className="h-8 text-xs bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">PPN (%)</label>
+                      <select
+                        value={honorInvoicePpnPct}
+                        onChange={(e) => setHonorInvoicePpnPct(Number(e.target.value) || 0)}
+                        className="w-full h-8 px-2 rounded border border-slate-200 bg-white text-xs font-semibold"
+                      >
+                        <option value={0}>0% (Non-PPN)</option>
+                        <option value={11}>11% (PPN)</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
 
                 {/* Status Ringkasan Pencatatan Masuk RAB untuk Bulan Terpilih */}
                 {(() => {
@@ -1478,6 +1582,100 @@ export function EvidenceDocsTab({
                     />
                   </div>
                 </div>
+
+                {/* Panel Cetak Per Bulan khusus A.3, A.5 & Dokumen Bulanan (Invoice + Tanda Terima + Kuitansi) */}
+                {(activeType === "INVOICE_KUITANSI_MITRA" || activeType === "HONOR_TIM") && (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 space-y-2.5 text-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <div className="font-bold text-emerald-950">
+                          Cetak Per Bulan (Invoice, Daftar Tanda Terima &amp; Kuitansi — Pos A.3 &amp; A.5)
+                        </div>
+                        <p className="text-[11px] text-emerald-800/80">
+                          Pilih bulan tertentu atau &ldquo;Pisah Per Bulan&rdquo; agar setiap bulan tercetak 1 paket lengkap tersendiri.
+                        </p>
+                      </div>
+                      <select
+                        value={currentGenericDraft.monthlyPrintFilter || "ALL"}
+                        onChange={(e) =>
+                          updateGenericDraft((p) => ({
+                            ...p,
+                            monthlyPrintFilter: e.target.value as MonthlyPrintFilter,
+                          }))
+                        }
+                        className="h-8 px-2.5 rounded-md border border-emerald-300 bg-white text-xs font-semibold text-emerald-950 min-w-[210px]"
+                      >
+                        <option value="ALL">Gabungan / Semua Baris</option>
+                        <option value="SPLIT_EACH_MONTH">Pisah Paket Per Bulan (Sep, Okt, Nov, Des)</option>
+                        {SNT_HONOR_MONTH_OPTIONS.map((m) => (
+                          <option key={m.key} value={m.key}>
+                            Cetak Khusus {m.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-emerald-200/70">
+                      <span className="text-[11px] font-semibold text-emerald-900 mr-1">Isi Rincian Per Bulan:</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateGenericDraft(() => buildMonthlyPersonnelDraft("3", "RAB_4_BULAN", profile));
+                          setGenericIncludeKwitansi(true);
+                          setBanner({
+                            type: "ok",
+                            text: "Rincian bulanan Pos A.3 (Korwil · 4 bln × Rp10.800.000 = Rp43.200.000) siap dicetak per bulan (Invoice + Tanda Terima + Kuitansi).",
+                          });
+                        }}
+                        className="px-2 py-1 rounded bg-white hover:bg-emerald-100 border border-emerald-300 text-emerald-900 text-[11px] font-semibold"
+                      >
+                        A.3 Per Bulan RAB (4× Rp10,8 jt)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateGenericDraft(() => buildMonthlyPersonnelDraft("3", "LPD_3_BULAN", profile));
+                          setGenericIncludeKwitansi(true);
+                          setBanner({
+                            type: "ok",
+                            text: "Rincian bulanan Pos A.3 Simulasi LPD (3 bln × Rp10.672.941 = Rp32.018.823) siap dicetak per bulan.",
+                          });
+                        }}
+                        className="px-2 py-1 rounded bg-white hover:bg-emerald-100 border border-emerald-300 text-emerald-900 text-[11px] font-semibold"
+                      >
+                        A.3 Per Bulan LPD (3× Rp10,67 jt)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateGenericDraft(() => buildMonthlyPersonnelDraft("5", "RAB_4_BULAN", profile));
+                          setGenericIncludeKwitansi(true);
+                          setBanner({
+                            type: "ok",
+                            text: "Rincian bulanan Pos A.5 (Tenaga Admin · 4 bln × Rp5.729.876 = Rp22.919.504) siap dicetak per bulan (Invoice + Tanda Terima + Kuitansi).",
+                          });
+                        }}
+                        className="px-2 py-1 rounded bg-white hover:bg-emerald-100 border border-emerald-300 text-emerald-900 text-[11px] font-semibold"
+                      >
+                        A.5 Per Bulan RAB (4× Rp5.729.876)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateGenericDraft(() => buildMonthlyPersonnelDraft("5", "LPD_3_BULAN", profile));
+                          setGenericIncludeKwitansi(true);
+                          setBanner({
+                            type: "ok",
+                            text: "Rincian bulanan Pos A.5 Simulasi LPD (3 bln = Rp9.987.397) siap dicetak per bulan.",
+                          });
+                        }}
+                        className="px-2 py-1 rounded bg-white hover:bg-emerald-100 border border-emerald-300 text-emerald-900 text-[11px] font-semibold"
+                      >
+                        A.5 Per Bulan LPD (3 bln = Rp9,98 jt)
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Sakelar Output Cetak: Invoice, Daftar Tanda Terima, Kuitansi, Kode RAB, PPh */}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-slate-200 bg-slate-50/80 p-3 text-xs">

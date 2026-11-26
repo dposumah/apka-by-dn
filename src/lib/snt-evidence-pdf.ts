@@ -7,11 +7,13 @@ import {
 } from "./snt-brand-kop";
 import {
   EvidenceDocType,
+  expandDraftIntoMonthlySlices,
   GenericEvidenceDraft,
   MonthlyHonorReceiptSheet,
   RecipientMode,
   resolveRecipientDisplay,
   SewaRumahContractDraft,
+  SNT_HONOR_MONTH_OPTIONS,
 } from "./snt-evidence-docs";
 import { KopSuratOption, SntReportProfile } from "./snt-report-templates";
 
@@ -72,7 +74,7 @@ function renderKwitansiSlipHtml(params: {
   });
 }
 
-export function renderMonthlyFacilitatorHonorPdfHtml(input: {
+export interface MonthlyFacilitatorHonorPdfInput {
   sheet: MonthlyHonorReceiptSheet;
   profile: SntReportProfile;
   kopSuratOverride?: KopSuratOption;
@@ -80,7 +82,17 @@ export function renderMonthlyFacilitatorHonorPdfHtml(input: {
   recipientMode: RecipientMode;
   tanggalCetak: string;
   includeIndividualKwitansi?: boolean;
-}): string {
+  includeInvoice?: boolean;
+  invoiceNo?: string;
+  jatuhTempo?: string;
+  ppnPct?: number;
+  ditagihkanKepada?: string;
+  bankName?: string;
+  bankAccount?: string;
+  bankHolder?: string;
+}
+
+function buildMonthlyFacilitatorHonorBodyHtml(input: MonthlyFacilitatorHonorPdfInput): string {
   const { sheet, profile, includeTransportColumn, recipientMode, tanggalCetak } = input;
   const activeKop = input.kopSuratOverride || profile.kopSurat;
   const theme = resolveBrandKopTheme(activeKop, profile);
@@ -93,6 +105,42 @@ export function renderMonthlyFacilitatorHonorPdfHtml(input: {
           ? "Robotic Explorer (PT Jully Tjindrawan Robotik)"
           : profile.namaYayasan;
   const isRabSatuan = sheet.pricingMode === "RAB_SATUAN";
+
+  const monthMeta = SNT_HONOR_MONTH_OPTIONS.find((m) => m.key === sheet.monthKey);
+  const brandCode = activeKop === "lpd" ? "LPD" : activeKop === "robotic" ? "RE" : "MTC";
+  const autoInvNo =
+    input.invoiceNo?.trim() ||
+    `INV/${brandCode}/SNT-W2-A4/${monthMeta?.seq || "001"}/${monthMeta?.roman || "X"}/2026`;
+
+  const invoiceSection = input.includeInvoice
+    ? `
+      ${renderModernInvoiceHtml({
+        kopSurat: activeKop,
+        profile,
+        noInvoice: autoInvNo,
+        tanggal: tanggalCetak,
+        jatuhTempo: input.jatuhTempo || monthMeta?.defaultDue,
+        ditagihkanKepada: input.ditagihkanKepada || "Yayasan Maleo Talenta Cendekia",
+        alamatTagihan: profile.alamatYayasanMaleo,
+        upTagihan: profile.upYayasanMaleo,
+        program: `Sekolah Nasional Terintegrasi (SNT) 2026 — Koordinator Wilayah 2 (${sheet.monthLabel})`,
+        showRabCode: false,
+        items: sheet.rows.map((r) => ({
+          uraian: `Honorarium Fasilitator KKA & Robotika Bulan ${sheet.monthLabel} Lokasi SNT ${r.lokasi}`,
+          qty: isRabSatuan ? 1 : r.totalJP || 1,
+          satuan: isRabSatuan ? "bulan" : "JP",
+          hargaSatuan: r.hargaSatuanReal,
+          jumlah: r.totalHonor,
+        })),
+        ppnPct: Number(input.ppnPct) || 0,
+        bankName: input.bankName,
+        bankAccount: input.bankAccount,
+        bankHolder: input.bankHolder,
+        kota: profile.kotaPengesahan || "Jakarta",
+      })}
+      <div class="page-break"></div>
+    `
+    : "";
 
   const bodyRows = sheet.rows
     .map((r, idx) => {
@@ -210,9 +258,8 @@ export function renderMonthlyFacilitatorHonorPdfHtml(input: {
             <td></td>
           </tr>`;
 
-  return wrapPrintableHtml(
-    `Daftar Tanda Terima Honor Fasilitator — ${sheet.monthLabel}`,
-    `
+  return `
+      ${invoiceSection}
       ${renderKop(activeKop, profile)}
       <div class="doc-head">
         <h1 style="color:${theme.primaryColor};">DAFTAR TANDA TERIMA HONORARIUM FASILITATOR KKA &amp; ROBOTIKA</h1>
@@ -254,7 +301,31 @@ export function renderMonthlyFacilitatorHonorPdfHtml(input: {
       </table>
 
       ${kwtPages}
-    `
+    `;
+}
+
+export function renderMonthlyFacilitatorHonorPdfHtml(
+  input: MonthlyFacilitatorHonorPdfInput
+): string {
+  return wrapPrintableHtml(
+    `Daftar Tanda Terima Honor Fasilitator — ${input.sheet.monthLabel}`,
+    buildMonthlyFacilitatorHonorBodyHtml(input)
+  );
+}
+
+export function renderMultiMonthFacilitatorHonorPdfHtml(
+  inputs: MonthlyFacilitatorHonorPdfInput[]
+): string {
+  const combined = inputs
+    .map((inp, idx) =>
+      idx === 0
+        ? buildMonthlyFacilitatorHonorBodyHtml(inp)
+        : `<div class="page-break">${buildMonthlyFacilitatorHonorBodyHtml(inp)}</div>`
+    )
+    .join("\n");
+  return wrapPrintableHtml(
+    `Paket Honorarium Fasilitator Bulanan (${inputs.length} Bulan)`,
+    combined
   );
 }
 
@@ -343,13 +414,12 @@ export function renderSewaRumahPdfHtml(input: {
   );
 }
 
-export function renderGenericEvidencePdfHtml(input: {
-  type: EvidenceDocType;
-  draft: GenericEvidenceDraft;
-  profile: SntReportProfile;
-  includeKwitansiSlips: boolean;
-}): string {
-  const { type, draft, profile, includeKwitansiSlips } = input;
+function buildGenericEvidencePages(
+  type: EvidenceDocType,
+  draft: GenericEvidenceDraft,
+  profile: SntReportProfile,
+  includeKwitansiSlips: boolean
+): string[] {
   const activeKop: KopSuratOption = draft.kopSurat || profile.kopSurat;
   const theme = resolveBrandKopTheme(activeKop, profile);
   const showRabCode = draft.showRabCode ?? true;
@@ -558,8 +628,7 @@ export function renderGenericEvidencePdfHtml(input: {
     pages.push(daftarHtml);
   }
 
-  // 3. Lembar KUITANSI (jika mode Invoice gabungan, cetak 1 Kuitansi gabungan sesuai total Invoice;
-  //    jika mode Daftar per penerima, cetak 1 Kuitansi per baris penerima!)
+  // 3. Lembar KUITANSI
   if (includeKwitansiSlips) {
     if (includeInvoice && !includeDaftar && draft.items.length > 0) {
       const ppnPct = Number(draft.ppnPct) || 0;
@@ -584,7 +653,6 @@ export function renderGenericEvidencePdfHtml(input: {
           tanggal: draft.tanggalDokumen,
           penerimaDisplay: firstRec,
           penerimaRole: "Yang menerima,",
-          penerimaJabatan: draft.signerTitle || theme.defaultSignerTitle,
         })
       );
     } else {
@@ -593,6 +661,7 @@ export function renderGenericEvidencePdfHtml(input: {
         const amountItem = includePph
           ? (Number(it.nominal) || 0) - Math.round(((Number(it.nominal) || 0) * pphPct) / 100)
           : Number(it.nominal) || 0;
+        const invRef = includeInvoice && draft.invoiceNo ? ` sesuai Invoice No. ${draft.invoiceNo}` : "";
         pages.push(
           renderKwitansiSlipHtml({
             kopSurat: activeKop,
@@ -604,25 +673,47 @@ export function renderGenericEvidencePdfHtml(input: {
                 : `KWT/${draft.rabCode.toUpperCase()}/${String(idx + 1).padStart(3, "0")}`),
             sudahTerimaDari: draft.sudahTerimaDari || profile.namaYayasan,
             amount: amountItem,
-            untukPembayaran: it.uraian,
+            untukPembayaran: `${it.uraian}${invRef}`,
             rabCode: rabLabel,
             showRabCode,
             kota: profile.kotaPengesahan || "Jakarta",
             tanggal: it.tanggal || draft.tanggalDokumen,
             penerimaDisplay: recDisplay,
             penerimaRole: isBillHotel ? "Pengelola Hotel / Penginapan," : "Yang menerima,",
-            penerimaJabatan: it.catatan || undefined,
           })
         );
       });
     }
   }
 
-  const combinedHtml = pages
+  return pages;
+}
+
+export function renderGenericEvidencePdfHtml(input: {
+  type: EvidenceDocType;
+  draft: GenericEvidenceDraft;
+  profile: SntReportProfile;
+  includeKwitansiSlips: boolean;
+}): string {
+  const { type, draft, profile, includeKwitansiSlips } = input;
+  const slices = expandDraftIntoMonthlySlices(draft, draft.monthlyPrintFilter || "ALL");
+  const allPages: string[] = [];
+  for (const slice of slices) {
+    allPages.push(...buildGenericEvidencePages(type, slice, profile, includeKwitansiSlips));
+  }
+
+  const combinedHtml = allPages
     .map((p, idx) => (idx === 0 ? p : `<div class="page-break">${p}</div>`))
     .join("\n");
 
-  return wrapPrintableHtml(`${draft.judulDokumen}`, combinedHtml);
+  const suffix =
+    slices.length > 1
+      ? ` (${slices.length} Bulan)`
+      : slices[0]?.periodeLabel
+        ? ` — ${slices[0].periodeLabel}`
+        : "";
+
+  return wrapPrintableHtml(`${draft.judulDokumen}${suffix}`, combinedHtml);
 }
 
 function wrapPrintableHtml(title: string, innerHtml: string): string {
