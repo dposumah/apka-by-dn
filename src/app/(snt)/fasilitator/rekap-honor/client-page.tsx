@@ -36,6 +36,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { createRekapManual, deleteRekap, generateKwitansiHonor, generateKwitansiTransportBulanan, updateRekapTransport, updateRekapHonorManual, copyRekapFromPreviousMonth, batchUpdateTransportByFormula } from '@/app/actions/rekap'
 import { adminGenerateInvoiceHonor, uploadBuktiRekap, generateInvoiceHonorRecord } from '@/app/actions/rekap'
 import { getInvoiceHtml, getKwitansiHtml, getMonthlyRekapReportHtml } from './pdf-generator'
+import { renderSlipHonorariumHtml } from '@/lib/snt-brand-kop'
 import { useRouter } from 'next/navigation'
 import { useModal } from '@/components/modal-provider';
 
@@ -995,6 +996,7 @@ const [loadingId, setLoadingId] = useState<string | null>(null)
   
   // New variables for Kwitansi manual input
   const [printCheckInvoice, setPrintCheckInvoice] = useState(true)
+  const [printCheckSlipHonor, setPrintCheckSlipHonor] = useState(false)
   const [printCheckHonor, setPrintCheckHonor] = useState(false)
   const [printCheckTransport, setPrintCheckTransport] = useState(false)
   const [printKopType, setPrintKopType] = useState<'maleo' | 'robotic'>('maleo')
@@ -1154,6 +1156,50 @@ Atas Nama: ${namaLengkap}`;
         );
         if (record.error) throw new Error(record.error);
         htmlString += getKwitansiHtml(selectedRekap, record, 'TRANSPORT', terbilangRupiah);
+      }
+
+      // 4. Slip Honorarium (Format Resmi Yayasan Maleo)
+      if (printCheckSlipHonor) {
+        const totalTrans = hitungTotalTransportRekap(selectedRekap);
+        const fasil = selectedRekap.fasilitator || {};
+        const kwRec = getKwHonor(selectedRekap);
+        const slipHtml = renderSlipHonorariumHtml({
+          kopSurat: printKopType === 'robotic' ? 'robotic' : 'maleo',
+          periode: selectedRekap.bulan || '-',
+          namaPenerima: fasil.namaLengkap || '-',
+          nomorDokumen: kwRec?.noKwitansi || `SLIP/${selectedRekap.bulan || '2026'}/${selectedRekap.id.slice(-4).toUpperCase()}`,
+          peranJabatan: `Fasilitator KKA & Robotika (${fasil.lokasiSNT || 'Wilayah 2'})`,
+          kegiatan: 'Program Sekolah Nasional Terintegrasi (SNT) 2026 — KKA & Robotika',
+          tanggalKegiatan: `Bulan ${selectedRekap.bulan || '-'}`,
+          tanggalBayar: inputTanggal || new Date().toISOString().slice(0, 10),
+          npwpNik: fasil.npwpNik || '-',
+          rekening: [fasil.bankName, fasil.bankAccount].filter(Boolean).join(' — ') || '-',
+          components: [
+            {
+              komponen: 'Honorarium',
+              qty: `${selectedRekap.totalJP || 0} JP`,
+              pendapatan: Number(selectedRekap.totalHonor) || 0,
+              potongan: 0,
+              keterangan: `Intra ${selectedRekap.totalJPIntra || 0} JP + Ekstra ${selectedRekap.totalJPEkstra || 0} JP`,
+            },
+            {
+              komponen: 'Tambahan honorarium',
+              qty: totalTrans > 0 ? '1 paket' : '-',
+              pendapatan: totalTrans,
+              potongan: 0,
+              keterangan: totalTrans > 0 ? 'Transport mengajar bulanan' : '-',
+            },
+            {
+              komponen: 'Pajak / potongan lainnya',
+              qty: '-',
+              pendapatan: 0,
+              potongan: 0,
+              keterangan: '-',
+            },
+          ],
+          catatan: `Lokasi SNT: ${fasil.lokasiSNT || 'Wilayah 2'}`,
+        });
+        htmlString += (htmlString ? '<div style="page-break-before: always;"></div>' : '') + slipHtml;
       }
       
       if (!htmlString) {
@@ -2529,6 +2575,15 @@ Atas Nama: ${namaLengkap}`;
                           Daring / Rp 0 (Tanpa Kwitansi)
                         </span>
                       )}
+                    </label>
+                    <label className="flex items-center space-x-2 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={printCheckSlipHonor}
+                        onChange={e => setPrintCheckSlipHonor(e.target.checked)}
+                        className="w-4 h-4 text-teal-600 rounded"
+                      />
+                      <span>Slip Honorarium (Format Resmi Maleo)</span>
                     </label>
                   </div>
                 </div>

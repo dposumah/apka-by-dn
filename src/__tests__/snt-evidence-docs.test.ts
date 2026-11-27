@@ -16,6 +16,12 @@ import {
   SNT_RAB_TENAGA_ADMIN_UNIT_PRICE,
 } from "../lib/snt-evidence-docs";
 import {
+  renderMaleoTandaTerimaHtml,
+  renderModernInvoiceHtml,
+  renderModernKuitansiHtml,
+  renderSlipHonorariumPdfDocumentHtml,
+} from "../lib/snt-brand-kop";
+import {
   renderGenericEvidencePdfHtml,
   renderMonthlyFacilitatorHonorPdfHtml,
   renderSewaRumahPdfHtml,
@@ -160,7 +166,7 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
       includeKwitansiSlips: true,
     });
     expect(html).toContain("Pembinaan Kompetisi Coding");
-    expect(html).toContain("KUITANSI");
+    expect(html).toContain("KWITANSI");
     expect(html).toContain(BLANK_SIGNATURE_LINE);
   });
 
@@ -224,7 +230,7 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
     expect(html).not.toContain("Pos RAB A.4");
     expect(html).not.toContain("Fasilitator Penerima");
     expect(html).toContain("Honorarium Fasilitator KKA &amp; Robotika Bulan Oktober 2026 Lokasi SNT Kab. Buton Tengah");
-    expect(html).toContain("Fasilitator,");
+    expect(html).toContain("Fasilitator");
 
     // Preset Tenaga Administrasi Pos A.5 = 4 bulan × Rp5.729.876 = Rp22.919.504
     const adminPreset = getHonorTimPresetByRabCode("5");
@@ -379,5 +385,84 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
     expect(a4Html).toContain("DAFTAR TANDA TERIMA HONORARIUM FASILITATOR");
     expect(a4Html).toContain("KUITANSI");
     expect(a4Html).toContain("INV/LPD/SNT-W2-A4/002/X/2026");
+  });
+
+  it("renders all 4 official Yayasan Maleo administrative formats (Invoice, Kwitansi, Tanda Terima, Slip Honorarium)", () => {
+    const profile = getDefaultSntReportProfile();
+
+    // 1. Maleo Invoice (#00ADB5, Bank Mandiri, Mutiara Hikma Mahendradatta)
+    const maleoInv = renderModernInvoiceHtml({
+      kopSurat: "maleo",
+      profile,
+      noInvoice: "INV.2026.11.27.001",
+      tanggal: "2026-11-27",
+      jatuhTempo: "2026-12-10",
+      ditagihkanKepada: "PPK Ditjen PAUD Dikdasmen",
+      items: [{ uraian: "Langganan LMS KKA & Robotika", qty: 1, satuan: "paket", hargaSatuan: 84480000, jumlah: 84480000 }],
+    });
+    expect(maleoInv).toContain("#00ADB5");
+    expect(maleoInv).toContain("INV.2026.11.27.001");
+    expect(maleoInv).toContain("BANK MANDIRI");
+    expect(maleoInv).toContain("MALEO TALENTA CENDEKIA");
+    expect(maleoInv).toContain("Mutiara Hikma Mahendradatta, BBA., MBA.");
+    expect(maleoInv).toContain("ADDITIONAL FEE");
+
+    // 2. Maleo Kwitansi (#009999, Subtotal, PPN 11%, Total Pembayaran, Ketua Yayasan)
+    const maleoKwt = renderModernKuitansiHtml({
+      kopSurat: "maleo",
+      profile,
+      noKwitansi: "KWT.2026.11.27.001",
+      sudahTerimaDari: "Yayasan Maleo Talenta Cendekia",
+      amount: 5729876,
+      ppnPct: 0,
+      untukPembayaran: "Honorarium Fasilitator Oktober 2026",
+      kota: "Jakarta",
+      tanggal: "2026-11-27",
+      penerimaDisplay: "Muliyadi, S.Kom., M.Cs.",
+      penerimaRole: "Fasilitator,",
+    });
+    expect(maleoKwt).toContain("#009999");
+    expect(maleoKwt).toContain("KWT.2026.11.27.001");
+    expect(maleoKwt).toContain("Total Pembayaran");
+    expect(maleoKwt).toContain("Mutiara Hikma Mahendradatta, BBA., MBA.");
+
+    // 3. Maleo Tanda Terima (#00ADB5, Kepada Yth., Dibayarkan oleh, Diterima Oleh)
+    const maleoTt = renderMaleoTandaTerimaHtml({
+      kopSurat: "maleo",
+      profile,
+      tanggal: "2026-11-27",
+      kepadaYth: "Muliyadi, S.Kom., M.Cs.",
+      items: [{ deskripsi: "Honorarium Fasilitator Oktober 2026", total: 5729876 }],
+    });
+    expect(maleoTt).toContain("TANDA TERIMA");
+    expect(maleoTt).toContain("Kepada Yth.");
+    expect(maleoTt).toContain("Dibayarkan oleh,");
+    expect(maleoTt).toContain("Diterima Oleh,");
+
+    // 4. Maleo Slip Honorarium (#0DA7A0 + #CBF5F1, HONORARIUM BERSIH DITERIMA, electronic footer)
+    const slipHtml = renderSlipHonorariumPdfDocumentHtml([
+      {
+        kopSurat: "maleo",
+        profile,
+        periode: "Oktober 2026",
+        namaPenerima: "Muh. Hanifudin H, S.Pd",
+        nomorDokumen: "KWT.2026.10.31.001",
+        peranJabatan: "Fasilitator KKA & Robotika (Kota Tidore Kepulauan)",
+        kegiatan: "Program SNT 2026 — Wilayah 2",
+        tanggalKegiatan: "1 – 31 Oktober 2026",
+        tanggalBayar: "2026-10-31",
+        npwpNik: "8201010101900001",
+        rekening: "BRI — 1234567890",
+        components: [
+          { komponen: "Honorarium", qty: "1 Bulan", pendapatan: 5729876, potongan: 0, keterangan: "SNT Tidore" },
+          { komponen: "Tambahan honorarium", qty: "-", pendapatan: 0, potongan: 0, keterangan: "-" },
+          { komponen: "Pajak / potongan lainnya", qty: "-", pendapatan: 0, potongan: 0, keterangan: "-" },
+        ],
+      },
+    ]);
+    expect(slipHtml).toContain("SLIP HONORARIUM");
+    expect(slipHtml).toContain("HONORARIUM BERSIH DITERIMA");
+    expect(slipHtml).toContain("8201010101900001");
+    expect(slipHtml).toContain("Slip gaji ini dibuat secara elektronik dan hanya digunakan untuk keperluan internal.");
   });
 });

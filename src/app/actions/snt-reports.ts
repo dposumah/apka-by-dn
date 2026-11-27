@@ -107,6 +107,7 @@ export async function getSntReportWorkspaceData() {
           ktpUrl: true,
           bankName: true,
           bankAccount: true,
+          npwpNik: true,
         },
         orderBy: [{ lokasiSNT: "asc" }, { namaLengkap: "asc" }],
       }),

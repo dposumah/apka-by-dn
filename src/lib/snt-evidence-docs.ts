@@ -17,6 +17,7 @@ export type HonorPricingMode = "RAB_SATUAN" | "REAL_JP";
 
 export type EvidenceDocType =
   | "HONOR_FASIL_BULANAN"
+  | "SLIP_HONORARIUM"
   | "INVOICE_KUITANSI_MITRA"
   | "HONOR_TIM"
   | "KORWIL_TRANSPORT"
@@ -50,6 +51,16 @@ export const EVIDENCE_DOC_CATALOG: EvidenceDocMeta[] = [
     defaultRecipientMode: "MANUAL",
     description:
       "Daftar tanda terima & kwitansi honor fasilitator bulanan (Standar RAB Rp5.729.876/lokasi atau Real/JP DB) dengan dropdown pilih nama fasil atau blanko kosong.",
+  },
+  {
+    type: "SLIP_HONORARIUM",
+    rabCode: "4",
+    shortTitle: "Slip Honorarium (Format Maleo)",
+    fullTitle: "Slip Honorarium Personel & Fasilitator — Format Resmi Yayasan Maleo",
+    template13Ref: "Pos A.2, A.3, A.4, A.5, B.6a · Format Slip Gaji / Honorarium Maleo (#0DA7A0)",
+    defaultRecipientMode: "MANUAL",
+    description:
+      "Mencetak Slip Honorarium resmi Yayasan Maleo (satuan atau massal 6 lokasi/bulan) lengkap dengan NPWP/NIK, Rekening, Komponen Pendapatan/Potongan & Honor Bersih Diterima.",
   },
   {
     type: "INVOICE_KUITANSI_MITRA",

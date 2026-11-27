@@ -85,16 +85,16 @@ export function resolveBrandKopTheme(
       entityName: "Yayasan Maleo Talenta Cendekia",
       headerTitle: "YAYASAN MALEO TALENTA CENDEKIA",
       logoPath: "/kop-maleo.png",
-      primaryColor: "#1F3864",
-      accentColor: "#15803D",
-      softTintColor: "#F0F7F4",
+      primaryColor: "#00ADB5",
+      accentColor: "#009999",
+      softTintColor: "#CBF5F1",
       address: profile?.alamatYayasanMaleo?.trim() || "Intermark Indonesia, Ruko Alfresco Dining No.8, BSD City, Tangerang Selatan 15310",
       contactLine: "08119661017 | maleotalentacendekia@gmail.com",
-      defaultBankName: "",
-      defaultBankAccount: "",
-      defaultBankHolder: "Yayasan Maleo Talenta Cendekia",
-      defaultSignerName: profile?.ketuaTimPelaksana?.trim() || "Jully Tjindrawan, MBA",
-      defaultSignerTitle: "Ketua Tim Pelaksana",
+      defaultBankName: profile?.maleoBankName?.trim() || "BANK MANDIRI",
+      defaultBankAccount: profile?.maleoBankAccount?.trim() || "",
+      defaultBankHolder: profile?.maleoBankHolder?.trim() || "MALEO TALENTA CENDEKIA",
+      defaultSignerName: profile?.ketuaYayasanMaleo?.trim() || "Mutiara Hikma Mahendradatta, BBA., MBA.",
+      defaultSignerTitle: "Ketua Yayasan",
       isFullBanner: true,
     };
   }
@@ -194,6 +194,7 @@ export interface ModernKuitansiInput {
   noKwitansi: string;
   sudahTerimaDari: string;
   amount: number;
+  ppnPct?: number;
   untukPembayaran: string;
   rabCode?: string;
   showRabCode?: boolean;
@@ -203,19 +204,112 @@ export interface ModernKuitansiInput {
   penerimaDisplay: string;
   penerimaRole: string;
   penerimaJabatan?: string;
+  dibuatOleh?: string;
   showMateraiHint?: boolean;
 }
 
 /**
- * Layout Kuitansi Modern sesuai Mockup LPD & Robotic Explorer (header dual-tone,
- * kotak nominal 2-warna [Rp | angka], kotak terbilang biru muda, hint materai Rp10.000).
+ * Layout Kuitansi:
+ * - Kop `maleo`: Format Kwitansi Resmi Yayasan Maleo Talenta Cendekia (#009999, Subtotal/PPN/Total, Ketua Yayasan)
+ * - Kop `lpd` / `robotic` / `none`: Format Kuitansi Modern 2-warna LPD / Robotic Explorer
  */
 export function renderModernKuitansiHtml(params: ModernKuitansiInput): string {
   const theme = resolveBrandKopTheme(params.kopSurat, params.profile);
   const amount = Number(params.amount) || 0;
-  const formattedAmt = amount > 0 ? amount.toLocaleString("id-ID") : "........................";
+  const ppnPct = Number(params.ppnPct) || 0;
+  const ppnAmount = ppnPct > 0 ? Math.round((amount * ppnPct) / 100) : 0;
+  const grandTotal = amount + ppnAmount;
+  const formattedAmt = grandTotal > 0 ? grandTotal.toLocaleString("id-ID") : "........................";
   const terbilangText =
-    amount > 0 ? `# ${terbilangRupiah(amount)} #` : "................................................................";
+    grandTotal > 0 ? `# ${terbilangRupiah(grandTotal)} #` : "................................................................";
+
+  if (params.kopSurat === "maleo") {
+    const ketuaYayasan =
+      params.profile?.ketuaYayasanMaleo?.trim() || "Mutiara Hikma Mahendradatta, BBA., MBA.";
+    const dibuatOleh = params.dibuatOleh?.trim() || params.penerimaDisplay || "....................................";
+
+    return `
+      <div style="background:#fff; border:1px solid #cbd5e1; border-radius:4px; padding:22px 26px; max-width:860px; margin:0 auto; box-sizing:border-box; font-family:'Open Sans','Segoe UI',Arial,sans-serif; color:#0f172a; page-break-inside:avoid;">
+        ${renderBrandKopHtml(params.kopSurat, params.profile, params.originPrefix || "")}
+
+        <div style="text-align:center; font-size:20px; font-weight:800; color:#009999; letter-spacing:2px; margin:8px 0 12px;">
+          KWITANSI
+        </div>
+
+        <table style="width:100%; border-collapse:collapse; font-size:11.5px; margin-bottom:14px;">
+          <tr>
+            <td style="border:none; padding:4px 0; font-weight:700; color:#0f172a;">
+              Kwitansi No. <span style="color:#009999;">${esc(params.noKwitansi || "KWT.2026.__.__.___")}</span>
+            </td>
+            <td style="border:none; padding:4px 0; text-align:right; font-weight:600; color:#334155;">
+              Tanggal : ${esc(formatDateSlashOrId(params.tanggal, "long"))}
+            </td>
+          </tr>
+        </table>
+
+        <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:16px; border:1px solid #cbd5e1;">
+          <tr>
+            <td style="width:165px; padding:8px 10px; font-weight:700; background:#f8fafc; border-bottom:1px solid #e2e8f0;">Telah Terima Dari</td>
+            <td style="width:14px; padding:8px 4px; text-align:center; border-bottom:1px solid #e2e8f0;">:</td>
+            <td colspan="2" style="padding:8px 10px; font-weight:700; color:#0f172a; border-bottom:1px solid #e2e8f0;">
+              ${esc(params.sudahTerimaDari)}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:8px 10px; font-weight:700; background:#f8fafc; border-bottom:1px solid #e2e8f0;">Sejumlah Uang</td>
+            <td style="padding:8px 4px; text-align:center; border-bottom:1px solid #e2e8f0;">:</td>
+            <td colspan="2" style="padding:8px 10px; font-style:italic; font-weight:700; color:#0f766e; background:#f0fdfa; border-bottom:1px solid #e2e8f0;">
+              ${esc(terbilangText)}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:9px 10px; font-weight:700; background:#f8fafc; vertical-align:top; border-bottom:1px solid #e2e8f0;">Untuk Pembayaran</td>
+            <td style="padding:9px 4px; text-align:center; vertical-align:top; border-bottom:1px solid #e2e8f0;">:</td>
+            <td colspan="2" style="padding:9px 10px; line-height:1.45; border-bottom:1px solid #e2e8f0;">
+              <div style="font-weight:600; color:#0f172a;">${esc(params.untukPembayaran)}</div>
+              ${params.subLabel ? `<div style="font-size:10.5px; color:#64748b; margin-top:2px;">${esc(params.subLabel)}</div>` : ""}
+              ${params.showRabCode && params.rabCode ? `<div style="font-size:10.5px; color:#009999; font-weight:700; margin-top:2px;">Kode RAB: ${esc(params.rabCode)}</div>` : ""}
+            </td>
+          </tr>
+          <tr>
+            <td colspan="2" rowspan="3" style="padding:10px; vertical-align:middle; background:#fff; border:none;">
+              <div style="display:inline-flex; align-items:stretch; border:2px solid #009999; min-width:220px;">
+                <div style="background:#009999; color:#fff; font-weight:800; font-size:13px; padding:7px 14px; display:flex; align-items:center;">Rp</div>
+                <div style="background:#fff; color:#0f172a; font-weight:800; font-size:15px; padding:7px 16px; display:flex; align-items:center; flex:1;">${esc(formattedAmt)}</div>
+              </div>
+            </td>
+            <td style="width:165px; padding:6px 10px; font-weight:600; text-align:right; background:#f8fafc; border-left:1px solid #cbd5e1; border-bottom:1px solid #e2e8f0;">Subtotal</td>
+            <td style="width:155px; padding:6px 10px; text-align:right; font-weight:600; border-bottom:1px solid #e2e8f0; white-space:nowrap;">${esc(formatCurrency(amount))}</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 10px; font-weight:600; text-align:right; background:#f8fafc; border-left:1px solid #cbd5e1; border-bottom:1px solid #e2e8f0;">PPN (${ppnPct > 0 ? ppnPct : 11}%)</td>
+            <td style="padding:6px 10px; text-align:right; color:#475569; border-bottom:1px solid #e2e8f0; white-space:nowrap;">${ppnAmount > 0 ? esc(formatCurrency(ppnAmount)) : "Rp -"}</td>
+          </tr>
+          <tr style="background:#009999; color:#fff;">
+            <td style="padding:7px 10px; font-weight:800; text-align:right; border-left:1px solid #009999;">Total Pembayaran</td>
+            <td style="padding:7px 10px; text-align:right; font-weight:800; white-space:nowrap;">${esc(formatCurrency(grandTotal))}</td>
+          </tr>
+        </table>
+
+        <table style="width:100%; border-collapse:collapse; margin-top:20px; font-size:11.5px;">
+          <tr>
+            <td style="width:50%; text-align:center; vertical-align:top; border:none;">
+              <div style="color:#334155;">Dibuat oleh,</div>
+              <div style="height:58px;"></div>
+              <div style="font-weight:700; color:#0f172a; text-decoration:underline;">${esc(dibuatOleh)}</div>
+              ${params.penerimaRole ? `<div style="font-size:10.5px; color:#64748b; margin-top:2px;">${esc(params.penerimaRole.replace(/,\s*$/, ""))}</div>` : ""}
+            </td>
+            <td style="width:50%; text-align:center; vertical-align:top; border:none;">
+              <div style="color:#334155;">Disetujui Oleh,</div>
+              <div style="height:58px;"></div>
+              <div style="font-weight:800; color:#0f172a; text-decoration:underline;">${esc(ketuaYayasan)}</div>
+              <div style="font-size:10.5px; color:#009999; font-weight:700; margin-top:2px;">Ketua Yayasan</div>
+            </td>
+          </tr>
+        </table>
+      </div>
+    `;
+  }
 
   return `
     <div style="background:#fff; border:1px solid #cbd5e1; border-radius:4px; padding:20px 24px; max-width:860px; margin:0 auto; box-sizing:border-box; font-family:'Segoe UI',Arial,sans-serif; color:#0f172a; page-break-inside:avoid;">
@@ -292,6 +386,295 @@ export function renderModernKuitansiHtml(params: ModernKuitansiInput): string {
   `;
 }
 
+export interface MaleoTandaTerimaLine {
+  deskripsi: string;
+  total: number;
+}
+
+export interface MaleoTandaTerimaInput {
+  kopSurat: KopSuratOption;
+  profile?: Partial<SntReportProfile>;
+  originPrefix?: string;
+  tanggal: string | Date;
+  kepadaYth: string;
+  items: MaleoTandaTerimaLine[];
+  dibayarkanOleh?: string;
+  diterimaOleh?: string;
+  catatan?: string;
+}
+
+/**
+ * Layout Tanda Terima Resmi Yayasan Maleo Talenta Cendekia (#00ADB5)
+ * sesuai file `Format Tanda Terima.docx`.
+ */
+export function renderMaleoTandaTerimaHtml(params: MaleoTandaTerimaInput): string {
+  const theme = resolveBrandKopTheme(params.kopSurat, params.profile);
+  const primary = params.kopSurat === "maleo" ? "#00ADB5" : theme.primaryColor;
+  const grandTotal = params.items.reduce((s, it) => s + (Number(it.total) || 0), 0);
+  const minRows = Math.max(params.items.length, 4);
+  const rowsHtml = Array.from({ length: minRows }, (_, idx) => {
+    const it = params.items[idx];
+    if (!it) {
+      return `<tr><td style="height:24px; border:1px solid #cbd5e1; text-align:center;">&nbsp;</td><td style="border:1px solid #cbd5e1;"></td><td style="border:1px solid #cbd5e1;"></td></tr>`;
+    }
+    return `
+      <tr>
+        <td style="border:1px solid #cbd5e1; padding:7px 8px; text-align:center;">${idx + 1}</td>
+        <td style="border:1px solid #cbd5e1; padding:7px 10px; color:#0f172a;">${esc(it.deskripsi)}</td>
+        <td style="border:1px solid #cbd5e1; padding:7px 10px; text-align:right; font-weight:600; white-space:nowrap;">${esc(formatCurrency(it.total))}</td>
+      </tr>
+    `;
+  }).join("");
+
+  return `
+    <div style="background:#fff; padding:22px 26px; max-width:820px; margin:0 auto; box-sizing:border-box; font-family:'Open Sans','Segoe UI',Arial,sans-serif; color:#0f172a; page-break-inside:avoid;">
+      ${renderBrandKopHtml(params.kopSurat, params.profile, params.originPrefix || "")}
+
+      <div style="text-align:center; font-size:20px; font-weight:800; color:${primary}; letter-spacing:2px; margin:8px 0 12px;">
+        TANDA TERIMA
+      </div>
+
+      <table style="width:100%; border-collapse:collapse; font-size:11.5px; margin-bottom:10px;">
+        <tr>
+          <td style="border:none; padding:3px 0; vertical-align:top;">
+            <div style="font-weight:700; color:#334155;">Kepada Yth.</div>
+            <div style="font-weight:700; color:#0f172a; margin-top:2px;">${esc(params.kepadaYth || "................................................")}</div>
+          </td>
+          <td style="border:none; padding:3px 0; text-align:right; vertical-align:top; font-weight:600; color:#334155;">
+            Tanggal: ${esc(formatDateSlashOrId(params.tanggal, "long"))}
+          </td>
+        </tr>
+      </table>
+
+      <table style="width:100%; border-collapse:collapse; font-size:11.5px; margin-top:8px;">
+        <thead>
+          <tr style="background:${primary}; color:#fff;">
+            <th style="border:1px solid ${primary}; padding:7px 8px; text-align:center; width:44px;">NO</th>
+            <th style="border:1px solid ${primary}; padding:7px 10px; text-align:left;">DESKRIPSI</th>
+            <th style="border:1px solid ${primary}; padding:7px 10px; text-align:right; width:155px;">TOTAL</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+          <tr style="background:#f0fdfa;">
+            <td colspan="2" style="border:1px solid #cbd5e1; padding:8px 10px; text-align:right; font-weight:800;">Total</td>
+            <td style="border:1px solid #cbd5e1; padding:8px 10px; text-align:right; font-weight:800; color:#0f766e; white-space:nowrap;">${esc(formatCurrency(grandTotal))}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div style="margin-top:8px; font-size:11px; color:#334155;">
+        Terbilang: <em style="font-weight:600; color:#0f766e;"># ${esc(grandTotal > 0 ? terbilangRupiah(grandTotal) : "-")} #</em>
+      </div>
+      ${params.catatan ? `<div style="margin-top:6px; font-size:10.5px; color:#475569;">Catatan: ${esc(params.catatan)}</div>` : ""}
+
+      <table style="width:100%; border-collapse:collapse; margin-top:30px; font-size:11.5px;">
+        <tr>
+          <td style="width:50%; text-align:center; vertical-align:top; border:none;">
+            <div>Dibayarkan oleh,</div>
+            <div style="height:64px;"></div>
+            <div style="font-weight:700; text-decoration:underline;">${esc(params.dibayarkanOleh || "........................................")}</div>
+          </td>
+          <td style="width:50%; text-align:center; vertical-align:top; border:none;">
+            <div>Diterima Oleh,</div>
+            <div style="height:64px;"></div>
+            <div style="font-weight:700; text-decoration:underline;">${esc(params.diterimaOleh || "........................................")}</div>
+          </td>
+        </tr>
+      </table>
+    </div>
+  `;
+}
+
+export interface SlipHonorariumComponent {
+  komponen: string;
+  qty: string;
+  pendapatan: number;
+  potongan: number;
+  keterangan: string;
+}
+
+export interface SlipHonorariumInput {
+  kopSurat: KopSuratOption;
+  profile?: Partial<SntReportProfile>;
+  originPrefix?: string;
+  periode: string;
+  namaPenerima: string;
+  nomorDokumen: string;
+  peranJabatan: string;
+  kegiatan: string;
+  tanggalKegiatan: string;
+  tanggalBayar: string;
+  npwpNik: string;
+  rekening: string;
+  components: SlipHonorariumComponent[];
+  catatan?: string;
+  disiapkanOleh?: string;
+}
+
+/**
+ * Layout SLIP HONORARIUM Resmi Yayasan Maleo Talenta Cendekia (#0DA7A0 & #CBF5F1)
+ * sesuai file `Format Slip Gaji Karyawan Yayasan Maleo Talenta.docx`.
+ */
+export function renderSlipHonorariumHtml(params: SlipHonorariumInput): string {
+  const theme = resolveBrandKopTheme(params.kopSurat, params.profile);
+  const accentTeal = params.kopSurat === "maleo" ? "#0DA7A0" : theme.primaryColor;
+  const softMint = params.kopSurat === "maleo" ? "#CBF5F1" : theme.softTintColor;
+
+  const totalPendapatan = params.components.reduce((s, c) => s + (Number(c.pendapatan) || 0), 0);
+  const totalPotongan = params.components.reduce((s, c) => s + (Number(c.potongan) || 0), 0);
+  const honorBersih = Math.max(0, totalPendapatan - totalPotongan);
+
+  const compRows = params.components
+    .map(
+      (c) => `
+      <tr>
+        <td style="border:1px solid #b8c8d6; padding:7px 9px; font-weight:600; color:#0f172a;">${esc(c.komponen)}</td>
+        <td style="border:1px solid #b8c8d6; padding:7px 8px; text-align:center;">${esc(c.qty || "-")}</td>
+        <td style="border:1px solid #b8c8d6; padding:7px 9px; text-align:right; white-space:nowrap;">${c.pendapatan > 0 ? esc(formatCurrency(c.pendapatan)) : "-"}</td>
+        <td style="border:1px solid #b8c8d6; padding:7px 9px; text-align:right; color:#b91c1c; white-space:nowrap;">${c.potongan > 0 ? esc(formatCurrency(c.potongan)) : "-"}</td>
+        <td style="border:1px solid #b8c8d6; padding:7px 9px; font-size:10.5px; color:#475569;">${esc(c.keterangan || "")}</td>
+      </tr>
+    `
+    )
+    .join("");
+
+  return `
+    <div style="background:#fff; border:1px solid #b8c8d6; border-radius:4px; padding:22px 26px; max-width:840px; margin:0 auto; box-sizing:border-box; font-family:Calibri,'Segoe UI',Arial,sans-serif; color:#0f172a; page-break-inside:avoid;">
+      ${renderBrandKopHtml(params.kopSurat, params.profile, params.originPrefix || "")}
+
+      <div style="text-align:center; margin:6px 0 14px;">
+        <div style="font-size:19px; font-weight:800; color:${accentTeal}; letter-spacing:1.5px;">SLIP HONORARIUM</div>
+        <div style="font-size:12px; font-weight:600; color:#334155; margin-top:2px;">Periode: ${esc(params.periode || "........................")}</div>
+      </div>
+
+      <table style="width:100%; border-collapse:collapse; font-size:11.5px; margin-bottom:14px;">
+        <tr>
+          <td style="width:18%; border:1px solid #b8c8d6; background:${softMint}; padding:6px 8px; font-weight:700;">Nama Penerima</td>
+          <td style="width:32%; border:1px solid #b8c8d6; padding:6px 8px; font-weight:700;">${esc(params.namaPenerima || "................................")}</td>
+          <td style="width:18%; border:1px solid #b8c8d6; background:${softMint}; padding:6px 8px; font-weight:700;">Nomor Dokumen</td>
+          <td style="width:32%; border:1px solid #b8c8d6; padding:6px 8px; font-family:Consolas,monospace; font-weight:700; color:${accentTeal};">${esc(params.nomorDokumen || "-")}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #b8c8d6; background:${softMint}; padding:6px 8px; font-weight:700;">Peran / Jabatan</td>
+          <td style="border:1px solid #b8c8d6; padding:6px 8px;">${esc(params.peranJabatan || "-")}</td>
+          <td style="border:1px solid #b8c8d6; background:${softMint}; padding:6px 8px; font-weight:700;">Kegiatan</td>
+          <td style="border:1px solid #b8c8d6; padding:6px 8px;">${esc(params.kegiatan || "-")}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #b8c8d6; background:${softMint}; padding:6px 8px; font-weight:700;">Tanggal Kegiatan</td>
+          <td style="border:1px solid #b8c8d6; padding:6px 8px;">${esc(params.tanggalKegiatan || "-")}</td>
+          <td style="border:1px solid #b8c8d6; background:${softMint}; padding:6px 8px; font-weight:700;">Tanggal Bayar</td>
+          <td style="border:1px solid #b8c8d6; padding:6px 8px;">${esc(params.tanggalBayar ? formatDateSlashOrId(params.tanggalBayar, "long") : "-")}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #b8c8d6; background:${softMint}; padding:6px 8px; font-weight:700;">NPWP / NIK</td>
+          <td style="border:1px solid #b8c8d6; padding:6px 8px; font-family:Consolas,monospace;">${esc(params.npwpNik || "-")}</td>
+          <td style="border:1px solid #b8c8d6; background:${softMint}; padding:6px 8px; font-weight:700;">Rekening</td>
+          <td style="border:1px solid #b8c8d6; padding:6px 8px;">${esc(params.rekening || "-")}</td>
+        </tr>
+      </table>
+
+      <table style="width:100%; border-collapse:collapse; font-size:11.5px; margin-bottom:12px;">
+        <thead>
+          <tr style="background:${accentTeal}; color:#fff;">
+            <th style="border:1px solid ${accentTeal}; padding:7px 9px; text-align:left; width:28%;">KOMPONEN</th>
+            <th style="border:1px solid ${accentTeal}; padding:7px 8px; text-align:center; width:12%;">QTY</th>
+            <th style="border:1px solid ${accentTeal}; padding:7px 9px; text-align:right; width:19%;">PENDAPATAN</th>
+            <th style="border:1px solid ${accentTeal}; padding:7px 9px; text-align:right; width:17%;">POTONGAN</th>
+            <th style="border:1px solid ${accentTeal}; padding:7px 9px; text-align:left; width:24%;">KETERANGAN</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${compRows}
+          <tr style="background:#f8fafc; font-weight:800;">
+            <td colspan="2" style="border:1px solid #b8c8d6; padding:7px 9px; text-align:right;">TOTAL</td>
+            <td style="border:1px solid #b8c8d6; padding:7px 9px; text-align:right; white-space:nowrap;">${esc(formatCurrency(totalPendapatan))}</td>
+            <td style="border:1px solid #b8c8d6; padding:7px 9px; text-align:right; color:#b91c1c; white-space:nowrap;">${totalPotongan > 0 ? esc(formatCurrency(totalPotongan)) : "Rp 0"}</td>
+            <td style="border:1px solid #b8c8d6; padding:7px 9px;"></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <table style="width:100%; border-collapse:collapse; margin-bottom:10px;">
+        <tr style="background:${softMint}; border:1.5px solid ${accentTeal};">
+          <td style="padding:10px 12px; font-size:13px; font-weight:800; color:#0f172a; letter-spacing:0.3px;">
+            HONORARIUM BERSIH DITERIMA
+          </td>
+          <td style="padding:10px 14px; font-size:15px; font-weight:800; text-align:right; color:#0f766e; white-space:nowrap;">
+            ${esc(formatCurrency(honorBersih))}
+          </td>
+        </tr>
+      </table>
+
+      <div style="font-size:11.5px; margin-bottom:6px;">
+        <strong>Terbilang:</strong> <em style="color:#0f766e; font-weight:600;">[ ${esc(honorBersih > 0 ? terbilangRupiah(honorBersih) : "-")} ]</em>
+      </div>
+      <div style="font-size:11px; color:#334155; margin-bottom:18px;">
+        <strong>Catatan:</strong> ${esc(params.catatan || "-")}
+      </div>
+
+      <table style="width:100%; border-collapse:collapse; font-size:11.5px;">
+        <tr>
+          <td style="width:45%; border:none; vertical-align:top;">
+            <div>Disiapkan oleh,</div>
+            <div style="height:52px;"></div>
+            <div style="font-weight:700; text-decoration:underline;">${esc(params.disiapkanOleh || params.profile?.bagianAdministrasi || "........................................")}</div>
+            <div style="font-size:10.5px; color:#475569; margin-top:2px;">Bagian Administrasi</div>
+          </td>
+          <td style="width:55%; border:none;"></td>
+        </tr>
+      </table>
+
+      <div style="margin-top:18px; padding-top:8px; border-top:1px dashed #b8c8d6; font-size:10px; color:#64748b; text-align:center; font-style:italic;">
+        Slip gaji ini dibuat secara elektronik dan hanya digunakan untuk keperluan internal.
+      </div>
+    </div>
+  `;
+}
+
+export function renderSlipHonorariumPdfDocumentHtml(
+  slips: SlipHonorariumInput[],
+  docTitle = "Slip Honorarium — Yayasan Maleo Talenta Cendekia"
+): string {
+  const body = slips
+    .map((s, idx) =>
+      idx === 0
+        ? renderSlipHonorariumHtml(s)
+        : `<div style="page-break-before:always; margin-top:20px;">${renderSlipHonorariumHtml(s)}</div>`
+    )
+    .join("\n");
+
+  return `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>${esc(docTitle)}</title>
+  <style>
+    @page { size: A4 portrait; margin: 14mm; }
+    body { margin: 0; background: #f1f5f9; font-family: Calibri, 'Segoe UI', Arial, sans-serif; }
+    .toolbar { display:flex; justify-content:space-between; align-items:center; background:#0f172a; color:#fff; padding:10px 18px; position:sticky; top:0; z-index:10; }
+    .toolbar button { background:#0DA7A0; color:#fff; border:none; padding:7px 16px; border-radius:6px; font-weight:700; cursor:pointer; font-size:12px; }
+    .sheet { padding: 18px 12px; }
+    @media print {
+      body { background: #fff; }
+      .toolbar { display: none; }
+      .sheet { padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <div><strong>${esc(docTitle)}</strong> (${slips.length} lembar)</div>
+    <button onclick="window.print()">Cetak / Simpan PDF</button>
+  </div>
+  <div class="sheet">
+    ${body}
+  </div>
+</body>
+</html>`;
+}
+
 export interface ModernInvoiceLine {
   uraian: string;
   qty: number;
@@ -315,30 +698,180 @@ export interface ModernInvoiceInput {
   showRabCode?: boolean;
   items: ModernInvoiceLine[];
   ppnPct?: number;
+  additionalFee?: number;
   bankName?: string;
   bankAccount?: string;
   bankHolder?: string;
   catatan?: string;
   kota?: string;
+  dibuatOleh?: string;
   signerName?: string;
   signerTitle?: string;
 }
 
 /**
- * Layout Invoice Resmi A4 Portrait sesuai Mockup LPD & Robotic Explorer.
+ * Layout Invoice Resmi A4 Portrait:
+ * - Kop `maleo`: Format Invoice Resmi Yayasan Maleo Talenta Cendekia (#00ADB5, Bank Mandiri, Ketua Yayasan)
+ * - Kop `lpd` / `robotic` / `none`: Format Invoice Resmi LPD & Robotic Explorer
  */
 export function renderModernInvoiceHtml(params: ModernInvoiceInput): string {
   const theme = resolveBrandKopTheme(params.kopSurat, params.profile);
   const subtotal = params.items.reduce((s, it) => s + (Number(it.jumlah) || 0), 0);
   const ppnPct = Number(params.ppnPct) || 0;
   const ppnAmount = Math.round((subtotal * ppnPct) / 100);
-  const grandTotal = subtotal + ppnAmount;
+  const additionalFee = Number(params.additionalFee) || 0;
+  const grandTotal = subtotal + ppnAmount + additionalFee;
 
   const bankName = params.bankName ?? theme.defaultBankName;
   const bankAccount = params.bankAccount ?? theme.defaultBankAccount;
   const bankHolder = params.bankHolder ?? theme.defaultBankHolder;
   const signerName = params.signerName || theme.defaultSignerName;
-  const signerTitle = params.signerTitle || "Direktur";
+  const signerTitle = params.signerTitle || theme.defaultSignerTitle || "Direktur";
+
+  if (params.kopSurat === "maleo") {
+    const ketuaYayasan =
+      params.profile?.ketuaYayasanMaleo?.trim() || "Mutiara Hikma Mahendradatta, BBA., MBA.";
+    const dibuatOleh =
+      params.dibuatOleh?.trim() ||
+      params.profile?.bagianAdministrasi?.trim() ||
+      "........................................";
+    const minMaleoRows = Math.max(params.items.length, 4);
+    const maleoRows = Array.from({ length: minMaleoRows }, (_, idx) => {
+      const it = params.items[idx];
+      if (!it) {
+        return `<tr><td style="height:24px; border:1px solid #cbd5e1; text-align:center;">&nbsp;</td><td style="border:1px solid #cbd5e1;"></td><td style="border:1px solid #cbd5e1;"></td><td style="border:1px solid #cbd5e1;"></td><td style="border:1px solid #cbd5e1;"></td></tr>`;
+      }
+      return `
+        <tr>
+          <td style="border:1px solid #cbd5e1; padding:7px 8px; text-align:center;">${idx + 1}</td>
+          <td style="border:1px solid #cbd5e1; padding:7px 8px; color:#0f172a;">${esc(it.uraian)}</td>
+          <td style="border:1px solid #cbd5e1; padding:7px 8px; text-align:center;">${it.qty}${it.satuan ? ` ${esc(it.satuan)}` : ""}</td>
+          <td style="border:1px solid #cbd5e1; padding:7px 8px; text-align:right; white-space:nowrap;">${esc(formatCurrency(it.hargaSatuan))}</td>
+          <td style="border:1px solid #cbd5e1; padding:7px 8px; text-align:right; font-weight:600; white-space:nowrap;">${esc(formatCurrency(it.jumlah))}</td>
+        </tr>
+      `;
+    }).join("");
+
+    return `
+      <div style="background:#fff; padding:22px 26px; max-width:820px; margin:0 auto; box-sizing:border-box; font-family:'Open Sans','Segoe UI',Arial,sans-serif; color:#0f172a;">
+        ${renderBrandKopHtml(params.kopSurat, params.profile, params.originPrefix || "")}
+
+        <div style="text-align:center; font-size:20px; font-weight:800; color:#00ADB5; letter-spacing:2px; margin:8px 0 12px;">
+          INVOICE
+        </div>
+
+        <table style="width:100%; border-collapse:collapse; font-size:11.5px; margin-bottom:12px;">
+          <tr>
+            <td style="border:none; padding:3px 0; font-weight:700;">
+              Faktur No. <span style="color:#009999;">${esc(params.noInvoice || "INV.2026.__.__.___")}</span>
+            </td>
+            <td style="border:none; padding:3px 0; text-align:right; font-weight:600; color:#334155;">
+              Tanggal: ${esc(formatDateSlashOrId(params.tanggal, "long"))}
+            </td>
+          </tr>
+        </table>
+
+        <table style="width:100%; border-collapse:collapse; font-size:11.5px; margin-bottom:14px;">
+          <thead>
+            <tr style="background:#00ADB5; color:#fff;">
+              <th style="border:1px solid #00ADB5; padding:6px 10px; text-align:left; width:48%;">Pelanggan</th>
+              <th style="border:1px solid #00ADB5; padding:6px 10px; text-align:center; width:26%;">Tanggal Kirim</th>
+              <th style="border:1px solid #00ADB5; padding:6px 10px; text-align:center; width:26%;">JATUH TEMPO</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="border:1px solid #cbd5e1; padding:8px 10px; vertical-align:top;">
+                <div style="font-weight:700; color:#0f172a;">${esc(params.ditagihkanKepada || "........................................")}</div>
+                ${params.alamatTagihan ? `<div style="font-size:10.5px; color:#475569; margin-top:2px;">${esc(params.alamatTagihan)}</div>` : ""}
+                ${params.upTagihan ? `<div style="font-size:10.5px; color:#475569; margin-top:2px;">u.p. ${esc(params.upTagihan)}</div>` : ""}
+              </td>
+              <td style="border:1px solid #cbd5e1; padding:8px 10px; text-align:center; vertical-align:middle;">
+                ${esc(formatDateSlashOrId(params.tanggal, "long"))}
+              </td>
+              <td style="border:1px solid #cbd5e1; padding:8px 10px; text-align:center; vertical-align:middle; font-weight:600;">
+                ${params.jatuhTempo ? esc(formatDateSlashOrId(params.jatuhTempo, "long")) : "-"}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <table style="width:100%; border-collapse:collapse; font-size:11.5px; margin-bottom:0;">
+          <thead>
+            <tr style="background:#00ADB5; color:#fff;">
+              <th style="border:1px solid #00ADB5; padding:7px 6px; text-align:center; width:36px;">No</th>
+              <th style="border:1px solid #00ADB5; padding:7px 8px; text-align:left;">Deskripsi</th>
+              <th style="border:1px solid #00ADB5; padding:7px 6px; text-align:center; width:82px;">QTY</th>
+              <th style="border:1px solid #00ADB5; padding:7px 8px; text-align:right; width:125px;">HARGA SATUAN</th>
+              <th style="border:1px solid #00ADB5; padding:7px 8px; text-align:right; width:130px;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${maleoRows}
+            <tr style="background:#f8fafc;">
+              <td colspan="4" style="border:1px solid #cbd5e1; padding:6px 10px; text-align:right; font-weight:700;">TOTAL</td>
+              <td style="border:1px solid #cbd5e1; padding:6px 8px; text-align:right; font-weight:700; white-space:nowrap;">${esc(formatCurrency(subtotal))}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <table style="width:100%; border-collapse:collapse; font-size:11.5px; margin-top:6px;">
+          <tr>
+            <td style="width:55%; vertical-align:top; border:none; padding:6px 14px 0 0;">
+              <div style="font-size:10.5px; color:#475569; font-weight:700;">Terbilang:</div>
+              <div style="font-style:italic; color:#0f766e; font-weight:600; margin-top:2px;">
+                # ${esc(grandTotal > 0 ? terbilangRupiah(grandTotal) : "-")} #
+              </div>
+              ${params.showRabCode && params.rabCode ? `<div style="font-size:10.5px; color:#009999; font-weight:700; margin-top:6px;">Kode RAB: ${esc(params.rabCode)}</div>` : ""}
+            </td>
+            <td style="width:45%; vertical-align:top; border:none; padding:0;">
+              <table style="width:100%; border-collapse:collapse; font-size:11.5px;">
+                ${
+                  ppnAmount > 0
+                    ? `<tr>
+                        <td style="border:1px solid #cbd5e1; padding:5px 8px; text-align:right; font-weight:600; background:#f8fafc;">PPN (${ppnPct}%)</td>
+                        <td style="border:1px solid #cbd5e1; padding:5px 8px; text-align:right; width:130px; white-space:nowrap;">${esc(formatCurrency(ppnAmount))}</td>
+                      </tr>`
+                    : ""
+                }
+                <tr>
+                  <td style="border:1px solid #cbd5e1; padding:5px 8px; text-align:right; font-weight:600; background:#f8fafc;">ADDITIONAL FEE</td>
+                  <td style="border:1px solid #cbd5e1; padding:5px 8px; text-align:right; width:130px; white-space:nowrap;">${additionalFee > 0 ? esc(formatCurrency(additionalFee)) : "-"}</td>
+                </tr>
+                <tr style="background:#00ADB5; color:#fff;">
+                  <td style="border:1px solid #00ADB5; padding:7px 8px; text-align:right; font-weight:800;">TOTAL</td>
+                  <td style="border:1px solid #00ADB5; padding:7px 8px; text-align:right; font-weight:800; white-space:nowrap;">${esc(formatCurrency(grandTotal))}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        <div style="margin-top:16px; padding:10px 12px; border:1px solid #cbd5e1; background:#f0fdfa; border-radius:4px; font-size:11px; line-height:1.5;">
+          <div><strong>Keterangan:</strong> ${esc(params.catatan || params.program || "Pembayaran Program SNT Wilayah 2")}</div>
+          <div style="margin-top:6px;"><strong>Pembayaran dapat melalui :</strong></div>
+          <div style="font-weight:800; color:#0f766e;">${esc(bankName || "BANK MANDIRI")}${bankAccount ? ` — No. Rekening: ${esc(bankAccount)}` : ""}</div>
+          <div style="font-weight:700; color:#0f172a;">a.n. ${esc(bankHolder || "MALEO TALENTA CENDEKIA")}</div>
+        </div>
+
+        <table style="width:100%; border-collapse:collapse; margin-top:24px; font-size:11.5px;">
+          <tr>
+            <td style="width:50%; text-align:center; vertical-align:top; border:none;">
+              <div>Dibuat oleh,</div>
+              <div style="height:60px;"></div>
+              <div style="font-weight:700; text-decoration:underline;">${esc(dibuatOleh)}</div>
+            </td>
+            <td style="width:50%; text-align:center; vertical-align:top; border:none;">
+              <div>Disetujui Oleh,</div>
+              <div style="height:60px;"></div>
+              <div style="font-weight:800; text-decoration:underline;">${esc(ketuaYayasan)}</div>
+              <div style="font-size:10.5px; color:#009999; font-weight:700; margin-top:2px;">Ketua Yayasan</div>
+            </td>
+          </tr>
+        </table>
+      </div>
+    `;
+  }
 
   const minRows = Math.max(params.items.length, 6);
   const tableRows = Array.from({ length: minRows }, (_, idx) => {

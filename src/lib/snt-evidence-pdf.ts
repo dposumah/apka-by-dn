@@ -1,6 +1,7 @@
 import { formatCurrency, terbilangRupiah } from "./format";
 import {
   renderBrandKopHtml,
+  renderMaleoTandaTerimaHtml,
   renderModernInvoiceHtml,
   renderModernKuitansiHtml,
   resolveBrandKopTheme,
@@ -472,8 +473,28 @@ function buildGenericEvidencePages(
     );
   }
 
-  // 2. Halaman DAFTAR TANDA TERIMA (modern dengan opsi kolom PPh % / Neto & TTD zig-zag)
-  if (includeDaftar) {
+  // 2. Halaman DAFTAR TANDA TERIMA (Kop Maleo pakai Format Tanda Terima resmi Maleo; LPD/RE pakai modern PPh/tabel)
+  if (includeDaftar && activeKop === "maleo" && !includePph) {
+    const firstRecipient = resolveRecipientDisplay(
+      draft.recipientMode,
+      draft.items[0]?.penerima || draft.ditagihkanKepada || ""
+    );
+    pages.push(
+      renderMaleoTandaTerimaHtml({
+        kopSurat: activeKop,
+        profile,
+        tanggal: draft.tanggalDokumen,
+        kepadaYth: firstRecipient,
+        items: draft.items.map((it) => ({
+          deskripsi: `${it.uraian}${it.lokasi ? ` (${it.lokasi})` : ""}`,
+          total: Number(it.nominal) || 0,
+        })),
+        dibayarkanOleh: profile.bagianAdministrasi || "Yayasan Maleo Talenta Cendekia",
+        diterimaOleh: firstRecipient,
+        catatan: draft.catatan,
+      })
+    );
+  } else if (includeDaftar) {
     const headBg = `background:${theme.primaryColor}; color:#fff;`;
     const rowsHtml = draft.items
       .map((it, idx) => {

@@ -51,7 +51,12 @@ import {
   SNT_RAB_HONOR_FASIL_UNIT_PRICE,
   SNT_RAB_TENAGA_ADMIN_UNIT_PRICE,
 } from "@/lib/snt-evidence-docs";
-import { KOP_OPTIONS_LIST, resolveBrandKopTheme } from "@/lib/snt-brand-kop";
+import {
+  KOP_OPTIONS_LIST,
+  renderSlipHonorariumPdfDocumentHtml,
+  resolveBrandKopTheme,
+  SlipHonorariumInput,
+} from "@/lib/snt-brand-kop";
 import {
   renderGenericEvidencePdfHtml,
   renderMonthlyFacilitatorHonorPdfHtml,
@@ -116,6 +121,52 @@ export function EvidenceDocsTab({
   const [honorDitagihkanKepada, setHonorDitagihkanKepada] = useState<string>(
     "Yayasan Maleo Talenta Cendekia"
   );
+
+  // State khusus SLIP HONORARIUM (Format Resmi Yayasan Maleo)
+  const [slipDraft, setSlipDraft] = useState<SlipHonorariumInput>(() => {
+    const saved = evidenceDrafts["EVIDENCE_SLIP_HONORARIUM"];
+    if (saved && typeof saved === "object" && "namaPenerima" in saved) {
+      return saved as unknown as SlipHonorariumInput;
+    }
+    return {
+      kopSurat: "maleo",
+      periode: "Oktober 2026",
+      namaPenerima: "",
+      nomorDokumen: "KWT.2026.10.31.001",
+      peranJabatan: "Fasilitator KKA & Robotika",
+      kegiatan: "Program Sekolah Nasional Terintegrasi (SNT) 2026 — Wilayah 2",
+      tanggalKegiatan: "1 – 31 Oktober 2026",
+      tanggalBayar: "2026-10-31",
+      npwpNik: "",
+      rekening: "",
+      components: [
+        {
+          komponen: "Honorarium",
+          qty: "1 Bulan",
+          pendapatan: SNT_RAB_HONOR_FASIL_UNIT_PRICE,
+          potongan: 0,
+          keterangan: "Honorarium Fasilitator KKA & Robotika",
+        },
+        {
+          komponen: "Tambahan honorarium",
+          qty: "-",
+          pendapatan: 0,
+          potongan: 0,
+          keterangan: "",
+        },
+        {
+          komponen: "Pajak / potongan lainnya",
+          qty: "-",
+          pendapatan: 0,
+          potongan: 0,
+          keterangan: "",
+        },
+      ],
+      catatan: "",
+      disiapkanOleh: profile.bagianAdministrasi || "Bagian Administrasi & Keuangan",
+    };
+  });
+  const [slipBulkMonth, setSlipBulkMonth] = useState<string>("2026-10");
   const [honorTanggalCetak, setHonorTanggalCetak] = useState<string>(
     new Date().toISOString().slice(0, 10)
   );
@@ -244,6 +295,8 @@ export function EvidenceDocsTab({
         content = { pricingMode: honorPricingMode, rows: activeHonorRows, tanggalCetak: honorTanggalCetak };
       } else if (activeType === "SEWA_RUMAH") {
         content = sewaDraft as unknown as Record<string, unknown>;
+      } else if (activeType === "SLIP_HONORARIUM") {
+        content = slipDraft as unknown as Record<string, unknown>;
       } else {
         content = currentGenericDraft as unknown as Record<string, unknown>;
       }
@@ -295,6 +348,15 @@ export function EvidenceDocsTab({
         profile,
         includeMonthlyKwitansi: sewaIncludeMonthlyKwt,
       });
+      openHtmlWindow(html);
+      return;
+    }
+
+    if (activeType === "SLIP_HONORARIUM") {
+      const html = renderSlipHonorariumPdfDocumentHtml(
+        [{ ...slipDraft, profile }],
+        `Slip Honorarium — ${slipDraft.namaPenerima || slipDraft.periode}`
+      );
       openHtmlWindow(html);
       return;
     }
@@ -1412,8 +1474,459 @@ export function EvidenceDocsTab({
               </div>
             )}
 
+            {/* ==================== 2B. SLIP HONORARIUM (FORMAT RESMI YAYASAN MALEO) ==================== */}
+            {activeType === "SLIP_HONORARIUM" && (
+              <div className="space-y-4 text-xs">
+                <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-3.5 space-y-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className="font-bold text-teal-950">
+                        Generator Slip Honorarium (Format Resmi Yayasan Maleo · #0DA7A0)
+                      </div>
+                      <p className="text-[11px] text-teal-800/80">
+                        Pilih fasilitator dari DB untuk auto-fill NPWP/NIK &amp; Rekening, pakai preset personel, atau cetak massal 6 lokasi sekaligus per bulan.
+                      </p>
+                    </div>
+                    <select
+                      value={slipDraft.kopSurat}
+                      onChange={(e) =>
+                        setSlipDraft((p) => ({ ...p, kopSurat: e.target.value as KopSuratOption }))
+                      }
+                      className="h-8 px-2.5 rounded-md border border-teal-300 bg-white text-xs font-semibold text-teal-950"
+                    >
+                      {KOP_OPTIONS_LIST.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          Kop: {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Tarik dari DB Fasilitator atau Preset Personel */}
+                  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-teal-200/70">
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        const f = fasilitators.find((x) => x.id === e.target.value);
+                        if (!f) return;
+                        const bankStr = [f.bankName, f.bankAccount].filter(Boolean).join(" — ");
+                        setSlipDraft((p) => ({
+                          ...p,
+                          namaPenerima: f.namaLengkap,
+                          peranJabatan: `Fasilitator KKA & Robotika (${f.lokasiSNT || "Wilayah 2"})`,
+                          npwpNik: f.npwpNik || p.npwpNik,
+                          rekening: bankStr || p.rekening,
+                        }));
+                        setBanner({
+                          type: "ok",
+                          text: `Data ${f.namaLengkap} (NPWP/NIK & Rekening) dimuat ke Slip Honorarium.`,
+                        });
+                      }}
+                      className="h-8 px-2.5 rounded-md border border-teal-300 bg-white text-xs font-medium min-w-[230px]"
+                    >
+                      <option value="">-- Tarik Profil Fasilitator DB --</option>
+                      {fasilitators.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.namaLengkap} ({f.lokasiSNT || "Wilayah 2"})
+                        </option>
+                      ))}
+                    </select>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSlipDraft((p) => ({
+                          ...p,
+                          peranJabatan: "Koordinator Wilayah 2 (Pos A.3)",
+                          kegiatan: "Koordinasi & Monev Program SNT 2026 — Wilayah 2",
+                          components: [
+                            { komponen: "Honorarium", qty: "1 Bulan", pendapatan: 10672941, potongan: 0, keterangan: "Honorarium Korwil Tahap I (LPD)" },
+                            { komponen: "Tambahan honorarium", qty: "-", pendapatan: 0, potongan: 0, keterangan: "" },
+                            { komponen: "Pajak / potongan lainnya", qty: "-", pendapatan: 0, potongan: 0, keterangan: "" },
+                          ],
+                        }))
+                      }
+                      className="px-2 py-1 rounded bg-white hover:bg-teal-100 border border-teal-300 text-teal-900 font-semibold text-[11px]"
+                    >
+                      Preset A.3 Korwil (Rp10,67 jt/bln)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSlipDraft((p) => ({
+                          ...p,
+                          peranJabatan: "Tenaga Administrasi SNT Wilayah 2 (Pos A.5)",
+                          kegiatan: "Administrasi & Pelaporan Program SNT 2026 — Wilayah 2",
+                          components: [
+                            { komponen: "Honorarium", qty: "1 Bulan", pendapatan: 3329132, potongan: 0, keterangan: "Honorarium Tenaga Administrasi (Selisih Tahap I)" },
+                            { komponen: "Tambahan honorarium", qty: "-", pendapatan: 0, potongan: 0, keterangan: "" },
+                            { komponen: "Pajak / potongan lainnya", qty: "-", pendapatan: 0, potongan: 0, keterangan: "" },
+                          ],
+                        }))
+                      }
+                      className="px-2 py-1 rounded bg-white hover:bg-teal-100 border border-teal-300 text-teal-900 font-semibold text-[11px]"
+                    >
+                      Preset A.5 Admin (Rp3,33 jt/bln)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSlipDraft((p) => ({
+                          ...p,
+                          peranJabatan: "Pembina Kompetisi KKA & Robotika (Pos B.6a)",
+                          kegiatan: "Pembinaan Kompetisi Coding, KA & Robotika SNT Wilayah 2",
+                          components: [
+                            { komponen: "Honorarium", qty: "24 Pertemuan", pendapatan: 16800000, potongan: 0, keterangan: "24 pertemuan × Rp700.000 (Tahap I 80%)" },
+                            { komponen: "Tambahan honorarium", qty: "-", pendapatan: 0, potongan: 0, keterangan: "" },
+                            { komponen: "Pajak / potongan lainnya", qty: "-", pendapatan: 0, potongan: 0, keterangan: "" },
+                          ],
+                        }))
+                      }
+                      className="px-2 py-1 rounded bg-white hover:bg-teal-100 border border-teal-300 text-teal-900 font-semibold text-[11px]"
+                    >
+                      Preset B.6a Kompetisi (Rp16,8 jt)
+                    </button>
+                  </div>
+
+                  {/* Cetak Massal 6 Lokasi Bulanan */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-teal-200/70">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-teal-950">Cetak Massal 6 Lokasi SNT:</span>
+                      <select
+                        value={slipBulkMonth}
+                        onChange={(e) => setSlipBulkMonth(e.target.value)}
+                        className="h-8 px-2 rounded border border-teal-300 bg-white text-xs font-semibold"
+                      >
+                        {SNT_HONOR_MONTH_OPTIONS.map((m) => (
+                          <option key={m.key} value={m.key}>
+                            {m.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => {
+                        const mOpt =
+                          SNT_HONOR_MONTH_OPTIONS.find((m) => m.key === slipBulkMonth) ||
+                          SNT_HONOR_MONTH_OPTIONS[1];
+                        const sheet = buildMonthlyRabUnitHonorReceipt(slipBulkMonth, rekaps, fasilitators);
+                        const slips: SlipHonorariumInput[] = sheet.rows.map((r, idx) => {
+                          const matchedFasil = fasilitators.find(
+                            (f) =>
+                              (r.nama && f.namaLengkap === r.nama) ||
+                              matchWilayah2LocationId(f.lokasiSNT) === r.locationId
+                          );
+                          const bankStr = [matchedFasil?.bankName, matchedFasil?.bankAccount]
+                            .filter(Boolean)
+                            .join(" — ");
+                          return {
+                            kopSurat: slipDraft.kopSurat,
+                            profile,
+                            periode: mOpt.label,
+                            namaPenerima: r.nama || matchedFasil?.namaLengkap || "................................",
+                            nomorDokumen: `KWT.${mOpt.defaultDate.replace(/-/g, ".")}.${String(idx + 1).padStart(3, "0")}`,
+                            peranJabatan: `Fasilitator KKA & Robotika (${r.lokasi})`,
+                            kegiatan: "Program Sekolah Nasional Terintegrasi (SNT) 2026 — Wilayah 2",
+                            tanggalKegiatan: `Bulan ${mOpt.label}`,
+                            tanggalBayar: mOpt.defaultDate,
+                            npwpNik: matchedFasil?.npwpNik || "-",
+                            rekening: bankStr || "-",
+                            components: [
+                              {
+                                komponen: "Honorarium",
+                                qty: "1 Bulan",
+                                pendapatan: r.totalHonor,
+                                potongan: 0,
+                                keterangan: `Lokasi SNT ${r.lokasi}`,
+                              },
+                              {
+                                komponen: "Tambahan honorarium",
+                                qty: "-",
+                                pendapatan: 0,
+                                potongan: 0,
+                                keterangan: "",
+                              },
+                              {
+                                komponen: "Pajak / potongan lainnya",
+                                qty: "-",
+                                pendapatan: 0,
+                                potongan: 0,
+                                keterangan: "",
+                              },
+                            ],
+                            catatan: slipDraft.catatan || "",
+                            disiapkanOleh: slipDraft.disiapkanOleh || profile.bagianAdministrasi,
+                          };
+                        });
+                        openHtmlWindow(
+                          renderSlipHonorariumPdfDocumentHtml(
+                            slips,
+                            `Slip Honorarium 6 Lokasi — ${mOpt.label}`
+                          )
+                        );
+                      }}
+                      className="bg-teal-700 hover:bg-teal-800 text-white text-xs h-8 gap-1.5"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      Cetak 6 Slip Bulanan ({getMonthLabelId(slipBulkMonth)})
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Form Identitas Slip */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Periode</label>
+                    <Input
+                      value={slipDraft.periode}
+                      onChange={(e) => setSlipDraft((p) => ({ ...p, periode: e.target.value }))}
+                      placeholder="Oktober 2026"
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block font-semibold text-slate-700">Nomor Dokumen</label>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const totalNet = slipDraft.components.reduce(
+                            (s, c) => s + (Number(c.pendapatan) || 0) - (Number(c.potongan) || 0),
+                            0
+                          );
+                          const res = await allocateOfficialDocNumberForEvidence({
+                            kind: "KW",
+                            entityCode: resolveEntityCodeFromKop(slipDraft.kopSurat),
+                            date: slipDraft.tanggalBayar || new Date().toISOString().slice(0, 10),
+                            perihal: `Slip Honorarium ${slipDraft.namaPenerima || slipDraft.peranJabatan} (${slipDraft.periode})`,
+                            nominal: Math.max(0, totalNet),
+                          });
+                          if (!res.success || !("docNumber" in res)) {
+                            setBanner({ type: "err", text: ("error" in res && res.error) || "Gagal mengambil nomor." });
+                            return;
+                          }
+                          setSlipDraft((p) => ({ ...p, nomorDokumen: res.docNumber }));
+                          setBanner({ type: "ok", text: `Nomor resmi terdaftar: ${res.docNumber}` });
+                          router.refresh();
+                        }}
+                        className="text-[10px] font-bold text-teal-700 hover:underline"
+                      >
+                        + Ambil No. Resmi
+                      </button>
+                    </div>
+                    <Input
+                      value={slipDraft.nomorDokumen}
+                      onChange={(e) => setSlipDraft((p) => ({ ...p, nomorDokumen: e.target.value }))}
+                      className="h-8 text-xs font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Nama Penerima</label>
+                    <Input
+                      value={slipDraft.namaPenerima}
+                      onChange={(e) => setSlipDraft((p) => ({ ...p, namaPenerima: e.target.value }))}
+                      placeholder="Nama lengkap..."
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Peran / Jabatan</label>
+                    <Input
+                      value={slipDraft.peranJabatan}
+                      onChange={(e) => setSlipDraft((p) => ({ ...p, peranJabatan: e.target.value }))}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block font-semibold text-slate-700 mb-1">Kegiatan</label>
+                    <Input
+                      value={slipDraft.kegiatan}
+                      onChange={(e) => setSlipDraft((p) => ({ ...p, kegiatan: e.target.value }))}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Tanggal Kegiatan</label>
+                    <Input
+                      value={slipDraft.tanggalKegiatan}
+                      onChange={(e) => setSlipDraft((p) => ({ ...p, tanggalKegiatan: e.target.value }))}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Tanggal Bayar</label>
+                    <Input
+                      type="date"
+                      value={slipDraft.tanggalBayar}
+                      onChange={(e) => setSlipDraft((p) => ({ ...p, tanggalBayar: e.target.value }))}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">NPWP / NIK</label>
+                    <Input
+                      value={slipDraft.npwpNik}
+                      onChange={(e) => setSlipDraft((p) => ({ ...p, npwpNik: e.target.value }))}
+                      placeholder="NIK / NPWP penerima..."
+                      className="h-8 text-xs font-mono"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block font-semibold text-slate-700 mb-1">Rekening (Bank &amp; Nomor)</label>
+                    <Input
+                      value={slipDraft.rekening}
+                      onChange={(e) => setSlipDraft((p) => ({ ...p, rekening: e.target.value }))}
+                      placeholder="BRI / BCA / Mandiri — No. Rekening"
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Disiapkan oleh (Admin)</label>
+                    <Input
+                      value={slipDraft.disiapkanOleh || ""}
+                      onChange={(e) => setSlipDraft((p) => ({ ...p, disiapkanOleh: e.target.value }))}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                </div>
+
+                {/* Tabel Komponen Pendapatan & Potongan */}
+                <div className="border rounded-lg overflow-x-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-teal-700 text-white">
+                      <tr>
+                        <th className="py-2 px-3">Komponen</th>
+                        <th className="py-2 px-2 w-24 text-center">Qty</th>
+                        <th className="py-2 px-2 w-36 text-right">Pendapatan (Rp)</th>
+                        <th className="py-2 px-2 w-36 text-right">Potongan (Rp)</th>
+                        <th className="py-2 px-2">Keterangan</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {slipDraft.components.map((comp, idx) => (
+                        <tr key={idx}>
+                          <td className="py-1.5 px-2">
+                            <Input
+                              value={comp.komponen}
+                              onChange={(e) =>
+                                setSlipDraft((p) => ({
+                                  ...p,
+                                  components: p.components.map((c, i) =>
+                                    i === idx ? { ...c, komponen: e.target.value } : c
+                                  ),
+                                }))
+                              }
+                              className="h-7 text-xs"
+                            />
+                          </td>
+                          <td className="py-1.5 px-2">
+                            <Input
+                              value={comp.qty}
+                              onChange={(e) =>
+                                setSlipDraft((p) => ({
+                                  ...p,
+                                  components: p.components.map((c, i) =>
+                                    i === idx ? { ...c, qty: e.target.value } : c
+                                  ),
+                                }))
+                              }
+                              className="h-7 text-xs text-center"
+                            />
+                          </td>
+                          <td className="py-1.5 px-2">
+                            <Input
+                              type="number"
+                              value={comp.pendapatan}
+                              onChange={(e) =>
+                                setSlipDraft((p) => ({
+                                  ...p,
+                                  components: p.components.map((c, i) =>
+                                    i === idx ? { ...c, pendapatan: Number(e.target.value) || 0 } : c
+                                  ),
+                                }))
+                              }
+                              className="h-7 text-xs text-right"
+                            />
+                          </td>
+                          <td className="py-1.5 px-2">
+                            <Input
+                              type="number"
+                              value={comp.potongan}
+                              onChange={(e) =>
+                                setSlipDraft((p) => ({
+                                  ...p,
+                                  components: p.components.map((c, i) =>
+                                    i === idx ? { ...c, potongan: Number(e.target.value) || 0 } : c
+                                  ),
+                                }))
+                              }
+                              className="h-7 text-xs text-right"
+                            />
+                          </td>
+                          <td className="py-1.5 px-2">
+                            <Input
+                              value={comp.keterangan}
+                              onChange={(e) =>
+                                setSlipDraft((p) => ({
+                                  ...p,
+                                  components: p.components.map((c, i) =>
+                                    i === idx ? { ...c, keterangan: e.target.value } : c
+                                  ),
+                                }))
+                              }
+                              className="h-7 text-xs"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-teal-50 border-t-2 border-teal-200 font-bold">
+                      <tr>
+                        <td colSpan={2} className="py-2 px-3 text-right text-teal-950">
+                          HONORARIUM BERSIH DITERIMA:
+                        </td>
+                        <td className="py-2 px-2 text-right text-teal-800">
+                          {formatCurrency(
+                            slipDraft.components.reduce((s, c) => s + (Number(c.pendapatan) || 0), 0)
+                          )}
+                        </td>
+                        <td className="py-2 px-2 text-right text-rose-700">
+                          {formatCurrency(
+                            slipDraft.components.reduce((s, c) => s + (Number(c.potongan) || 0), 0)
+                          )}
+                        </td>
+                        <td className="py-2 px-3 text-right text-sm text-teal-900">
+                          {formatCurrency(
+                            Math.max(
+                              0,
+                              slipDraft.components.reduce(
+                                (s, c) => s + (Number(c.pendapatan) || 0) - (Number(c.potongan) || 0),
+                                0
+                              )
+                            )
+                          )}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Catatan</label>
+                  <Input
+                    value={slipDraft.catatan || ""}
+                    onChange={(e) => setSlipDraft((p) => ({ ...p, catatan: e.target.value }))}
+                    placeholder="Catatan tambahan (opsional)..."
+                    className="h-8 text-xs"
+                  />
+                </div>
+              </div>
+            )}
+
             {/* ==================== 3. INVOICE MITRA & 8 DOKUMEN BUKTI WAJIB LAINNYA ==================== */}
-            {activeType !== "HONOR_FASIL_BULANAN" && activeType !== "SEWA_RUMAH" && (
+            {activeType !== "HONOR_FASIL_BULANAN" && activeType !== "SEWA_RUMAH" && activeType !== "SLIP_HONORARIUM" && (
               <div className="space-y-4">
                 {/* Preset 1-Klik 10 Paket Tahap I / Mockup Drive (LPD, Robotic Explorer & Maleo) */}
                 {activeType === "INVOICE_KUITANSI_MITRA" && (

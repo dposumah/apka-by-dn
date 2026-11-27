@@ -890,6 +890,49 @@ export function PaketLaporanClientPage({ initialData }: { initialData: Workspace
                       />
                     </div>
                   </div>
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-teal-800 pt-1">
+                    Pengesahan &amp; Rekening Kop Yayasan Maleo Talenta Cendekia
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
+                      Ketua Yayasan (Penandatangan Invoice &amp; Kwitansi Maleo)
+                    </label>
+                    <Input
+                      value={profile.ketuaYayasanMaleo || ""}
+                      onChange={(e) => setProfile({ ...profile, ketuaYayasanMaleo: e.target.value })}
+                      placeholder="Mutiara Hikma Mahendradatta, BBA., MBA."
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Bank Maleo</label>
+                      <Input
+                        value={profile.maleoBankName || ""}
+                        onChange={(e) => setProfile({ ...profile, maleoBankName: e.target.value })}
+                        placeholder="BANK MANDIRI"
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">No. Rekening Maleo</label>
+                      <Input
+                        value={profile.maleoBankAccount || ""}
+                        onChange={(e) => setProfile({ ...profile, maleoBankAccount: e.target.value })}
+                        placeholder="No. rekening Mandiri..."
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Atas Nama Maleo</label>
+                      <Input
+                        value={profile.maleoBankHolder || ""}
+                        onChange={(e) => setProfile({ ...profile, maleoBankHolder: e.target.value })}
+                        placeholder="MALEO TALENTA CENDEKIA"
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>

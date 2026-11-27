@@ -145,6 +145,10 @@ export interface SntReportProfile {
   reBankHolder?: string;
   alamatYayasanMaleo?: string;
   upYayasanMaleo?: string;
+  ketuaYayasanMaleo?: string;
+  maleoBankName?: string;
+  maleoBankAccount?: string;
+  maleoBankHolder?: string;
 }
 
 export function getDefaultSntReportProfile(): SntReportProfile {
@@ -182,6 +186,10 @@ export function getDefaultSntReportProfile(): SntReportProfile {
     alamatYayasanMaleo:
       "Intermark Indonesia, Ruko Alfresco Dining No.8, Jl. Lingkar Timur, BSD City, Tangerang Selatan 15310",
     upYayasanMaleo: "Ketua / Bagian Keuangan Yayasan Maleo Talenta Cendekia",
+    ketuaYayasanMaleo: "Mutiara Hikma Mahendradatta, BBA., MBA.",
+    maleoBankName: "BANK MANDIRI",
+    maleoBankAccount: "",
+    maleoBankHolder: "MALEO TALENTA CENDEKIA",
   };
 }
 
@@ -265,6 +273,7 @@ export interface SntFasilitatorRecord {
   ktpUrl?: string | null;
   bankName?: string | null;
   bankAccount?: string | null;
+  npwpNik?: string | null;
 }
 
 export interface SntLaporanKegiatanRecord {

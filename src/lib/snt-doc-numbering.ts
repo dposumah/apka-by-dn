@@ -100,9 +100,13 @@ export function suggestEntityCodeForRabCode(rabCode?: string | null): SntEntityC
 }
 
 /**
- * Format resmi standar SNT Wilayah 2:
- * - Invoice  : INV/{LPD|RE|MTC}/SNT-W2/{NNN}/{ROMAWI}/2026
- * - Kuitansi : KW/{LPD|RE|MTC}/SNT-W2/{NNN}/{ROMAWI}/2026
+ * Format resmi standar per Entitas:
+ * - Yayasan Maleo (MTC) — sesuai Format Administrasi Yayasan Maleo:
+ *   - Invoice  : INV.YYYY.MM.DD.NNN  (contoh: INV.2026.11.27.001)
+ *   - Kwitansi : KWT.YYYY.MM.DD.NNN  (contoh: KWT.2026.11.27.001)
+ * - LPD & Robotic Explorer (LPD / RE) — sesuai Mockup Drive:
+ *   - Invoice  : INV/{LPD|RE}/SNT-W2/{NNN}/{ROMAWI}/{YYYY}
+ *   - Kuitansi : KW/{LPD|RE}/SNT-W2/{NNN}/{ROMAWI}/{YYYY}
  */
 export function formatSntDocumentNumber(
   kind: SntDocKind,
@@ -113,17 +117,25 @@ export function formatSntDocumentNumber(
   const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
   const safeDate = Number.isNaN(d.getTime()) ? new Date() : d;
   const yyyy = safeDate.getFullYear();
-  const roman = getRomanMonth(safeDate.getMonth() + 1);
+  const mm = String(safeDate.getMonth() + 1).padStart(2, "0");
+  const dd = String(safeDate.getDate()).padStart(2, "0");
   const nnn = String(Math.max(1, Math.floor(seq))).padStart(3, "0");
+
+  if (entity === "MTC") {
+    const prefix = kind === "INV" ? "INV" : "KWT";
+    return `${prefix}.${yyyy}.${mm}.${dd}.${nnn}`;
+  }
+
+  const roman = getRomanMonth(safeDate.getMonth() + 1);
   return `${kind}/${entity}/SNT-W2/${nnn}/${roman}/${yyyy}`;
 }
 
 /**
- * Mengekstrak nomor urut {NNN} dari nomor dokumen berformat standar:
- * `INV/LPD/SNT-W2/001/XI/2026` -> 1
- * `KW/RE/SNT-W2-B6a/006/XI/2026` -> 6
+ * Mengekstrak nomor urut {NNN} dari nomor dokumen berformat standar per entitas:
+ * - MTC : `INV.2026.11.27.001` -> 1, `KWT.2026.11.27.004` -> 4
+ * - LPD / RE : `INV/LPD/SNT-W2/001/XI/2026` -> 1, `KW/RE/SNT-W2-B6a/006/XI/2026` -> 6
  * Mengembalikan 0 jika nomor memakai format lama (mis. KWC/MTC/2026.10.09.001)
- * agar seri format baru tiap entitas selalu mulai rapi dari 001.
+ * agar seri format baru tiap entitas mulai rapi dari 001 tanpa mengganggu nomor lama.
  */
 export function extractSeqFromSntDocNumber(
   docNo: string,
@@ -131,6 +143,15 @@ export function extractSeqFromSntDocNumber(
   entity: SntEntityCode
 ): number {
   const raw = String(docNo || "").trim().toUpperCase();
+  if (entity === "MTC") {
+    const prefix = kind === "INV" ? "INV." : "KWT.";
+    if (!raw.startsWith(prefix)) return 0;
+    const match = raw.match(/^(?:INV|KWT)\.\d{4}\.\d{2}\.\d{2}\.(\d{1,5})$/);
+    if (!match) return 0;
+    const n = Number.parseInt(match[1], 10);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  }
+
   const prefix = `${kind}/${entity}/SNT-W2`;
   if (!raw.startsWith(prefix)) return 0;
   const match = raw.match(/\/SNT-W2(?:-[A-Z0-9]+)?\/(\d{1,5})\//);

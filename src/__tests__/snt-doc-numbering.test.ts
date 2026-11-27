@@ -11,7 +11,7 @@ import {
 } from "../lib/snt-doc-numbering";
 
 describe("snt-doc-numbering centralized entity register", () => {
-  it("formats official SNT-W2 Invoice and Kwitansi numbers per entity with Roman month", () => {
+  it("formats official Invoice and Kwitansi numbers per entity (Maleo dot-date vs LPD/RE SNT-W2 Roman)", () => {
     expect(formatSntDocumentNumber("INV", "LPD", 1, "2026-11-25")).toBe(
       "INV/LPD/SNT-W2/001/XI/2026"
     );
@@ -19,13 +19,18 @@ describe("snt-doc-numbering centralized entity register", () => {
       "KW/RE/SNT-W2/012/X/2026"
     );
     expect(formatSntDocumentNumber("KW", "MTC", 3, "2026-09-30")).toBe(
-      "KW/MTC/SNT-W2/003/IX/2026"
+      "KWT.2026.09.30.003"
+    );
+    expect(formatSntDocumentNumber("INV", "MTC", 1, "2026-11-27")).toBe(
+      "INV.2026.11.27.001"
     );
   });
 
   it("keeps sequence counters independent per entity and ignores legacy KWC/MTC format", () => {
     const existing = [
       "KWC/MTC/2026.11.10.024",
+      "KWT.2026.11.27.002",
+      "INV.2026.11.27.004",
       "KW/LPD/SNT-W2/001/IX/2026",
       "KW/LPD/SNT-W2/002/X/2026",
       "KW/RE/SNT-W2/005/XI/2026",
@@ -33,7 +38,8 @@ describe("snt-doc-numbering centralized entity register", () => {
     ];
 
     expect(extractSeqFromSntDocNumber("KWC/MTC/2026.11.10.024", "KW", "MTC")).toBe(0);
-    expect(computeNextSeqForEntity(existing, "KW", "MTC")).toBe(1);
+    expect(computeNextSeqForEntity(existing, "KW", "MTC")).toBe(3);
+    expect(computeNextSeqForEntity(existing, "INV", "MTC")).toBe(5);
     expect(computeNextSeqForEntity(existing, "KW", "LPD")).toBe(3);
     expect(computeNextSeqForEntity(existing, "KW", "RE")).toBe(6);
     expect(computeNextSeqForEntity(existing, "INV", "LPD")).toBe(4);
