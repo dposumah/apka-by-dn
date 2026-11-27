@@ -15,7 +15,7 @@ import {
 /** Harga satuan resmi RAB Wilayah 2 Pos A.4 (6 lokasi × 4 bln = Rp137.517.024) */
 export const SNT_RAB_HONOR_FASIL_UNIT_PRICE = 5729876;
 
-/** Harga satuan resmi RAB Wilayah 2 Pos A.5 Tenaga Administrasi (1 org × 4 bln = Rp22.919.504) */
+/** Harga satuan resmi RAB Wilayah 2 Pos A.5 Tenaga Administrasi (1 org × 3,5 bln = Rp20.054.566) */
 export const SNT_RAB_TENAGA_ADMIN_UNIT_PRICE = 5729876;
 
 export type HonorPricingMode = "RAB_SATUAN" | "REAL_JP";
@@ -50,22 +50,22 @@ export const EVIDENCE_DOC_CATALOG: EvidenceDocMeta[] = [
   {
     type: "HONOR_FASIL_BULANAN",
     rabCode: "4",
-    shortTitle: "Daftar Tanda Terima Honor Fasil (Bulanan)",
-    fullTitle: "Daftar Tanda Terima Honorarium Fasilitator KKA & Robotika",
-    template13Ref: "Pos A.4 · Kontrak/SK, absensi/rekap JP, daftar tanda terima, kwitansi honor",
+    shortTitle: "Honor Fasilitator Bulanan (Daftar & Slip)",
+    fullTitle: "Daftar Tanda Terima & Slip Honorarium Fasilitator KKA & Robotika (Pos A.4)",
+    template13Ref: "Pos A.4 · 6 Lokasi × 4 Bulan × Rp5.729.876 = Rp137.517.024 (Daftar Tanda Terima, Invoice & Slip Honorarium)",
     defaultRecipientMode: "MANUAL",
     description:
-      "Daftar tanda terima & kwitansi honor fasilitator bulanan (Standar RAB Rp5.729.876/lokasi atau Real/JP DB) dengan dropdown pilih nama fasil atau blanko kosong.",
+      "Cetak bulanan (1 bulan atau 4 bulan Sep–Des) Daftar Tanda Terima & Slip Honorarium Fasilitator (Standar RAB Rp5.729.876/lokasi atau Real/JP DB) auto profil fasil.",
   },
   {
     type: "SLIP_HONORARIUM",
-    rabCode: "4",
-    shortTitle: "Slip Honorarium (Format Maleo)",
-    fullTitle: "Slip Honorarium Personel & Fasilitator — Format Resmi Yayasan Maleo",
-    template13Ref: "Pos A.2, A.3, A.4, A.5, B.6a · Format Slip Gaji / Honorarium Maleo (#0DA7A0)",
+    rabCode: "A.3 & A.5",
+    shortTitle: "Slip Honorarium Korwil & Tenaga Admin (Bulanan)",
+    fullTitle: "Slip Honorarium Bulanan — Koordinator Wilayah (A.3), Tenaga Administrasi (A.5) & Satuan",
+    template13Ref: "Pos A.3 (Korwil · 1 Org × 12 jam × 3,5 bln = Rp37,8 jt) & Pos A.5 (Tenaga Admin · 1 Org × 3,5 bln = Rp20,05 jt) · Format Resmi Maleo",
     defaultRecipientMode: "MANUAL",
     description:
-      "Mencetak Slip Honorarium resmi Yayasan Maleo (satuan atau massal 6 lokasi/bulan) lengkap dengan NPWP/NIK, Rekening, Komponen Pendapatan/Potongan & Honor Bersih Diterima.",
+      "Cetak Slip Honorarium per bulan sesuai rincian RAB untuk Koordinator Wilayah (A.3) & Tenaga Administrasi (A.5), lengkap dengan editor slip satuan.",
   },
   {
     type: "INVOICE_KUITANSI_MITRA",
@@ -460,7 +460,7 @@ export const DRIVE_MOCKUP_PRESETS: DriveMockupPresetMeta[] = [
     rabCode: "3",
     rabCodeLabel: "A.3",
     title: "Honor Koordinator Wilayah 2",
-    subtitle: "Invoice + Kuitansi (Tahap I) · Kop LPD",
+    subtitle: "Invoice + Slip Honorarium (Tahap I) · Kop LPD",
     totalAmount: 32018823,
   },
   {
@@ -470,7 +470,7 @@ export const DRIVE_MOCKUP_PRESETS: DriveMockupPresetMeta[] = [
     rabCode: "5",
     rabCodeLabel: "A.5",
     title: "Honor Tenaga Administrasi (Selisih)",
-    subtitle: "Invoice + Kuitansi (Tahap I) · Kop LPD",
+    subtitle: "Invoice + Slip Honorarium (Tahap I) · Kop LPD",
     totalAmount: 9987397,
   },
   {
@@ -1103,7 +1103,7 @@ export function buildMonthlyKorwilSlipHonorariumInputs(
       periode: m.label,
       namaPenerima: nama,
       nomorDokumen: `SLIP.${m.defaultDate.replace(/-/g, ".")}.${m.seq}`,
-      peranJabatan: "Koordinator Wilayah — Wilayah 2",
+      peranJabatan: "Koordinator Wilayah 2",
       kegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
       tanggalKegiatan: `Bulan ${m.label}`,
       tanggalBayar: m.defaultDate,
@@ -1139,6 +1139,89 @@ export function buildMonthlyKorwilSlipHonorariumInputs(
 }
 
 /**
+ * Rincian resmi RAB Wilayah 2 Pos A.5 (Tenaga Administrasi):
+ * 1 Orang × 3,5 bulan × Rp5.729.876 = Rp20.054.566
+ * - September 2026 : 1 bulan   = Rp5.729.876
+ * - Oktober 2026   : 1 bulan   = Rp5.729.876
+ * - November 2026  : 1 bulan   = Rp5.729.876
+ * - Desember 2026  : 0,5 bulan = Rp2.864.938
+ */
+export const SNT_TENAGA_ADMIN_MONTHLY_SCHEDULE = [
+  { key: "2026-09", label: "September 2026", roman: "IX", seq: "001", defaultDate: "2026-09-30", defaultDue: "2026-10-14", bulanFraction: 1, nominal: 5729876 },
+  { key: "2026-10", label: "Oktober 2026", roman: "X", seq: "002", defaultDate: "2026-10-31", defaultDue: "2026-11-14", bulanFraction: 1, nominal: 5729876 },
+  { key: "2026-11", label: "November 2026", roman: "XI", seq: "003", defaultDate: "2026-11-30", defaultDue: "2026-12-14", bulanFraction: 1, nominal: 5729876 },
+  { key: "2026-12", label: "Desember 2026", roman: "XII", seq: "004", defaultDate: "2026-12-20", defaultDue: "2026-12-30", bulanFraction: 0.5, nominal: 2864938 },
+] as const;
+
+/**
+ * Membangun Slip Honorarium Tenaga Administrasi (Pos A.5) per bulan
+ * sesuai RAB (1 Orang × 3,5 bulan × Rp5.729.876 = Rp20.054.566).
+ */
+export function buildMonthlyTenagaAdminSlipHonorariumInputs(
+  profile?: Partial<SntReportProfile>,
+  kopSurat: KopSuratOption = "maleo",
+  monthKey?: string,
+  overrides?: {
+    namaPenerima?: string;
+    npwpNik?: string;
+    rekening?: string;
+    catatan?: string;
+    disiapkanOleh?: string;
+  }
+): SlipHonorariumInput[] {
+  const targetMonths = monthKey
+    ? SNT_TENAGA_ADMIN_MONTHLY_SCHEDULE.filter((m) => m.key === monthKey)
+    : [...SNT_TENAGA_ADMIN_MONTHLY_SCHEDULE];
+  const nama =
+    overrides?.namaPenerima?.trim() ||
+    profile?.bagianAdministrasi?.trim() ||
+    BLANK_SIGNATURE_LINE;
+  const bankFallback = [profile?.lpdBankName, profile?.lpdBankAccount].filter(Boolean).join(" — ");
+
+  return targetMonths.map((m) => {
+    const blnText = m.bulanFraction === 0.5 ? "0,5 bulan" : "1 bulan";
+    return {
+      kopSurat,
+      profile,
+      periode: m.label,
+      namaPenerima: nama,
+      nomorDokumen: `SLIP.${m.defaultDate.replace(/-/g, ".")}.${m.seq}`,
+      peranJabatan: "Tenaga Administrasi SNT Wilayah 2",
+      kegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
+      tanggalKegiatan: `Bulan ${m.label}`,
+      tanggalBayar: m.defaultDate,
+      npwpNik: overrides?.npwpNik?.trim() || "-",
+      rekening: overrides?.rekening?.trim() || bankFallback || "-",
+      components: [
+        {
+          komponen: "Honorarium",
+          qty: blnText,
+          pendapatan: m.nominal,
+          potongan: 0,
+          keterangan: `Tenaga Administrasi: 1 Orang × ${blnText} × Rp5.729.876/bln`,
+        },
+        {
+          komponen: "Tambahan honorarium",
+          qty: "-",
+          pendapatan: 0,
+          potongan: 0,
+          keterangan: "-",
+        },
+        {
+          komponen: "Pajak / potongan lainnya",
+          qty: "-",
+          pendapatan: 0,
+          potongan: 0,
+          keterangan: "-",
+        },
+      ],
+      catatan: overrides?.catatan?.trim() || "Pagu RAB A.5: 1 Orang × 3,5 bulan × Rp5.729.876 = Rp20.054.566",
+      disiapkanOleh: overrides?.disiapkanOleh?.trim() || DEFAULT_ROBOTIC_PREPARER_LABEL,
+    };
+  });
+}
+
+/**
  * Membangun draft bulanan siap cetak (Invoice + Daftar Tanda Terima + Slip Honorarium)
  * untuk Pos A.3 (Koordinator Wilayah: 1 org × 12 jam × 3,5 bln × Rp900.000 = Rp37.800.000)
  * atau Pos A.5 (Tenaga Administrasi).
@@ -1156,10 +1239,6 @@ export function buildMonthlyPersonnelDraft(
     bankAccount: profile?.lpdBankAccount || "",
     bankHolder: profile?.lpdBankHolder || "LPD Jully Tjindrawan Robotik",
   };
-  const months =
-    mode === "LPD_3_BULAN"
-      ? SNT_HONOR_MONTH_OPTIONS.slice(0, 3)
-      : SNT_HONOR_MONTH_OPTIONS;
 
   if (rabCode === "3") {
     const isLpdSim = mode === "LPD_3_BULAN";
@@ -1210,9 +1289,12 @@ export function buildMonthlyPersonnelDraft(
     };
   }
 
-  // Pos A.5 Tenaga Administrasi
+  // Pos A.5 Tenaga Administrasi (RAB: 1 Orang × 3,5 bulan × Rp5.729.876 = Rp20.054.566)
   const isLpdSim = mode === "LPD_3_BULAN";
   const lpdA5Amounts = [3329132, 3329132, 3329133]; // Total tepat Rp9.987.397
+  const adminMonths = isLpdSim
+    ? SNT_TENAGA_ADMIN_MONTHLY_SCHEDULE.slice(0, 3)
+    : SNT_TENAGA_ADMIN_MONTHLY_SCHEDULE;
   return {
     rabCode: "5",
     rabCodeLabel: "A.5",
@@ -1223,7 +1305,7 @@ export function buildMonthlyPersonnelDraft(
     includeDaftarTandaTerima: true,
     invoiceNo: "INV/LPD/SNT-W2-A5",
     kuitansiNoPrefix: "KW/LPD/SNT-W2-A5",
-    jatuhTempo: months[months.length - 1].defaultDue,
+    jatuhTempo: adminMonths[adminMonths.length - 1].defaultDue,
     ditagihkanKepada: maleoName,
     alamatTagihan: profile?.alamatYayasanMaleo || "",
     upTagihan: profile?.upYayasanMaleo || "",
@@ -1234,23 +1316,26 @@ export function buildMonthlyPersonnelDraft(
     ...lpdBank,
     signerName,
     signerTitle: "Direktur",
-    recipientMode: "BLANK",
+    recipientMode: profile?.bagianAdministrasi ? "MANUAL" : "BLANK",
     judulDokumen: "Honorarium Tenaga Administrasi — SNT Wilayah 2",
-    periodeLabel: isLpdSim ? "September – November 2026" : "September – Desember 2026",
-    tanggalDokumen: months[0].defaultDate,
+    periodeLabel: isLpdSim ? "September – November 2026" : "September – Desember 2026 (3,5 Bulan)",
+    tanggalDokumen: adminMonths[0].defaultDate,
     sudahTerimaDari: maleoName,
     catatan: "Mohon cantumkan No. Invoice pada berita transfer.",
-    items: months.map((m, idx) => {
-      const amt = isLpdSim ? lpdA5Amounts[idx] ?? 3329132 : SNT_RAB_TENAGA_ADMIN_UNIT_PRICE;
+    items: adminMonths.map((m, idx) => {
+      const blnText = m.bulanFraction === 0.5 ? "0,5 bulan" : "1 bulan";
+      const amt = isLpdSim ? lpdA5Amounts[idx] ?? 3329132 : m.nominal;
       return {
         id: `a5-${m.key}`,
         tanggal: m.defaultDate,
         lokasi: "Wilayah 2 (6 Lokasi SNT)",
-        uraian: `Honorarium Tenaga Administrasi — SNT Wilayah 2, Bulan ${m.label}`,
-        penerima: "",
-        volume: 1,
+        uraian: isLpdSim
+          ? `Honorarium Tenaga Administrasi — SNT Wilayah 2, Bulan ${m.label}`
+          : `Honorarium Tenaga Administrasi — SNT Wilayah 2, Bulan ${m.label} (${blnText} × Rp5.729.876)`,
+        penerima: profile?.bagianAdministrasi || "",
+        volume: isLpdSim ? 1 : m.bulanFraction,
         satuan: "bulan",
-        hargaSatuan: amt,
+        hargaSatuan: isLpdSim ? amt : SNT_RAB_TENAGA_ADMIN_UNIT_PRICE,
         nominal: amt,
         noDokumen: `KW/LPD/SNT-W2-A5/${m.seq}/${m.roman}/2026`,
       };
@@ -1363,16 +1448,16 @@ export function getHonorTimPresetByRabCode(rabCode: string, tanggal?: string): E
   ];
 
   if (c === "5") {
-    return months.map((m) => ({
+    return SNT_TENAGA_ADMIN_MONTHLY_SCHEDULE.map((m) => ({
       id: `adm-${m.key}`,
-      tanggal: m.date,
+      tanggal: m.defaultDate,
       lokasi: "Wilayah 2",
-      uraian: `Honorarium Tenaga Administrasi — Bulan ${m.label}`,
+      uraian: `Honorarium Tenaga Administrasi — Bulan ${m.label} (${m.bulanFraction === 0.5 ? "0,5 bln" : "1 bln"})`,
       penerima: "",
-      volume: 1,
+      volume: m.bulanFraction,
       satuan: "bulan",
       hargaSatuan: SNT_RAB_TENAGA_ADMIN_UNIT_PRICE,
-      nominal: SNT_RAB_TENAGA_ADMIN_UNIT_PRICE,
+      nominal: m.nominal,
     }));
   }
 
@@ -1466,23 +1551,23 @@ export function getDefaultGenericEvidenceDraft(
         id: "ht-2",
         tanggal: today,
         lokasi: "Wilayah 2",
-        uraian: "Honorarium Koordinator Wilayah 2 (12 jam × 4 bulan)",
+        uraian: "Honorarium Koordinator Wilayah 2 (12 jam × 3,5 bulan)",
         penerima: "",
-        volume: 48,
+        volume: 42,
         satuan: "jam",
         hargaSatuan: 900000,
-        nominal: 43200000,
+        nominal: 37800000,
       },
       {
         id: "ht-3",
         tanggal: today,
         lokasi: "Wilayah 2",
-        uraian: "Honorarium Tenaga Administrasi (Pos A.5 · Rp5.729.876/bulan)",
+        uraian: "Honorarium Tenaga Administrasi (Pos A.5 · 3,5 bulan × Rp5.729.876)",
         penerima: "",
-        volume: 1,
+        volume: 3.5,
         satuan: "bulan",
         hargaSatuan: SNT_RAB_TENAGA_ADMIN_UNIT_PRICE,
-        nominal: SNT_RAB_TENAGA_ADMIN_UNIT_PRICE,
+        nominal: 20054566,
       },
     ],
     KORWIL_UANG_HARIAN: [
@@ -1613,7 +1698,8 @@ export interface Target80StrategySummary {
 
 export function mapRabCodeToEvidenceDocType(rabCode: string): EvidenceDocType | null {
   const c = (rabCode || "").trim().toLowerCase();
-  if (["1", "2", "3", "5", "4a"].includes(c)) return "HONOR_TIM";
+  if (c === "3" || c === "5") return "SLIP_HONORARIUM";
+  if (["1", "2", "4a"].includes(c)) return "HONOR_TIM";
   if (c === "4") return "HONOR_FASIL_BULANAN";
   if (c === "2a") return "KORWIL_TRANSPORT";
   if (c === "2b") return "KORWIL_UANG_HARIAN";

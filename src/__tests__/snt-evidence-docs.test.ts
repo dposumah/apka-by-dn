@@ -6,6 +6,7 @@ import {
   buildMonthlyKorwilSlipHonorariumInputs,
   buildMonthlyPersonnelDraft,
   buildMonthlyRabUnitHonorReceipt,
+  buildMonthlyTenagaAdminSlipHonorariumInputs,
   computeTarget80Strategy,
   DRIVE_MOCKUP_PRESETS,
   expandDraftIntoMonthlySlices,
@@ -239,11 +240,13 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
     expect(html).toContain("Fasilitator KKA — Lokasi SNT Kab. Buton Tengah");
     expect(html).toContain("KKA Sekolah Nasional Terintegrasi Tahun 2026");
 
-    // Preset Tenaga Administrasi Pos A.5 = 4 bulan × Rp5.729.876 = Rp22.919.504
+    // Preset Tenaga Administrasi Pos A.5 = 3,5 bulan × Rp5.729.876 = Rp20.054.566 (Sep–Nov 1 bln, Des 0,5 bln)
     const adminPreset = getHonorTimPresetByRabCode("5");
     expect(adminPreset).toHaveLength(4);
     expect(adminPreset.every((it) => it.hargaSatuan === SNT_RAB_TENAGA_ADMIN_UNIT_PRICE)).toBe(true);
-    expect(adminPreset.reduce((s, it) => s + it.nominal, 0)).toBe(22919504);
+    expect(adminPreset[3].volume).toBe(0.5);
+    expect(adminPreset[3].nominal).toBe(2864938);
+    expect(adminPreset.reduce((s, it) => s + it.nominal, 0)).toBe(20054566);
   });
 
   it("separates REAL vs PELAPORAN_SMART vs PELAPORAN_ONLY without double counting and computes variance", () => {
@@ -378,9 +381,19 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
     expect(a3OctHtml).toContain("Oktober 2026");
     expect(a3OctHtml).toContain("INV/LPD/SNT-W2-A3/002/X/2026");
 
-    // A.5 (4 bulan RAB = 4 × Rp5.729.876 = Rp22.919.504 & 3 bulan LPD = Rp9.987.397)
+    // A.5 (3,5 bulan RAB = Sep–Nov 1 bln @Rp5.729.876 + Des 0,5 bln Rp2.864.938 = Rp20.054.566 & 3 bulan LPD = Rp9.987.397)
     const a5Rab = buildMonthlyPersonnelDraft("5", "RAB_4_BULAN", profile);
-    expect(a5Rab.items.reduce((s, it) => s + it.nominal, 0)).toBe(22919504);
+    expect(a5Rab.items).toHaveLength(4);
+    expect(a5Rab.items[3].volume).toBe(0.5);
+    expect(a5Rab.items[3].nominal).toBe(2864938);
+    expect(a5Rab.items.reduce((s, it) => s + it.nominal, 0)).toBe(20054566);
+    const adminSlips = buildMonthlyTenagaAdminSlipHonorariumInputs(profile, "maleo");
+    expect(adminSlips).toHaveLength(4);
+    expect(adminSlips[3].components[0].qty).toBe("0,5 bulan");
+    expect(adminSlips[3].components[0].pendapatan).toBe(2864938);
+    expect(adminSlips.reduce((s, sl) => s + sl.components[0].pendapatan, 0)).toBe(20054566);
+    expect(adminSlips[0].kegiatan).toBe("KKA Sekolah Nasional Terintegrasi Tahun 2026");
+    expect(adminSlips[0].disiapkanOleh).toBe("PT Jully Tjindrawan Robotik (Robotic Explorer)");
     const a5Lpd = buildMonthlyPersonnelDraft("5", "LPD_3_BULAN", profile);
     expect(a5Lpd.items).toHaveLength(3);
     expect(a5Lpd.items.reduce((s, it) => s + it.nominal, 0)).toBe(9987397);

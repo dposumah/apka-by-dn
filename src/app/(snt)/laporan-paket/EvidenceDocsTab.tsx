@@ -32,6 +32,7 @@ import {
   buildMonthlyKorwilSlipHonorariumInputs,
   buildMonthlyPersonnelDraft,
   buildMonthlyRabUnitHonorReceipt,
+  buildMonthlyTenagaAdminSlipHonorariumInputs,
   DRIVE_MOCKUP_PRESETS,
   DriveMockupPresetId,
   EVIDENCE_DOC_CATALOG,
@@ -49,12 +50,15 @@ import {
   RecipientMode,
   SewaRumahContractDraft,
   SNT_HONOR_MONTH_OPTIONS,
+  SNT_KORWIL_MONTHLY_SCHEDULE,
   SNT_RAB_HONOR_FASIL_UNIT_PRICE,
   SNT_RAB_TENAGA_ADMIN_UNIT_PRICE,
+  SNT_TENAGA_ADMIN_MONTHLY_SCHEDULE,
 } from "@/lib/snt-evidence-docs";
 import {
   DEFAULT_ROBOTIC_PREPARER_LABEL,
   DEFAULT_SLIP_KEGIATAN_LABEL,
+  isSlipHonorariumRabCode,
   KOP_OPTIONS_LIST,
   renderSlipHonorariumPdfDocumentHtml,
   resolveBrandKopTheme,
@@ -126,49 +130,40 @@ export function EvidenceDocsTab({
     "Yayasan Maleo Talenta Cendekia"
   );
 
-  // State khusus SLIP HONORARIUM (Format Resmi Yayasan Maleo)
+  // State khusus SLIP HONORARIUM (Format Resmi Yayasan Maleo — Korwil A.3, Tenaga Admin A.5 & Satuan)
   const [slipDraft, setSlipDraft] = useState<SlipHonorariumInput>(() => {
     const saved = evidenceDrafts["EVIDENCE_SLIP_HONORARIUM"];
     if (saved && typeof saved === "object" && "namaPenerima" in saved) {
       return saved as unknown as SlipHonorariumInput;
     }
-    return {
-      kopSurat: "maleo",
-      periode: "Oktober 2026",
-      namaPenerima: "",
-      nomorDokumen: "KWT.2026.10.31.001",
-      peranJabatan: "Fasilitator KKA — Lokasi SNT",
-      kegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
-      tanggalKegiatan: "1 – 31 Oktober 2026",
-      tanggalBayar: "2026-10-31",
-      npwpNik: "",
-      rekening: "",
-      components: [
-        {
-          komponen: "Honorarium",
-          qty: "1 Bulan",
-          pendapatan: SNT_RAB_HONOR_FASIL_UNIT_PRICE,
-          potongan: 0,
-          keterangan: "Honorarium Fasilitator KKA & Robotika",
-        },
-        {
-          komponen: "Tambahan honorarium",
-          qty: "-",
-          pendapatan: 0,
-          potongan: 0,
-          keterangan: "",
-        },
-        {
-          komponen: "Pajak / potongan lainnya",
-          qty: "-",
-          pendapatan: 0,
-          potongan: 0,
-          keterangan: "",
-        },
-      ],
-      catatan: "",
-      disiapkanOleh: DEFAULT_ROBOTIC_PREPARER_LABEL,
-    };
+    const [defaultKorwil] = buildMonthlyKorwilSlipHonorariumInputs(profile, "maleo", "2026-10");
+    return (
+      defaultKorwil || {
+        kopSurat: "maleo",
+        periode: "Oktober 2026",
+        namaPenerima: profile.koordinatorWilayah || "Jully Tjindrawan, MBA",
+        nomorDokumen: "SLIP.2026.10.31.002",
+        peranJabatan: "Koordinator Wilayah 2",
+        kegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
+        tanggalKegiatan: "Bulan Oktober 2026",
+        tanggalBayar: "2026-10-31",
+        npwpNik: "-",
+        rekening: "-",
+        components: [
+          {
+            komponen: "Honorarium",
+            qty: "12 jam (1 bulan)",
+            pendapatan: 10800000,
+            potongan: 0,
+            keterangan: "Koordinator Wilayah: 1 Orang × 12 jam × Rp900.000/jam",
+          },
+          { komponen: "Tambahan honorarium", qty: "-", pendapatan: 0, potongan: 0, keterangan: "-" },
+          { komponen: "Pajak / potongan lainnya", qty: "-", pendapatan: 0, potongan: 0, keterangan: "-" },
+        ],
+        catatan: "Pagu RAB A.3: 1 Orang × 12 jam × 3,5 bulan × Rp900.000 = Rp37.800.000",
+        disiapkanOleh: DEFAULT_ROBOTIC_PREPARER_LABEL,
+      }
+    );
   });
   const [slipBulkMonth, setSlipBulkMonth] = useState<string>("2026-10");
   const [honorTanggalCetak, setHonorTanggalCetak] = useState<string>(
@@ -195,7 +190,7 @@ export function EvidenceDocsTab({
   const [genericDrafts, setGenericDrafts] = useState<Record<string, GenericEvidenceDraft>>(() => {
     const map: Record<string, GenericEvidenceDraft> = {};
     for (const meta of EVIDENCE_DOC_CATALOG) {
-      if (meta.type === "HONOR_FASIL_BULANAN" || meta.type === "SEWA_RUMAH") continue;
+      if (meta.type === "HONOR_FASIL_BULANAN" || meta.type === "SEWA_RUMAH" || meta.type === "SLIP_HONORARIUM") continue;
       const saved = evidenceDrafts[`EVIDENCE_${meta.type}`];
       if (saved && typeof saved === "object" && Array.isArray((saved as Record<string, unknown>).items)) {
         map[meta.type] = saved as unknown as GenericEvidenceDraft;
@@ -544,7 +539,7 @@ export function EvidenceDocsTab({
       {/* Katalog 10 Jenis Dokumen Bukti Wajib */}
       <div className="lg:col-span-4 space-y-2">
         <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 px-1">
-          10 Dokumen Bukti Wajib (Template 13)
+          {EVIDENCE_DOC_CATALOG.length} Dokumen Bukti Wajib (Template 13)
         </div>
         {EVIDENCE_DOC_CATALOG.map((doc) => {
           const isActive = doc.type === activeType;
@@ -1480,289 +1475,368 @@ export function EvidenceDocsTab({
               </div>
             )}
 
-            {/* ==================== 2B. SLIP HONORARIUM (FORMAT RESMI YAYASAN MALEO) ==================== */}
+            {/* ==================== 2B. SLIP HONORARIUM BULANAN KORWIL (A.3), TENAGA ADMIN (A.5) & SATUAN ==================== */}
             {activeType === "SLIP_HONORARIUM" && (
               <div className="space-y-4 text-xs">
-                <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-3.5 space-y-2.5">
+                <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-3.5 space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <div className="font-bold text-teal-950">
-                        Generator Slip Honorarium (Format Resmi Yayasan Maleo · #0DA7A0)
+                        Slip Honorarium Bulanan Sesuai RAB — Pos A.3 (Korwil) &amp; Pos A.5 (Tenaga Administrasi)
                       </div>
                       <p className="text-[11px] text-teal-800/80">
-                        Pilih fasilitator dari DB untuk auto-fill NPWP/NIK &amp; Rekening, pakai preset personel, atau cetak massal 6 lokasi sekaligus per bulan.
+                        Format resmi Yayasan Maleo (#0DA7A0). Pilih bulan untuk muat ke editor atau cetak langsung per bulan / seluruh periode 3,5 bulan (Sep–Des 2026).
                       </p>
                     </div>
-                    <select
-                      value={slipDraft.kopSurat}
-                      onChange={(e) =>
-                        setSlipDraft((p) => ({ ...p, kopSurat: e.target.value as KopSuratOption }))
-                      }
-                      className="h-8 px-2.5 rounded-md border border-teal-300 bg-white text-xs font-semibold text-teal-950"
-                    >
-                      {KOP_OPTIONS_LIST.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          Kop: {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Tarik dari DB Fasilitator atau Preset Personel */}
-                  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-teal-200/70">
-                    <select
-                      value=""
-                      onChange={(e) => {
-                        const f = fasilitators.find((x) => x.id === e.target.value);
-                        if (!f) return;
-                        const bankStr = [f.bankName, f.bankAccount].filter(Boolean).join(" — ");
-                        setSlipDraft((p) => ({
-                          ...p,
-                          namaPenerima: f.namaLengkap,
-                          peranJabatan: resolvePersonnelRoleFromRab("4", undefined, f.lokasiSNT || "Wilayah 2"),
-                          kegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
-                          npwpNik: f.npwpNik || p.npwpNik,
-                          rekening: bankStr || p.rekening,
-                        }));
-                        setBanner({
-                          type: "ok",
-                          text: `Data ${f.namaLengkap} (NPWP/NIK & Rekening) dimuat ke Slip Honorarium.`,
-                        });
-                      }}
-                      className="h-8 px-2.5 rounded-md border border-teal-300 bg-white text-xs font-medium min-w-[230px]"
-                    >
-                      <option value="">-- Tarik Profil Fasilitator DB --</option>
-                      {fasilitators.map((f) => (
-                        <option key={f.id} value={f.id}>
-                          {f.namaLengkap} ({f.lokasiSNT || "Wilayah 2"})
-                        </option>
-                      ))}
-                    </select>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const [korwilSlip] = buildMonthlyKorwilSlipHonorariumInputs(
-                          profile,
-                          slipDraft.kopSurat,
-                          slipBulkMonth,
-                          {
-                            npwpNik: slipDraft.npwpNik,
-                            rekening: slipDraft.rekening,
-                            disiapkanOleh: slipDraft.disiapkanOleh,
-                          }
-                        );
-                        if (korwilSlip) {
-                          setSlipDraft(korwilSlip);
-                          setBanner({
-                            type: "ok",
-                            text: `Preset Koordinator Wilayah (A.3 · ${korwilSlip.periode}: ${korwilSlip.components[0]?.qty} × Rp900.000 = ${formatCurrency(korwilSlip.components[0]?.pendapatan || 0)}) dimuat.`,
-                          });
-                        }
-                      }}
-                      className="px-2 py-1 rounded bg-white hover:bg-teal-100 border border-teal-300 text-teal-900 font-semibold text-[11px]"
-                    >
-                      Preset A.3 Korwil (12 jam × Rp900rb · 3,5 bln)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setSlipDraft((p) => ({
-                          ...p,
-                          peranJabatan: "Tenaga Administrasi SNT Wilayah 2 (Pos A.5)",
-                          kegiatan: "Administrasi & Pelaporan Program SNT 2026 — Wilayah 2",
-                          components: [
-                            { komponen: "Honorarium", qty: "1 Bulan", pendapatan: 3329132, potongan: 0, keterangan: "Honorarium Tenaga Administrasi (Selisih Tahap I)" },
-                            { komponen: "Tambahan honorarium", qty: "-", pendapatan: 0, potongan: 0, keterangan: "" },
-                            { komponen: "Pajak / potongan lainnya", qty: "-", pendapatan: 0, potongan: 0, keterangan: "" },
-                          ],
-                        }))
-                      }
-                      className="px-2 py-1 rounded bg-white hover:bg-teal-100 border border-teal-300 text-teal-900 font-semibold text-[11px]"
-                    >
-                      Preset A.5 Admin (Rp3,33 jt/bln)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setSlipDraft((p) => ({
-                          ...p,
-                          peranJabatan: "Pembina Kompetisi KKA & Robotika (Pos B.6a)",
-                          kegiatan: "Pembinaan Kompetisi Coding, KA & Robotika SNT Wilayah 2",
-                          components: [
-                            { komponen: "Honorarium", qty: "24 Pertemuan", pendapatan: 16800000, potongan: 0, keterangan: "24 pertemuan × Rp700.000 (Tahap I 80%)" },
-                            { komponen: "Tambahan honorarium", qty: "-", pendapatan: 0, potongan: 0, keterangan: "" },
-                            { komponen: "Pajak / potongan lainnya", qty: "-", pendapatan: 0, potongan: 0, keterangan: "" },
-                          ],
-                        }))
-                      }
-                      className="px-2 py-1 rounded bg-white hover:bg-teal-100 border border-teal-300 text-teal-900 font-semibold text-[11px]"
-                    >
-                      Preset B.6a Kompetisi (Rp16,8 jt)
-                    </button>
-                  </div>
-
-                  {/* Cetak Massal 6 Lokasi Bulanan */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-teal-200/70">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-teal-950">Cetak Massal 6 Lokasi SNT:</span>
+                    <div className="flex flex-wrap items-center gap-2">
                       <select
                         value={slipBulkMonth}
                         onChange={(e) => setSlipBulkMonth(e.target.value)}
-                        className="h-8 px-2 rounded border border-teal-300 bg-white text-xs font-semibold"
+                        className="h-8 px-2.5 rounded-md border border-teal-300 bg-white text-xs font-semibold text-teal-950"
                       >
                         {SNT_HONOR_MONTH_OPTIONS.map((m) => (
                           <option key={m.key} value={m.key}>
-                            {m.label}
+                            Bulan: {m.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={slipDraft.kopSurat}
+                        onChange={(e) =>
+                          setSlipDraft((p) => ({ ...p, kopSurat: e.target.value as KopSuratOption }))
+                        }
+                        className="h-8 px-2.5 rounded-md border border-teal-300 bg-white text-xs font-semibold text-teal-950"
+                      >
+                        {KOP_OPTIONS_LIST.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            Kop: {opt.label}
                           </option>
                         ))}
                       </select>
                     </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => {
-                        const mOpt =
-                          SNT_HONOR_MONTH_OPTIONS.find((m) => m.key === slipBulkMonth) ||
-                          SNT_HONOR_MONTH_OPTIONS[1];
-                        const sheet = buildMonthlyRabUnitHonorReceipt(slipBulkMonth, rekaps, fasilitators);
-                        const slips: SlipHonorariumInput[] = sheet.rows.map((r, idx) => {
-                          const matchedFasil = fasilitators.find(
-                            (f) =>
-                              (r.nama && f.namaLengkap === r.nama) ||
-                              matchWilayah2LocationId(f.lokasiSNT) === r.locationId
-                          );
-                          const bankStr = [matchedFasil?.bankName, matchedFasil?.bankAccount]
-                            .filter(Boolean)
-                            .join(" — ");
-                          return {
-                            kopSurat: slipDraft.kopSurat,
-                            profile,
-                            periode: mOpt.label,
-                            namaPenerima: r.nama || matchedFasil?.namaLengkap || "................................",
-                            nomorDokumen: `KWT.${mOpt.defaultDate.replace(/-/g, ".")}.${String(idx + 1).padStart(3, "0")}`,
-                            peranJabatan: resolvePersonnelRoleFromRab("4", undefined, r.lokasi),
-                            kegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
-                            tanggalKegiatan: `Bulan ${mOpt.label}`,
-                            tanggalBayar: mOpt.defaultDate,
-                            npwpNik: matchedFasil?.npwpNik || "-",
-                            rekening: bankStr || "-",
-                            components: [
-                              {
-                                komponen: "Honorarium",
-                                qty: "1 Bulan",
-                                pendapatan: r.totalHonor,
-                                potongan: 0,
-                                keterangan: `Lokasi SNT ${r.lokasi}`,
-                              },
-                              {
-                                komponen: "Tambahan honorarium",
-                                qty: "-",
-                                pendapatan: 0,
-                                potongan: 0,
-                                keterangan: "",
-                              },
-                              {
-                                komponen: "Pajak / potongan lainnya",
-                                qty: "-",
-                                pendapatan: 0,
-                                potongan: 0,
-                                keterangan: "",
-                              },
-                            ],
-                            catatan: slipDraft.catatan || "",
-                            disiapkanOleh: slipDraft.disiapkanOleh || profile.bagianAdministrasi,
-                          };
-                        });
-                        openHtmlWindow(
-                          renderSlipHonorariumPdfDocumentHtml(
-                            slips,
-                            `Slip Honorarium 6 Lokasi — ${mOpt.label}`
-                          )
-                        );
-                      }}
-                      className="bg-teal-700 hover:bg-teal-800 text-white text-xs h-8 gap-1.5"
-                    >
-                      <Printer className="w-3.5 h-3.5" />
-                      Cetak 6 Slip Fasil ({getMonthLabelId(slipBulkMonth)})
-                    </Button>
                   </div>
 
-                  {/* Cetak Per Bulan Koordinator Wilayah (Pos A.3: 1 Orang × 12 jam × 3,5 bulan × Rp900.000 = Rp37.800.000) */}
+                  {/* 2 Kartu Cetak Per Bulan Sesuai RAB: Pos A.3 Koordinator Wilayah & Pos A.5 Tenaga Administrasi */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-teal-200/70">
+                    {/* Kartu Pos A.3 — Koordinator Wilayah */}
+                    <div className="rounded-lg border border-teal-300 bg-white p-3 space-y-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="font-bold text-teal-950">Pos A.3 — Koordinator Wilayah</div>
+                          <div className="text-[11px] text-slate-600">
+                            RAB: 1 Orang × 12 jam × 3,5 bln × Rp900.000 = <strong>Rp37.800.000</strong>
+                          </div>
+                        </div>
+                        <Badge variant="secondary" className="text-[10px] shrink-0 bg-teal-100 text-teal-900">
+                          3,5 Bln
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1 text-[11px]">
+                        {SNT_KORWIL_MONTHLY_SCHEDULE.map((m) => {
+                          const isSelected = m.key === slipBulkMonth;
+                          return (
+                            <button
+                              key={m.key}
+                              type="button"
+                              onClick={() => {
+                                setSlipBulkMonth(m.key);
+                                const [korwilSlip] = buildMonthlyKorwilSlipHonorariumInputs(
+                                  profile,
+                                  slipDraft.kopSurat,
+                                  m.key,
+                                  {
+                                    namaPenerima: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
+                                      ? slipDraft.namaPenerima
+                                      : undefined,
+                                    npwpNik: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
+                                      ? slipDraft.npwpNik
+                                      : undefined,
+                                    rekening: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
+                                      ? slipDraft.rekening
+                                      : undefined,
+                                    disiapkanOleh: slipDraft.disiapkanOleh,
+                                  }
+                                );
+                                if (korwilSlip) {
+                                  setSlipDraft(korwilSlip);
+                                  setBanner({
+                                    type: "ok",
+                                    text: `Slip Korwil (A.3 · ${korwilSlip.periode}: ${korwilSlip.components[0]?.qty} × Rp900.000 = ${formatCurrency(korwilSlip.components[0]?.pendapatan || 0)}) dimuat ke editor.`,
+                                  });
+                                }
+                              }}
+                              className={`text-left px-2 py-1 rounded border transition-colors ${
+                                isSelected
+                                  ? "bg-teal-50 border-teal-400 text-teal-950 font-semibold"
+                                  : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-teal-50/50"
+                              }`}
+                            >
+                              <div>{m.label.replace(" 2026", "")} · {m.jam} jam</div>
+                              <div className="text-[10px] text-teal-800">{formatCurrency(m.nominal)}</div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const slips = buildMonthlyKorwilSlipHonorariumInputs(
+                              profile,
+                              slipDraft.kopSurat,
+                              slipBulkMonth,
+                              {
+                                namaPenerima: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
+                                  ? slipDraft.namaPenerima
+                                  : undefined,
+                                npwpNik: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
+                                  ? slipDraft.npwpNik
+                                  : undefined,
+                                rekening: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
+                                  ? slipDraft.rekening
+                                  : undefined,
+                                disiapkanOleh: slipDraft.disiapkanOleh,
+                              }
+                            );
+                            openHtmlWindow(
+                              renderSlipHonorariumPdfDocumentHtml(
+                                slips,
+                                `Slip Honorarium Koordinator Wilayah — ${getMonthLabelId(slipBulkMonth)}`
+                              )
+                            );
+                          }}
+                          className="bg-white border-teal-400 text-teal-900 hover:bg-teal-50 text-[11px] h-8 gap-1 flex-1"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          Cetak {getMonthLabelId(slipBulkMonth).replace(" 2026", "")}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => {
+                            const slips = buildMonthlyKorwilSlipHonorariumInputs(
+                              profile,
+                              slipDraft.kopSurat,
+                              undefined,
+                              {
+                                namaPenerima: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
+                                  ? slipDraft.namaPenerima
+                                  : undefined,
+                                npwpNik: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
+                                  ? slipDraft.npwpNik
+                                  : undefined,
+                                rekening: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
+                                  ? slipDraft.rekening
+                                  : undefined,
+                                disiapkanOleh: slipDraft.disiapkanOleh,
+                              }
+                            );
+                            openHtmlWindow(
+                              renderSlipHonorariumPdfDocumentHtml(
+                                slips,
+                                "Slip Honorarium Koordinator Wilayah — 3,5 Bulan (Sep–Des 2026)"
+                              )
+                            );
+                          }}
+                          className="bg-teal-700 hover:bg-teal-800 text-white text-[11px] h-8 gap-1 flex-1"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          Cetak 3,5 Bln (Sep–Des)
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Kartu Pos A.5 — Tenaga Administrasi */}
+                    <div className="rounded-lg border border-emerald-300 bg-white p-3 space-y-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="font-bold text-emerald-950">Pos A.5 — Tenaga Administrasi</div>
+                          <div className="text-[11px] text-slate-600">
+                            RAB: 1 Orang × 3,5 bln × Rp5.729.876 = <strong>Rp20.054.566</strong>
+                          </div>
+                        </div>
+                        <Badge variant="secondary" className="text-[10px] shrink-0 bg-emerald-100 text-emerald-900">
+                          3,5 Bln
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1 text-[11px]">
+                        {SNT_TENAGA_ADMIN_MONTHLY_SCHEDULE.map((m) => {
+                          const isSelected = m.key === slipBulkMonth;
+                          const blnShort = m.bulanFraction === 0.5 ? "0,5 bln" : "1 bln";
+                          return (
+                            <button
+                              key={m.key}
+                              type="button"
+                              onClick={() => {
+                                setSlipBulkMonth(m.key);
+                                const [adminSlip] = buildMonthlyTenagaAdminSlipHonorariumInputs(
+                                  profile,
+                                  slipDraft.kopSurat,
+                                  m.key,
+                                  {
+                                    namaPenerima: slipDraft.peranJabatan.toLowerCase().includes("administrasi")
+                                      ? slipDraft.namaPenerima
+                                      : undefined,
+                                    npwpNik: slipDraft.peranJabatan.toLowerCase().includes("administrasi")
+                                      ? slipDraft.npwpNik
+                                      : undefined,
+                                    rekening: slipDraft.peranJabatan.toLowerCase().includes("administrasi")
+                                      ? slipDraft.rekening
+                                      : undefined,
+                                    disiapkanOleh: slipDraft.disiapkanOleh,
+                                  }
+                                );
+                                if (adminSlip) {
+                                  setSlipDraft(adminSlip);
+                                  setBanner({
+                                    type: "ok",
+                                    text: `Slip Tenaga Administrasi (A.5 · ${adminSlip.periode}: ${adminSlip.components[0]?.qty} × Rp5.729.876 = ${formatCurrency(adminSlip.components[0]?.pendapatan || 0)}) dimuat ke editor.`,
+                                  });
+                                }
+                              }}
+                              className={`text-left px-2 py-1 rounded border transition-colors ${
+                                isSelected
+                                  ? "bg-emerald-50 border-emerald-400 text-emerald-950 font-semibold"
+                                  : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-emerald-50/50"
+                              }`}
+                            >
+                              <div>{m.label.replace(" 2026", "")} · {blnShort}</div>
+                              <div className="text-[10px] text-emerald-800">{formatCurrency(m.nominal)}</div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const slips = buildMonthlyTenagaAdminSlipHonorariumInputs(
+                              profile,
+                              slipDraft.kopSurat,
+                              slipBulkMonth,
+                              {
+                                namaPenerima: slipDraft.peranJabatan.toLowerCase().includes("administrasi")
+                                  ? slipDraft.namaPenerima
+                                  : undefined,
+                                npwpNik: slipDraft.peranJabatan.toLowerCase().includes("administrasi")
+                                  ? slipDraft.npwpNik
+                                  : undefined,
+                                rekening: slipDraft.peranJabatan.toLowerCase().includes("administrasi")
+                                  ? slipDraft.rekening
+                                  : undefined,
+                                disiapkanOleh: slipDraft.disiapkanOleh,
+                              }
+                            );
+                            openHtmlWindow(
+                              renderSlipHonorariumPdfDocumentHtml(
+                                slips,
+                                `Slip Honorarium Tenaga Administrasi — ${getMonthLabelId(slipBulkMonth)}`
+                              )
+                            );
+                          }}
+                          className="bg-white border-emerald-400 text-emerald-900 hover:bg-emerald-50 text-[11px] h-8 gap-1 flex-1"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          Cetak {getMonthLabelId(slipBulkMonth).replace(" 2026", "")}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => {
+                            const slips = buildMonthlyTenagaAdminSlipHonorariumInputs(
+                              profile,
+                              slipDraft.kopSurat,
+                              undefined,
+                              {
+                                namaPenerima: slipDraft.peranJabatan.toLowerCase().includes("administrasi")
+                                  ? slipDraft.namaPenerima
+                                  : undefined,
+                                npwpNik: slipDraft.peranJabatan.toLowerCase().includes("administrasi")
+                                  ? slipDraft.npwpNik
+                                  : undefined,
+                                rekening: slipDraft.peranJabatan.toLowerCase().includes("administrasi")
+                                  ? slipDraft.rekening
+                                  : undefined,
+                                disiapkanOleh: slipDraft.disiapkanOleh,
+                              }
+                            );
+                            openHtmlWindow(
+                              renderSlipHonorariumPdfDocumentHtml(
+                                slips,
+                                "Slip Honorarium Tenaga Administrasi — 3,5 Bulan (Sep–Des 2026)"
+                              )
+                            );
+                          }}
+                          className="bg-slate-900 hover:bg-slate-800 text-white text-[11px] h-8 gap-1 flex-1"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          Cetak 3,5 Bln (Sep–Des)
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Utilitas Slip Satuan Custom + Akses Cepat Menu Honor Fasilitator (Pos A.4) */}
                   <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-teal-200/70">
-                    <div className="text-[11px] text-teal-950">
-                      <strong>Koordinator Wilayah (Pos A.3):</strong> 1 Org × 12 jam × 3,5 bln × Rp900.000 = <strong>Rp37.800.000</strong>
-                      <span className="text-teal-800/80 ml-1">(Sep–Nov: 12 jam Rp10,8 jt/bln; Des: 6 jam / 0,5 bln Rp5,4 jt)</span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          const slips = buildMonthlyKorwilSlipHonorariumInputs(
-                            profile,
-                            slipDraft.kopSurat,
-                            slipBulkMonth,
-                            {
-                              namaPenerima: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
-                                ? slipDraft.namaPenerima
-                                : undefined,
-                              npwpNik: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
-                                ? slipDraft.npwpNik
-                                : undefined,
-                              rekening: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
-                                ? slipDraft.rekening
-                                : undefined,
-                              disiapkanOleh: slipDraft.disiapkanOleh,
-                            }
-                          );
-                          openHtmlWindow(
-                            renderSlipHonorariumPdfDocumentHtml(
-                              slips,
-                              `Slip Honorarium Koordinator Wilayah — ${getMonthLabelId(slipBulkMonth)}`
-                            )
-                          );
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          const f = fasilitators.find((x) => x.id === e.target.value);
+                          if (!f) return;
+                          const bankStr = [f.bankName, f.bankAccount].filter(Boolean).join(" — ");
+                          setSlipDraft((p) => ({
+                            ...p,
+                            namaPenerima: f.namaLengkap,
+                            peranJabatan: resolvePersonnelRoleFromRab("4", undefined, f.lokasiSNT || "Wilayah 2"),
+                            kegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
+                            npwpNik: f.npwpNik || p.npwpNik,
+                            rekening: bankStr || p.rekening,
+                          }));
+                          setBanner({
+                            type: "ok",
+                            text: `Data ${f.namaLengkap} (NPWP/NIK & Rekening) dimuat ke editor slip satuan.`,
+                          });
                         }}
-                        className="bg-white border-teal-400 text-teal-900 hover:bg-teal-100 text-xs h-8 gap-1"
+                        className="h-8 px-2.5 rounded-md border border-teal-300 bg-white text-xs font-medium min-w-[220px]"
                       >
-                        <Printer className="w-3.5 h-3.5" />
-                        Cetak Korwil ({getMonthLabelId(slipBulkMonth)})
-                      </Button>
-                      <Button
+                        <option value="">-- Slip Satuan: Tarik Profil Fasil DB --</option>
+                        {fasilitators.map((f) => (
+                          <option key={f.id} value={f.id}>
+                            {f.namaLengkap} ({f.lokasiSNT || "Wilayah 2"})
+                          </option>
+                        ))}
+                      </select>
+                      <button
                         type="button"
-                        size="sm"
-                        onClick={() => {
-                          const slips = buildMonthlyKorwilSlipHonorariumInputs(
-                            profile,
-                            slipDraft.kopSurat,
-                            undefined,
-                            {
-                              namaPenerima: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
-                                ? slipDraft.namaPenerima
-                                : undefined,
-                              npwpNik: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
-                                ? slipDraft.npwpNik
-                                : undefined,
-                              rekening: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
-                                ? slipDraft.rekening
-                                : undefined,
-                              disiapkanOleh: slipDraft.disiapkanOleh,
-                            }
-                          );
-                          openHtmlWindow(
-                            renderSlipHonorariumPdfDocumentHtml(
-                              slips,
-                              "Slip Honorarium Koordinator Wilayah — 3,5 Bulan (Sep–Des 2026)"
-                            )
-                          );
-                        }}
-                        className="bg-slate-900 hover:bg-slate-800 text-white text-xs h-8 gap-1"
+                        onClick={() =>
+                          setSlipDraft((p) => ({
+                            ...p,
+                            peranJabatan: "Pembina Kompetisi KKA & Robotika (Pos B.6a)",
+                            kegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
+                            components: [
+                              { komponen: "Honorarium", qty: "24 Pertemuan", pendapatan: 16800000, potongan: 0, keterangan: "24 pertemuan × Rp700.000 (Tahap I 80%)" },
+                              { komponen: "Tambahan honorarium", qty: "-", pendapatan: 0, potongan: 0, keterangan: "" },
+                              { komponen: "Pajak / potongan lainnya", qty: "-", pendapatan: 0, potongan: 0, keterangan: "" },
+                            ],
+                          }))
+                        }
+                        className="px-2 py-1 rounded bg-white hover:bg-teal-100 border border-teal-300 text-teal-900 font-semibold text-[11px]"
                       >
-                        <Printer className="w-3.5 h-3.5" />
-                        Cetak 3,5 Bulan Korwil (Sep–Des)
-                      </Button>
+                        Preset B.6a Kompetisi (Rp16,8 jt)
+                      </button>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveType("HONOR_FASIL_BULANAN")}
+                      className="text-[11px] font-semibold text-teal-800 hover:text-teal-950 underline"
+                    >
+                      Honor Fasilitator 6 Lokasi (Pos A.4) → Buka Menu Bulanan
+                    </button>
                   </div>
                 </div>
 
@@ -2150,7 +2224,7 @@ export function EvidenceDocsTab({
                             if (nextCode === "5") {
                               setBanner({
                                 type: "ok",
-                                text: `Preset Tenaga Administrasi (Pos A.5) dimuat: 4 bulan × ${formatCurrency(SNT_RAB_TENAGA_ADMIN_UNIT_PRICE)} = ${formatCurrency(SNT_RAB_TENAGA_ADMIN_UNIT_PRICE * 4)}.`,
+                                text: `Preset Tenaga Administrasi (Pos A.5) dimuat: 3,5 bulan × ${formatCurrency(SNT_RAB_TENAGA_ADMIN_UNIT_PRICE)} = Rp20.054.566 (Sep–Nov 1 bln, Des 0,5 bln).`,
                               });
                             }
                           } else {
@@ -2161,8 +2235,8 @@ export function EvidenceDocsTab({
                       >
                         <option value="1">A.1 — Ketua Tim Pelaksana (Rp3,6 jt/bln)</option>
                         <option value="2">A.2 — Tim Program Koding KA Robotika</option>
-                        <option value="3">A.3 — Koordinator Wilayah</option>
-                        <option value="5">A.5 — Tenaga Administrasi (Rp5.729.876/bln)</option>
+                        <option value="3">A.3 — Koordinator Wilayah (3,5 bln · Rp37,8 jt)</option>
+                        <option value="5">A.5 — Tenaga Administrasi (3,5 bln · Rp20,05 jt)</option>
                         <option value="1a">B.1a — Laporan Pendahuluan</option>
                         <option value="1b">B.1b — Laporan Bulanan</option>
                         <option value="1c">B.1c — Laporan Akhir</option>
@@ -2197,7 +2271,7 @@ export function EvidenceDocsTab({
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div>
                         <div className="font-bold text-emerald-950">
-                          Cetak Per Bulan (Invoice, Daftar Tanda Terima &amp; Kuitansi — Pos A.3 &amp; A.5)
+                          Cetak Per Bulan (Invoice, Daftar Tanda Terima &amp; Slip Honorarium — Pos A.3 &amp; A.5)
                         </div>
                         <p className="text-[11px] text-emerald-800/80">
                           Pilih bulan tertentu atau &ldquo;Pisah Per Bulan&rdquo; agar setiap bulan tercetak 1 paket lengkap tersendiri.
@@ -2260,12 +2334,12 @@ export function EvidenceDocsTab({
                           setGenericIncludeKwitansi(true);
                           setBanner({
                             type: "ok",
-                            text: "Rincian bulanan Pos A.5 (Tenaga Admin · 4 bln × Rp5.729.876 = Rp22.919.504) siap dicetak per bulan (Invoice + Tanda Terima + Kuitansi).",
+                            text: "Rincian bulanan Pos A.5 (Tenaga Admin · 3,5 bln: Sep–Nov 1 bln @Rp5.729.876 + Des 0,5 bln Rp2.864.938 = Rp20.054.566) siap dicetak per bulan (Invoice + Tanda Terima + Slip Honorarium).",
                           });
                         }}
                         className="px-2 py-1 rounded bg-white hover:bg-emerald-100 border border-emerald-300 text-emerald-900 text-[11px] font-semibold"
                       >
-                        A.5 Per Bulan RAB (4× Rp5.729.876)
+                        A.5 Per Bulan RAB (3,5 bln = Rp20,05 jt)
                       </button>
                       <button
                         type="button"
@@ -2316,7 +2390,11 @@ export function EvidenceDocsTab({
                       checked={genericIncludeKwitansi}
                       onChange={(e) => setGenericIncludeKwitansi(e.target.checked)}
                     />
-                    <span>Cetak Kuitansi</span>
+                    <span>
+                      {isSlipHonorariumRabCode(currentGenericDraft.rabCode, currentGenericDraft.judulDokumen)
+                        ? "Cetak Slip Honorarium"
+                        : "Cetak Kuitansi"}
+                    </span>
                   </label>
                   <label className="flex items-center gap-1.5 cursor-pointer text-slate-700">
                     <input
@@ -2613,7 +2691,11 @@ export function EvidenceDocsTab({
                       checked={genericIncludeKwitansi}
                       onChange={(e) => setGenericIncludeKwitansi(e.target.checked)}
                     />
-                    <span>Sertakan lembar Kwitansi tiap baris</span>
+                    <span>
+                      {isSlipHonorariumRabCode(currentGenericDraft.rabCode, currentGenericDraft.judulDokumen)
+                        ? "Sertakan Slip Honorarium tiap baris"
+                        : "Sertakan lembar Kwitansi tiap baris"}
+                    </span>
                   </label>
                 </div>
 
