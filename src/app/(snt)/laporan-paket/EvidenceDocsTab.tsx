@@ -1413,16 +1413,16 @@ export function EvidenceDocsTab({
             {/* ==================== 3. INVOICE MITRA & 8 DOKUMEN BUKTI WAJIB LAINNYA ==================== */}
             {activeType !== "HONOR_FASIL_BULANAN" && activeType !== "SEWA_RUMAH" && (
               <div className="space-y-4">
-                {/* Preset 1-Klik 6 Paket Mockup Drive (LPD 1-3 & RE 1-3) */}
+                {/* Preset 1-Klik 10 Paket Tahap I / Mockup Drive (LPD, Robotic Explorer & Maleo) */}
                 {activeType === "INVOICE_KUITANSI_MITRA" && (
                   <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-3.5 space-y-2.5">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <div className="text-xs font-bold text-indigo-950">
-                          Preset 1-Klik Paket Mockup Drive (Kop Baru LPD &amp; Robotic Explorer)
+                          Preset 1-Klik Paket Tahap I &amp; Mockup Drive (Kop LPD, Robotic Explorer &amp; Maleo)
                         </div>
                         <p className="text-[11px] text-indigo-800/80">
-                          Klik salah satu paket di bawah untuk mengisi otomatis Invoice, Kuitansi &amp; Daftar Tanda Terima sesuai template Drive (tanpa label MOCKUP saat dicetak).
+                          Klik salah satu paket di bawah untuk mengisi otomatis Invoice, Kuitansi &amp; Daftar Tanda Terima sesuai Target Realisasi Tahap I (tanpa label MOCKUP saat dicetak).
                         </p>
                       </div>
                     </div>
@@ -1440,7 +1440,7 @@ export function EvidenceDocsTab({
                             setGenericIncludeKwitansi(true);
                             setBanner({
                               type: "ok",
-                              text: `Preset "${preset.badge} — ${preset.title}" (${formatCurrency(preset.totalAmount)}) dimuat dengan Kop ${preset.kopSurat === "lpd" ? "LPD Jully Tjindrawan Robotik" : "Robotic Explorer"}.`,
+                              text: `Preset "${preset.badge} — ${preset.title}" (${formatCurrency(preset.totalAmount)}) dimuat dengan Kop ${preset.kopSurat === "lpd" ? "LPD Jully Tjindrawan Robotik" : preset.kopSurat === "maleo" ? "Yayasan Maleo Talenta Cendekia" : "Robotic Explorer"}.`,
                             });
                           }}
                           className="text-left p-2.5 rounded-lg border border-indigo-200 bg-white hover:bg-indigo-50 hover:border-indigo-400 transition-all"
@@ -1450,7 +1450,9 @@ export function EvidenceDocsTab({
                               className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
                                 preset.kopSurat === "lpd"
                                   ? "bg-slate-900 text-white"
-                                  : "bg-sky-600 text-white"
+                                  : preset.kopSurat === "maleo"
+                                    ? "bg-emerald-700 text-white"
+                                    : "bg-sky-600 text-white"
                               }`}
                             >
                               {preset.badge}

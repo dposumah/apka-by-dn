@@ -284,9 +284,18 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
     expect(pelaporanOnly.subtotalOfficialRealizedTotal).toBe(34379256);
   });
 
-  it("renders all 6 Drive mockup presets with dual-tone LPD & Robotic Explorer kop, modern Invoice, Kuitansi, and PPh honor table without MOCKUP watermark", () => {
-    expect(DRIVE_MOCKUP_PRESETS).toHaveLength(6);
+  it("renders all 10 Tahap I / Drive mockup presets with dual-tone LPD & Robotic Explorer kop, modern Invoice, Kuitansi, and PPh honor table without MOCKUP watermark", () => {
+    expect(DRIVE_MOCKUP_PRESETS).toHaveLength(10);
     const profile = getDefaultSntReportProfile();
+
+    // Sinkronisasi angka Tabel 1 Simulasi 80%
+    expect(buildDraftFromDriveMockupPreset("LPD_B1", profile).items.reduce((s, it) => s + it.nominal, 0)).toBe(3080000);
+    expect(buildDraftFromDriveMockupPreset("RE_B4A", profile).items.reduce((s, it) => s + it.nominal, 0)).toBe(17600000);
+    expect(buildDraftFromDriveMockupPreset("TIM_A2", profile).items.reduce((s, it) => s + it.nominal, 0)).toBe(112941177);
+    expect(buildDraftFromDriveMockupPreset("MALEO_B5", profile).items.reduce((s, it) => s + it.nominal, 0)).toBe(84480000);
+    expect(buildDraftFromDriveMockupPreset("B7A_ATK", profile).items.reduce((s, it) => s + it.nominal, 0)).toBe(24268320);
+    expect(buildDraftFromDriveMockupPreset("B7C_HDD", profile).items.reduce((s, it) => s + it.nominal, 0)).toBe(18000000);
+    expect(getDefaultGenericEvidenceDraft("TRANSPORT_KOMPETISI", "Yayasan Maleo").items.reduce((s, it) => s + it.nominal, 0)).toBe(21600000);
 
     // LPD 1 (A.3): Invoice + Kuitansi Kop LPD
     const lpdA3 = buildDraftFromDriveMockupPreset("LPD_A3", profile);

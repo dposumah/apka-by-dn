@@ -351,9 +351,10 @@ export function getRequiredEvidenceForRabItem(code: string, name: string): strin
   if (c === "5a" || n.includes("lms")) return "Invoice/bukti langganan, daftar akun aktif per lokasi";
   if (c === "6a" || n.includes("pembinaan kompetisi")) return "Jurnal 15 pertemuan, daftar peserta, bukti partisipasi lomba, bukti biaya";
   if (c === "6b" || n.includes("transport lokal")) return "Kuitansi / daftar transport lokal pembinaan kompetisi";
-  if (c === "7a" || c === "7b" || n.includes("atk")) return "Nota pembelian ATK & kwitansi";
+  if (c === "7a" || n.includes("atk")) return "Nota pembelian ATK & cetak, kwitansi";
+  if (c === "7b" || n.includes("video conference")) return "Invoice langganan video conference";
   if (c === "7c" || n.includes("hdd") || n.includes("hardisk")) return "Nota pembelian, bukti serah terima unit HDD 1 TB";
-  if (c === "7d" || n.includes("video conference") || n.includes("cloud")) return "Invoice langganan layanan";
+  if (c === "7d" || n.includes("awan") || n.includes("cloud")) return "Invoice langganan penyimpanan awan (cloud)";
 
   return "Nota / invoice pembelian, bukti transfer, dan kwitansi";
 }
