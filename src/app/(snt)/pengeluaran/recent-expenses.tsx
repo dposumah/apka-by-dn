@@ -36,6 +36,7 @@ import {
 } from '@/lib/expense-receipts'
 import {
   DEFAULT_ROBOTIC_PREPARER_LABEL,
+  DEFAULT_SLIP_KEGIATAN_LABEL,
   formatMonthPeriodId,
   isSlipHonorariumRabCode,
   renderModernInvoiceHtml,
@@ -371,10 +372,8 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
           periode: formatMonthPeriodId(tgl),
           namaPenerima: expense.fasilitator?.namaLengkap || record.owner || theme.entityName || '................................',
           nomorDokumen: record.noKwitansi || '-',
-          peranJabatan:
-            expense.fasilitator?.jabatan ||
-            resolvePersonnelRoleFromRab(expense.rabItem?.code, expense.rabItem?.name, expense.fasilitator?.lokasiSNT),
-          kegiatan: record.perihal || `${expense.description} - ${expense.rabItem?.name || ''}`,
+          peranJabatan: resolvePersonnelRoleFromRab(expense.rabItem?.code, expense.rabItem?.name, expense.fasilitator?.lokasiSNT),
+          kegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
           tanggalKegiatan: formatMonthPeriodId(tgl),
           tanggalBayar: tgl,
           npwpNik: expense.fasilitator?.npwpNik || '-',

@@ -15,6 +15,7 @@ import { uploadFileClient } from '@/lib/upload-client'
 import { getExpenseReceiptUrls, renderReceiptAttachmentPagesHtml } from '@/lib/expense-receipts'
 import {
   DEFAULT_ROBOTIC_PREPARER_LABEL,
+  DEFAULT_SLIP_KEGIATAN_LABEL,
   formatMonthPeriodId,
   isSlipHonorariumRabCode,
   renderModernInvoiceHtml,
@@ -187,10 +188,8 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
           periode: formatMonthPeriodId(tgl),
           namaPenerima: expense.fasilitator?.namaLengkap || '................................................',
           nomorDokumen: record.noKwitansi || '-',
-          peranJabatan:
-            expense.fasilitator?.jabatan ||
-            resolvePersonnelRoleFromRab(expense.rabItem?.code, expense.rabItem?.name, expense.fasilitator?.lokasiSNT),
-          kegiatan: `${expense.description}${expense.rabItem?.name ? ` - ${expense.rabItem.name}` : ''}`,
+          peranJabatan: resolvePersonnelRoleFromRab(expense.rabItem?.code, expense.rabItem?.name, expense.fasilitator?.lokasiSNT),
+          kegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
           tanggalKegiatan: formatMonthPeriodId(tgl),
           tanggalBayar: tgl,
           npwpNik: expense.fasilitator?.npwpNik || '-',

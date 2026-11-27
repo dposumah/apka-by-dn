@@ -36,7 +36,12 @@ import { useState, useEffect, useMemo } from 'react'
 import { createRekapManual, deleteRekap, generateKwitansiHonor, generateKwitansiTransportBulanan, updateRekapTransport, updateRekapHonorManual, copyRekapFromPreviousMonth, batchUpdateTransportByFormula } from '@/app/actions/rekap'
 import { adminGenerateInvoiceHonor, uploadBuktiRekap, generateInvoiceHonorRecord } from '@/app/actions/rekap'
 import { getInvoiceHtml, getKwitansiHtml, getMonthlyRekapReportHtml } from './pdf-generator'
-import { DEFAULT_ROBOTIC_PREPARER_LABEL, renderSlipHonorariumHtml } from '@/lib/snt-brand-kop'
+import {
+  DEFAULT_ROBOTIC_PREPARER_LABEL,
+  DEFAULT_SLIP_KEGIATAN_LABEL,
+  renderSlipHonorariumHtml,
+  resolvePersonnelRoleFromRab,
+} from '@/lib/snt-brand-kop'
 import { useRouter } from 'next/navigation'
 import { useModal } from '@/components/modal-provider';
 
@@ -1142,10 +1147,8 @@ Atas Nama: ${namaLengkap}`;
           periode: selectedRekap.bulan || '-',
           namaPenerima: fasil.namaLengkap || '-',
           nomorDokumen: record.noKwitansi || '-',
-          peranJabatan: fasil.jabatan
-            ? `${fasil.jabatan} (${fasil.lokasiSNT || 'Wilayah 2'})`
-            : `Fasilitator KKA & Robotika (${fasil.lokasiSNT || 'Wilayah 2'})`,
-          kegiatan: 'Program Sekolah Nasional Terintegrasi (SNT) 2026 — KKA & Robotika',
+          peranJabatan: resolvePersonnelRoleFromRab('4', undefined, fasil.lokasiSNT || 'Wilayah 2'),
+          kegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
           tanggalKegiatan: `Bulan ${selectedRekap.bulan || '-'}`,
           tanggalBayar: record.tanggal || inputTanggal || new Date().toISOString().slice(0, 10),
           npwpNik: fasil.npwpNik || '-',
@@ -1208,8 +1211,8 @@ Atas Nama: ${namaLengkap}`;
           periode: selectedRekap.bulan || '-',
           namaPenerima: fasil.namaLengkap || '-',
           nomorDokumen: kwRec?.noKwitansi || `SLIP/${selectedRekap.bulan || '2026'}/${selectedRekap.id.slice(-4).toUpperCase()}`,
-          peranJabatan: `Fasilitator KKA & Robotika (${fasil.lokasiSNT || 'Wilayah 2'})`,
-          kegiatan: 'Program Sekolah Nasional Terintegrasi (SNT) 2026 — KKA & Robotika',
+          peranJabatan: resolvePersonnelRoleFromRab('4', undefined, fasil.lokasiSNT || 'Wilayah 2'),
+          kegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
           tanggalKegiatan: `Bulan ${selectedRekap.bulan || '-'}`,
           tanggalBayar: inputTanggal || new Date().toISOString().slice(0, 10),
           npwpNik: fasil.npwpNik || '-',

@@ -29,6 +29,7 @@ import { resolveEntityCodeFromKop } from "@/lib/snt-doc-numbering";
 import {
   buildDraftFromDriveMockupPreset,
   buildMonthlyFacilitatorHonorReceipt,
+  buildMonthlyKorwilSlipHonorariumInputs,
   buildMonthlyPersonnelDraft,
   buildMonthlyRabUnitHonorReceipt,
   DRIVE_MOCKUP_PRESETS,
@@ -53,9 +54,11 @@ import {
 } from "@/lib/snt-evidence-docs";
 import {
   DEFAULT_ROBOTIC_PREPARER_LABEL,
+  DEFAULT_SLIP_KEGIATAN_LABEL,
   KOP_OPTIONS_LIST,
   renderSlipHonorariumPdfDocumentHtml,
   resolveBrandKopTheme,
+  resolvePersonnelRoleFromRab,
   SlipHonorariumInput,
 } from "@/lib/snt-brand-kop";
 import {
@@ -134,8 +137,8 @@ export function EvidenceDocsTab({
       periode: "Oktober 2026",
       namaPenerima: "",
       nomorDokumen: "KWT.2026.10.31.001",
-      peranJabatan: "Fasilitator KKA & Robotika",
-      kegiatan: "Program Sekolah Nasional Terintegrasi (SNT) 2026 — Wilayah 2",
+      peranJabatan: "Fasilitator KKA — Lokasi SNT",
+      kegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
       tanggalKegiatan: "1 – 31 Oktober 2026",
       tanggalBayar: "2026-10-31",
       npwpNik: "",
@@ -1516,7 +1519,8 @@ export function EvidenceDocsTab({
                         setSlipDraft((p) => ({
                           ...p,
                           namaPenerima: f.namaLengkap,
-                          peranJabatan: `Fasilitator KKA & Robotika (${f.lokasiSNT || "Wilayah 2"})`,
+                          peranJabatan: resolvePersonnelRoleFromRab("4", undefined, f.lokasiSNT || "Wilayah 2"),
+                          kegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
                           npwpNik: f.npwpNik || p.npwpNik,
                           rekening: bankStr || p.rekening,
                         }));
@@ -1537,21 +1541,28 @@ export function EvidenceDocsTab({
 
                     <button
                       type="button"
-                      onClick={() =>
-                        setSlipDraft((p) => ({
-                          ...p,
-                          peranJabatan: "Koordinator Wilayah 2 (Pos A.3)",
-                          kegiatan: "Koordinasi & Monev Program SNT 2026 — Wilayah 2",
-                          components: [
-                            { komponen: "Honorarium", qty: "1 Bulan", pendapatan: 10672941, potongan: 0, keterangan: "Honorarium Korwil Tahap I (LPD)" },
-                            { komponen: "Tambahan honorarium", qty: "-", pendapatan: 0, potongan: 0, keterangan: "" },
-                            { komponen: "Pajak / potongan lainnya", qty: "-", pendapatan: 0, potongan: 0, keterangan: "" },
-                          ],
-                        }))
-                      }
+                      onClick={() => {
+                        const [korwilSlip] = buildMonthlyKorwilSlipHonorariumInputs(
+                          profile,
+                          slipDraft.kopSurat,
+                          slipBulkMonth,
+                          {
+                            npwpNik: slipDraft.npwpNik,
+                            rekening: slipDraft.rekening,
+                            disiapkanOleh: slipDraft.disiapkanOleh,
+                          }
+                        );
+                        if (korwilSlip) {
+                          setSlipDraft(korwilSlip);
+                          setBanner({
+                            type: "ok",
+                            text: `Preset Koordinator Wilayah (A.3 · ${korwilSlip.periode}: ${korwilSlip.components[0]?.qty} × Rp900.000 = ${formatCurrency(korwilSlip.components[0]?.pendapatan || 0)}) dimuat.`,
+                          });
+                        }
+                      }}
                       className="px-2 py-1 rounded bg-white hover:bg-teal-100 border border-teal-300 text-teal-900 font-semibold text-[11px]"
                     >
-                      Preset A.3 Korwil (Rp10,67 jt/bln)
+                      Preset A.3 Korwil (12 jam × Rp900rb · 3,5 bln)
                     </button>
                     <button
                       type="button"
@@ -1630,8 +1641,8 @@ export function EvidenceDocsTab({
                             periode: mOpt.label,
                             namaPenerima: r.nama || matchedFasil?.namaLengkap || "................................",
                             nomorDokumen: `KWT.${mOpt.defaultDate.replace(/-/g, ".")}.${String(idx + 1).padStart(3, "0")}`,
-                            peranJabatan: `Fasilitator KKA & Robotika (${r.lokasi})`,
-                            kegiatan: "Program Sekolah Nasional Terintegrasi (SNT) 2026 — Wilayah 2",
+                            peranJabatan: resolvePersonnelRoleFromRab("4", undefined, r.lokasi),
+                            kegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
                             tanggalKegiatan: `Bulan ${mOpt.label}`,
                             tanggalBayar: mOpt.defaultDate,
                             npwpNik: matchedFasil?.npwpNik || "-",
@@ -1673,8 +1684,85 @@ export function EvidenceDocsTab({
                       className="bg-teal-700 hover:bg-teal-800 text-white text-xs h-8 gap-1.5"
                     >
                       <Printer className="w-3.5 h-3.5" />
-                      Cetak 6 Slip Bulanan ({getMonthLabelId(slipBulkMonth)})
+                      Cetak 6 Slip Fasil ({getMonthLabelId(slipBulkMonth)})
                     </Button>
+                  </div>
+
+                  {/* Cetak Per Bulan Koordinator Wilayah (Pos A.3: 1 Orang × 12 jam × 3,5 bulan × Rp900.000 = Rp37.800.000) */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-teal-200/70">
+                    <div className="text-[11px] text-teal-950">
+                      <strong>Koordinator Wilayah (Pos A.3):</strong> 1 Org × 12 jam × 3,5 bln × Rp900.000 = <strong>Rp37.800.000</strong>
+                      <span className="text-teal-800/80 ml-1">(Sep–Nov: 12 jam Rp10,8 jt/bln; Des: 6 jam / 0,5 bln Rp5,4 jt)</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const slips = buildMonthlyKorwilSlipHonorariumInputs(
+                            profile,
+                            slipDraft.kopSurat,
+                            slipBulkMonth,
+                            {
+                              namaPenerima: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
+                                ? slipDraft.namaPenerima
+                                : undefined,
+                              npwpNik: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
+                                ? slipDraft.npwpNik
+                                : undefined,
+                              rekening: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
+                                ? slipDraft.rekening
+                                : undefined,
+                              disiapkanOleh: slipDraft.disiapkanOleh,
+                            }
+                          );
+                          openHtmlWindow(
+                            renderSlipHonorariumPdfDocumentHtml(
+                              slips,
+                              `Slip Honorarium Koordinator Wilayah — ${getMonthLabelId(slipBulkMonth)}`
+                            )
+                          );
+                        }}
+                        className="bg-white border-teal-400 text-teal-900 hover:bg-teal-100 text-xs h-8 gap-1"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        Cetak Korwil ({getMonthLabelId(slipBulkMonth)})
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => {
+                          const slips = buildMonthlyKorwilSlipHonorariumInputs(
+                            profile,
+                            slipDraft.kopSurat,
+                            undefined,
+                            {
+                              namaPenerima: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
+                                ? slipDraft.namaPenerima
+                                : undefined,
+                              npwpNik: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
+                                ? slipDraft.npwpNik
+                                : undefined,
+                              rekening: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
+                                ? slipDraft.rekening
+                                : undefined,
+                              disiapkanOleh: slipDraft.disiapkanOleh,
+                            }
+                          );
+                          openHtmlWindow(
+                            renderSlipHonorariumPdfDocumentHtml(
+                              slips,
+                              "Slip Honorarium Koordinator Wilayah — 3,5 Bulan (Sep–Des 2026)"
+                            )
+                          );
+                        }}
+                        className="bg-slate-900 hover:bg-slate-800 text-white text-xs h-8 gap-1"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        Cetak 3,5 Bulan Korwil (Sep–Des)
+                      </Button>
+                    </div>
                   </div>
                 </div>
 
@@ -2144,12 +2232,12 @@ export function EvidenceDocsTab({
                           setGenericIncludeKwitansi(true);
                           setBanner({
                             type: "ok",
-                            text: "Rincian bulanan Pos A.3 (Korwil · 4 bln × Rp10.800.000 = Rp43.200.000) siap dicetak per bulan (Invoice + Tanda Terima + Kuitansi).",
+                            text: "Rincian bulanan Pos A.3 (Korwil · 3,5 bln: Sep–Nov 12 jam @Rp10,8 jt + Des 6 jam Rp5,4 jt = Rp37.800.000) siap dicetak per bulan (Invoice + Tanda Terima + Slip Honorarium).",
                           });
                         }}
                         className="px-2 py-1 rounded bg-white hover:bg-emerald-100 border border-emerald-300 text-emerald-900 text-[11px] font-semibold"
                       >
-                        A.3 Per Bulan RAB (4× Rp10,8 jt)
+                        A.3 Per Bulan RAB (3,5 bln = Rp37,8 jt)
                       </button>
                       <button
                         type="button"

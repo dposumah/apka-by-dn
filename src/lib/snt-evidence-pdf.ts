@@ -1,6 +1,7 @@
 import { formatCurrency, terbilangRupiah } from "./format";
 import {
   DEFAULT_ROBOTIC_PREPARER_LABEL,
+  DEFAULT_SLIP_KEGIATAN_LABEL,
   isSlipHonorariumRabCode,
   renderBrandKopHtml,
   renderMaleoTandaTerimaHtml,
@@ -195,9 +196,7 @@ function buildMonthlyFacilitatorHonorBodyHtml(input: MonthlyFacilitatorHonorPdfI
           const bankStr = [matchedFasil?.bankName, matchedFasil?.bankAccount]
             .filter(Boolean)
             .join(" — ");
-          const roleText = matchedFasil?.jabatan
-            ? `${matchedFasil.jabatan} — Lokasi SNT ${r.lokasi}`
-            : `Fasilitator KKA & Robotika — Lokasi SNT ${r.lokasi}`;
+          const roleText = resolvePersonnelRoleFromRab("4", undefined, r.lokasi);
           const slipDatePart = (tanggalCetak || monthMeta?.defaultDate || "2026-10-31").replace(/-/g, ".");
           const slipNo = `SLIP.${slipDatePart}.${String(idx + 1).padStart(3, "0")}`;
 
@@ -210,7 +209,7 @@ function buildMonthlyFacilitatorHonorBodyHtml(input: MonthlyFacilitatorHonorPdfI
             namaPenerima: displayName,
             nomorDokumen: slipNo,
             peranJabatan: roleText,
-            kegiatan: `Honorarium Fasilitator KKA & Robotika Bulan ${sheet.monthLabel} Lokasi SNT ${r.lokasi}`,
+            kegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
             tanggalKegiatan: `Bulan ${sheet.monthLabel}`,
             tanggalBayar: tanggalCetak,
             npwpNik: recipientMode === "BLANK" ? "-" : matchedFasil?.npwpNik || "-",
@@ -716,7 +715,7 @@ function buildGenericEvidencePages(
             namaPenerima: recDisplay,
             nomorDokumen: docNo,
             peranJabatan: resolvePersonnelRoleFromRab(draft.rabCode, draft.judulDokumen, it.lokasi),
-            kegiatan: it.uraian || draft.judulDokumen,
+            kegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
             tanggalKegiatan: draft.periodeLabel,
             tanggalBayar: it.tanggal || draft.tanggalDokumen,
             npwpNik: "-",

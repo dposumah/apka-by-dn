@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { getExpenseReceiptUrls, renderReceiptAttachmentPagesHtml } from '@/lib/expense-receipts'
 import {
   DEFAULT_ROBOTIC_PREPARER_LABEL,
+  DEFAULT_SLIP_KEGIATAN_LABEL,
   formatMonthPeriodId,
   isSlipHonorariumRabCode,
   renderModernInvoiceHtml,
@@ -307,10 +308,8 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
         periode: formatMonthPeriodId(tgl),
         namaPenerima: fasil?.namaLengkap || record.owner || theme.entityName || '................................',
         nomorDokumen: record.noKwitansi || '-',
-        peranJabatan:
-          fasil?.jabatan ||
-          resolvePersonnelRoleFromRab(expense.rabItem?.code, expense.rabItem?.name, fasil?.lokasiSNT),
-        kegiatan: record.perihal || expense.description || '-',
+        peranJabatan: resolvePersonnelRoleFromRab(expense.rabItem?.code, expense.rabItem?.name, fasil?.lokasiSNT),
+        kegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
         tanggalKegiatan: formatMonthPeriodId(tgl),
         tanggalBayar: tgl,
         npwpNik: fasil?.npwpNik || '-',

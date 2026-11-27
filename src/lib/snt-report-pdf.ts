@@ -2,6 +2,7 @@ import { formatCurrency, terbilangRupiah } from "./format";
 import { getExpenseReceiptUrls, renderReceiptAttachmentPagesHtml } from "./expense-receipts";
 import {
   DEFAULT_ROBOTIC_PREPARER_LABEL,
+  DEFAULT_SLIP_KEGIATAN_LABEL,
   formatMonthPeriodId,
   isSlipHonorariumRabCode,
   renderBrandKopHtml,
@@ -1191,10 +1192,8 @@ export function renderStandaloneKwitansiPdfHtml(input: {
             periode: formatMonthPeriodId(item.tanggal),
             namaPenerima: item.fasilitator?.namaLengkap || item.penerima,
             nomorDokumen: item.noKwitansi,
-            peranJabatan:
-              item.fasilitator?.jabatan ||
-              resolvePersonnelRoleFromRab(item.rabCode, item.rabLabel, item.fasilitator?.lokasiSNT),
-            kegiatan: item.perihal,
+            peranJabatan: resolvePersonnelRoleFromRab(item.rabCode, item.rabLabel, item.fasilitator?.lokasiSNT),
+            kegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
             tanggalKegiatan: formatMonthPeriodId(item.tanggal),
             tanggalBayar: item.tanggal,
             npwpNik: item.fasilitator?.npwpNik || "-",

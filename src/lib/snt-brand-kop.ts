@@ -2,6 +2,7 @@ import { formatCurrency, terbilangRupiah } from "./format";
 import type { KopSuratOption, SntReportProfile } from "./snt-report-templates";
 
 export const DEFAULT_ROBOTIC_PREPARER_LABEL = "PT Jully Tjindrawan Robotik (Robotic Explorer)";
+export const DEFAULT_SLIP_KEGIATAN_LABEL = "KKA Sekolah Nasional Terintegrasi Tahun 2026";
 
 /**
  * Mengembalikan true untuk Pos RAB yang bukti pembayarannya wajib memakai SLIP HONORARIUM
@@ -51,7 +52,8 @@ export function resolvePersonnelRoleFromRab(
   if (c === "5" || label.includes("tenaga administrasi")) {
     return "Tenaga Administrasi SNT Wilayah 2";
   }
-  return lokasi ? `Fasilitator KKA & Robotika (${lokasi})` : "Fasilitator KKA & Robotika";
+  const cleanLok = String(lokasi || "").trim().replace(/^lokasi\s+snt\s+/i, "");
+  return cleanLok ? `Fasilitator KKA — Lokasi SNT ${cleanLok}` : "Fasilitator KKA";
 }
 
 export function formatMonthPeriodId(dateInput?: string | Date | null): string {

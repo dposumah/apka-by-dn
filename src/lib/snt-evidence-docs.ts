@@ -1,4 +1,9 @@
 import {
+  DEFAULT_ROBOTIC_PREPARER_LABEL,
+  DEFAULT_SLIP_KEGIATAN_LABEL,
+  SlipHonorariumInput,
+} from "./snt-brand-kop";
+import {
   KopSuratOption,
   RabRealizationSummary,
   SNT_WILAYAH_2_LOCATIONS,
@@ -1053,8 +1058,90 @@ export function detectItemMonthKey(
 }
 
 /**
- * Membangun draft bulanan siap cetak (Invoice + Daftar Tanda Terima + Kuitansi)
- * untuk Pos A.3 (Koordinator Wilayah) atau Pos A.5 (Tenaga Administrasi).
+ * Rincian resmi Koordinator Wilayah (Pos A.3):
+ * 1 Orang × 12 jam × 3,5 bulan × Rp900.000 = 42 jam × Rp900.000 = Rp37.800.000
+ * - September 2026 : 12 jam (1 bulan)  = Rp10.800.000
+ * - Oktober 2026   : 12 jam (1 bulan)  = Rp10.800.000
+ * - November 2026  : 12 jam (1 bulan)  = Rp10.800.000
+ * - Desember 2026  : 6 jam (0,5 bulan) = Rp5.400.000
+ */
+export const SNT_KORWIL_HOURLY_RATE = 900000;
+export const SNT_KORWIL_MONTHLY_SCHEDULE = [
+  { key: "2026-09", label: "September 2026", roman: "IX", seq: "001", defaultDate: "2026-09-30", defaultDue: "2026-10-14", jam: 12, bulanFraction: 1, nominal: 10800000 },
+  { key: "2026-10", label: "Oktober 2026", roman: "X", seq: "002", defaultDate: "2026-10-31", defaultDue: "2026-11-14", jam: 12, bulanFraction: 1, nominal: 10800000 },
+  { key: "2026-11", label: "November 2026", roman: "XI", seq: "003", defaultDate: "2026-11-30", defaultDue: "2026-12-14", jam: 12, bulanFraction: 1, nominal: 10800000 },
+  { key: "2026-12", label: "Desember 2026", roman: "XII", seq: "004", defaultDate: "2026-12-20", defaultDue: "2026-12-30", jam: 6, bulanFraction: 0.5, nominal: 5400000 },
+] as const;
+
+/**
+ * Membangun Slip Honorarium Koordinator Wilayah (Pos A.3) per bulan
+ * sesuai RAB (1 Orang × 12 jam × 3,5 bulan × Rp900.000 = Rp37.800.000).
+ */
+export function buildMonthlyKorwilSlipHonorariumInputs(
+  profile?: Partial<SntReportProfile>,
+  kopSurat: KopSuratOption = "maleo",
+  monthKey?: string,
+  overrides?: {
+    namaPenerima?: string;
+    npwpNik?: string;
+    rekening?: string;
+    catatan?: string;
+    disiapkanOleh?: string;
+  }
+): SlipHonorariumInput[] {
+  const targetMonths = monthKey
+    ? SNT_KORWIL_MONTHLY_SCHEDULE.filter((m) => m.key === monthKey)
+    : [...SNT_KORWIL_MONTHLY_SCHEDULE];
+  const nama = overrides?.namaPenerima?.trim() || profile?.koordinatorWilayah?.trim() || "Jully Tjindrawan, MBA";
+  const bankFallback = [profile?.lpdBankName, profile?.lpdBankAccount].filter(Boolean).join(" — ");
+
+  return targetMonths.map((m) => {
+    const blnText = m.bulanFraction === 0.5 ? "0,5 bulan" : "1 bulan";
+    return {
+      kopSurat,
+      profile,
+      periode: m.label,
+      namaPenerima: nama,
+      nomorDokumen: `SLIP.${m.defaultDate.replace(/-/g, ".")}.${m.seq}`,
+      peranJabatan: "Koordinator Wilayah — Wilayah 2",
+      kegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
+      tanggalKegiatan: `Bulan ${m.label}`,
+      tanggalBayar: m.defaultDate,
+      npwpNik: overrides?.npwpNik?.trim() || "-",
+      rekening: overrides?.rekening?.trim() || bankFallback || "-",
+      components: [
+        {
+          komponen: "Honorarium",
+          qty: `${m.jam} jam (${blnText})`,
+          pendapatan: m.nominal,
+          potongan: 0,
+          keterangan: `Koordinator Wilayah: 1 Orang × ${m.jam} jam × Rp900.000/jam`,
+        },
+        {
+          komponen: "Tambahan honorarium",
+          qty: "-",
+          pendapatan: 0,
+          potongan: 0,
+          keterangan: "-",
+        },
+        {
+          komponen: "Pajak / potongan lainnya",
+          qty: "-",
+          pendapatan: 0,
+          potongan: 0,
+          keterangan: "-",
+        },
+      ],
+      catatan: overrides?.catatan?.trim() || "Pagu RAB A.3: 1 Orang × 12 jam × 3,5 bulan × Rp900.000 = Rp37.800.000",
+      disiapkanOleh: overrides?.disiapkanOleh?.trim() || DEFAULT_ROBOTIC_PREPARER_LABEL,
+    };
+  });
+}
+
+/**
+ * Membangun draft bulanan siap cetak (Invoice + Daftar Tanda Terima + Slip Honorarium)
+ * untuk Pos A.3 (Koordinator Wilayah: 1 org × 12 jam × 3,5 bln × Rp900.000 = Rp37.800.000)
+ * atau Pos A.5 (Tenaga Administrasi).
  */
 export function buildMonthlyPersonnelDraft(
   rabCode: "3" | "5",
@@ -1063,6 +1150,7 @@ export function buildMonthlyPersonnelDraft(
 ): GenericEvidenceDraft {
   const maleoName = "Yayasan Maleo Talenta Cendekia";
   const signerName = profile?.ketuaTimPelaksana || "Jully Tjindrawan, MBA";
+  const korwilName = profile?.koordinatorWilayah || "Jully Tjindrawan, MBA";
   const lpdBank = {
     bankName: profile?.lpdBankName || "",
     bankAccount: profile?.lpdBankAccount || "",
@@ -1075,6 +1163,9 @@ export function buildMonthlyPersonnelDraft(
 
   if (rabCode === "3") {
     const isLpdSim = mode === "LPD_3_BULAN";
+    const korwilMonths = isLpdSim
+      ? SNT_KORWIL_MONTHLY_SCHEDULE.slice(0, 3)
+      : SNT_KORWIL_MONTHLY_SCHEDULE;
     return {
       rabCode: "3",
       rabCodeLabel: "A.3",
@@ -1085,7 +1176,7 @@ export function buildMonthlyPersonnelDraft(
       includeDaftarTandaTerima: true,
       invoiceNo: "INV/LPD/SNT-W2-A3",
       kuitansiNoPrefix: "KW/LPD/SNT-W2-A3",
-      jatuhTempo: months[months.length - 1].defaultDue,
+      jatuhTempo: korwilMonths[korwilMonths.length - 1].defaultDue,
       ditagihkanKepada: maleoName,
       alamatTagihan: profile?.alamatYayasanMaleo || "",
       upTagihan: profile?.upYayasanMaleo || "",
@@ -1096,24 +1187,24 @@ export function buildMonthlyPersonnelDraft(
       ...lpdBank,
       signerName,
       signerTitle: "Direktur",
-      recipientMode: "BLANK",
+      recipientMode: "MANUAL",
       judulDokumen: "Honorarium Koordinator Wilayah 2 — SNT 2026",
-      periodeLabel: isLpdSim ? "September – November 2026" : "September – Desember 2026",
-      tanggalDokumen: months[0].defaultDate,
+      periodeLabel: isLpdSim ? "September – November 2026" : "September – Desember 2026 (3,5 Bulan)",
+      tanggalDokumen: korwilMonths[0].defaultDate,
       sudahTerimaDari: maleoName,
       catatan: "Mohon cantumkan No. Invoice pada berita transfer.",
-      items: months.map((m) => ({
+      items: korwilMonths.map((m) => ({
         id: `a3-${m.key}`,
         tanggal: m.defaultDate,
         lokasi: "Wilayah 2 (6 Lokasi SNT)",
         uraian: isLpdSim
           ? `Honorarium Koordinator Wilayah 2 — SNT 2026, Bulan ${m.label}`
-          : `Honorarium Koordinator Wilayah 2 — SNT 2026, Bulan ${m.label} (12 jam × Rp900.000)`,
-        penerima: "",
-        volume: isLpdSim ? 1 : 12,
+          : `Honorarium Koordinator Wilayah 2 — SNT 2026, Bulan ${m.label} (${m.jam} jam / ${m.bulanFraction === 0.5 ? "0,5 bulan" : "1 bulan"} × Rp900.000)`,
+        penerima: korwilName,
+        volume: isLpdSim ? 1 : m.jam,
         satuan: isLpdSim ? "bulan" : "jam",
-        hargaSatuan: isLpdSim ? 10672941 : 900000,
-        nominal: isLpdSim ? 10672941 : 10800000,
+        hargaSatuan: isLpdSim ? 10672941 : SNT_KORWIL_HOURLY_RATE,
+        nominal: isLpdSim ? 10672941 : m.nominal,
         noDokumen: `KW/LPD/SNT-W2-A3/${m.seq}/${m.roman}/2026`,
       })),
     };
@@ -1316,16 +1407,16 @@ export function getHonorTimPresetByRabCode(rabCode: string, tanggal?: string): E
   }
 
   if (c === "3") {
-    return months.map((m) => ({
+    return SNT_KORWIL_MONTHLY_SCHEDULE.map((m) => ({
       id: `korwil-${m.key}`,
-      tanggal: m.date,
+      tanggal: m.defaultDate,
       lokasi: "Wilayah 2",
-      uraian: `Honorarium Koordinator Wilayah 2 — Bulan ${m.label} (12 jam)`,
-      penerima: "",
-      volume: 12,
+      uraian: `Honorarium Koordinator Wilayah 2 — Bulan ${m.label} (${m.jam} jam / ${m.bulanFraction === 0.5 ? "0,5 bln" : "1 bln"})`,
+      penerima: "Jully Tjindrawan, MBA",
+      volume: m.jam,
       satuan: "jam",
-      hargaSatuan: 900000,
-      nominal: 10800000,
+      hargaSatuan: SNT_KORWIL_HOURLY_RATE,
+      nominal: m.nominal,
     }));
   }
 
