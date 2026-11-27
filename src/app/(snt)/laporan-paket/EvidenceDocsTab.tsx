@@ -52,6 +52,7 @@ import {
   SNT_RAB_TENAGA_ADMIN_UNIT_PRICE,
 } from "@/lib/snt-evidence-docs";
 import {
+  DEFAULT_ROBOTIC_PREPARER_LABEL,
   KOP_OPTIONS_LIST,
   renderSlipHonorariumPdfDocumentHtml,
   resolveBrandKopTheme,
@@ -163,7 +164,7 @@ export function EvidenceDocsTab({
         },
       ],
       catatan: "",
-      disiapkanOleh: profile.bagianAdministrasi || "Bagian Administrasi & Keuangan",
+      disiapkanOleh: DEFAULT_ROBOTIC_PREPARER_LABEL,
     };
   });
   const [slipBulkMonth, setSlipBulkMonth] = useState<string>("2026-10");
@@ -328,6 +329,7 @@ export function EvidenceDocsTab({
       const html = renderMonthlyFacilitatorHonorPdfHtml({
         sheet: activeHonorSheet,
         profile,
+        fasilitators,
         kopSuratOverride: honorKopSurat,
         includeTransportColumn: honorIncludeTransport,
         recipientMode: honorRecipientMode,
@@ -797,7 +799,7 @@ export function EvidenceDocsTab({
                       checked={honorIncludeKwitansi}
                       onChange={(e) => setHonorIncludeKwitansi(e.target.checked)}
                     />
-                    <span>Lampirkan lembar Kwitansi Honor per baris</span>
+                    <span>Lampirkan Slip Honorarium per baris (auto profil fasil)</span>
                   </label>
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input
@@ -844,6 +846,7 @@ export function EvidenceDocsTab({
                             totalTransport: rows.reduce((s, r) => s + (Number(r.totalTransport) || 0), 0),
                           },
                           profile,
+                          fasilitators,
                           kopSuratOverride: honorKopSurat,
                           includeTransportColumn: honorIncludeTransport,
                           recipientMode: honorRecipientMode,

@@ -4,7 +4,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency, terbilangRupiah } from '@/lib/format'
 import { Badge } from '@/components/ui/badge'
 import { getExpenseReceiptUrls, renderReceiptAttachmentPagesHtml } from '@/lib/expense-receipts'
-import { renderModernInvoiceHtml, renderModernKuitansiHtml, resolveBrandKopTheme } from '@/lib/snt-brand-kop'
+import {
+  DEFAULT_ROBOTIC_PREPARER_LABEL,
+  formatMonthPeriodId,
+  isSlipHonorariumRabCode,
+  renderModernInvoiceHtml,
+  renderModernKuitansiHtml,
+  renderSlipHonorariumHtml,
+  resolveBrandKopTheme,
+  resolvePersonnelRoleFromRab,
+} from '@/lib/snt-brand-kop'
 import { resolveEntityCodeFromKop } from '@/lib/snt-doc-numbering'
 import type { KopSuratOption } from '@/lib/snt-report-templates'
 import { DeleteExpenseButton } from './DeleteExpenseButton'
@@ -289,6 +298,38 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
 
   const getKwitansiHtml = (expense: any, record: any) => {
     const theme = resolveBrandKopTheme(selectedKop);
+    const tgl = record.tanggal || expense.date || new Date();
+    if (isSlipHonorariumRabCode(expense.rabItem?.code, expense.rabItem?.name)) {
+      const fasil = expense.fasilitator;
+      const bankStr = [fasil?.bankName, fasil?.bankAccount].filter(Boolean).join(' — ');
+      return renderSlipHonorariumHtml({
+        kopSurat: selectedKop,
+        periode: formatMonthPeriodId(tgl),
+        namaPenerima: fasil?.namaLengkap || record.owner || theme.entityName || '................................',
+        nomorDokumen: record.noKwitansi || '-',
+        peranJabatan:
+          fasil?.jabatan ||
+          resolvePersonnelRoleFromRab(expense.rabItem?.code, expense.rabItem?.name, fasil?.lokasiSNT),
+        kegiatan: record.perihal || expense.description || '-',
+        tanggalKegiatan: formatMonthPeriodId(tgl),
+        tanggalBayar: tgl,
+        npwpNik: fasil?.npwpNik || '-',
+        rekening: bankStr || '-',
+        components: [
+          {
+            komponen: 'Honorarium',
+            qty: '1 Paket',
+            pendapatan: Number(expense.amount) || 0,
+            potongan: 0,
+            keterangan: record.perihal || expense.description || '-',
+          },
+          { komponen: 'Tambahan honorarium', qty: '-', pendapatan: 0, potongan: 0, keterangan: '-' },
+          { komponen: 'Pajak / potongan lainnya', qty: '-', pendapatan: 0, potongan: 0, keterangan: '-' },
+        ],
+        catatan: fasil?.lokasiSNT ? `Lokasi SNT: ${fasil.lokasiSNT}` : `${expense.rabItem?.code || ''} - ${expense.rabItem?.name || ''}`,
+        disiapkanOleh: DEFAULT_ROBOTIC_PREPARER_LABEL,
+      });
+    }
     return renderModernKuitansiHtml({
       kopSurat: selectedKop,
       noKwitansi: record.noKwitansi || '-',
@@ -298,9 +339,10 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
       rabCode: expense.rabItem?.code || undefined,
       showRabCode: Boolean(expense.rabItem?.code),
       kota: 'Jakarta',
-      tanggal: record.tanggal || expense.date || new Date(),
+      tanggal: tgl,
       penerimaDisplay: expense.fasilitator ? expense.fasilitator.namaLengkap : (record.owner || theme.entityName || 'Yayasan Maleo'),
       penerimaRole: 'Yang menerima,',
+      dibuatOleh: DEFAULT_ROBOTIC_PREPARER_LABEL,
     });
   }
 

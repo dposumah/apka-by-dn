@@ -1,22 +1,27 @@
 import { formatCurrency, terbilangRupiah } from "./format";
 import {
+  DEFAULT_ROBOTIC_PREPARER_LABEL,
+  isSlipHonorariumRabCode,
   renderBrandKopHtml,
   renderMaleoTandaTerimaHtml,
   renderModernInvoiceHtml,
   renderModernKuitansiHtml,
+  renderSlipHonorariumHtml,
   resolveBrandKopTheme,
+  resolvePersonnelRoleFromRab,
 } from "./snt-brand-kop";
 import {
   EvidenceDocType,
   expandDraftIntoMonthlySlices,
   GenericEvidenceDraft,
+  matchWilayah2LocationId,
   MonthlyHonorReceiptSheet,
   RecipientMode,
   resolveRecipientDisplay,
   SewaRumahContractDraft,
   SNT_HONOR_MONTH_OPTIONS,
 } from "./snt-evidence-docs";
-import { KopSuratOption, SntReportProfile } from "./snt-report-templates";
+import { KopSuratOption, SntFasilitatorRecord, SntReportProfile } from "./snt-report-templates";
 
 function esc(val: unknown): string {
   return String(val ?? "")
@@ -78,6 +83,7 @@ function renderKwitansiSlipHtml(params: {
 export interface MonthlyFacilitatorHonorPdfInput {
   sheet: MonthlyHonorReceiptSheet;
   profile: SntReportProfile;
+  fasilitators?: SntFasilitatorRecord[];
   kopSuratOverride?: KopSuratOption;
   includeTransportColumn: boolean;
   recipientMode: RecipientMode;
@@ -97,14 +103,6 @@ function buildMonthlyFacilitatorHonorBodyHtml(input: MonthlyFacilitatorHonorPdfI
   const { sheet, profile, includeTransportColumn, recipientMode, tanggalCetak } = input;
   const activeKop = input.kopSuratOverride || profile.kopSurat;
   const theme = resolveBrandKopTheme(activeKop, profile);
-  const sudahTerimaDari =
-    activeKop === "maleo"
-      ? "Yayasan Maleo Talenta Cendekia"
-      : activeKop === "lpd"
-        ? "LPD Jully Tjindrawan Robotik"
-        : activeKop === "robotic"
-          ? "Robotic Explorer (PT Jully Tjindrawan Robotik)"
-          : profile.namaYayasan;
   const isRabSatuan = sheet.pricingMode === "RAB_SATUAN";
 
   const monthMeta = SNT_HONOR_MONTH_OPTIONS.find((m) => m.key === sheet.monthKey);
@@ -179,28 +177,74 @@ function buildMonthlyFacilitatorHonorBodyHtml(input: MonthlyFacilitatorHonorPdfI
     })
     .join("");
 
+  // Pos A.4 (Honorarium Fasilitator): gunakan Slip Honorarium resmi (bukan Kwitansi) dengan auto-fill profil fasilitator
+  const fasilList = input.fasilitators || [];
   const kwtPages = input.includeIndividualKwitansi
     ? sheet.rows
-        .map(
-          (r, idx) => `
+        .map((r, idx) => {
+          const matchedFasil =
+            (r.nama
+              ? fasilList.find(
+                  (f) => f.namaLengkap.trim().toLowerCase() === r.nama.trim().toLowerCase()
+                )
+              : undefined) ||
+            (r.locationId
+              ? fasilList.find((f) => matchWilayah2LocationId(f.lokasiSNT) === r.locationId)
+              : undefined);
+          const displayName = resolveRecipientDisplay(recipientMode, r.nama);
+          const bankStr = [matchedFasil?.bankName, matchedFasil?.bankAccount]
+            .filter(Boolean)
+            .join(" — ");
+          const roleText = matchedFasil?.jabatan
+            ? `${matchedFasil.jabatan} — Lokasi SNT ${r.lokasi}`
+            : `Fasilitator KKA & Robotika — Lokasi SNT ${r.lokasi}`;
+          const slipDatePart = (tanggalCetak || monthMeta?.defaultDate || "2026-10-31").replace(/-/g, ".");
+          const slipNo = `SLIP.${slipDatePart}.${String(idx + 1).padStart(3, "0")}`;
+
+          return `
         <div class="page-break">
-          ${renderKwitansiSlipHtml({
+          ${renderSlipHonorariumHtml({
             kopSurat: activeKop,
             profile,
-            noKwitansi: `KWT/HONOR/${sheet.monthKey}/${String(idx + 1).padStart(2, "0")}`,
-            sudahTerimaDari,
-            amount: r.totalHonor,
-            untukPembayaran: isRabSatuan
-              ? `Honorarium Fasilitator KKA & Robotika Bulan ${sheet.monthLabel} Lokasi SNT ${r.lokasi}`
-              : `Honorarium Fasilitator KKA & Robotika Bulan ${sheet.monthLabel} Lokasi SNT ${r.lokasi} (${r.totalJP} JP × ${formatCurrency(r.hargaSatuanReal)}/JP)`,
-            showRabCode: false,
-            kota: profile.kotaPengesahan || "Jakarta",
-            tanggal: tanggalCetak,
-            penerimaDisplay: resolveRecipientDisplay(recipientMode, r.nama),
-            penerimaRole: "Fasilitator,",
+            periode: sheet.monthLabel,
+            namaPenerima: displayName,
+            nomorDokumen: slipNo,
+            peranJabatan: roleText,
+            kegiatan: `Honorarium Fasilitator KKA & Robotika Bulan ${sheet.monthLabel} Lokasi SNT ${r.lokasi}`,
+            tanggalKegiatan: `Bulan ${sheet.monthLabel}`,
+            tanggalBayar: tanggalCetak,
+            npwpNik: recipientMode === "BLANK" ? "-" : matchedFasil?.npwpNik || "-",
+            rekening: recipientMode === "BLANK" ? "-" : bankStr || "-",
+            components: [
+              {
+                komponen: "Honorarium",
+                qty: isRabSatuan ? "1 Bulan" : `${r.totalJP} JP`,
+                pendapatan: r.totalHonor,
+                potongan: 0,
+                keterangan: isRabSatuan
+                  ? `Lokasi SNT ${r.lokasi}`
+                  : `${r.totalJP} JP × ${formatCurrency(r.hargaSatuanReal)}/JP (${r.lokasi})`,
+              },
+              {
+                komponen: "Tambahan honorarium",
+                qty: includeTransportColumn && r.totalTransport > 0 ? "1 Bulan" : "-",
+                pendapatan: includeTransportColumn ? r.totalTransport : 0,
+                potongan: 0,
+                keterangan: includeTransportColumn && r.totalTransport > 0 ? "Transport mengajar" : "-",
+              },
+              {
+                komponen: "Pajak / potongan lainnya",
+                qty: "-",
+                pendapatan: 0,
+                potongan: 0,
+                keterangan: "-",
+              },
+            ],
+            catatan: `Lokasi SNT: ${r.lokasi}`,
+            disiapkanOleh: DEFAULT_ROBOTIC_PREPARER_LABEL,
           })}
-        </div>`
-        )
+        </div>`;
+        })
         .join("")
     : "";
 
@@ -649,9 +693,63 @@ function buildGenericEvidencePages(
     pages.push(daftarHtml);
   }
 
-  // 3. Lembar KUITANSI
+  // 3. Lembar SLIP HONORARIUM (untuk Pos A.3 Korwil, A.4 Fasilitator, A.5 Tenaga Administrasi) atau KUITANSI (pos lain)
+  const useSlipHonorarium = isSlipHonorariumRabCode(draft.rabCode, draft.judulDokumen);
   if (includeKwitansiSlips) {
-    if (includeInvoice && !includeDaftar && draft.items.length > 0) {
+    if (useSlipHonorarium) {
+      draft.items.forEach((it, idx) => {
+        const recDisplay = resolveRecipientDisplay(
+          draft.recipientMode,
+          it.penerima || draft.signerName
+        );
+        const bruto = Number(it.nominal) || 0;
+        const pphRow = includePph ? Math.round((bruto * pphPct) / 100) : 0;
+        const docNo =
+          it.noDokumen ||
+          draft.kuitansiNoPrefix ||
+          `SLIP/${draft.rabCode.toUpperCase()}/${String(idx + 1).padStart(3, "0")}`;
+        pages.push(
+          renderSlipHonorariumHtml({
+            kopSurat: activeKop,
+            profile,
+            periode: draft.periodeLabel,
+            namaPenerima: recDisplay,
+            nomorDokumen: docNo,
+            peranJabatan: resolvePersonnelRoleFromRab(draft.rabCode, draft.judulDokumen, it.lokasi),
+            kegiatan: it.uraian || draft.judulDokumen,
+            tanggalKegiatan: draft.periodeLabel,
+            tanggalBayar: it.tanggal || draft.tanggalDokumen,
+            npwpNik: "-",
+            rekening: [draft.bankName, draft.bankAccount].filter(Boolean).join(" — ") || "-",
+            components: [
+              {
+                komponen: "Honorarium",
+                qty: `${it.volume || 1} ${it.satuan || "bulan"}`,
+                pendapatan: bruto,
+                potongan: 0,
+                keterangan: it.uraian,
+              },
+              {
+                komponen: "Tambahan honorarium",
+                qty: "-",
+                pendapatan: 0,
+                potongan: 0,
+                keterangan: "-",
+              },
+              {
+                komponen: "Pajak / potongan lainnya",
+                qty: includePph && pphPct > 0 ? `${pphPct}%` : "-",
+                pendapatan: 0,
+                potongan: pphRow,
+                keterangan: includePph && pphPct > 0 ? `PPh ${pphPct}%` : "-",
+              },
+            ],
+            catatan: draft.catatan || it.lokasi || "-",
+            disiapkanOleh: DEFAULT_ROBOTIC_PREPARER_LABEL,
+          })
+        );
+      });
+    } else if (includeInvoice && !includeDaftar && draft.items.length > 0) {
       const ppnPct = Number(draft.ppnPct) || 0;
       const grandTotal = totalNominal + Math.round((totalNominal * ppnPct) / 100);
       const firstRec = resolveRecipientDisplay(draft.recipientMode, draft.signerName || draft.items[0]?.penerima);

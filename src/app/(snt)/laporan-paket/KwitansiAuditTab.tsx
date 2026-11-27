@@ -76,11 +76,13 @@ interface QuickKwitansiModalState {
   sudahTerimaDari: string;
   penerima: string;
   perihal: string;
+  rabCode: string;
   rabLabel: string;
   amount: number;
   kopSurat: KopSuratOption;
   includeReceipts: boolean;
   receiptUrls: string[];
+  fasilitator?: StandaloneKwitansiPdfItem["fasilitator"];
 }
 
 export function KwitansiAuditTab({ categories, rabSummary, profile, realizationBasis }: KwitansiAuditTabProps) {
@@ -321,11 +323,13 @@ export function KwitansiAuditTab({ categories, rabSummary, profile, realizationB
       sudahTerimaDari: defaultOwner,
       penerima: row.penerima,
       perihal: override?.perihal || row.kwitansiPerihal || `${row.description} - ${row.rabName}`,
+      rabCode: row.rabCode,
       rabLabel: `${row.rabCode} - ${row.rabName}`,
       amount: row.amount,
       kopSurat: resolveKopFromEntityCode(entityCode),
       includeReceipts: row.receiptUrls.length > 0,
       receiptUrls: row.receiptUrls,
+      fasilitator: row.rawExpense.fasilitator || null,
     });
   };
 
@@ -339,10 +343,12 @@ export function KwitansiAuditTab({ categories, rabSummary, profile, realizationB
           r.kwitansiOwner ||
           (profile.kopSurat === "maleo" ? "Yayasan Maleo Talenta Cendekia" : profile.namaYayasan),
         perihal: r.kwitansiPerihal || `${r.description} - ${r.rabName}`,
+        rabCode: r.rabCode,
         rabLabel: `${r.rabCode} - ${r.rabName}`,
         penerima: r.penerima,
         amount: r.amount,
         receiptUrls: r.receiptUrls,
+        fasilitator: r.rawExpense.fasilitator || null,
       }));
     openPrintKwitansiWindow(items, profile.kopSurat, bulkIncludeReceipts);
   };
@@ -575,10 +581,12 @@ export function KwitansiAuditTab({ categories, rabSummary, profile, realizationB
           tanggal: pdfModal.tanggal,
           sudahTerimaDari: pdfModal.sudahTerimaDari,
           perihal: pdfModal.perihal,
+          rabCode: pdfModal.rabCode,
           rabLabel: pdfModal.rabLabel,
           penerima: pdfModal.penerima,
           amount: pdfModal.amount,
           receiptUrls: pdfModal.receiptUrls,
+          fasilitator: pdfModal.fasilitator || null,
         },
       ],
       pdfModal.kopSurat,

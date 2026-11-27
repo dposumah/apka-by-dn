@@ -234,7 +234,15 @@ export interface SntExpenseRecord {
   receiptUrls?: string[] | null;
   paymentReceiptUrl?: string | null;
   vendorReceiptNo?: string | null;
-  fasilitator?: { id?: string; namaLengkap: string; lokasiSNT?: string | null } | null;
+  fasilitator?: {
+    id?: string;
+    namaLengkap: string;
+    lokasiSNT?: string | null;
+    jabatan?: string | null;
+    npwpNik?: string | null;
+    bankName?: string | null;
+    bankAccount?: string | null;
+  } | null;
   createdBy?: { name?: string | null } | null;
   rabItem?: { id?: string; code?: string; name?: string; category?: { name?: string } | null } | null;
   kwitansiRecord?:

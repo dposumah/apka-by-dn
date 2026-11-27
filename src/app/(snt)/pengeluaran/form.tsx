@@ -13,7 +13,16 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { uploadFileClient } from '@/lib/upload-client'
 import { getExpenseReceiptUrls, renderReceiptAttachmentPagesHtml } from '@/lib/expense-receipts'
-import { renderModernInvoiceHtml, renderModernKuitansiHtml, resolveBrandKopTheme } from '@/lib/snt-brand-kop'
+import {
+  DEFAULT_ROBOTIC_PREPARER_LABEL,
+  formatMonthPeriodId,
+  isSlipHonorariumRabCode,
+  renderModernInvoiceHtml,
+  renderModernKuitansiHtml,
+  renderSlipHonorariumHtml,
+  resolveBrandKopTheme,
+  resolvePersonnelRoleFromRab,
+} from '@/lib/snt-brand-kop'
 import { resolveEntityCodeFromKop } from '@/lib/snt-doc-numbering'
 import type { KopSuratOption } from '@/lib/snt-report-templates'
 
@@ -170,20 +179,51 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
   
   const getKwitansiHtml = (expense: any, record: any) => {
     const theme = resolveBrandKopTheme(selectedKop);
-    const kwtCard = renderModernKuitansiHtml({
-      kopSurat: selectedKop,
-      originPrefix: window.location.origin,
-      noKwitansi: record.noKwitansi || 'KWT/TEMP',
-      sudahTerimaDari: record.owner || theme.entityName || 'Yayasan Maleo Talenta Cendekia',
-      amount: Number(expense.amount) || 0,
-      untukPembayaran: `${expense.description}${expense.rabItem?.name ? ` - ${expense.rabItem.name}` : ''}`,
-      rabCode: expense.rabItem?.code || undefined,
-      showRabCode: Boolean(expense.rabItem?.code),
-      kota: 'Jakarta',
-      tanggal: record.tanggal || expense.date || new Date(),
-      penerimaDisplay: expense.fasilitator ? expense.fasilitator.namaLengkap : '................................................',
-      penerimaRole: 'Yang menerima,',
-    });
+    const tgl = record.tanggal || expense.date || new Date();
+    const kwtCard = isSlipHonorariumRabCode(expense.rabItem?.code, expense.rabItem?.name)
+      ? renderSlipHonorariumHtml({
+          kopSurat: selectedKop,
+          originPrefix: window.location.origin,
+          periode: formatMonthPeriodId(tgl),
+          namaPenerima: expense.fasilitator?.namaLengkap || '................................................',
+          nomorDokumen: record.noKwitansi || '-',
+          peranJabatan:
+            expense.fasilitator?.jabatan ||
+            resolvePersonnelRoleFromRab(expense.rabItem?.code, expense.rabItem?.name, expense.fasilitator?.lokasiSNT),
+          kegiatan: `${expense.description}${expense.rabItem?.name ? ` - ${expense.rabItem.name}` : ''}`,
+          tanggalKegiatan: formatMonthPeriodId(tgl),
+          tanggalBayar: tgl,
+          npwpNik: expense.fasilitator?.npwpNik || '-',
+          rekening: [expense.fasilitator?.bankName, expense.fasilitator?.bankAccount].filter(Boolean).join(' — ') || '-',
+          components: [
+            {
+              komponen: 'Honorarium',
+              qty: '1 Paket',
+              pendapatan: Number(expense.amount) || 0,
+              potongan: 0,
+              keterangan: expense.description || '-',
+            },
+            { komponen: 'Tambahan honorarium', qty: '-', pendapatan: 0, potongan: 0, keterangan: '-' },
+            { komponen: 'Pajak / potongan lainnya', qty: '-', pendapatan: 0, potongan: 0, keterangan: '-' },
+          ],
+          catatan: expense.fasilitator?.lokasiSNT ? `Lokasi SNT: ${expense.fasilitator.lokasiSNT}` : '-',
+          disiapkanOleh: DEFAULT_ROBOTIC_PREPARER_LABEL,
+        })
+      : renderModernKuitansiHtml({
+          kopSurat: selectedKop,
+          originPrefix: window.location.origin,
+          noKwitansi: record.noKwitansi || 'KWT/TEMP',
+          sudahTerimaDari: record.owner || theme.entityName || 'Yayasan Maleo Talenta Cendekia',
+          amount: Number(expense.amount) || 0,
+          untukPembayaran: `${expense.description}${expense.rabItem?.name ? ` - ${expense.rabItem.name}` : ''}`,
+          rabCode: expense.rabItem?.code || undefined,
+          showRabCode: Boolean(expense.rabItem?.code),
+          kota: 'Jakarta',
+          tanggal: tgl,
+          penerimaDisplay: expense.fasilitator ? expense.fasilitator.namaLengkap : '................................................',
+          penerimaRole: 'Yang menerima,',
+          dibuatOleh: DEFAULT_ROBOTIC_PREPARER_LABEL,
+        });
     return `
       <div style="page-break-after: always;">
         ${kwtCard}

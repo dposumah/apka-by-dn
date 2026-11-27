@@ -1,6 +1,66 @@
 import { formatCurrency, terbilangRupiah } from "./format";
 import type { KopSuratOption, SntReportProfile } from "./snt-report-templates";
 
+export const DEFAULT_ROBOTIC_PREPARER_LABEL = "PT Jully Tjindrawan Robotik (Robotic Explorer)";
+
+/**
+ * Mengembalikan true untuk Pos RAB yang bukti pembayarannya wajib memakai SLIP HONORARIUM
+ * (bukan Kwitansi):
+ * - A.3: Koordinator Wilayah
+ * - A.4: Fasilitator KKA & Robotika
+ * - A.5: Tenaga Administrasi
+ */
+export function isSlipHonorariumRabCode(
+  rabCode?: string | null,
+  rabNameOrLabel?: string | null
+): boolean {
+  const c = String(rabCode || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^a\.?/, "");
+  if (c === "3" || c === "4" || c === "5") return true;
+
+  const label = String(rabNameOrLabel || "").trim().toLowerCase();
+  if (!label) return false;
+  if (/^(?:a\.?)?[345]\s*[-–—]/.test(label)) return true;
+  if (label.includes("koordinator wilayah") && !label.includes("perjalanan") && !label.includes("perjadin")) {
+    return true;
+  }
+  if (label.includes("fasilitator koding") || label.includes("honorarium fasilitator")) {
+    return true;
+  }
+  if (label.includes("tenaga administrasi")) {
+    return true;
+  }
+  return false;
+}
+
+export function resolvePersonnelRoleFromRab(
+  rabCode?: string | null,
+  rabNameOrLabel?: string | null,
+  lokasi?: string | null
+): string {
+  const c = String(rabCode || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^a\.?/, "");
+  const label = String(rabNameOrLabel || "").toLowerCase();
+  if (c === "3" || (label.includes("koordinator wilayah") && !label.includes("perjalanan"))) {
+    return "Koordinator Wilayah 2";
+  }
+  if (c === "5" || label.includes("tenaga administrasi")) {
+    return "Tenaga Administrasi SNT Wilayah 2";
+  }
+  return lokasi ? `Fasilitator KKA & Robotika (${lokasi})` : "Fasilitator KKA & Robotika";
+}
+
+export function formatMonthPeriodId(dateInput?: string | Date | null): string {
+  if (!dateInput) return "-";
+  const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
+  if (Number.isNaN(d.getTime())) return String(dateInput);
+  return d.toLocaleDateString("id-ID", { month: "long", year: "numeric" });
+}
+
 export interface BrandKopTheme {
   id: KopSuratOption;
   label: string;
@@ -226,7 +286,7 @@ export function renderModernKuitansiHtml(params: ModernKuitansiInput): string {
   if (params.kopSurat === "maleo") {
     const ketuaYayasan =
       params.profile?.ketuaYayasanMaleo?.trim() || "Mutiara Hikma Mahendradatta, BBA., MBA.";
-    const dibuatOleh = params.dibuatOleh?.trim() || params.penerimaDisplay || "....................................";
+    const dibuatOleh = params.dibuatOleh?.trim() || DEFAULT_ROBOTIC_PREPARER_LABEL;
 
     return `
       <div style="background:#fff; border:1px solid #cbd5e1; border-radius:4px; padding:22px 26px; max-width:860px; margin:0 auto; box-sizing:border-box; font-family:'Open Sans','Segoe UI',Arial,sans-serif; color:#0f172a; page-break-inside:avoid;">
@@ -297,7 +357,6 @@ export function renderModernKuitansiHtml(params: ModernKuitansiInput): string {
               <div style="color:#334155;">Dibuat oleh,</div>
               <div style="height:58px;"></div>
               <div style="font-weight:700; color:#0f172a; text-decoration:underline;">${esc(dibuatOleh)}</div>
-              ${params.penerimaRole ? `<div style="font-size:10.5px; color:#64748b; margin-top:2px;">${esc(params.penerimaRole.replace(/,\s*$/, ""))}</div>` : ""}
             </td>
             <td style="width:50%; text-align:center; vertical-align:top; border:none;">
               <div style="color:#334155;">Disetujui Oleh,</div>
@@ -616,13 +675,13 @@ export function renderSlipHonorariumHtml(params: SlipHonorariumInput): string {
 
       <table style="width:100%; border-collapse:collapse; font-size:11.5px;">
         <tr>
-          <td style="width:45%; border:none; vertical-align:top;">
+          <td style="width:55%; border:none; vertical-align:top;">
             <div>Disiapkan oleh,</div>
             <div style="height:52px;"></div>
-            <div style="font-weight:700; text-decoration:underline;">${esc(params.disiapkanOleh || params.profile?.bagianAdministrasi || "........................................")}</div>
+            <div style="font-weight:700; text-decoration:underline;">${esc(params.disiapkanOleh || DEFAULT_ROBOTIC_PREPARER_LABEL)}</div>
             <div style="font-size:10.5px; color:#475569; margin-top:2px;">Bagian Administrasi</div>
           </td>
-          <td style="width:55%; border:none;"></td>
+          <td style="width:45%; border:none;"></td>
         </tr>
       </table>
 

@@ -1,6 +1,14 @@
 import { formatCurrency, terbilangRupiah } from "./format";
 import { getExpenseReceiptUrls, renderReceiptAttachmentPagesHtml } from "./expense-receipts";
-import { renderBrandKopHtml, renderModernKuitansiHtml } from "./snt-brand-kop";
+import {
+  DEFAULT_ROBOTIC_PREPARER_LABEL,
+  formatMonthPeriodId,
+  isSlipHonorariumRabCode,
+  renderBrandKopHtml,
+  renderModernKuitansiHtml,
+  renderSlipHonorariumHtml,
+  resolvePersonnelRoleFromRab,
+} from "./snt-brand-kop";
 import {
   KopSuratOption,
   KwitansiAuditRow,
@@ -1146,10 +1154,19 @@ export interface StandaloneKwitansiPdfItem {
   tanggal: string;
   sudahTerimaDari: string;
   perihal: string;
+  rabCode?: string;
   rabLabel: string;
   penerima: string;
   amount: number;
   receiptUrls?: string[];
+  fasilitator?: {
+    namaLengkap?: string;
+    lokasiSNT?: string | null;
+    jabatan?: string | null;
+    npwpNik?: string | null;
+    bankName?: string | null;
+    bankAccount?: string | null;
+  } | null;
 }
 
 export function renderStandaloneKwitansiPdfHtml(input: {
@@ -1166,9 +1183,50 @@ export function renderStandaloneKwitansiPdfHtml(input: {
           ? renderReceiptAttachmentPagesHtml(item.receiptUrls)
           : "";
 
-      return `
-        <section class="kwt-page${idx > 0 ? " page-break" : ""}">
-          ${renderModernKuitansiHtml({
+      const useSlip = isSlipHonorariumRabCode(item.rabCode, item.rabLabel);
+      const docBodyHtml = useSlip
+        ? renderSlipHonorariumHtml({
+            kopSurat: input.kopSurat,
+            profile: input.profile,
+            periode: formatMonthPeriodId(item.tanggal),
+            namaPenerima: item.fasilitator?.namaLengkap || item.penerima,
+            nomorDokumen: item.noKwitansi,
+            peranJabatan:
+              item.fasilitator?.jabatan ||
+              resolvePersonnelRoleFromRab(item.rabCode, item.rabLabel, item.fasilitator?.lokasiSNT),
+            kegiatan: item.perihal,
+            tanggalKegiatan: formatMonthPeriodId(item.tanggal),
+            tanggalBayar: item.tanggal,
+            npwpNik: item.fasilitator?.npwpNik || "-",
+            rekening:
+              [item.fasilitator?.bankName, item.fasilitator?.bankAccount].filter(Boolean).join(" — ") || "-",
+            components: [
+              {
+                komponen: "Honorarium",
+                qty: "1 Paket",
+                pendapatan: item.amount,
+                potongan: 0,
+                keterangan: item.perihal,
+              },
+              {
+                komponen: "Tambahan honorarium",
+                qty: "-",
+                pendapatan: 0,
+                potongan: 0,
+                keterangan: "-",
+              },
+              {
+                komponen: "Pajak / potongan lainnya",
+                qty: "-",
+                pendapatan: 0,
+                potongan: 0,
+                keterangan: "-",
+              },
+            ],
+            catatan: item.fasilitator?.lokasiSNT ? `Lokasi SNT: ${item.fasilitator.lokasiSNT}` : item.rabLabel,
+            disiapkanOleh: DEFAULT_ROBOTIC_PREPARER_LABEL,
+          })
+        : renderModernKuitansiHtml({
             kopSurat: input.kopSurat,
             profile: input.profile,
             noKwitansi: item.noKwitansi,
@@ -1181,7 +1239,12 @@ export function renderStandaloneKwitansiPdfHtml(input: {
             tanggal: item.tanggal,
             penerimaDisplay: item.penerima,
             penerimaRole: "Yang menerima,",
-          })}
+            dibuatOleh: DEFAULT_ROBOTIC_PREPARER_LABEL,
+          });
+
+      return `
+        <section class="kwt-page${idx > 0 ? " page-break" : ""}">
+          ${docBodyHtml}
           ${receiptsHtml}
         </section>
       `;

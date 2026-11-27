@@ -34,7 +34,16 @@ import {
   getExpenseReceiptUrls,
   renderReceiptAttachmentPagesHtml,
 } from '@/lib/expense-receipts'
-import { renderModernInvoiceHtml, renderModernKuitansiHtml, resolveBrandKopTheme } from '@/lib/snt-brand-kop'
+import {
+  DEFAULT_ROBOTIC_PREPARER_LABEL,
+  formatMonthPeriodId,
+  isSlipHonorariumRabCode,
+  renderModernInvoiceHtml,
+  renderModernKuitansiHtml,
+  renderSlipHonorariumHtml,
+  resolveBrandKopTheme,
+  resolvePersonnelRoleFromRab,
+} from '@/lib/snt-brand-kop'
 import { resolveEntityCodeFromKop } from '@/lib/snt-doc-numbering'
 import type { KopSuratOption } from '@/lib/snt-report-templates'
 
@@ -352,12 +361,39 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
     setShowPrintModal(true)
   }
 
-  // HTML Kwitansi Template (Modern Dual-Tone Kop)
+  // HTML Kwitansi / Slip Honorarium Template (A.3, A.4, A.5 pakai Slip Honorarium)
   const getKwitansiHtml = (expense: any, record: any) => {
     const theme = resolveBrandKopTheme(selectedKop)
-    return `
-      <div>
-        ${renderModernKuitansiHtml({
+    const tgl = record.tanggal || expense.date || new Date()
+    const bodyHtml = isSlipHonorariumRabCode(expense.rabItem?.code, expense.rabItem?.name)
+      ? renderSlipHonorariumHtml({
+          kopSurat: selectedKop,
+          periode: formatMonthPeriodId(tgl),
+          namaPenerima: expense.fasilitator?.namaLengkap || record.owner || theme.entityName || '................................',
+          nomorDokumen: record.noKwitansi || '-',
+          peranJabatan:
+            expense.fasilitator?.jabatan ||
+            resolvePersonnelRoleFromRab(expense.rabItem?.code, expense.rabItem?.name, expense.fasilitator?.lokasiSNT),
+          kegiatan: record.perihal || `${expense.description} - ${expense.rabItem?.name || ''}`,
+          tanggalKegiatan: formatMonthPeriodId(tgl),
+          tanggalBayar: tgl,
+          npwpNik: expense.fasilitator?.npwpNik || '-',
+          rekening: [expense.fasilitator?.bankName, expense.fasilitator?.bankAccount].filter(Boolean).join(' — ') || '-',
+          components: [
+            {
+              komponen: 'Honorarium',
+              qty: '1 Paket',
+              pendapatan: Number(expense.amount) || 0,
+              potongan: 0,
+              keterangan: record.perihal || expense.description || '-',
+            },
+            { komponen: 'Tambahan honorarium', qty: '-', pendapatan: 0, potongan: 0, keterangan: '-' },
+            { komponen: 'Pajak / potongan lainnya', qty: '-', pendapatan: 0, potongan: 0, keterangan: '-' },
+          ],
+          catatan: expense.fasilitator?.lokasiSNT ? `Lokasi SNT: ${expense.fasilitator.lokasiSNT}` : `${expense.rabItem?.code || ''} - ${expense.rabItem?.name || ''}`,
+          disiapkanOleh: DEFAULT_ROBOTIC_PREPARER_LABEL,
+        })
+      : renderModernKuitansiHtml({
           kopSurat: selectedKop,
           noKwitansi: record.noKwitansi || '-',
           sudahTerimaDari: record.owner || theme.entityName || 'Yayasan Maleo Talenta Cendekia',
@@ -366,10 +402,14 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
           rabCode: expense.rabItem?.code || undefined,
           showRabCode: Boolean(expense.rabItem?.code),
           kota: 'Jakarta',
-          tanggal: record.tanggal || expense.date || new Date(),
+          tanggal: tgl,
           penerimaDisplay: expense.fasilitator ? expense.fasilitator.namaLengkap : (record.owner || theme.entityName || 'Yayasan Maleo'),
           penerimaRole: 'Yang menerima,',
-        })}
+          dibuatOleh: DEFAULT_ROBOTIC_PREPARER_LABEL,
+        })
+    return `
+      <div>
+        ${bodyHtml}
         ${renderReceiptAttachmentPagesHtml(getExpenseReceiptUrls(expense))}
       </div>
     `

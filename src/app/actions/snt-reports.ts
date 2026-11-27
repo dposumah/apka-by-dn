@@ -48,7 +48,15 @@ export async function getSntReportWorkspaceData() {
                     where: { status: "APPROVED" },
                     include: {
                       fasilitator: {
-                        select: { id: true, namaLengkap: true, lokasiSNT: true },
+                        select: {
+                          id: true,
+                          namaLengkap: true,
+                          lokasiSNT: true,
+                          jabatan: true,
+                          npwpNik: true,
+                          bankName: true,
+                          bankAccount: true,
+                        },
                       },
                       createdBy: {
                         select: { name: true },

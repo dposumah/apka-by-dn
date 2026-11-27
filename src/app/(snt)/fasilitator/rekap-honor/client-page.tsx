@@ -36,7 +36,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { createRekapManual, deleteRekap, generateKwitansiHonor, generateKwitansiTransportBulanan, updateRekapTransport, updateRekapHonorManual, copyRekapFromPreviousMonth, batchUpdateTransportByFormula } from '@/app/actions/rekap'
 import { adminGenerateInvoiceHonor, uploadBuktiRekap, generateInvoiceHonorRecord } from '@/app/actions/rekap'
 import { getInvoiceHtml, getKwitansiHtml, getMonthlyRekapReportHtml } from './pdf-generator'
-import { renderSlipHonorariumHtml } from '@/lib/snt-brand-kop'
+import { DEFAULT_ROBOTIC_PREPARER_LABEL, renderSlipHonorariumHtml } from '@/lib/snt-brand-kop'
 import { useRouter } from 'next/navigation'
 import { useModal } from '@/components/modal-provider';
 
@@ -1126,7 +1126,7 @@ Atas Nama: ${namaLengkap}`;
         htmlString += getInvoiceHtml(selectedRekap, printKopType, invRecord);
       }
       
-      // 2. Kwitansi Honor
+      // 2. Slip Honorarium (Honor Fasilitator menggunakan Slip Honorarium resmi, bukan Kwitansi)
       if (printCheckHonor) {
         const forceNewKw = isUnlockedHonor;
         const record = await generateKwitansiHonor(
@@ -1136,7 +1136,47 @@ Atas Nama: ${namaLengkap}`;
           forceNewKw
         );
         if (record.error) throw new Error(record.error);
-        htmlString += getKwitansiHtml(selectedRekap, record, 'HONOR', terbilangRupiah);
+        const fasil = selectedRekap.fasilitator || {};
+        const honorSlipHtml = renderSlipHonorariumHtml({
+          kopSurat: printKopType === 'robotic' ? 'robotic' : 'maleo',
+          periode: selectedRekap.bulan || '-',
+          namaPenerima: fasil.namaLengkap || '-',
+          nomorDokumen: record.noKwitansi || '-',
+          peranJabatan: fasil.jabatan
+            ? `${fasil.jabatan} (${fasil.lokasiSNT || 'Wilayah 2'})`
+            : `Fasilitator KKA & Robotika (${fasil.lokasiSNT || 'Wilayah 2'})`,
+          kegiatan: 'Program Sekolah Nasional Terintegrasi (SNT) 2026 — KKA & Robotika',
+          tanggalKegiatan: `Bulan ${selectedRekap.bulan || '-'}`,
+          tanggalBayar: record.tanggal || inputTanggal || new Date().toISOString().slice(0, 10),
+          npwpNik: fasil.npwpNik || '-',
+          rekening: [fasil.bankName, fasil.bankAccount].filter(Boolean).join(' — ') || '-',
+          components: [
+            {
+              komponen: 'Honorarium',
+              qty: `${selectedRekap.totalJP || 0} JP`,
+              pendapatan: Number(selectedRekap.totalHonor) || 0,
+              potongan: 0,
+              keterangan: `Intra ${selectedRekap.totalJPIntra || 0} JP + Ekstra ${selectedRekap.totalJPEkstra || 0} JP`,
+            },
+            {
+              komponen: 'Tambahan honorarium',
+              qty: '-',
+              pendapatan: 0,
+              potongan: 0,
+              keterangan: '-',
+            },
+            {
+              komponen: 'Pajak / potongan lainnya',
+              qty: '-',
+              pendapatan: 0,
+              potongan: 0,
+              keterangan: '-',
+            },
+          ],
+          catatan: `Lokasi SNT: ${fasil.lokasiSNT || 'Wilayah 2'}`,
+          disiapkanOleh: DEFAULT_ROBOTIC_PREPARER_LABEL,
+        });
+        htmlString += (htmlString ? '<div style="page-break-before: always;"></div>' : '') + honorSlipHtml;
       }
       
       // 3. Kwitansi Transport
@@ -1198,6 +1238,7 @@ Atas Nama: ${namaLengkap}`;
             },
           ],
           catatan: `Lokasi SNT: ${fasil.lokasiSNT || 'Wilayah 2'}`,
+          disiapkanOleh: DEFAULT_ROBOTIC_PREPARER_LABEL,
         });
         htmlString += (htmlString ? '<div style="page-break-before: always;"></div>' : '') + slipHtml;
       }
@@ -2559,7 +2600,7 @@ Atas Nama: ${namaLengkap}`;
                         onChange={e => setPrintCheckHonor(e.target.checked)} 
                         className="w-4 h-4 text-emerald-600 rounded" 
                       />
-                      <span>Kwitansi Honorarium (Sesi Mengajar)</span>
+                      <span>Slip Honorarium (Sesi Mengajar — Format Maleo)</span>
                     </label>
                     <label className={`flex items-center space-x-2 text-sm ${hitungTotalTransportRekap(selectedRekap) <= 0 ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
                       <input 

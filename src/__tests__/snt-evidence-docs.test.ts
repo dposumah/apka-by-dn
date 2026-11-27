@@ -172,9 +172,9 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
 
   it("builds RAB unit rate Rp5.729.876/location for facilitators (blank on 2-fasil locations, selectable per row) and Tenaga Administrasi A.5", () => {
     const fasilitators: SntFasilitatorRecord[] = [
-      { id: "f1", namaLengkap: "Muliyadi, S.Kom., M.Cs.", lokasiSNT: "Sulawesi Tenggara - Kab. Buton Tengah" },
-      { id: "f2", namaLengkap: "Rando, S.Kom., M.Eng.", lokasiSNT: "Sulawesi Tenggara - Kab. Buton Tengah" },
-      { id: "f3", namaLengkap: "Muh. Hanifudin H, S.Pd", lokasiSNT: "Maluku Utara - Kota Tidore Kepulauan" },
+      { id: "f1", namaLengkap: "Muliyadi, S.Kom., M.Cs.", lokasiSNT: "Sulawesi Tenggara - Kab. Buton Tengah", npwpNik: "7404010101880001", bankName: "BRI", bankAccount: "111222333" },
+      { id: "f2", namaLengkap: "Rando, S.Kom., M.Eng.", lokasiSNT: "Sulawesi Tenggara - Kab. Buton Tengah", npwpNik: "7404010101890002", bankName: "Mandiri", bankAccount: "444555666" },
+      { id: "f3", namaLengkap: "Muh. Hanifudin H, S.Pd", lokasiSNT: "Maluku Utara - Kota Tidore Kepulauan", npwpNik: "8201010101900003", bankName: "BNI", bankAccount: "777888999" },
     ];
     const rekaps: SntRekapRecord[] = [
       {
@@ -215,6 +215,7 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
     const html = renderMonthlyFacilitatorHonorPdfHtml({
       sheet: customSheet,
       profile: getDefaultSntReportProfile(),
+      fasilitators,
       includeTransportColumn: false,
       recipientMode: "MANUAL",
       tanggalCetak: "2026-10-31",
@@ -229,8 +230,12 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
     expect(html).not.toContain("Harga Satuan RAB");
     expect(html).not.toContain("Pos RAB A.4");
     expect(html).not.toContain("Fasilitator Penerima");
+    expect(html).toContain("SLIP HONORARIUM");
+    expect(html).toContain("7404010101890002"); // NPWP/NIK Rando dari profil fasil
+    expect(html).toContain("Mandiri — 444555666"); // Rekening Rando dari profil fasil
+    expect(html).toContain("8201010101900003"); // NPWP/NIK Hanif dari profil fasil
+    expect(html).toContain("PT Jully Tjindrawan Robotik (Robotic Explorer)");
     expect(html).toContain("Honorarium Fasilitator KKA &amp; Robotika Bulan Oktober 2026 Lokasi SNT Kab. Buton Tengah");
-    expect(html).toContain("Fasilitator");
 
     // Preset Tenaga Administrasi Pos A.5 = 4 bulan × Rp5.729.876 = Rp22.919.504
     const adminPreset = getHonorTimPresetByRabCode("5");
@@ -314,7 +319,8 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
     expect(lpdHtml).toContain("/logo-lpd.png");
     expect(lpdHtml).toContain("LPD JULLY TJINDRAWAN ROBOTIK");
     expect(lpdHtml).toContain("INVOICE");
-    expect(lpdHtml).toContain("KUITANSI");
+    expect(lpdHtml).toContain("SLIP HONORARIUM");
+    expect(lpdHtml).toContain("PT Jully Tjindrawan Robotik (Robotic Explorer)");
     expect(lpdHtml).toContain("INV/LPD/SNT-W2/001/XI/2026");
     expect(lpdHtml).not.toContain("Tempel materai Rp10.000");
     expect(lpdHtml).not.toContain("Direktur, LPD Jully Tjindrawan Robotik");
@@ -358,7 +364,8 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
       includeKwitansiSlips: true,
     });
     expect(a3OctHtml).toContain("INVOICE");
-    expect(a3OctHtml).toContain("KUITANSI");
+    expect(a3OctHtml).toContain("SLIP HONORARIUM");
+    expect(a3OctHtml).toContain("PT Jully Tjindrawan Robotik (Robotic Explorer)");
     expect(a3OctHtml).toContain("Oktober 2026");
     expect(a3OctHtml).toContain("INV/LPD/SNT-W2-A3/002/X/2026");
 
@@ -369,7 +376,7 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
     expect(a5Lpd.items).toHaveLength(3);
     expect(a5Lpd.items.reduce((s, it) => s + it.nominal, 0)).toBe(9987397);
 
-    // A.4 bulanan dengan Invoice + Daftar Tanda Terima + Kuitansi
+    // A.4 bulanan dengan Invoice + Daftar Tanda Terima + Slip Honorarium
     const a4Sheet = buildMonthlyRabUnitHonorReceipt("2026-10", [], []);
     const a4Html = renderMonthlyFacilitatorHonorPdfHtml({
       sheet: a4Sheet,
@@ -383,7 +390,8 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
     });
     expect(a4Html).toContain("INVOICE");
     expect(a4Html).toContain("DAFTAR TANDA TERIMA HONORARIUM FASILITATOR");
-    expect(a4Html).toContain("KUITANSI");
+    expect(a4Html).toContain("SLIP HONORARIUM");
+    expect(a4Html).toContain("PT Jully Tjindrawan Robotik (Robotic Explorer)");
     expect(a4Html).toContain("INV/LPD/SNT-W2-A4/002/X/2026");
   });
 
@@ -424,6 +432,7 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
     expect(maleoKwt).toContain("#009999");
     expect(maleoKwt).toContain("KWT.2026.11.27.001");
     expect(maleoKwt).toContain("Total Pembayaran");
+    expect(maleoKwt).toContain("PT Jully Tjindrawan Robotik (Robotic Explorer)");
     expect(maleoKwt).toContain("Mutiara Hikma Mahendradatta, BBA., MBA.");
 
     // 3. Maleo Tanda Terima (#00ADB5, Kepada Yth., Dibayarkan oleh, Diterima Oleh)
