@@ -6,6 +6,8 @@ import {
 import {
   buildDraftFromDriveMockupPreset,
   buildMonthlyPersonnelDraft,
+  DEFAULT_SNT_ADMIN_PROFILE,
+  DEFAULT_SNT_KORWIL_PROFILE,
   EvidenceDocType,
   GenericEvidenceDraft,
   getDefaultGenericEvidenceDraft,
@@ -459,9 +461,9 @@ function defaultSlipProfileForPos(
   const isAdmin = meta.code === "5";
   const isKetua = meta.code === "1";
   const nama = isKorwil
-    ? profile?.koordinatorWilayah?.trim() || "Jully Tjindrawan, MBA"
+    ? DEFAULT_SNT_KORWIL_PROFILE.nama
     : isAdmin
-      ? profile?.bagianAdministrasi?.trim() || ""
+      ? DEFAULT_SNT_ADMIN_PROFILE.nama
       : isKetua
         ? profile?.ketuaTimPelaksana?.trim() || "Jully Tjindrawan, MBA"
         : "";
@@ -469,18 +471,26 @@ function defaultSlipProfileForPos(
     meta.code === "3" || meta.code === "4" || meta.code === "5"
       ? resolvePersonnelRoleFromRab(meta.code, meta.fullTitle, "Wilayah 2")
       : `${meta.shortTitle} — SNT Wilayah 2`;
-  const bankStr =
-    meta.defaultKop === "robotic"
-      ? [profile?.reBankName || "BCA", profile?.reBankAccount || "7040827000"].filter(Boolean).join(" — ")
-      : meta.defaultKop === "lpd"
-        ? [profile?.lpdBankName, profile?.lpdBankAccount].filter(Boolean).join(" — ")
-        : [profile?.maleoBankName || "BANK MANDIRI", profile?.maleoBankAccount].filter(Boolean).join(" — ");
+  const npwpNik = isKorwil
+    ? DEFAULT_SNT_KORWIL_PROFILE.npwpNik
+    : isAdmin
+      ? DEFAULT_SNT_ADMIN_PROFILE.npwpNik
+      : "";
+  const bankStr = isKorwil
+    ? DEFAULT_SNT_KORWIL_PROFILE.rekening
+    : isAdmin
+      ? DEFAULT_SNT_ADMIN_PROFILE.rekening
+      : meta.defaultKop === "robotic"
+        ? [profile?.reBankName || "BCA", profile?.reBankAccount || "7040827000"].filter(Boolean).join(" — ")
+        : meta.defaultKop === "lpd"
+          ? [profile?.lpdBankName, profile?.lpdBankAccount].filter(Boolean).join(" — ")
+          : [profile?.maleoBankName || "BANK MANDIRI", profile?.maleoBankAccount].filter(Boolean).join(" — ");
 
   return {
     slipNamaPenerima: nama,
     slipPeranJabatan: peran,
     slipKegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
-    slipNpwpNik: "",
+    slipNpwpNik: npwpNik,
     slipRekening: bankStr,
     slipDisiapkanOleh: DEFAULT_ROBOTIC_PREPARER_LABEL,
   };
@@ -506,6 +516,7 @@ export function buildDefaultRabPosDraft(
     includeDaftarTandaTerima: meta.defaultDocs.includeTandaTerima,
     includeSlipGaji: meta.defaultDocs.includeSlipGaji,
     includeKwitansi: meta.defaultDocs.includeKwitansi,
+    tandaTerimaDibayarkanOleh: DEFAULT_ROBOTIC_PREPARER_LABEL,
     monthlyPrintFilter: (meta.isMonthlyByDefault ? "SPLIT_EACH_MONTH" : "ALL") as GenericEvidenceDraft["monthlyPrintFilter"],
     ...slipProfile,
   };
@@ -770,6 +781,19 @@ export function buildDefaultRabPosDraft(
   }
 
   if (code === "3b") {
+    const items = SNT_WILAYAH_2_LOCATIONS.flatMap((loc) =>
+      SNT_HONOR_MONTH_OPTIONS.map((m) => ({
+        id: `b3b-${loc.id}-${m.key}`,
+        tanggal: m.defaultDate,
+        lokasi: loc.label,
+        uraian: `Bantuan Sewa Rumah / Kost Fasilitator ${loc.label} — Bulan ${m.label}`,
+        penerima: "",
+        volume: 1,
+        satuan: "bulan",
+        hargaSatuan: 2000000,
+        nominal: 2000000,
+      }))
+    );
     return {
       ...baseFlags,
       ...defaultBank,
@@ -784,17 +808,7 @@ export function buildDefaultRabPosDraft(
       tanggalDokumen: "2026-09-30",
       sudahTerimaDari: maleoName,
       catatan: `Pagu RAB ${meta.displayCode}: ${meta.rabFormula}`,
-      items: SNT_HONOR_MONTH_OPTIONS.map((m) => ({
-        id: `b3b-${m.key}`,
-        tanggal: m.defaultDate,
-        lokasi: "Wilayah 2 (6 Lokasi SNT)",
-        uraian: `Bantuan Sewa Rumah / Kost Fasilitator — Bulan ${m.label} (6 lokasi × Rp2.000.000)`,
-        penerima: "",
-        volume: 6,
-        satuan: "lokasi",
-        hargaSatuan: 2000000,
-        nominal: 12000000,
-      })),
+      items,
     };
   }
 

@@ -406,6 +406,7 @@ export interface GenericEvidenceDraft {
   includeDaftarTandaTerima?: boolean;
   includeSlipGaji?: boolean;
   includeKwitansi?: boolean;
+  tandaTerimaDibayarkanOleh?: string;
   slipNamaPenerima?: string;
   slipPeranJabatan?: string;
   slipKegiatan?: string;
@@ -1065,6 +1066,22 @@ export function detectItemMonthKey(
   return null;
 }
 
+export const DEFAULT_SNT_KORWIL_PROFILE = {
+  nama: "Jully Tjindrawan",
+  nik: "3173055009710007",
+  npwp: "73.672.680.3-039.000",
+  npwpNik: "73.672.680.3-039.000 / 3173055009710007",
+  rekening: "7040680009",
+} as const;
+
+export const DEFAULT_SNT_ADMIN_PROFILE = {
+  nama: "Galvin Amaris Limbrawan",
+  nik: "3173050304000006",
+  npwp: "84.747.411.1-039.000",
+  npwpNik: "84.747.411.1-039.000 / 3173050304000006",
+  rekening: "7040804000",
+} as const;
+
 /**
  * Rincian resmi Koordinator Wilayah (Pos A.3):
  * 1 Orang × 12 jam × 3,5 bulan × Rp900.000 = 42 jam × Rp900.000 = Rp37.800.000
@@ -1100,8 +1117,7 @@ export function buildMonthlyKorwilSlipHonorariumInputs(
   const targetMonths = monthKey
     ? SNT_KORWIL_MONTHLY_SCHEDULE.filter((m) => m.key === monthKey)
     : [...SNT_KORWIL_MONTHLY_SCHEDULE];
-  const nama = overrides?.namaPenerima?.trim() || profile?.koordinatorWilayah?.trim() || "Jully Tjindrawan, MBA";
-  const bankFallback = [profile?.lpdBankName, profile?.lpdBankAccount].filter(Boolean).join(" — ");
+  const nama = overrides?.namaPenerima?.trim() || DEFAULT_SNT_KORWIL_PROFILE.nama;
 
   return targetMonths.map((m) => {
     const blnText = m.bulanFraction === 0.5 ? "0,5 bulan" : "1 bulan";
@@ -1115,8 +1131,8 @@ export function buildMonthlyKorwilSlipHonorariumInputs(
       kegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
       tanggalKegiatan: `Bulan ${m.label}`,
       tanggalBayar: m.defaultDate,
-      npwpNik: overrides?.npwpNik?.trim() || "-",
-      rekening: overrides?.rekening?.trim() || bankFallback || "-",
+      npwpNik: overrides?.npwpNik?.trim() || DEFAULT_SNT_KORWIL_PROFILE.npwpNik,
+      rekening: overrides?.rekening?.trim() || DEFAULT_SNT_KORWIL_PROFILE.rekening,
       components: [
         {
           komponen: "Honorarium",
@@ -1180,11 +1196,7 @@ export function buildMonthlyTenagaAdminSlipHonorariumInputs(
   const targetMonths = monthKey
     ? SNT_TENAGA_ADMIN_MONTHLY_SCHEDULE.filter((m) => m.key === monthKey)
     : [...SNT_TENAGA_ADMIN_MONTHLY_SCHEDULE];
-  const nama =
-    overrides?.namaPenerima?.trim() ||
-    profile?.bagianAdministrasi?.trim() ||
-    BLANK_SIGNATURE_LINE;
-  const bankFallback = [profile?.lpdBankName, profile?.lpdBankAccount].filter(Boolean).join(" — ");
+  const nama = overrides?.namaPenerima?.trim() || DEFAULT_SNT_ADMIN_PROFILE.nama;
 
   return targetMonths.map((m) => {
     const blnText = m.bulanFraction === 0.5 ? "0,5 bulan" : "1 bulan";
@@ -1198,8 +1210,8 @@ export function buildMonthlyTenagaAdminSlipHonorariumInputs(
       kegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
       tanggalKegiatan: `Bulan ${m.label}`,
       tanggalBayar: m.defaultDate,
-      npwpNik: overrides?.npwpNik?.trim() || "-",
-      rekening: overrides?.rekening?.trim() || bankFallback || "-",
+      npwpNik: overrides?.npwpNik?.trim() || DEFAULT_SNT_ADMIN_PROFILE.npwpNik,
+      rekening: overrides?.rekening?.trim() || DEFAULT_SNT_ADMIN_PROFILE.rekening,
       components: [
         {
           komponen: "Honorarium",
@@ -1241,7 +1253,8 @@ export function buildMonthlyPersonnelDraft(
 ): GenericEvidenceDraft {
   const maleoName = "Yayasan Maleo Talenta Cendekia";
   const signerName = profile?.ketuaTimPelaksana || "Jully Tjindrawan, MBA";
-  const korwilName = profile?.koordinatorWilayah || "Jully Tjindrawan, MBA";
+  const korwilName = DEFAULT_SNT_KORWIL_PROFILE.nama;
+  const adminName = DEFAULT_SNT_ADMIN_PROFILE.nama;
   const lpdBank = {
     bankName: profile?.lpdBankName || "",
     bankAccount: profile?.lpdBankAccount || "",
@@ -1324,7 +1337,7 @@ export function buildMonthlyPersonnelDraft(
     ...lpdBank,
     signerName,
     signerTitle: "Direktur",
-    recipientMode: profile?.bagianAdministrasi ? "MANUAL" : "BLANK",
+    recipientMode: "MANUAL",
     judulDokumen: "Honorarium Tenaga Administrasi — SNT Wilayah 2",
     periodeLabel: isLpdSim ? "September – November 2026" : "September – Desember 2026 (3,5 Bulan)",
     tanggalDokumen: adminMonths[0].defaultDate,
@@ -1340,7 +1353,7 @@ export function buildMonthlyPersonnelDraft(
         uraian: isLpdSim
           ? `Honorarium Tenaga Administrasi — SNT Wilayah 2, Bulan ${m.label}`
           : `Honorarium Tenaga Administrasi — SNT Wilayah 2, Bulan ${m.label} (${blnText} × Rp5.729.876)`,
-        penerima: profile?.bagianAdministrasi || "",
+        penerima: adminName,
         volume: isLpdSim ? 1 : m.bulanFraction,
         satuan: "bulan",
         hargaSatuan: isLpdSim ? amt : SNT_RAB_TENAGA_ADMIN_UNIT_PRICE,

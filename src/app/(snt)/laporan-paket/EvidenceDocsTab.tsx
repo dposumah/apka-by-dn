@@ -61,6 +61,7 @@ import {
   buildSewaRumahContractPageHtml,
   renderGenericEvidencePdfHtml,
   renderMonthlyFacilitatorHonorPdfHtml,
+  renderMultiBundleGenericEvidencePdfHtml,
   renderMultiMonthFacilitatorHonorPdfHtml,
 } from "@/lib/snt-evidence-pdf";
 import {
@@ -123,32 +124,96 @@ export function EvidenceDocsTab({
   const [a4InvoiceNo, setA4InvoiceNo] = useState<string>("");
   const [a4InvoicePpnPct, setA4InvoicePpnPct] = useState<number>(0);
   const [a4DitagihkanKepada, setA4DitagihkanKepada] = useState<string>("Yayasan Maleo Talenta Cendekia");
+  const [a4BankName, setA4BankName] = useState<string>(profile.maleoBankName || "BANK MANDIRI");
+  const [a4BankAccount, setA4BankAccount] = useState<string>(profile.maleoBankAccount || "");
+  const [a4BankHolder, setA4BankHolder] = useState<string>(profile.maleoBankHolder || "MALEO TALENTA CENDEKIA");
+  const [a4DibayarkanOleh, setA4DibayarkanOleh] = useState<string>(DEFAULT_ROBOTIC_PREPARER_LABEL);
   const [a4TanggalCetak, setA4TanggalCetak] = useState<string>("2026-10-31");
   const [customA4RowsByKey, setCustomA4RowsByKey] = useState<Record<string, MonthlyHonorReceiptRow[]>>({});
 
-  // ==================== STATE KHUSUS KONTRAK SEWA RUMAH (POS B.3b) ====================
+  // ==================== STATE KHUSUS KONTRAK & PER LOKASI SEWA RUMAH (POS B.3b) ====================
   const [sewaIncludeKontrak, setSewaIncludeKontrak] = useState<boolean>(true);
-  const [sewaDraft, setSewaDraft] = useState<SewaRumahContractDraft>(() => {
-    const saved = evidenceDrafts["EVIDENCE_SEWA_RUMAH"];
-    if (saved && typeof saved === "object") {
-      return { ...getDefaultSewaRumahDraft(), ...(saved as Partial<SewaRumahContractDraft>) };
-    }
-    return getDefaultSewaRumahDraft();
+  const [sewaLocationFilter, setSewaLocationFilter] = useState<string>("SPLIT_ALL_LOCATIONS");
+  const [sewaDraftsByLoc, setSewaDraftsByLoc] = useState<Record<string, SewaRumahContractDraft>>(() => {
+    const savedByLoc = evidenceDrafts["EVIDENCE_SEWA_RUMAH_BY_LOC"] as
+      | Record<string, Partial<SewaRumahContractDraft>>
+      | undefined;
+    const legacySaved = evidenceDrafts["EVIDENCE_SEWA_RUMAH"] as
+      | Partial<SewaRumahContractDraft>
+      | undefined;
+    const base = getDefaultSewaRumahDraft();
+    const map: Record<string, SewaRumahContractDraft> = {};
+    SNT_WILAYAH_2_LOCATIONS.forEach((loc, idx) => {
+      const matchedFasil = fasilitators.find(
+        (f) => matchWilayah2LocationId(f.lokasiSNT) === loc.id
+      );
+      const fromSaved = savedByLoc?.[loc.id];
+      const fromLegacy =
+        legacySaved && matchWilayah2LocationId(legacySaved.lokasiSnt) === loc.id
+          ? legacySaved
+          : undefined;
+      map[loc.id] = {
+        ...base,
+        lokasiSnt: loc.label,
+        nomorKontrak: `PKS-SEWA/SNT-W2/2026/${String(idx + 1).padStart(3, "0")}`,
+        namaFasilitator: matchedFasil?.namaLengkap || "",
+        ...(fromLegacy || {}),
+        ...(fromSaved || {}),
+      };
+    });
+    return map;
   });
+
+  const activeSewaLocId = SNT_WILAYAH_2_LOCATIONS.some((l) => l.id === sewaLocationFilter)
+    ? sewaLocationFilter
+    : SNT_WILAYAH_2_LOCATIONS[0].id;
+  const activeSewaDraft = sewaDraftsByLoc[activeSewaLocId] || getDefaultSewaRumahDraft();
+  const updateActiveSewaDraft = (patch: Partial<SewaRumahContractDraft>) => {
+    setSewaDraftsByLoc((prev) => ({
+      ...prev,
+      [activeSewaLocId]: { ...(prev[activeSewaLocId] || getDefaultSewaRumahDraft()), ...patch },
+    }));
+  };
 
   // ==================== STATE GENERIK UNTUK SEMUA POS RAB (23 POS) ====================
   const [posDrafts, setPosDrafts] = useState<Record<string, GenericEvidenceDraft>>(() => {
     const map: Record<string, GenericEvidenceDraft> = {};
     for (const meta of RAB_POS_CATALOG) {
       if (meta.code === "4") continue;
+      const freshDefault = buildDefaultRabPosDraft(meta.code, profile);
       const saved = evidenceDrafts[`EVIDENCE_RAB_${meta.code}`];
       if (saved && typeof saved === "object" && Array.isArray((saved as Record<string, unknown>).items)) {
-        map[meta.code] = {
-          ...buildDefaultRabPosDraft(meta.code, profile),
-          ...(saved as unknown as GenericEvidenceDraft),
+        const savedDraft = saved as unknown as GenericEvidenceDraft;
+        // Auto-upgrade legacy B.3b draft (4 baris gabungan 6 lokasi) menjadi 24 baris per lokasi SNT
+        const isLegacyCombinedSewa =
+          meta.code === "3b" &&
+          savedDraft.items.length <= 4 &&
+          savedDraft.items.every((it) => !matchWilayah2LocationId(it.lokasi));
+        const mergedDraft: GenericEvidenceDraft = {
+          ...freshDefault,
+          ...savedDraft,
+          items: isLegacyCombinedSewa ? freshDefault.items : savedDraft.items,
         };
+        // Pastikan default profil Korwil (A.3) & Admin (A.5) terisi bila draft lama masih kosong
+        if (meta.code === "3" || meta.code === "5") {
+          const isBlank = (v?: string) => !v || v.trim() === "" || v.trim() === "-";
+          if (isBlank(mergedDraft.slipNamaPenerima) || (meta.code === "5" && mergedDraft.slipNamaPenerima?.toLowerCase().includes("bagian administrasi"))) {
+            mergedDraft.slipNamaPenerima = freshDefault.slipNamaPenerima;
+          }
+          if (isBlank(mergedDraft.slipNpwpNik)) {
+            mergedDraft.slipNpwpNik = freshDefault.slipNpwpNik;
+          }
+          if (isBlank(mergedDraft.slipRekening) || mergedDraft.slipRekening?.trim().toUpperCase() === "BANK MANDIRI") {
+            mergedDraft.slipRekening = freshDefault.slipRekening;
+          }
+          mergedDraft.items = mergedDraft.items.map((it) => ({
+            ...it,
+            penerima: isBlank(it.penerima) ? mergedDraft.slipNamaPenerima || "" : it.penerima,
+          }));
+        }
+        map[meta.code] = mergedDraft;
       } else {
-        map[meta.code] = buildDefaultRabPosDraft(meta.code, profile);
+        map[meta.code] = freshDefault;
       }
     }
     return map;
@@ -371,12 +436,16 @@ export function EvidenceDocsTab({
 
       if (activeRabCode === "3b") {
         await saveSntReportDraft({
-          templateCode: "EVIDENCE_SEWA_RUMAH",
+          templateCode: "EVIDENCE_SEWA_RUMAH_BY_LOC",
           periodKey: "DEFAULT",
-          title: "Kontrak Sewa Rumah Fasilitator (B.3b)",
-          content: sewaDraft as unknown as Record<string, unknown>,
+          title: "Kontrak Sewa Rumah Fasilitator Per Lokasi SNT (B.3b)",
+          content: sewaDraftsByLoc as unknown as Record<string, unknown>,
         });
-        onDraftSaved("EVIDENCE_SEWA_RUMAH", "DEFAULT", sewaDraft as unknown as Record<string, unknown>);
+        onDraftSaved(
+          "EVIDENCE_SEWA_RUMAH_BY_LOC",
+          "DEFAULT",
+          sewaDraftsByLoc as unknown as Record<string, unknown>
+        );
       }
 
       const templateCode = `EVIDENCE_RAB_${activeRabCode}`;
@@ -417,9 +486,13 @@ export function EvidenceDocsTab({
           includeTandaTerima: a4IncludeTandaTerima,
           includeSlipGaji: a4IncludeSlipGaji,
           includeKwitansi: a4IncludeKwitansi,
+          dibayarkanOleh: a4DibayarkanOleh,
           invoiceNo: a4InvoiceNo,
           ppnPct: a4InvoicePpnPct,
           ditagihkanKepada: a4DitagihkanKepada,
+          bankName: a4BankName,
+          bankAccount: a4BankAccount,
+          bankHolder: a4BankHolder,
         });
         openHtmlWindow(html);
         return;
@@ -457,8 +530,12 @@ export function EvidenceDocsTab({
             includeTandaTerima: a4IncludeTandaTerima,
             includeSlipGaji: a4IncludeSlipGaji,
             includeKwitansi: a4IncludeKwitansi,
+            dibayarkanOleh: a4DibayarkanOleh,
             ppnPct: a4InvoicePpnPct,
             ditagihkanKepada: a4DitagihkanKepada,
+            bankName: a4BankName,
+            bankAccount: a4BankAccount,
+            bankHolder: a4BankHolder,
           };
         });
         openHtmlWindow(renderMultiMonthFacilitatorHonorPdfHtml(monthInputs));
@@ -503,9 +580,13 @@ export function EvidenceDocsTab({
           includeTandaTerima: a4IncludeTandaTerima,
           includeSlipGaji: a4IncludeSlipGaji,
           includeKwitansi: a4IncludeKwitansi,
+          dibayarkanOleh: a4DibayarkanOleh,
           invoiceNo: a4InvoiceNo,
           ppnPct: a4InvoicePpnPct,
           ditagihkanKepada: a4DitagihkanKepada,
+          bankName: a4BankName,
+          bankAccount: a4BankAccount,
+          bankHolder: a4BankHolder,
         })
       );
       return;
@@ -526,9 +607,50 @@ export function EvidenceDocsTab({
       return;
     }
 
+    // Khusus Pos B.3b (Bantuan Sewa Rumah): cetak per lokasi SNT (1 lokasi terpilih atau pisah 6 lokasi)
+    if (activeRabCode === "3b" && sewaLocationFilter !== "ALL_COMBINED") {
+      const targetLocs =
+        sewaLocationFilter === "SPLIT_ALL_LOCATIONS"
+          ? [...SNT_WILAYAH_2_LOCATIONS]
+          : SNT_WILAYAH_2_LOCATIONS.filter((l) => l.id === sewaLocationFilter);
+
+      const bundles = targetLocs.map((loc) => {
+        const locItems = currentDraft.items.filter(
+          (it) => matchWilayah2LocationId(it.lokasi) === loc.id
+        );
+        const locSewa = sewaDraftsByLoc[loc.id] || {
+          ...getDefaultSewaRumahDraft(),
+          lokasiSnt: loc.label,
+        };
+        const itemsWithOwner = locItems.map((it) => ({
+          ...it,
+          penerima: it.penerima || locSewa.namaPemilik || "",
+        }));
+        return {
+          type: activeMeta.pdfDocType,
+          draft: {
+            ...currentDraft,
+            judulDokumen: `Bantuan Sewa Rumah / Kost Fasilitator — ${loc.label}`,
+            items: itemsWithOwner,
+          },
+          includeKwitansiSlips: Boolean(currentDraft.includeSlipGaji || currentDraft.includeKwitansi),
+          prependPagesHtml: sewaIncludeKontrak
+            ? [buildSewaRumahContractPageHtml({ ...locSewa, recipientMode: currentDraft.recipientMode }, profile)]
+            : undefined,
+        };
+      });
+
+      const title =
+        targetLocs.length === 1
+          ? `Bantuan Sewa Rumah Fasilitator — ${targetLocs[0].label}`
+          : "Bantuan Sewa Rumah Fasilitator — Per Lokasi SNT (6 Lokasi)";
+      openHtmlWindow(renderMultiBundleGenericEvidencePdfHtml(bundles, profile, title));
+      return;
+    }
+
     const prependPagesHtml =
       activeRabCode === "3b" && sewaIncludeKontrak
-        ? [buildSewaRumahContractPageHtml(sewaDraft, profile)]
+        ? [buildSewaRumahContractPageHtml({ ...activeSewaDraft, recipientMode: currentDraft.recipientMode }, profile)]
         : undefined;
 
     const html = renderGenericEvidencePdfHtml({
@@ -807,16 +929,19 @@ export function EvidenceDocsTab({
                     value={activeRabCode === "4" ? a4KopSurat : currentDraft.kopSurat || activeMeta.defaultKop}
                     onChange={(e) => {
                       const nextKop = e.target.value as KopSuratOption;
+                      const theme = resolveBrandKopTheme(nextKop, profile);
                       if (activeRabCode === "4") {
                         setA4KopSurat(nextKop);
+                        setA4BankName(theme.defaultBankName);
+                        setA4BankAccount(theme.defaultBankAccount);
+                        setA4BankHolder(theme.defaultBankHolder);
                       } else {
-                        const theme = resolveBrandKopTheme(nextKop, profile);
                         updateCurrentDraft((p) => ({
                           ...p,
                           kopSurat: nextKop,
-                          bankName: theme.defaultBankName || p.bankName,
-                          bankAccount: theme.defaultBankAccount || p.bankAccount,
-                          bankHolder: theme.defaultBankHolder || p.bankHolder,
+                          bankName: theme.defaultBankName,
+                          bankAccount: theme.defaultBankAccount,
+                          bankHolder: theme.defaultBankHolder,
                         }));
                       }
                     }}
@@ -1202,39 +1327,83 @@ export function EvidenceDocsTab({
                   </label>
                 </div>
 
+                {a4IncludeTandaTerima && (
+                  <div className="rounded-lg border border-cyan-200 bg-cyan-50/40 p-3 text-xs">
+                    <label className="block text-[11px] font-semibold text-cyan-950 mb-1">
+                      Dibayarkan oleh (pada Tanda Terima Pos A.4)
+                    </label>
+                    <Input
+                      value={a4DibayarkanOleh}
+                      onChange={(e) => setA4DibayarkanOleh(e.target.value)}
+                      placeholder="PT Jully Tjindrawan Robotik (Robotic Explorer)"
+                      className="h-8 text-xs bg-white"
+                    />
+                  </div>
+                )}
+
                 {a4IncludeInvoice && (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 rounded-lg border border-blue-200 bg-blue-50/40 p-3 text-xs">
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
-                        No. Invoice (Kosong = Otomatis per Bulan)
-                      </label>
-                      <Input
-                        value={a4InvoiceNo}
-                        onChange={(e) => setA4InvoiceNo(e.target.value)}
-                        placeholder={`INV/MTC/SNT-W2-A4/.../${a4Month}`}
-                        className="h-8 text-xs bg-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
-                        Ditagihkan Kepada
-                      </label>
-                      <Input
-                        value={a4DitagihkanKepada}
-                        onChange={(e) => setA4DitagihkanKepada(e.target.value)}
-                        className="h-8 text-xs bg-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">PPN (%)</label>
-                      <select
-                        value={a4InvoicePpnPct}
-                        onChange={(e) => setA4InvoicePpnPct(Number(e.target.value) || 0)}
-                        className="w-full h-8 px-2 rounded border border-slate-200 bg-white text-xs font-semibold"
-                      >
-                        <option value={0}>0% (Non-PPN)</option>
-                        <option value={11}>11% (PPN)</option>
-                      </select>
+                  <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-3 space-y-2.5 text-xs">
+                    <div className="font-bold text-blue-950">Pengaturan Invoice &amp; Rekening Penerima (Pos A.4)</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                          No. Invoice (Kosong = Otomatis per Bulan)
+                        </label>
+                        <Input
+                          value={a4InvoiceNo}
+                          onChange={(e) => setA4InvoiceNo(e.target.value)}
+                          placeholder={`INV/MTC/SNT-W2-A4/.../${a4Month}`}
+                          className="h-8 text-xs bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                          Ditagihkan Kepada
+                        </label>
+                        <Input
+                          value={a4DitagihkanKepada}
+                          onChange={(e) => setA4DitagihkanKepada(e.target.value)}
+                          className="h-8 text-xs bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">PPN (%)</label>
+                        <select
+                          value={a4InvoicePpnPct}
+                          onChange={(e) => setA4InvoicePpnPct(Number(e.target.value) || 0)}
+                          className="w-full h-8 px-2 rounded border border-slate-200 bg-white text-xs font-semibold"
+                        >
+                          <option value={0}>0% (Non-PPN)</option>
+                          <option value={11}>11% (PPN)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Bank Penerima</label>
+                        <Input
+                          value={a4BankName}
+                          onChange={(e) => setA4BankName(e.target.value)}
+                          placeholder="BCA / BANK MANDIRI"
+                          className="h-8 text-xs bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">No. Rekening Penerima</label>
+                        <Input
+                          value={a4BankAccount}
+                          onChange={(e) => setA4BankAccount(e.target.value)}
+                          placeholder="No. rekening transfer..."
+                          className="h-8 text-xs bg-white font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Atas Nama Rekening Penerima</label>
+                        <Input
+                          value={a4BankHolder}
+                          onChange={(e) => setA4BankHolder(e.target.value)}
+                          placeholder="Atas nama pemilik rekening..."
+                          className="h-8 text-xs bg-white"
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1508,40 +1677,105 @@ export function EvidenceDocsTab({
                   </div>
                 </div>
 
+                {/* Filter & Cetak Per Lokasi SNT khusus Pos B.3b (Bantuan Sewa Rumah Fasilitator) */}
+                {activeRabCode === "3b" && (
+                  <div className="rounded-lg border border-indigo-200 bg-indigo-50/50 p-3 space-y-2 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <div className="font-bold text-indigo-950">
+                          Cetak Per Lokasi SNT — Bantuan Sewa Rumah (6 Lokasi × 4 Bln × Rp2.000.000)
+                        </div>
+                        <p className="text-[11px] text-indigo-800/80">
+                          Pilih satu lokasi SNT untuk edit &amp; cetak khusus lokasi tersebut, atau &ldquo;Semua 6 Lokasi (Pisah Per Lokasi)&rdquo; agar tiap lokasi tercetak paket kontrak, tanda terima &amp; kwitansinya sendiri.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setSewaLocationFilter("SPLIT_ALL_LOCATIONS")}
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${
+                          sewaLocationFilter === "SPLIT_ALL_LOCATIONS"
+                            ? "bg-indigo-700 text-white border-indigo-800"
+                            : "bg-white text-slate-700 border-indigo-200 hover:bg-indigo-100"
+                        }`}
+                      >
+                        Semua 6 Lokasi (Pisah Per Lokasi)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSewaLocationFilter("ALL_COMBINED")}
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${
+                          sewaLocationFilter === "ALL_COMBINED"
+                            ? "bg-indigo-700 text-white border-indigo-800"
+                            : "bg-white text-slate-700 border-indigo-200 hover:bg-indigo-100"
+                        }`}
+                      >
+                        Gabungan 6 Lokasi
+                      </button>
+                      {SNT_WILAYAH_2_LOCATIONS.map((loc) => (
+                        <button
+                          key={loc.id}
+                          type="button"
+                          onClick={() => setSewaLocationFilter(loc.id)}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${
+                            sewaLocationFilter === loc.id
+                              ? "bg-slate-900 text-white border-slate-900"
+                              : "bg-white text-slate-700 border-slate-200 hover:bg-indigo-50"
+                          }`}
+                        >
+                          {loc.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Form Khusus Kontrak Sewa Rumah (muncul bila Pos B.3b & Kontrak Sewa dicentang) */}
                 {activeRabCode === "3b" && sewaIncludeKontrak && (
                   <div className="rounded-lg border border-indigo-200 bg-indigo-50/40 p-3.5 space-y-2.5 text-xs">
-                    <div className="font-bold text-indigo-950 flex items-center gap-1.5">
-                      <FileText className="w-3.5 h-3.5" /> Pengaturan Surat Perjanjian Kontrak Sewa Rumah (Pos B.3b)
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="font-bold text-indigo-950 flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5" /> Kontrak Sewa Rumah — {activeSewaDraft.lokasiSnt}
+                      </div>
+                      <select
+                        value={activeSewaLocId}
+                        onChange={(e) => setSewaLocationFilter(e.target.value)}
+                        className="h-7 px-2 rounded border border-indigo-300 bg-white text-[11px] font-semibold text-indigo-950"
+                      >
+                        {SNT_WILAYAH_2_LOCATIONS.map((loc) => (
+                          <option key={loc.id} value={loc.id}>
+                            Edit Kontrak: {loc.label}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Nomor Kontrak</label>
                         <Input
-                          value={sewaDraft.nomorKontrak}
-                          onChange={(e) => setSewaDraft({ ...sewaDraft, nomorKontrak: e.target.value })}
+                          value={activeSewaDraft.nomorKontrak}
+                          onChange={(e) => updateActiveSewaDraft({ nomorKontrak: e.target.value })}
                           className="h-8 text-xs bg-white"
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Lokasi SNT</label>
-                        <select
-                          value={sewaDraft.lokasiSnt}
-                          onChange={(e) => setSewaDraft({ ...sewaDraft, lokasiSnt: e.target.value })}
-                          className="w-full h-8 px-2 rounded border border-slate-200 bg-white text-xs"
-                        >
-                          {SNT_WILAYAH_2_LOCATIONS.map((loc) => (
-                            <option key={loc.id} value={loc.label}>
-                              {loc.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
                         <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Nama Pemilik Rumah</label>
                         <Input
-                          value={sewaDraft.namaPemilik}
-                          onChange={(e) => setSewaDraft({ ...sewaDraft, namaPemilik: e.target.value })}
+                          value={activeSewaDraft.namaPemilik}
+                          onChange={(e) => {
+                            const nextOwner = e.target.value;
+                            updateActiveSewaDraft({ namaPemilik: nextOwner });
+                            updateCurrentDraft((p) => ({
+                              ...p,
+                              items: p.items.map((it) =>
+                                matchWilayah2LocationId(it.lokasi) === activeSewaLocId &&
+                                (!it.penerima || it.penerima === activeSewaDraft.namaPemilik)
+                                  ? { ...it, penerima: nextOwner }
+                                  : it
+                              ),
+                            }));
+                          }}
                           placeholder="Kosongkan untuk blanko..."
                           className="h-8 text-xs bg-white"
                         />
@@ -1549,17 +1783,26 @@ export function EvidenceDocsTab({
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Fasilitator Penghuni</label>
                         <Input
-                          value={sewaDraft.namaFasilitator}
-                          onChange={(e) => setSewaDraft({ ...sewaDraft, namaFasilitator: e.target.value })}
+                          value={activeSewaDraft.namaFasilitator}
+                          onChange={(e) => updateActiveSewaDraft({ namaFasilitator: e.target.value })}
                           placeholder="Nama fasilitator..."
                           className="h-8 text-xs bg-white"
                         />
                       </div>
                       <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">NIK Pemilik Rumah</label>
+                        <Input
+                          value={activeSewaDraft.nikPemilik}
+                          onChange={(e) => updateActiveSewaDraft({ nikPemilik: e.target.value })}
+                          placeholder="NIK pemilik rumah..."
+                          className="h-8 text-xs bg-white font-mono"
+                        />
+                      </div>
+                      <div>
                         <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Alamat Rumah Sewa</label>
                         <Input
-                          value={sewaDraft.alamatRumahSewa}
-                          onChange={(e) => setSewaDraft({ ...sewaDraft, alamatRumahSewa: e.target.value })}
+                          value={activeSewaDraft.alamatRumahSewa}
+                          onChange={(e) => updateActiveSewaDraft({ alamatRumahSewa: e.target.value })}
                           placeholder="Alamat lengkap..."
                           className="h-8 text-xs bg-white"
                         />
@@ -1571,8 +1814,8 @@ export function EvidenceDocsTab({
                             type="number"
                             min={1}
                             max={6}
-                            value={sewaDraft.jumlahBulan}
-                            onChange={(e) => setSewaDraft({ ...sewaDraft, jumlahBulan: Number(e.target.value) || 1 })}
+                            value={activeSewaDraft.jumlahBulan}
+                            onChange={(e) => updateActiveSewaDraft({ jumlahBulan: Number(e.target.value) || 1 })}
                             className="h-8 text-xs bg-white"
                           />
                         </div>
@@ -1580,8 +1823,8 @@ export function EvidenceDocsTab({
                           <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Tarif/Bln</label>
                           <Input
                             type="number"
-                            value={sewaDraft.tarifPerBulan}
-                            onChange={(e) => setSewaDraft({ ...sewaDraft, tarifPerBulan: Number(e.target.value) || 0 })}
+                            value={activeSewaDraft.tarifPerBulan}
+                            onChange={(e) => updateActiveSewaDraft({ tarifPerBulan: Number(e.target.value) || 0 })}
                             className="h-8 text-xs bg-white"
                           />
                         </div>
@@ -1779,93 +2022,169 @@ export function EvidenceDocsTab({
                   </div>
 
                   {currentDraft.includeInvoice && (
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 pt-2 border-t border-slate-100">
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Ditagihkan Kepada</label>
-                        <Input
-                          value={currentDraft.ditagihkanKepada || "Yayasan Maleo Talenta Cendekia"}
-                          onChange={(e) =>
-                            updateCurrentDraft((p) => ({
-                              ...p,
-                              ditagihkanKepada: e.target.value,
-                              sudahTerimaDari: e.target.value,
-                            }))
-                          }
-                          className="h-8 text-xs"
-                        />
+                    <div className="space-y-2.5 pt-2.5 border-t border-slate-100">
+                      <div className="text-[11px] font-bold text-blue-900">
+                        Pengaturan Invoice &amp; Rekening Penerima Transfer
                       </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Bank Transfer</label>
-                        <Input
-                          value={currentDraft.bankName ?? ""}
-                          onChange={(e) => updateCurrentDraft((p) => ({ ...p, bankName: e.target.value }))}
-                          placeholder="BCA / Mandiri"
-                          className="h-8 text-xs"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">No. Rekening</label>
-                        <Input
-                          value={currentDraft.bankAccount ?? ""}
-                          onChange={(e) => updateCurrentDraft((p) => ({ ...p, bankAccount: e.target.value }))}
-                          className="h-8 text-xs font-mono"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">PPN (%)</label>
-                        <select
-                          value={currentDraft.ppnPct ?? 0}
-                          onChange={(e) => updateCurrentDraft((p) => ({ ...p, ppnPct: Number(e.target.value) || 0 }))}
-                          className="w-full h-8 px-2 rounded border border-slate-200 bg-white text-xs font-semibold"
-                        >
-                          <option value={0}>0% (Non-PPN)</option>
-                          <option value={11}>11% (PPN)</option>
-                        </select>
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+                        <div className="sm:col-span-2">
+                          <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Ditagihkan Kepada</label>
+                          <Input
+                            value={currentDraft.ditagihkanKepada || "Yayasan Maleo Talenta Cendekia"}
+                            onChange={(e) =>
+                              updateCurrentDraft((p) => ({
+                                ...p,
+                                ditagihkanKepada: e.target.value,
+                                sudahTerimaDari: e.target.value,
+                              }))
+                            }
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Jatuh Tempo</label>
+                          <Input
+                            type="date"
+                            value={currentDraft.jatuhTempo || ""}
+                            onChange={(e) => updateCurrentDraft((p) => ({ ...p, jatuhTempo: e.target.value }))}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">PPN (%)</label>
+                          <select
+                            value={currentDraft.ppnPct ?? 0}
+                            onChange={(e) => updateCurrentDraft((p) => ({ ...p, ppnPct: Number(e.target.value) || 0 }))}
+                            className="w-full h-8 px-2 rounded border border-slate-200 bg-white text-xs font-semibold"
+                          >
+                            <option value={0}>0% (Non-PPN)</option>
+                            <option value={11}>11% (PPN)</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Bank Penerima</label>
+                          <Input
+                            value={currentDraft.bankName ?? ""}
+                            onChange={(e) => updateCurrentDraft((p) => ({ ...p, bankName: e.target.value }))}
+                            placeholder="BCA / BANK MANDIRI"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">No. Rekening Penerima</label>
+                          <Input
+                            value={currentDraft.bankAccount ?? ""}
+                            onChange={(e) => updateCurrentDraft((p) => ({ ...p, bankAccount: e.target.value }))}
+                            placeholder="No. rekening transfer..."
+                            className="h-8 text-xs font-mono"
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                            Atas Nama Rekening Penerima
+                          </label>
+                          <Input
+                            value={currentDraft.bankHolder ?? ""}
+                            onChange={(e) => updateCurrentDraft((p) => ({ ...p, bankHolder: e.target.value }))}
+                            placeholder="PT Jully Tjindrawan Robotik / MALEO TALENTA CENDEKIA"
+                            className="h-8 text-xs"
+                          />
+                        </div>
                       </div>
                     </div>
                   )}
 
                   {currentDraft.includeDaftarTandaTerima && (
-                    <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-slate-100">
-                      <label className="flex items-center gap-1.5 cursor-pointer text-slate-700">
-                        <input
-                          type="checkbox"
-                          checked={currentDraft.showRabCode ?? true}
-                          onChange={(e) => updateCurrentDraft((p) => ({ ...p, showRabCode: e.target.checked }))}
-                        />
-                        <span>Tampilkan Kode RAB</span>
-                      </label>
-                      <label className="flex items-center gap-1.5 cursor-pointer text-slate-700">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(currentDraft.includePphColumn)}
-                          onChange={(e) => updateCurrentDraft((p) => ({ ...p, includePphColumn: e.target.checked }))}
-                        />
-                        <span>Tabel PPh % (Neto) pada Daftar Tanda Terima</span>
-                      </label>
-                      {currentDraft.includePphColumn && (
-                        <div className="flex items-center gap-1">
-                          <span className="text-[11px] font-semibold text-slate-600">Tarif PPh (%):</span>
-                          <input
-                            type="number"
-                            min={0}
-                            max={30}
-                            step={0.5}
-                            value={currentDraft.pphPct ?? 0}
-                            onChange={(e) => updateCurrentDraft((p) => ({ ...p, pphPct: Number(e.target.value) || 0 }))}
-                            className="w-16 h-7 px-1.5 border rounded bg-white text-xs text-center font-semibold"
+                    <div className="space-y-2.5 pt-2.5 border-t border-slate-100">
+                      <div className="text-[11px] font-bold text-cyan-900">
+                        Pengaturan Tanda Terima
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                            Dibayarkan oleh (Teks Penandatangan Kiri)
+                          </label>
+                          <Input
+                            value={
+                              currentDraft.tandaTerimaDibayarkanOleh ??
+                              currentDraft.slipDisiapkanOleh ??
+                              DEFAULT_ROBOTIC_PREPARER_LABEL
+                            }
+                            onChange={(e) =>
+                              updateCurrentDraft((p) => ({ ...p, tandaTerimaDibayarkanOleh: e.target.value }))
+                            }
+                            placeholder="PT Jully Tjindrawan Robotik (Robotic Explorer)"
+                            className="h-8 text-xs"
                           />
                         </div>
-                      )}
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                            Catatan Tanda Terima / Invoice
+                          </label>
+                          <Input
+                            value={currentDraft.catatan || ""}
+                            onChange={(e) => updateCurrentDraft((p) => ({ ...p, catatan: e.target.value }))}
+                            placeholder="Catatan opsional..."
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-4">
+                        <label className="flex items-center gap-1.5 cursor-pointer text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={currentDraft.showRabCode ?? true}
+                            onChange={(e) => updateCurrentDraft((p) => ({ ...p, showRabCode: e.target.checked }))}
+                          />
+                          <span>Tampilkan Kode RAB</span>
+                        </label>
+                        <label className="flex items-center gap-1.5 cursor-pointer text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(currentDraft.includePphColumn)}
+                            onChange={(e) => updateCurrentDraft((p) => ({ ...p, includePphColumn: e.target.checked }))}
+                          />
+                          <span>Tabel PPh % (Neto) pada Daftar Tanda Terima</span>
+                        </label>
+                        {currentDraft.includePphColumn && (
+                          <div className="flex items-center gap-1">
+                            <span className="text-[11px] font-semibold text-slate-600">Tarif PPh (%):</span>
+                            <input
+                              type="number"
+                              min={0}
+                              max={30}
+                              step={0.5}
+                              value={currentDraft.pphPct ?? 0}
+                              onChange={(e) => updateCurrentDraft((p) => ({ ...p, pphPct: Number(e.target.value) || 0 }))}
+                              className="w-16 h-7 px-1.5 border rounded bg-white text-xs text-center font-semibold"
+                            />
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
 
                 {/* Tabel Rincian Baris Pos RAB */}
+                {(() => {
+                  const isSingleSewaLoc =
+                    activeRabCode === "3b" &&
+                    SNT_WILAYAH_2_LOCATIONS.some((l) => l.id === sewaLocationFilter);
+                  const visibleIndexedItems = currentDraft.items
+                    .map((it, origIdx) => ({ it, origIdx }))
+                    .filter(({ it }) =>
+                      isSingleSewaLoc ? matchWilayah2LocationId(it.lokasi) === sewaLocationFilter : true
+                    );
+                  const visibleTotal = visibleIndexedItems.reduce(
+                    (s, { it }) => s + (Number(it.nominal) || 0),
+                    0
+                  );
+                  return (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-800">
-                      Rincian Item {activeMeta.displayCode} ({currentDraft.items.length} baris)
+                      Rincian Item {activeMeta.displayCode}
+                      {isSingleSewaLoc ? ` — ${activeSewaDraft.lokasiSnt}` : ""} ({visibleIndexedItems.length} baris)
                     </span>
                     <Button
                       type="button"
@@ -1879,13 +2198,15 @@ export function EvidenceDocsTab({
                             {
                               id: `line-${Date.now()}`,
                               tanggal: p.tanggalDokumen,
-                              lokasi: "Wilayah 2",
+                              lokasi: isSingleSewaLoc ? activeSewaDraft.lokasiSnt : "Wilayah 2",
                               uraian: "",
-                              penerima: p.slipNamaPenerima || "",
+                              penerima: isSingleSewaLoc
+                                ? activeSewaDraft.namaPemilik || ""
+                                : p.slipNamaPenerima || "",
                               volume: 1,
                               satuan: "bulan",
-                              hargaSatuan: 0,
-                              nominal: 0,
+                              hargaSatuan: activeRabCode === "3b" ? 2000000 : 0,
+                              nominal: activeRabCode === "3b" ? 2000000 : 0,
                             },
                           ],
                         }))
@@ -1908,7 +2229,7 @@ export function EvidenceDocsTab({
                         </tr>
                       </thead>
                       <tbody className="divide-y bg-white">
-                        {currentDraft.items.map((it, idx) => {
+                        {visibleIndexedItems.map(({ it, origIdx }) => {
                           const patchItem = (patch: Partial<EvidenceLineItem>) => {
                             updateCurrentDraft((p) => {
                               const next = [...p.items];
@@ -1918,7 +2239,7 @@ export function EvidenceDocsTab({
                                   (Number(merged.volume) || 0) * (Number(merged.hargaSatuan) || 0)
                                 );
                               }
-                              next[idx] = merged;
+                              next[origIdx] = merged;
                               return { ...p, items: next };
                             });
                           };
@@ -1926,7 +2247,7 @@ export function EvidenceDocsTab({
                           const lineRec = checkGenericLineRecorded(activeRabCode, it.id, lineDesc, it.nominal);
 
                           return (
-                            <tr key={it.id || idx} className={lineRec.isRecorded ? "bg-emerald-50/30" : ""}>
+                            <tr key={it.id || origIdx} className={lineRec.isRecorded ? "bg-emerald-50/30" : ""}>
                               <td className="py-1.5 px-2 space-y-1">
                                 <input
                                   type="date"
@@ -2022,7 +2343,7 @@ export function EvidenceDocsTab({
                                     onClick={() =>
                                       updateCurrentDraft((p) => ({
                                         ...p,
-                                        items: p.items.filter((_, i) => i !== idx),
+                                        items: p.items.filter((_, i) => i !== origIdx),
                                       }))
                                     }
                                     className="p-1 text-rose-500 hover:bg-rose-50 rounded"
@@ -2039,12 +2360,11 @@ export function EvidenceDocsTab({
                       <tfoot className="bg-slate-50 border-t font-bold">
                         <tr>
                           <td colSpan={3} className="py-2 px-2 text-right">
-                            TOTAL {activeMeta.displayCode}:
+                            TOTAL {activeMeta.displayCode}
+                            {isSingleSewaLoc ? ` (${activeSewaDraft.lokasiSnt})` : ""}:
                           </td>
                           <td className="py-2 px-2 text-right text-blue-800 whitespace-nowrap">
-                            {formatCurrency(
-                              currentDraft.items.reduce((s, it) => s + (Number(it.nominal) || 0), 0)
-                            )}
+                            {formatCurrency(visibleTotal)}
                           </td>
                           <td></td>
                         </tr>
@@ -2052,6 +2372,8 @@ export function EvidenceDocsTab({
                     </table>
                   </div>
                 </div>
+                  );
+                })()}
               </div>
             )}
           </CardContent>

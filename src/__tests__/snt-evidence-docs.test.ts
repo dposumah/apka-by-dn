@@ -522,6 +522,9 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
     const profile = getDefaultSntReportProfile();
     const a3 = buildDefaultRabPosDraft("3", profile);
     expect(a3.items.reduce((s, it) => s + it.nominal, 0)).toBe(37800000);
+    expect(a3.slipNamaPenerima).toBe("Jully Tjindrawan");
+    expect(a3.slipNpwpNik).toBe("73.672.680.3-039.000 / 3173055009710007");
+    expect(a3.slipRekening).toBe("7040680009");
     expect(a3.includeDaftarTandaTerima).toBe(true);
     expect(a3.includeSlipGaji).toBe(true);
     expect(a3.includeInvoice).toBe(false);
@@ -550,9 +553,42 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
 
     const a5 = buildDefaultRabPosDraft("5", profile);
     expect(a5.items.reduce((s, it) => s + it.nominal, 0)).toBe(20054566);
+    expect(a5.slipNamaPenerima).toBe("Galvin Amaris Limbrawan");
+    expect(a5.slipNpwpNik).toBe("84.747.411.1-039.000 / 3173050304000006");
+    expect(a5.slipRekening).toBe("7040804000");
+    expect(a5.items[0].penerima).toBe("Galvin Amaris Limbrawan");
     expect(buildTahap1RabPosDraft("2", profile)?.items.reduce((s, it) => s + it.nominal, 0)).toBe(112941177);
     expect(buildTahap1RabPosDraft("3", profile)?.items.reduce((s, it) => s + it.nominal, 0)).toBe(32018823);
     expect(buildTahap1RabPosDraft("5", profile)?.items.reduce((s, it) => s + it.nominal, 0)).toBe(9987397);
+
+    // Custom Dibayarkan oleh pada Tanda Terima & Rekening Penerima pada Invoice
+    const customTtInvHtml = renderGenericEvidencePdfHtml({
+      type: "INVOICE_KUITANSI_MITRA",
+      draft: {
+        ...a3,
+        includeInvoice: true,
+        includeDaftarTandaTerima: true,
+        includeSlipGaji: false,
+        includeKwitansi: false,
+        monthlyPrintFilter: "2026-09",
+        bankName: "BCA",
+        bankAccount: "7040827000",
+        bankHolder: "PT Jully Tjindrawan Robotik",
+        tandaTerimaDibayarkanOleh: "Yayasan Maleo Talenta Cendekia",
+      },
+      profile,
+      includeKwitansiSlips: false,
+    });
+    expect(customTtInvHtml).toContain("PT Jully Tjindrawan Robotik");
+    expect(customTtInvHtml).toContain("7040827000");
+    expect(customTtInvHtml).toContain("Yayasan Maleo Talenta Cendekia");
+
+    // Pos B.3b Bantuan Sewa Rumah: 6 lokasi SNT × 4 bulan = 24 baris (Rp48.000.000)
+    const b3b = buildDefaultRabPosDraft("3b", profile);
+    expect(b3b.items).toHaveLength(24);
+    expect(b3b.items.reduce((s, it) => s + it.nominal, 0)).toBe(48000000);
+    expect(b3b.items.filter((it) => it.lokasi === "Kab. Kupang")).toHaveLength(4);
+    expect(b3b.items.filter((it) => it.lokasi === "Kota Tidore Kepulauan")).toHaveLength(4);
 
     // Pos A.4 mendukung ke-4 checklist secara independen
     const a4All4Html = renderMonthlyFacilitatorHonorPdfHtml({

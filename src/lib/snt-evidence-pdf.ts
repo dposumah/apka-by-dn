@@ -94,6 +94,7 @@ export interface MonthlyFacilitatorHonorPdfInput {
   includeSlipGaji?: boolean;
   includeKwitansi?: boolean;
   includeInvoice?: boolean;
+  dibayarkanOleh?: string;
   invoiceNo?: string;
   jatuhTempo?: string;
   ppnPct?: number;
@@ -356,9 +357,9 @@ function buildMonthlyFacilitatorHonorBodyHtml(input: MonthlyFacilitatorHonorPdfI
       <table class="sign-table">
         <tr>
           <td style="width:50%">
-            <div class="sign-role">Disusun / Dibayarkan oleh,<br/>Bagian Administrasi &amp; Keuangan</div>
+            <div class="sign-role">Dibayarkan oleh,<br/>Bagian Administrasi &amp; Keuangan</div>
             <div class="sign-space"></div>
-            <div class="sign-name">${esc(profile.bagianAdministrasi)}</div>
+            <div class="sign-name">${esc(input.dibayarkanOleh?.trim() || DEFAULT_ROBOTIC_PREPARER_LABEL)}</div>
           </td>
           <td style="width:50%">
             <div class="sign-role">Mengetahui / Menyetujui,<br/>Ketua Tim Pelaksana — ${esc(profile.namaYayasan)}</div>
@@ -602,6 +603,10 @@ function buildGenericEvidencePages(
   }
 
   // 2. Halaman DAFTAR TANDA TERIMA (Kop Maleo pakai Format Tanda Terima resmi Maleo; LPD/RE pakai modern PPh/tabel)
+  const tandaTerimaPayer =
+    draft.tandaTerimaDibayarkanOleh?.trim() ||
+    draft.slipDisiapkanOleh?.trim() ||
+    DEFAULT_ROBOTIC_PREPARER_LABEL;
   if (includeDaftar && activeKop === "maleo" && !includePph) {
     const firstRecipient = resolveRecipientDisplay(
       draft.recipientMode,
@@ -617,7 +622,7 @@ function buildGenericEvidencePages(
           deskripsi: `${it.uraian}${it.lokasi ? ` (${it.lokasi})` : ""}`,
           total: Number(it.nominal) || 0,
         })),
-        dibayarkanOleh: draft.slipDisiapkanOleh?.trim() || DEFAULT_ROBOTIC_PREPARER_LABEL,
+        dibayarkanOleh: tandaTerimaPayer,
         diterimaOleh: firstRecipient,
         catatan: draft.catatan,
       })
@@ -765,9 +770,9 @@ function buildGenericEvidencePages(
             <div class="sign-name">${esc(profile.bagianAdministrasi)}</div>
           </td>
           <td style="width:50%">
-            <div class="sign-role">Yang membayarkan,</div>
+            <div class="sign-role">Dibayarkan oleh,</div>
             <div class="sign-space"></div>
-            <div class="sign-name">${esc(draft.signerName || theme.defaultSignerName)}</div>
+            <div class="sign-name">${esc(draft.tandaTerimaDibayarkanOleh?.trim() || draft.signerName || theme.defaultSignerName)}</div>
             <div style="font-size:10px; color:#1d4ed8; margin-top:2px;">${esc(draft.signerTitle || "Direktur")}</div>
           </td>
         </tr>
@@ -934,6 +939,32 @@ export function renderGenericEvidencePdfHtml(input: {
         : "";
 
   return wrapPrintableHtml(`${draft.judulDokumen}${suffix}`, combinedHtml);
+}
+
+export function renderMultiBundleGenericEvidencePdfHtml(
+  bundles: Array<{
+    type: EvidenceDocType;
+    draft: GenericEvidenceDraft;
+    includeKwitansiSlips: boolean;
+    prependPagesHtml?: string[];
+  }>,
+  profile: SntReportProfile,
+  docTitle: string
+): string {
+  const allPages: string[] = [];
+  for (const b of bundles) {
+    if (b.prependPagesHtml && b.prependPagesHtml.length > 0) {
+      allPages.push(...b.prependPagesHtml);
+    }
+    const slices = expandDraftIntoMonthlySlices(b.draft, b.draft.monthlyPrintFilter || "ALL");
+    for (const slice of slices) {
+      allPages.push(...buildGenericEvidencePages(b.type, slice, profile, b.includeKwitansiSlips));
+    }
+  }
+  const combinedHtml = allPages
+    .map((p, idx) => (idx === 0 ? p : `<div class="page-break">${p}</div>`))
+    .join("\n");
+  return wrapPrintableHtml(docTitle, combinedHtml);
 }
 
 function wrapPrintableHtml(title: string, innerHtml: string): string {
