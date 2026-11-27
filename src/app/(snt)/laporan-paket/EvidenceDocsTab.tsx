@@ -11,9 +11,11 @@ import {
   Download,
   Loader2,
   CheckCircle2,
-  Send,
   UserX,
   UserCheck,
+  Search,
+  Sparkles,
+  RotateCcw,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,21 +29,11 @@ import {
 } from "@/app/actions/snt-reports";
 import { resolveEntityCodeFromKop } from "@/lib/snt-doc-numbering";
 import {
-  buildDraftFromDriveMockupPreset,
   buildMonthlyFacilitatorHonorReceipt,
-  buildMonthlyKorwilSlipHonorariumInputs,
-  buildMonthlyPersonnelDraft,
   buildMonthlyRabUnitHonorReceipt,
-  buildMonthlyTenagaAdminSlipHonorariumInputs,
-  DRIVE_MOCKUP_PRESETS,
-  DriveMockupPresetId,
-  EVIDENCE_DOC_CATALOG,
-  EvidenceDocType,
   EvidenceLineItem,
   GenericEvidenceDraft,
-  getDefaultGenericEvidenceDraft,
   getDefaultSewaRumahDraft,
-  getHonorTimPresetByRabCode,
   getMonthLabelId,
   HonorPricingMode,
   matchWilayah2LocationId,
@@ -50,26 +42,26 @@ import {
   RecipientMode,
   SewaRumahContractDraft,
   SNT_HONOR_MONTH_OPTIONS,
-  SNT_KORWIL_MONTHLY_SCHEDULE,
   SNT_RAB_HONOR_FASIL_UNIT_PRICE,
-  SNT_RAB_TENAGA_ADMIN_UNIT_PRICE,
-  SNT_TENAGA_ADMIN_MONTHLY_SCHEDULE,
 } from "@/lib/snt-evidence-docs";
+import {
+  buildDefaultRabPosDraft,
+  buildTahap1RabPosDraft,
+  getRabPosMeta,
+  RAB_POS_CATALOG,
+  RabPosCode,
+} from "@/lib/snt-rab-pos-catalog";
 import {
   DEFAULT_ROBOTIC_PREPARER_LABEL,
   DEFAULT_SLIP_KEGIATAN_LABEL,
-  isSlipHonorariumRabCode,
   KOP_OPTIONS_LIST,
-  renderSlipHonorariumPdfDocumentHtml,
   resolveBrandKopTheme,
-  resolvePersonnelRoleFromRab,
-  SlipHonorariumInput,
 } from "@/lib/snt-brand-kop";
 import {
+  buildSewaRumahContractPageHtml,
   renderGenericEvidencePdfHtml,
   renderMonthlyFacilitatorHonorPdfHtml,
   renderMultiMonthFacilitatorHonorPdfHtml,
-  renderSewaRumahPdfHtml,
 } from "@/lib/snt-evidence-pdf";
 import {
   getValidKwitansiNumber,
@@ -84,8 +76,8 @@ import {
 } from "@/lib/snt-report-templates";
 
 interface EvidenceDocsTabProps {
-  activeDocType: EvidenceDocType;
-  onSelectDocType: (docType: EvidenceDocType) => void;
+  activeRabCode: RabPosCode;
+  onSelectRabCode: (code: RabPosCode) => void;
   profile: SntReportProfile;
   categories: SntRabCategoryRecord[];
   rekaps: SntRekapRecord[];
@@ -97,8 +89,8 @@ interface EvidenceDocsTabProps {
 const HONOR_MONTHS = ["2026-09", "2026-10", "2026-11", "2026-12"] as const;
 
 export function EvidenceDocsTab({
-  activeDocType: activeType,
-  onSelectDocType: setActiveType,
+  activeRabCode,
+  onSelectRabCode,
   profile,
   categories,
   rekaps,
@@ -108,72 +100,34 @@ export function EvidenceDocsTab({
 }: EvidenceDocsTabProps) {
   const router = useRouter();
 
+  const [sidebarSearch, setSidebarSearch] = useState("");
+  const [sidebarGroup, setSidebarGroup] = useState<"ALL" | "A" | "B">("ALL");
   const [isSaving, setIsSaving] = useState(false);
   const [recordingId, setRecordingId] = useState<string | null>(null);
-  const [recordTargetType, setRecordTargetType] = useState<"PELAPORAN" | "REAL">("PELAPORAN");
   const [newlyRecordedMap, setNewlyRecordedMap] = useState<
-    Record<string, { noKwitansi?: string | null; realizationType: "PELAPORAN" | "REAL" }>
+    Record<string, { noKwitansi?: string | null }>
   >({});
   const [banner, setBanner] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
-  // State khusus Daftar Tanda Terima Honor Fasilitator Bulanan (A.4)
-  const [honorMonth, setHonorMonth] = useState<string>("2026-10");
-  const [honorPricingMode, setHonorPricingMode] = useState<HonorPricingMode>("RAB_SATUAN");
-  const [honorKopSurat, setHonorKopSurat] = useState<KopSuratOption>(profile.kopSurat || "maleo");
-  const [honorIncludeTransport, setHonorIncludeTransport] = useState<boolean>(false);
-  const [honorRecipientMode, setHonorRecipientMode] = useState<RecipientMode>("MANUAL");
-  const [honorIncludeKwitansi, setHonorIncludeKwitansi] = useState<boolean>(true);
-  const [honorIncludeInvoice, setHonorIncludeInvoice] = useState<boolean>(false);
-  const [honorInvoiceNo, setHonorInvoiceNo] = useState<string>("");
-  const [honorInvoicePpnPct, setHonorInvoicePpnPct] = useState<number>(0);
-  const [honorDitagihkanKepada, setHonorDitagihkanKepada] = useState<string>(
-    "Yayasan Maleo Talenta Cendekia"
-  );
+  // ==================== STATE POS A.4 (FASILITATOR — 6 LOKASI SNT) ====================
+  const [a4Month, setA4Month] = useState<string>("2026-10");
+  const [a4PrintMode, setA4PrintMode] = useState<"SINGLE_MONTH" | "SPLIT_ALL_MONTHS" | "COMBINED_ALL">("SINGLE_MONTH");
+  const [a4PricingMode, setA4PricingMode] = useState<HonorPricingMode>("RAB_SATUAN");
+  const [a4KopSurat, setA4KopSurat] = useState<KopSuratOption>("maleo");
+  const [a4IncludeInvoice, setA4IncludeInvoice] = useState<boolean>(false);
+  const [a4IncludeTandaTerima, setA4IncludeTandaTerima] = useState<boolean>(true);
+  const [a4IncludeSlipGaji, setA4IncludeSlipGaji] = useState<boolean>(true);
+  const [a4IncludeKwitansi, setA4IncludeKwitansi] = useState<boolean>(false);
+  const [a4IncludeTransport, setA4IncludeTransport] = useState<boolean>(false);
+  const [a4RecipientMode, setA4RecipientMode] = useState<RecipientMode>("MANUAL");
+  const [a4InvoiceNo, setA4InvoiceNo] = useState<string>("");
+  const [a4InvoicePpnPct, setA4InvoicePpnPct] = useState<number>(0);
+  const [a4DitagihkanKepada, setA4DitagihkanKepada] = useState<string>("Yayasan Maleo Talenta Cendekia");
+  const [a4TanggalCetak, setA4TanggalCetak] = useState<string>("2026-10-31");
+  const [customA4RowsByKey, setCustomA4RowsByKey] = useState<Record<string, MonthlyHonorReceiptRow[]>>({});
 
-  // State khusus SLIP HONORARIUM (Format Resmi Yayasan Maleo — Korwil A.3, Tenaga Admin A.5 & Satuan)
-  const [slipDraft, setSlipDraft] = useState<SlipHonorariumInput>(() => {
-    const saved = evidenceDrafts["EVIDENCE_SLIP_HONORARIUM"];
-    if (saved && typeof saved === "object" && "namaPenerima" in saved) {
-      return saved as unknown as SlipHonorariumInput;
-    }
-    const [defaultKorwil] = buildMonthlyKorwilSlipHonorariumInputs(profile, "maleo", "2026-10");
-    return (
-      defaultKorwil || {
-        kopSurat: "maleo",
-        periode: "Oktober 2026",
-        namaPenerima: profile.koordinatorWilayah || "Jully Tjindrawan, MBA",
-        nomorDokumen: "SLIP.2026.10.31.002",
-        peranJabatan: "Koordinator Wilayah 2",
-        kegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
-        tanggalKegiatan: "Bulan Oktober 2026",
-        tanggalBayar: "2026-10-31",
-        npwpNik: "-",
-        rekening: "-",
-        components: [
-          {
-            komponen: "Honorarium",
-            qty: "12 jam (1 bulan)",
-            pendapatan: 10800000,
-            potongan: 0,
-            keterangan: "Koordinator Wilayah: 1 Orang × 12 jam × Rp900.000/jam",
-          },
-          { komponen: "Tambahan honorarium", qty: "-", pendapatan: 0, potongan: 0, keterangan: "-" },
-          { komponen: "Pajak / potongan lainnya", qty: "-", pendapatan: 0, potongan: 0, keterangan: "-" },
-        ],
-        catatan: "Pagu RAB A.3: 1 Orang × 12 jam × 3,5 bulan × Rp900.000 = Rp37.800.000",
-        disiapkanOleh: DEFAULT_ROBOTIC_PREPARER_LABEL,
-      }
-    );
-  });
-  const [slipBulkMonth, setSlipBulkMonth] = useState<string>("2026-10");
-  const [honorTanggalCetak, setHonorTanggalCetak] = useState<string>(
-    new Date().toISOString().slice(0, 10)
-  );
-  const [customHonorRowsByKey, setCustomHonorRowsByKey] = useState<
-    Record<string, MonthlyHonorReceiptRow[]>
-  >({});
-
-  // State khusus Kontrak Sewa & Kwitansi Bulanan (B.3b)
+  // ==================== STATE KHUSUS KONTRAK SEWA RUMAH (POS B.3b) ====================
+  const [sewaIncludeKontrak, setSewaIncludeKontrak] = useState<boolean>(true);
   const [sewaDraft, setSewaDraft] = useState<SewaRumahContractDraft>(() => {
     const saved = evidenceDrafts["EVIDENCE_SEWA_RUMAH"];
     if (saved && typeof saved === "object") {
@@ -181,94 +135,109 @@ export function EvidenceDocsTab({
     }
     return getDefaultSewaRumahDraft();
   });
-  const [sewaIncludeMonthlyKwt, setSewaIncludeMonthlyKwt] = useState<boolean>(true);
 
-  // State generik untuk 8 dokumen lainnya
-  const defaultPayer =
-    profile.kopSurat === "maleo" ? "Yayasan Maleo Talenta Cendekia" : profile.namaYayasan;
-
-  const [genericDrafts, setGenericDrafts] = useState<Record<string, GenericEvidenceDraft>>(() => {
+  // ==================== STATE GENERIK UNTUK SEMUA POS RAB (23 POS) ====================
+  const [posDrafts, setPosDrafts] = useState<Record<string, GenericEvidenceDraft>>(() => {
     const map: Record<string, GenericEvidenceDraft> = {};
-    for (const meta of EVIDENCE_DOC_CATALOG) {
-      if (meta.type === "HONOR_FASIL_BULANAN" || meta.type === "SEWA_RUMAH" || meta.type === "SLIP_HONORARIUM") continue;
-      const saved = evidenceDrafts[`EVIDENCE_${meta.type}`];
+    for (const meta of RAB_POS_CATALOG) {
+      if (meta.code === "4") continue;
+      const saved = evidenceDrafts[`EVIDENCE_RAB_${meta.code}`];
       if (saved && typeof saved === "object" && Array.isArray((saved as Record<string, unknown>).items)) {
-        map[meta.type] = saved as unknown as GenericEvidenceDraft;
+        map[meta.code] = {
+          ...buildDefaultRabPosDraft(meta.code, profile),
+          ...(saved as unknown as GenericEvidenceDraft),
+        };
       } else {
-        map[meta.type] = getDefaultGenericEvidenceDraft(meta.type, defaultPayer);
+        map[meta.code] = buildDefaultRabPosDraft(meta.code, profile);
       }
     }
     return map;
   });
-  const [genericIncludeKwitansi, setGenericIncludeKwitansi] = useState<boolean>(true);
 
-  const activeMeta =
-    EVIDENCE_DOC_CATALOG.find((m) => m.type === activeType) || EVIDENCE_DOC_CATALOG[0];
+  const activeMeta = getRabPosMeta(activeRabCode);
+  const currentDraft =
+    posDrafts[activeRabCode] || buildDefaultRabPosDraft(activeRabCode, profile);
 
-  // Build honor sheet untuk bulan terpilih (Mode RAB Satuan Rp5.729.876/lokasi atau Realisasi Real/JP DB)
-  const rabUnitHonorSheet = useMemo(
-    () => buildMonthlyRabUnitHonorReceipt(honorMonth, rekaps, fasilitators),
-    [honorMonth, rekaps, fasilitators]
-  );
+  const updateCurrentDraft = (updater: (prev: GenericEvidenceDraft) => GenericEvidenceDraft) => {
+    setPosDrafts((prev) => ({
+      ...prev,
+      [activeRabCode]: updater(prev[activeRabCode] || buildDefaultRabPosDraft(activeRabCode, profile)),
+    }));
+  };
 
-  const dbHonorSheet = useMemo(
-    () => buildMonthlyFacilitatorHonorReceipt(rekaps, honorMonth),
-    [rekaps, honorMonth]
-  );
-
-  const honorStateKey = `${honorPricingMode}:${honorMonth}`;
-
-  const activeHonorRows: MonthlyHonorReceiptRow[] = useMemo(() => {
-    if (customHonorRowsByKey[honorStateKey]) {
-      return customHonorRowsByKey[honorStateKey];
+  // ==================== INDEKS PELAPORAN DB PER KODE RAB ====================
+  const pelaporanExpensesByRabCode = useMemo(() => {
+    const map = new Map<string, SntExpenseRecord[]>();
+    for (const cat of categories || []) {
+      for (const item of cat.items || []) {
+        const codeKey = (item.code || "").trim().toLowerCase();
+        const existing = map.get(codeKey) || [];
+        const pelaporanApproved = (item.expenses || []).filter(
+          (e) =>
+            (!e.status || e.status === "APPROVED") &&
+            normalizeExpenseRealizationType(e.realizationType) === "PELAPORAN"
+        );
+        map.set(codeKey, [...existing, ...pelaporanApproved]);
+      }
     }
-    const savedKey = `EVIDENCE_HONOR_FASIL_${honorPricingMode}_${honorMonth}`;
+    return map;
+  }, [categories]);
+
+  // ==================== FILTER SIDEBAR 23 POS RAB ====================
+  const filteredCatalog = useMemo(() => {
+    const q = sidebarSearch.trim().toLowerCase();
+    return RAB_POS_CATALOG.filter((m) => {
+      if (sidebarGroup !== "ALL" && m.group !== sidebarGroup) return false;
+      if (!q) return true;
+      return (
+        m.displayCode.toLowerCase().includes(q) ||
+        m.code.toLowerCase().includes(q) ||
+        m.shortTitle.toLowerCase().includes(q) ||
+        m.fullTitle.toLowerCase().includes(q)
+      );
+    });
+  }, [sidebarSearch, sidebarGroup]);
+
+  const catalogGroupA = filteredCatalog.filter((m) => m.group === "A");
+  const catalogGroupB = filteredCatalog.filter((m) => m.group === "B");
+
+  // ==================== COMPUTED POS A.4 (FASILITATOR) ====================
+  const rabUnitA4Sheet = useMemo(
+    () => buildMonthlyRabUnitHonorReceipt(a4Month, rekaps, fasilitators),
+    [a4Month, rekaps, fasilitators]
+  );
+  const dbA4Sheet = useMemo(
+    () => buildMonthlyFacilitatorHonorReceipt(rekaps, a4Month),
+    [rekaps, a4Month]
+  );
+  const a4StateKey = `${a4PricingMode}:${a4Month}`;
+
+  const activeA4Rows: MonthlyHonorReceiptRow[] = useMemo(() => {
+    if (customA4RowsByKey[a4StateKey]) return customA4RowsByKey[a4StateKey];
+    const savedKey = `EVIDENCE_HONOR_FASIL_${a4PricingMode}_${a4Month}`;
     const saved = evidenceDrafts[savedKey];
     if (saved && Array.isArray((saved as { rows?: MonthlyHonorReceiptRow[] }).rows)) {
       return (saved as { rows: MonthlyHonorReceiptRow[] }).rows;
     }
-    if (honorPricingMode === "REAL_JP") {
-      const legacySaved = evidenceDrafts[`EVIDENCE_HONOR_FASIL_${honorMonth}`];
-      if (legacySaved && Array.isArray((legacySaved as { rows?: MonthlyHonorReceiptRow[] }).rows)) {
-        return (legacySaved as { rows: MonthlyHonorReceiptRow[] }).rows;
-      }
-      return dbHonorSheet.rows;
-    }
-    return rabUnitHonorSheet.rows;
-  }, [
-    customHonorRowsByKey,
-    honorStateKey,
-    evidenceDrafts,
-    honorPricingMode,
-    honorMonth,
-    dbHonorSheet.rows,
-    rabUnitHonorSheet.rows,
-  ]);
+    return a4PricingMode === "REAL_JP" ? dbA4Sheet.rows : rabUnitA4Sheet.rows;
+  }, [customA4RowsByKey, a4StateKey, evidenceDrafts, a4PricingMode, a4Month, dbA4Sheet.rows, rabUnitA4Sheet.rows]);
 
-  const activeHonorSheet = useMemo(() => {
-    return {
-      monthKey: honorMonth,
-      monthLabel: getMonthLabelId(honorMonth),
-      pricingMode: honorPricingMode,
-      rows: activeHonorRows,
-      totalJpIntra: activeHonorRows.reduce((s, r) => s + (Number(r.jpIntra) || 0), 0),
-      totalJpEkstra: activeHonorRows.reduce((s, r) => s + (Number(r.jpEkstra) || 0), 0),
-      totalJP: activeHonorRows.reduce((s, r) => s + (Number(r.totalJP) || 0), 0),
-      totalHonor: activeHonorRows.reduce((s, r) => s + (Number(r.totalHonor) || 0), 0),
-      totalTransport: activeHonorRows.reduce((s, r) => s + (Number(r.totalTransport) || 0), 0),
-    };
-  }, [honorMonth, honorPricingMode, activeHonorRows]);
+  const activeA4Sheet = useMemo(
+    () => ({
+      monthKey: a4Month,
+      monthLabel: getMonthLabelId(a4Month),
+      pricingMode: a4PricingMode,
+      rows: activeA4Rows,
+      totalJpIntra: activeA4Rows.reduce((s, r) => s + (Number(r.jpIntra) || 0), 0),
+      totalJpEkstra: activeA4Rows.reduce((s, r) => s + (Number(r.jpEkstra) || 0), 0),
+      totalJP: activeA4Rows.reduce((s, r) => s + (Number(r.totalJP) || 0), 0),
+      totalHonor: activeA4Rows.reduce((s, r) => s + (Number(r.totalHonor) || 0), 0),
+      totalTransport: activeA4Rows.reduce((s, r) => s + (Number(r.totalTransport) || 0), 0),
+    }),
+    [a4Month, a4PricingMode, activeA4Rows]
+  );
 
-  const currentGenericDraft =
-    genericDrafts[activeType] || getDefaultGenericEvidenceDraft(activeType, defaultPayer);
-
-  const updateGenericDraft = (updater: (prev: GenericEvidenceDraft) => GenericEvidenceDraft) => {
-    setGenericDrafts((prev) => ({
-      ...prev,
-      [activeType]: updater(prev[activeType] || getDefaultGenericEvidenceDraft(activeType, defaultPayer)),
-    }));
-  };
-
+  // ==================== HELPERS ====================
   const openHtmlWindow = (html: string) => {
     const w = window.open("", "_blank");
     if (!w) {
@@ -280,155 +249,9 @@ export function EvidenceDocsTab({
     w.document.close();
   };
 
-  const handleSaveCurrentDraft = async () => {
-    setIsSaving(true);
-    setBanner(null);
-    try {
-      let templateCode = `EVIDENCE_${activeType}`;
-      let periodKey = "DEFAULT";
-      let content: Record<string, unknown> = {};
-
-      if (activeType === "HONOR_FASIL_BULANAN") {
-        templateCode = `EVIDENCE_HONOR_FASIL_${honorPricingMode}_${honorMonth}`;
-        periodKey = honorMonth;
-        content = { pricingMode: honorPricingMode, rows: activeHonorRows, tanggalCetak: honorTanggalCetak };
-      } else if (activeType === "SEWA_RUMAH") {
-        content = sewaDraft as unknown as Record<string, unknown>;
-      } else if (activeType === "SLIP_HONORARIUM") {
-        content = slipDraft as unknown as Record<string, unknown>;
-      } else {
-        content = currentGenericDraft as unknown as Record<string, unknown>;
-      }
-
-      const res = await saveSntReportDraft({
-        templateCode,
-        periodKey,
-        title: activeMeta.fullTitle,
-        content,
-      });
-
-      if (!res.success) {
-        setBanner({ type: "err", text: res.error || "Gagal menyimpan draft dokumen bukti." });
-        return;
-      }
-
-      onDraftSaved(templateCode, periodKey, content);
-      setBanner({
-        type: "ok",
-        text: `Draft "${activeMeta.shortTitle}" berhasil disimpan ke database.`,
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handlePrintActiveDoc = () => {
-    if (activeType === "HONOR_FASIL_BULANAN") {
-      const html = renderMonthlyFacilitatorHonorPdfHtml({
-        sheet: activeHonorSheet,
-        profile,
-        fasilitators,
-        kopSuratOverride: honorKopSurat,
-        includeTransportColumn: honorIncludeTransport,
-        recipientMode: honorRecipientMode,
-        tanggalCetak: honorTanggalCetak,
-        includeIndividualKwitansi: honorIncludeKwitansi,
-        includeInvoice: honorIncludeInvoice,
-        invoiceNo: honorInvoiceNo,
-        ppnPct: honorInvoicePpnPct,
-        ditagihkanKepada: honorDitagihkanKepada,
-      });
-      openHtmlWindow(html);
-      return;
-    }
-
-    if (activeType === "SEWA_RUMAH") {
-      const html = renderSewaRumahPdfHtml({
-        draft: sewaDraft,
-        profile,
-        includeMonthlyKwitansi: sewaIncludeMonthlyKwt,
-      });
-      openHtmlWindow(html);
-      return;
-    }
-
-    if (activeType === "SLIP_HONORARIUM") {
-      const html = renderSlipHonorariumPdfDocumentHtml(
-        [{ ...slipDraft, profile }],
-        `Slip Honorarium — ${slipDraft.namaPenerima || slipDraft.periode}`
-      );
-      openHtmlWindow(html);
-      return;
-    }
-
-    const html = renderGenericEvidencePdfHtml({
-      type: activeType,
-      draft: currentGenericDraft,
-      profile,
-      includeKwitansiSlips: genericIncludeKwitansi,
-    });
-    openHtmlWindow(html);
-  };
-
-  const handlePullFromExistingRab = () => {
-    const targetCode = currentGenericDraft.rabCode.trim().toLowerCase();
-    const pulled: EvidenceLineItem[] = [];
-
-    for (const cat of categories) {
-      for (const item of cat.items || []) {
-        if (item.code.trim().toLowerCase() !== targetCode) continue;
-        for (const exp of item.expenses || []) {
-          if (exp.status && exp.status !== "APPROVED") continue;
-          const d = exp.date || exp.createdAt;
-          pulled.push({
-            id: `db-${exp.id}`,
-            tanggal: d ? new Date(d).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
-            lokasi: exp.fasilitator?.lokasiSNT || "Wilayah 2",
-            uraian: exp.description || item.name,
-            penerima: exp.fasilitator?.namaLengkap || exp.createdBy?.name || "",
-            volume: 1,
-            satuan: "paket",
-            hargaSatuan: Number(exp.amount) || 0,
-            nominal: Number(exp.amount) || 0,
-          });
-        }
-      }
-    }
-
-    if (pulled.length === 0) {
-      setBanner({
-        type: "err",
-        text: `Belum ada transaksi APPROVED di pos RAB ${currentGenericDraft.rabCode}. Silakan isi manual atau gunakan preset.`,
-      });
-      return;
-    }
-
-    updateGenericDraft((prev) => ({ ...prev, items: pulled }));
-    setBanner({
-      type: "ok",
-      text: `Berhasil menarik ${pulled.length} transaksi riil dari Pos RAB ${currentGenericDraft.rabCode}.`,
-    });
-  };
-
-  // Indeks transaksi APPROVED per kode RAB dari database untuk mendeteksi status checklist "Sudah Masuk RAB"
-  const approvedExpensesByRabCode = useMemo(() => {
-    const map = new Map<string, SntExpenseRecord[]>();
-    for (const cat of categories || []) {
-      for (const item of cat.items || []) {
-        const codeKey = (item.code || "").trim().toLowerCase();
-        const existing = map.get(codeKey) || [];
-        const approved = (item.expenses || []).filter((e) => !e.status || e.status === "APPROVED");
-        map.set(codeKey, [...existing, ...approved]);
-      }
-    }
-    return map;
-  }, [categories]);
-
-  const checkHonorRowRecorded = (row: MonthlyHonorReceiptRow, monthKey: string) => {
-    const localKey = `honor:${recordTargetType}:${monthKey}:${row.id}`;
-    const list = (approvedExpensesByRabCode.get("4") || []).filter(
-      (e) => normalizeExpenseRealizationType(e.realizationType) === recordTargetType
-    );
+  const checkA4RowRecorded = (row: MonthlyHonorReceiptRow, monthKey: string) => {
+    const localKey = `honor:PELAPORAN:${monthKey}:${row.id}`;
+    const list = pelaporanExpensesByRabCode.get("4") || [];
     const monthLabelLower = getMonthLabelId(monthKey).toLowerCase();
     const lokasiLower = (row.lokasi || "").trim().toLowerCase();
     const matches = list.filter((e) => {
@@ -441,22 +264,14 @@ export function EvidenceDocsTab({
     });
     const localRec = newlyRecordedMap[localKey];
     const count = Math.max(matches.length, localRec ? 1 : 0);
-    const noKwitansi =
-      (matches[0] ? getValidKwitansiNumber(matches[0]) : null) || localRec?.noKwitansi || null;
+    const noKwitansi = (matches[0] ? getValidKwitansiNumber(matches[0]) : null) || localRec?.noKwitansi || null;
     return { isRecorded: count > 0, count, noKwitansi, localKey };
   };
 
-  const checkGenericLineRecorded = (
-    rabCode: string,
-    rowId: string,
-    description: string,
-    amount: number
-  ) => {
+  const checkGenericLineRecorded = (rabCode: string, rowId: string, description: string, amount: number) => {
     const codeKey = (rabCode || "").trim().toLowerCase();
-    const localKey = `gen:${recordTargetType}:${codeKey}:${rowId}`;
-    const list = (approvedExpensesByRabCode.get(codeKey) || []).filter(
-      (e) => normalizeExpenseRealizationType(e.realizationType) === recordTargetType
-    );
+    const localKey = `gen:PELAPORAN:${codeKey}:${rowId}`;
+    const list = pelaporanExpensesByRabCode.get(codeKey) || [];
     const descNorm = (description || "").trim().toLowerCase();
     const matches = list.filter((e) => {
       const expDesc = (e.description || "").trim().toLowerCase();
@@ -464,8 +279,7 @@ export function EvidenceDocsTab({
     });
     const localRec = newlyRecordedMap[localKey];
     const count = Math.max(matches.length, localRec ? 1 : 0);
-    const noKwitansi =
-      (matches[0] ? getValidKwitansiNumber(matches[0]) : null) || localRec?.noKwitansi || null;
+    const noKwitansi = (matches[0] ? getValidKwitansiNumber(matches[0]) : null) || localRec?.noKwitansi || null;
     return { isRecorded: count > 0, count, noKwitansi, localKey };
   };
 
@@ -478,17 +292,16 @@ export function EvidenceDocsTab({
     options?: { dedupeTokens?: string[]; localRecordKey?: string }
   ) => {
     if (amount <= 0) {
-      setBanner({ type: "err", text: "Nominal harus lebih dari Rp 0 untuk dicatat ke RAB." });
+      setBanner({ type: "err", text: "Nominal harus lebih dari Rp 0 untuk dicatat ke Pelaporan RAB." });
       return;
     }
     if (
       !confirm(
-        `Catat transaksi sebesar ${formatCurrency(amount)} ("${description}") ke Pos RAB ${rabCode} sebagai [${recordTargetType === "PELAPORAN" ? "PELAPORAN TEMPLATE — tidak menggandakan jurnal kas" : "REAL — kas aktual"}] (status APPROVED + auto buat nomor Kwitansi resmi)?`
+        `Catat transaksi sebesar ${formatCurrency(amount)} ("${description}") ke Pos RAB ${activeMeta.displayCode} sebagai PELAPORAN (tidak mengubah transaksi Real Kas)?`
       )
     ) {
       return;
     }
-
     setRecordingId(rowKey);
     setBanner(null);
     try {
@@ -498,8 +311,8 @@ export function EvidenceDocsTab({
         description,
         amount,
         generateKwitansi: true,
-        kwitansiOwner: defaultPayer,
-        realizationType: recordTargetType,
+        kwitansiOwner: "Yayasan Maleo Talenta Cendekia",
+        realizationType: "PELAPORAN",
         dedupeTokens: options?.dedupeTokens,
       });
       if (!res.success) {
@@ -508,25 +321,21 @@ export function EvidenceDocsTab({
             ...prev,
             [options.localRecordKey as string]: {
               noKwitansi: "existingNoKwitansi" in res ? res.existingNoKwitansi : null,
-              realizationType: recordTargetType,
             },
           }));
         }
-        setBanner({ type: "err", text: res.error || "Gagal mencatat ke Realisasi RAB." });
+        setBanner({ type: "err", text: res.error || "Gagal mencatat ke Pelaporan RAB." });
         return;
       }
       if (options?.localRecordKey) {
         setNewlyRecordedMap((prev) => ({
           ...prev,
-          [options.localRecordKey as string]: {
-            noKwitansi: res.noKwitansi,
-            realizationType: recordTargetType,
-          },
+          [options.localRecordKey as string]: { noKwitansi: res.noKwitansi },
         }));
       }
       setBanner({
         type: "ok",
-        text: `Berhasil mencatat ke Pos RAB ${rabCode} sebagai ${recordTargetType} (${formatCurrency(amount)})${res.noKwitansi ? ` dengan Kwitansi ${res.noKwitansi}` : ""}.`,
+        text: `Berhasil mencatat ke Pos ${activeMeta.displayCode} sebagai PELAPORAN (${formatCurrency(amount)})${res.noKwitansi ? ` · ${res.noKwitansi}` : ""}.`,
       });
       router.refresh();
     } finally {
@@ -534,91 +343,415 @@ export function EvidenceDocsTab({
     }
   };
 
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      {/* Katalog 10 Jenis Dokumen Bukti Wajib */}
-      <div className="lg:col-span-4 space-y-2">
-        <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 px-1">
-          {EVIDENCE_DOC_CATALOG.length} Dokumen Bukti Wajib (Template 13)
-        </div>
-        {EVIDENCE_DOC_CATALOG.map((doc) => {
-          const isActive = doc.type === activeType;
-          const isSaved = Boolean(evidenceDrafts[`EVIDENCE_${doc.type}`]);
-          return (
-            <button
-              key={doc.type}
-              type="button"
-              onClick={() => {
-                setActiveType(doc.type);
-                setBanner(null);
-              }}
-              className={`w-full text-left p-3 rounded-xl border transition-all ${
+  const handleSaveCurrentDraft = async () => {
+    setIsSaving(true);
+    setBanner(null);
+    try {
+      if (activeRabCode === "4") {
+        const templateCode = `EVIDENCE_HONOR_FASIL_${a4PricingMode}_${a4Month}`;
+        const content = {
+          pricingMode: a4PricingMode,
+          rows: activeA4Rows,
+          tanggalCetak: a4TanggalCetak,
+        };
+        const res = await saveSntReportDraft({
+          templateCode,
+          periodKey: a4Month,
+          title: activeMeta.fullTitle,
+          content,
+        });
+        if (!res.success) {
+          setBanner({ type: "err", text: res.error || "Gagal menyimpan draft Pos A.4." });
+          return;
+        }
+        onDraftSaved(templateCode, a4Month, content);
+        setBanner({ type: "ok", text: `Draft Pos A.4 (${getMonthLabelId(a4Month)}) berhasil disimpan.` });
+        return;
+      }
+
+      if (activeRabCode === "3b") {
+        await saveSntReportDraft({
+          templateCode: "EVIDENCE_SEWA_RUMAH",
+          periodKey: "DEFAULT",
+          title: "Kontrak Sewa Rumah Fasilitator (B.3b)",
+          content: sewaDraft as unknown as Record<string, unknown>,
+        });
+        onDraftSaved("EVIDENCE_SEWA_RUMAH", "DEFAULT", sewaDraft as unknown as Record<string, unknown>);
+      }
+
+      const templateCode = `EVIDENCE_RAB_${activeRabCode}`;
+      const content = currentDraft as unknown as Record<string, unknown>;
+      const res = await saveSntReportDraft({
+        templateCode,
+        periodKey: "DEFAULT",
+        title: activeMeta.fullTitle,
+        content,
+      });
+      if (!res.success) {
+        setBanner({ type: "err", text: res.error || `Gagal menyimpan draft ${activeMeta.displayCode}.` });
+        return;
+      }
+      onDraftSaved(templateCode, "DEFAULT", content);
+      setBanner({ type: "ok", text: `Draft ${activeMeta.displayCode} (${activeMeta.shortTitle}) berhasil disimpan ke database.` });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handlePrintActivePos = () => {
+    if (activeRabCode === "4") {
+      if (!a4IncludeInvoice && !a4IncludeTandaTerima && !a4IncludeSlipGaji && !a4IncludeKwitansi) {
+        setBanner({ type: "err", text: "Centang minimal 1 jenis dokumen (Invoice / Tanda Terima / Slip Gaji / Kwitansi) sebelum mencetak." });
+        return;
+      }
+      if (a4PrintMode === "SINGLE_MONTH") {
+        const html = renderMonthlyFacilitatorHonorPdfHtml({
+          sheet: activeA4Sheet,
+          profile,
+          fasilitators,
+          kopSuratOverride: a4KopSurat,
+          includeTransportColumn: a4IncludeTransport,
+          recipientMode: a4RecipientMode,
+          tanggalCetak: a4TanggalCetak,
+          includeInvoice: a4IncludeInvoice,
+          includeTandaTerima: a4IncludeTandaTerima,
+          includeSlipGaji: a4IncludeSlipGaji,
+          includeKwitansi: a4IncludeKwitansi,
+          invoiceNo: a4InvoiceNo,
+          ppnPct: a4InvoicePpnPct,
+          ditagihkanKepada: a4DitagihkanKepada,
+        });
+        openHtmlWindow(html);
+        return;
+      }
+      if (a4PrintMode === "SPLIT_ALL_MONTHS") {
+        const monthInputs = SNT_HONOR_MONTH_OPTIONS.map((m) => {
+          const key = `${a4PricingMode}:${m.key}`;
+          const saved = evidenceDrafts[`EVIDENCE_HONOR_FASIL_${a4PricingMode}_${m.key}`];
+          const rows =
+            customA4RowsByKey[key] ||
+            (saved && Array.isArray((saved as { rows?: MonthlyHonorReceiptRow[] }).rows)
+              ? (saved as { rows: MonthlyHonorReceiptRow[] }).rows
+              : a4PricingMode === "RAB_SATUAN"
+                ? buildMonthlyRabUnitHonorReceipt(m.key, rekaps, fasilitators).rows
+                : buildMonthlyFacilitatorHonorReceipt(rekaps, m.key).rows);
+          return {
+            sheet: {
+              monthKey: m.key,
+              monthLabel: m.label,
+              pricingMode: a4PricingMode,
+              rows,
+              totalJpIntra: rows.reduce((s, r) => s + (Number(r.jpIntra) || 0), 0),
+              totalJpEkstra: rows.reduce((s, r) => s + (Number(r.jpEkstra) || 0), 0),
+              totalJP: rows.reduce((s, r) => s + (Number(r.totalJP) || 0), 0),
+              totalHonor: rows.reduce((s, r) => s + (Number(r.totalHonor) || 0), 0),
+              totalTransport: rows.reduce((s, r) => s + (Number(r.totalTransport) || 0), 0),
+            },
+            profile,
+            fasilitators,
+            kopSuratOverride: a4KopSurat,
+            includeTransportColumn: a4IncludeTransport,
+            recipientMode: a4RecipientMode,
+            tanggalCetak: m.defaultDate,
+            includeInvoice: a4IncludeInvoice,
+            includeTandaTerima: a4IncludeTandaTerima,
+            includeSlipGaji: a4IncludeSlipGaji,
+            includeKwitansi: a4IncludeKwitansi,
+            ppnPct: a4InvoicePpnPct,
+            ditagihkanKepada: a4DitagihkanKepada,
+          };
+        });
+        openHtmlWindow(renderMultiMonthFacilitatorHonorPdfHtml(monthInputs));
+        return;
+      }
+      // COMBINED_ALL: gabungkan semua bulan Sep–Des menjadi 1 rekap gabungan
+      const combinedRows: MonthlyHonorReceiptRow[] = [];
+      for (const m of SNT_HONOR_MONTH_OPTIONS) {
+        const key = `${a4PricingMode}:${m.key}`;
+        const saved = evidenceDrafts[`EVIDENCE_HONOR_FASIL_${a4PricingMode}_${m.key}`];
+        const rows =
+          customA4RowsByKey[key] ||
+          (saved && Array.isArray((saved as { rows?: MonthlyHonorReceiptRow[] }).rows)
+            ? (saved as { rows: MonthlyHonorReceiptRow[] }).rows
+            : a4PricingMode === "RAB_SATUAN"
+              ? buildMonthlyRabUnitHonorReceipt(m.key, rekaps, fasilitators).rows
+              : buildMonthlyFacilitatorHonorReceipt(rekaps, m.key).rows);
+        for (const r of rows) {
+          combinedRows.push({ ...r, lokasi: `${r.lokasi} (${m.short})` });
+        }
+      }
+      openHtmlWindow(
+        renderMonthlyFacilitatorHonorPdfHtml({
+          sheet: {
+            monthKey: "2026-09",
+            monthLabel: "September – Desember 2026 (4 Bulan)",
+            pricingMode: a4PricingMode,
+            rows: combinedRows,
+            totalJpIntra: combinedRows.reduce((s, r) => s + (Number(r.jpIntra) || 0), 0),
+            totalJpEkstra: combinedRows.reduce((s, r) => s + (Number(r.jpEkstra) || 0), 0),
+            totalJP: combinedRows.reduce((s, r) => s + (Number(r.totalJP) || 0), 0),
+            totalHonor: combinedRows.reduce((s, r) => s + (Number(r.totalHonor) || 0), 0),
+            totalTransport: combinedRows.reduce((s, r) => s + (Number(r.totalTransport) || 0), 0),
+          },
+          profile,
+          fasilitators,
+          kopSuratOverride: a4KopSurat,
+          includeTransportColumn: a4IncludeTransport,
+          recipientMode: a4RecipientMode,
+          tanggalCetak: a4TanggalCetak,
+          includeInvoice: a4IncludeInvoice,
+          includeTandaTerima: a4IncludeTandaTerima,
+          includeSlipGaji: a4IncludeSlipGaji,
+          includeKwitansi: a4IncludeKwitansi,
+          invoiceNo: a4InvoiceNo,
+          ppnPct: a4InvoicePpnPct,
+          ditagihkanKepada: a4DitagihkanKepada,
+        })
+      );
+      return;
+    }
+
+    const anyDocChecked =
+      Boolean(currentDraft.includeInvoice) ||
+      Boolean(currentDraft.includeDaftarTandaTerima) ||
+      Boolean(currentDraft.includeSlipGaji) ||
+      Boolean(currentDraft.includeKwitansi) ||
+      (activeRabCode === "3b" && sewaIncludeKontrak);
+
+    if (!anyDocChecked) {
+      setBanner({
+        type: "err",
+        text: "Centang minimal 1 jenis dokumen (Invoice / Tanda Terima / Slip Gaji / Kwitansi) sebelum mencetak.",
+      });
+      return;
+    }
+
+    const prependPagesHtml =
+      activeRabCode === "3b" && sewaIncludeKontrak
+        ? [buildSewaRumahContractPageHtml(sewaDraft, profile)]
+        : undefined;
+
+    const html = renderGenericEvidencePdfHtml({
+      type: activeMeta.pdfDocType,
+      draft: currentDraft,
+      profile,
+      includeKwitansiSlips: Boolean(currentDraft.includeSlipGaji || currentDraft.includeKwitansi),
+      prependPagesHtml,
+    });
+    openHtmlWindow(html);
+  };
+
+  const handlePullPelaporanFromDb = () => {
+    const list = pelaporanExpensesByRabCode.get(activeRabCode.toLowerCase()) || [];
+    if (list.length === 0) {
+      setBanner({
+        type: "err",
+        text: `Belum ada transaksi PELAPORAN di Pos ${activeMeta.displayCode}. Gunakan "Muat Rincian RAB" atau "Muat Preset Tahap I".`,
+      });
+      return;
+    }
+    const pulled: EvidenceLineItem[] = list.map((exp) => {
+      const d = exp.date || exp.createdAt;
+      return {
+        id: `db-${exp.id}`,
+        tanggal: d ? new Date(d).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+        lokasi: exp.fasilitator?.lokasiSNT || "Wilayah 2",
+        uraian: exp.description || activeMeta.shortTitle,
+        penerima: exp.fasilitator?.namaLengkap || currentDraft.slipNamaPenerima || "",
+        volume: 1,
+        satuan: "paket",
+        hargaSatuan: Number(exp.amount) || 0,
+        nominal: Number(exp.amount) || 0,
+      };
+    });
+    updateCurrentDraft((p) => ({ ...p, items: pulled }));
+    setBanner({
+      type: "ok",
+      text: `Berhasil menarik ${pulled.length} entri PELAPORAN dari DB Pos ${activeMeta.displayCode} (transaksi Real tidak terpengaruh).`,
+    });
+  };
+
+  // Ringkasan label dokumen yang dicentang untuk preview tombol Cetak
+  const activeCheckedLabels = useMemo(() => {
+    const arr: string[] = [];
+    if (activeRabCode === "4") {
+      if (a4IncludeInvoice) arr.push("Invoice");
+      if (a4IncludeTandaTerima) arr.push("Tanda Terima");
+      if (a4IncludeSlipGaji) arr.push("Slip Gaji");
+      if (a4IncludeKwitansi) arr.push("Kwitansi");
+      return arr;
+    }
+    if (activeRabCode === "3b" && sewaIncludeKontrak) arr.push("Kontrak Sewa");
+    if (currentDraft.includeInvoice) arr.push("Invoice");
+    if (currentDraft.includeDaftarTandaTerima) arr.push("Tanda Terima");
+    if (currentDraft.includeSlipGaji) arr.push("Slip Gaji");
+    if (currentDraft.includeKwitansi) arr.push("Kwitansi");
+    return arr;
+  }, [
+    activeRabCode,
+    a4IncludeInvoice,
+    a4IncludeTandaTerima,
+    a4IncludeSlipGaji,
+    a4IncludeKwitansi,
+    sewaIncludeKontrak,
+    currentDraft.includeInvoice,
+    currentDraft.includeDaftarTandaTerima,
+    currentDraft.includeSlipGaji,
+    currentDraft.includeKwitansi,
+  ]);
+
+  const renderSidebarCard = (meta: (typeof RAB_POS_CATALOG)[number]) => {
+    const isActive = meta.code === activeRabCode;
+    const isSaved =
+      meta.code === "4"
+        ? Boolean(evidenceDrafts[`EVIDENCE_HONOR_FASIL_${a4PricingMode}_${a4Month}`])
+        : Boolean(evidenceDrafts[`EVIDENCE_RAB_${meta.code}`]);
+    const pelaporanList = pelaporanExpensesByRabCode.get(meta.code.toLowerCase()) || [];
+    const pelaporanSum = pelaporanList.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+
+    return (
+      <button
+        key={meta.code}
+        type="button"
+        onClick={() => {
+          onSelectRabCode(meta.code);
+          setBanner(null);
+        }}
+        className={`w-full text-left px-3 py-2.5 rounded-xl border transition-all ${
+          isActive
+            ? "bg-emerald-50 border-emerald-500 shadow-xs ring-1 ring-emerald-400/50"
+            : "bg-white border-slate-200 hover:bg-slate-50"
+        }`}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Badge
+              variant="secondary"
+              className={`text-[10px] font-bold shrink-0 px-1.5 py-0.5 ${
                 isActive
-                  ? "bg-emerald-50 border-emerald-400 shadow-xs"
-                  : "bg-white border-slate-200 hover:bg-slate-50"
+                  ? "bg-emerald-700 text-white"
+                  : meta.group === "A"
+                    ? "bg-teal-100 text-teal-900"
+                    : "bg-slate-100 text-slate-800"
               }`}
             >
-              <div className="flex items-center justify-between gap-2">
-                <span className={`text-xs font-bold ${isActive ? "text-emerald-950" : "text-slate-800"}`}>
-                  {doc.shortTitle}
-                </span>
-                <Badge variant="secondary" className="text-[10px] shrink-0">
-                  Pos {doc.rabCode}
-                </Badge>
+              {meta.displayCode}
+            </Badge>
+            <span className={`text-xs font-bold truncate ${isActive ? "text-emerald-950" : "text-slate-800"}`}>
+              {meta.shortTitle}
+            </span>
+          </div>
+          <span className="text-[10px] font-semibold text-slate-600 shrink-0">
+            {formatCurrency(meta.rabBudget)}
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-2 mt-1">
+          <span className="text-[10px] text-slate-500 truncate">{meta.rabFormula}</span>
+          <div className="flex items-center gap-1 shrink-0">
+            {pelaporanSum > 0 && (
+              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                SPJ {Math.round((pelaporanSum / Math.max(1, meta.rabBudget)) * 100)}%
+              </span>
+            )}
+            {isSaved && (
+              <CheckCircle2 className="w-3 h-3 text-emerald-600" aria-label="Draft Tersimpan" />
+            )}
+          </div>
+        </div>
+      </button>
+    );
+  };
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+      {/* ==================== SIDEBAR KIRI: 23 POS RAB RESMI (1 POS = 1 MENU) ==================== */}
+      <div className="lg:col-span-4 space-y-2.5">
+        <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+              Pos RAB Pelaporan ({RAB_POS_CATALOG.length} Pos)
+            </span>
+            <Badge variant="outline" className="text-[10px] text-blue-700 border-blue-200 bg-blue-50">
+              Khusus Pelaporan
+            </Badge>
+          </div>
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+            <Input
+              value={sidebarSearch}
+              onChange={(e) => setSidebarSearch(e.target.value)}
+              placeholder="Cari pos (mis. A.3, Korwil, Sewa, LMS)..."
+              className="h-8 pl-8 text-xs"
+            />
+          </div>
+          <div className="flex gap-1">
+            {(
+              [
+                { id: "ALL", label: `Semua (${RAB_POS_CATALOG.length})` },
+                { id: "A", label: "A. Personel (5)" },
+                { id: "B", label: "B. Nonpersonel (18)" },
+              ] as const
+            ).map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setSidebarGroup(f.id)}
+                className={`flex-1 py-1 px-2 rounded-md text-[11px] font-semibold transition-colors ${
+                  sidebarGroup === f.id
+                    ? "bg-slate-900 text-white"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-3 max-h-[780px] overflow-y-auto pr-1">
+          {catalogGroupA.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-teal-800 px-1">
+                A. Biaya Personel ({catalogGroupA.length})
               </div>
-              <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">{doc.description}</p>
-              {isSaved && (
-                <div className="mt-1.5 inline-flex items-center gap-1 text-[10px] text-emerald-700 font-semibold">
-                  <CheckCircle2 className="w-3 h-3" /> Draft Tersimpan
-                </div>
-              )}
-            </button>
-          );
-        })}
+              {catalogGroupA.map(renderSidebarCard)}
+            </div>
+          )}
+          {catalogGroupB.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-600 px-1 pt-1">
+                B. Biaya Nonpersonel ({catalogGroupB.length})
+              </div>
+              {catalogGroupB.map(renderSidebarCard)}
+            </div>
+          )}
+          {filteredCatalog.length === 0 && (
+            <div className="text-center text-xs text-slate-500 py-8 bg-white rounded-xl border border-dashed">
+              Pos RAB tidak ditemukan untuk &ldquo;{sidebarSearch}&rdquo;.
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Area Editor & Cetak Dokumen Aktif */}
+      {/* ==================== PANEL KANAN: EDITOR & CETAK KHUSUS POS TERPILIH ==================== */}
       <div className="lg:col-span-8">
         <Card className="border-slate-200">
           <CardHeader className="bg-slate-50 border-b py-4 px-5 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className="bg-emerald-700 text-white text-xs font-bold">
+                  {activeMeta.displayCode}
+                </Badge>
                 <CardTitle className="text-base font-bold text-slate-900">
-                  {activeMeta.fullTitle}
+                  {activeMeta.shortTitle}
                 </CardTitle>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">{activeMeta.template13Ref}</p>
+              <p className="text-xs text-slate-600 mt-1">
+                Pagu RAB: <strong className="text-slate-900">{formatCurrency(activeMeta.rabBudget)}</strong> ({activeMeta.rabFormula})
+              </p>
+              <p className="text-[11px] text-slate-500 mt-0.5">{activeMeta.template13Ref}</p>
             </div>
             <div className="flex flex-wrap items-center gap-2 shrink-0">
-              <div
-                className="inline-flex items-center rounded-md border border-slate-200 bg-white p-0.5 text-[11px] font-semibold"
-                title="Tag yang digunakan saat klik tombol + RAB"
-              >
-                <span className="px-1.5 text-[10px] text-slate-400">+RAB:</span>
-                <button
-                  type="button"
-                  onClick={() => setRecordTargetType("PELAPORAN")}
-                  className={`px-2 py-1 rounded ${
-                    recordTargetType === "PELAPORAN"
-                      ? "bg-blue-700 text-white"
-                      : "text-slate-600 hover:bg-slate-100"
-                  }`}
-                >
-                  Pelaporan
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRecordTargetType("REAL")}
-                  className={`px-2 py-1 rounded ${
-                    recordTargetType === "REAL"
-                      ? "bg-emerald-700 text-white"
-                      : "text-slate-600 hover:bg-slate-100"
-                  }`}
-                >
-                  Real Kas
-                </button>
-              </div>
               <Button
                 type="button"
                 size="sm"
@@ -633,11 +766,11 @@ export function EvidenceDocsTab({
               <Button
                 type="button"
                 size="sm"
-                onClick={handlePrintActiveDoc}
+                onClick={handlePrintActivePos}
                 className="bg-slate-900 hover:bg-slate-800 text-white text-xs gap-1.5"
               >
                 <Printer className="w-3.5 h-3.5" />
-                Cetak / PDF A4
+                Cetak / PDF A4 ({activeCheckedLabels.length})
               </Button>
             </div>
           </CardHeader>
@@ -658,26 +791,315 @@ export function EvidenceDocsTab({
               </div>
             )}
 
-            {/* ==================== 1. DAFTAR TANDA TERIMA HONOR FASILITATOR BULANAN (A.4) ==================== */}
-            {activeType === "HONOR_FASIL_BULANAN" && (
+            {/* ==================== KOTAK 1: CHECKLIST 4 DOKUMEN RESMI (ADMIN BEBAS CENTANG) ==================== */}
+            <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-3.5 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-xs font-bold text-teal-950">
+                    1. Pilih Dokumen yang Akan Dicetak — Format Resmi Administrasi
+                  </div>
+                  <p className="text-[11px] text-teal-800/80">
+                    Centang satu atau lebih dokumen sesuai kebutuhan SPJ Pos {activeMeta.displayCode}. Tab ini khusus untuk Pelaporan (kas Real tetap di Nota &amp; Pengeluaran).
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={activeRabCode === "4" ? a4KopSurat : currentDraft.kopSurat || activeMeta.defaultKop}
+                    onChange={(e) => {
+                      const nextKop = e.target.value as KopSuratOption;
+                      if (activeRabCode === "4") {
+                        setA4KopSurat(nextKop);
+                      } else {
+                        const theme = resolveBrandKopTheme(nextKop, profile);
+                        updateCurrentDraft((p) => ({
+                          ...p,
+                          kopSurat: nextKop,
+                          bankName: theme.defaultBankName || p.bankName,
+                          bankAccount: theme.defaultBankAccount || p.bankAccount,
+                          bankHolder: theme.defaultBankHolder || p.bankHolder,
+                        }));
+                      }
+                    }}
+                    className="h-8 px-2.5 rounded-md border border-teal-300 bg-white text-xs font-semibold text-teal-950"
+                  >
+                    {KOP_OPTIONS_LIST.map((k) => (
+                      <option key={k.value} value={k.value}>
+                        Kop: {k.shortLabel}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* 4 Checklist Utama (+ Kontrak Sewa khusus B.3b) */}
+              <div className={`grid grid-cols-2 ${activeRabCode === "3b" ? "sm:grid-cols-5" : "sm:grid-cols-4"} gap-2 text-xs`}>
+                <label
+                  className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-all ${
+                    (activeRabCode === "4" ? a4IncludeInvoice : Boolean(currentDraft.includeInvoice))
+                      ? "bg-blue-600 text-white border-blue-700 font-bold shadow-xs"
+                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 font-medium"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={activeRabCode === "4" ? a4IncludeInvoice : Boolean(currentDraft.includeInvoice)}
+                    onChange={(e) => {
+                      if (activeRabCode === "4") setA4IncludeInvoice(e.target.checked);
+                      else updateCurrentDraft((p) => ({ ...p, includeInvoice: e.target.checked }));
+                    }}
+                    className="accent-white"
+                  />
+                  <span>Invoice</span>
+                </label>
+
+                <label
+                  className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-all ${
+                    (activeRabCode === "4" ? a4IncludeTandaTerima : Boolean(currentDraft.includeDaftarTandaTerima))
+                      ? "bg-cyan-700 text-white border-cyan-800 font-bold shadow-xs"
+                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 font-medium"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={activeRabCode === "4" ? a4IncludeTandaTerima : Boolean(currentDraft.includeDaftarTandaTerima)}
+                    onChange={(e) => {
+                      if (activeRabCode === "4") setA4IncludeTandaTerima(e.target.checked);
+                      else updateCurrentDraft((p) => ({ ...p, includeDaftarTandaTerima: e.target.checked }));
+                    }}
+                    className="accent-white"
+                  />
+                  <span>Tanda Terima</span>
+                </label>
+
+                <label
+                  className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-all ${
+                    (activeRabCode === "4" ? a4IncludeSlipGaji : Boolean(currentDraft.includeSlipGaji))
+                      ? "bg-teal-700 text-white border-teal-800 font-bold shadow-xs"
+                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 font-medium"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={activeRabCode === "4" ? a4IncludeSlipGaji : Boolean(currentDraft.includeSlipGaji)}
+                    onChange={(e) => {
+                      if (activeRabCode === "4") setA4IncludeSlipGaji(e.target.checked);
+                      else updateCurrentDraft((p) => ({ ...p, includeSlipGaji: e.target.checked }));
+                    }}
+                    className="accent-white"
+                  />
+                  <span>Slip Gaji</span>
+                </label>
+
+                <label
+                  className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-all ${
+                    (activeRabCode === "4" ? a4IncludeKwitansi : Boolean(currentDraft.includeKwitansi))
+                      ? "bg-emerald-700 text-white border-emerald-800 font-bold shadow-xs"
+                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 font-medium"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={activeRabCode === "4" ? a4IncludeKwitansi : Boolean(currentDraft.includeKwitansi)}
+                    onChange={(e) => {
+                      if (activeRabCode === "4") setA4IncludeKwitansi(e.target.checked);
+                      else updateCurrentDraft((p) => ({ ...p, includeKwitansi: e.target.checked }));
+                    }}
+                    className="accent-white"
+                  />
+                  <span>Kwitansi</span>
+                </label>
+
+                {activeRabCode === "3b" && (
+                  <label
+                    className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-all ${
+                      sewaIncludeKontrak
+                        ? "bg-indigo-700 text-white border-indigo-800 font-bold shadow-xs"
+                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 font-medium"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={sewaIncludeKontrak}
+                      onChange={(e) => setSewaIncludeKontrak(e.target.checked)}
+                      className="accent-white"
+                    />
+                    <span>Kontrak Sewa</span>
+                  </label>
+                )}
+              </div>
+
+              {/* ==================== KOTAK 2: PILIHAN MODE PERIODE CETAK (PER BULAN / SEMUA PISAH / SEMUA GABUNGAN) ==================== */}
+              <div className="pt-2.5 border-t border-teal-200/70 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-teal-950">2. Periode Cetak:</span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {activeRabCode === "4" ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setA4PrintMode("SINGLE_MONTH")}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${
+                            a4PrintMode === "SINGLE_MONTH"
+                              ? "bg-slate-900 text-white border-slate-900"
+                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                          }`}
+                        >
+                          Cetak Per Bulan
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setA4PrintMode("SPLIT_ALL_MONTHS")}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${
+                            a4PrintMode === "SPLIT_ALL_MONTHS"
+                              ? "bg-slate-900 text-white border-slate-900"
+                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                          }`}
+                        >
+                          Cetak Semua — Pisah Per Bulan (Sep–Des)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setA4PrintMode("COMBINED_ALL")}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${
+                            a4PrintMode === "COMBINED_ALL"
+                              ? "bg-slate-900 text-white border-slate-900"
+                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                          }`}
+                        >
+                          Cetak Semua — Gabungan / Rekap
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const cur = currentDraft.monthlyPrintFilter;
+                            const nextMonth: MonthlyPrintFilter =
+                              cur && cur.startsWith("2026-") ? cur : "2026-10";
+                            updateCurrentDraft((p) => ({ ...p, monthlyPrintFilter: nextMonth }));
+                          }}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${
+                            (currentDraft.monthlyPrintFilter || "ALL").startsWith("2026-")
+                              ? "bg-slate-900 text-white border-slate-900"
+                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                          }`}
+                        >
+                          Cetak Per Bulan
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateCurrentDraft((p) => ({ ...p, monthlyPrintFilter: "SPLIT_EACH_MONTH" }))
+                          }
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${
+                            currentDraft.monthlyPrintFilter === "SPLIT_EACH_MONTH"
+                              ? "bg-slate-900 text-white border-slate-900"
+                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                          }`}
+                        >
+                          Cetak Semua — Pisah Per Bulan (Sep–Des)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateCurrentDraft((p) => ({ ...p, monthlyPrintFilter: "ALL" }))}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${
+                            (currentDraft.monthlyPrintFilter || "ALL") === "ALL"
+                              ? "bg-slate-900 text-white border-slate-900"
+                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                          }`}
+                        >
+                          Cetak Semua — Gabungan / Rekap
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Pilihan Bulan (tampil saat mode Per Bulan) */}
+                {((activeRabCode === "4" && a4PrintMode === "SINGLE_MONTH") ||
+                  (activeRabCode !== "4" && (currentDraft.monthlyPrintFilter || "ALL").startsWith("2026-"))) && (
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    <span className="text-[11px] font-semibold text-teal-900 mr-1">Pilih Bulan:</span>
+                    {SNT_HONOR_MONTH_OPTIONS.map((m) => {
+                      const isSel =
+                        activeRabCode === "4"
+                          ? a4Month === m.key
+                          : currentDraft.monthlyPrintFilter === m.key;
+                      return (
+                        <button
+                          key={m.key}
+                          type="button"
+                          onClick={() => {
+                            if (activeRabCode === "4") {
+                              setA4Month(m.key);
+                              setA4TanggalCetak(m.defaultDate);
+                            } else {
+                              updateCurrentDraft((p) => ({ ...p, monthlyPrintFilter: m.key }));
+                            }
+                          }}
+                          className={`px-2.5 py-1 rounded text-[11px] font-semibold border transition-colors ${
+                            isSel
+                              ? "bg-teal-700 text-white border-teal-800"
+                              : "bg-white text-slate-700 border-teal-200 hover:bg-teal-100"
+                          }`}
+                        >
+                          {m.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-teal-900 bg-white/80 rounded-md px-2.5 py-1.5 border border-teal-200/70">
+                  <span>
+                    Ringkasan cetak:{" "}
+                    <strong>
+                      {activeCheckedLabels.length > 0 ? activeCheckedLabels.join(" + ") : "Belum ada dokumen dicentang"}
+                    </strong>{" "}
+                    ·{" "}
+                    {activeRabCode === "4"
+                      ? a4PrintMode === "SINGLE_MONTH"
+                        ? `Khusus ${getMonthLabelId(a4Month)}`
+                        : a4PrintMode === "SPLIT_ALL_MONTHS"
+                          ? "Pisah per bulan (Sep, Okt, Nov, Des)"
+                          : "Gabungan 4 bulan (Rekap)"
+                      : currentDraft.monthlyPrintFilter === "SPLIT_EACH_MONTH"
+                        ? "Pisah per bulan (Sep–Des)"
+                        : (currentDraft.monthlyPrintFilter || "ALL").startsWith("2026-")
+                          ? `Khusus ${getMonthLabelId(currentDraft.monthlyPrintFilter || "")}`
+                          : "Gabungan / Semua Baris"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handlePrintActivePos}
+                    className="font-bold text-teal-800 hover:text-teal-950 underline inline-flex items-center gap-1"
+                  >
+                    <Printer className="w-3 h-3" /> Cetak Sekarang
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* ==================== EDITOR KHUSUS POS A.4: FASILITATOR (6 LOKASI SNT) ==================== */}
+            {activeRabCode === "4" ? (
               <div className="space-y-4">
-                {/* Switch Mode Perhitungan: Standar RAB Rp5.729.876/lokasi vs Realisasi Real/JP DB */}
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50/70 p-3">
                   <div className="text-xs">
-                    <div className="font-bold text-emerald-950">Mode Perhitungan Honor Fasilitator (Pos A.4):</div>
+                    <div className="font-bold text-emerald-950">Basis Rincian Pos A.4 (6 Lokasi SNT):</div>
                     <div className="text-[11px] text-emerald-800 mt-0.5">
-                      {honorPricingMode === "RAB_SATUAN"
-                        ? `Harga Satuan RAB = ${formatCurrency(SNT_RAB_HONOR_FASIL_UNIT_PRICE)}/lokasi/bln (6 lokasi = ${formatCurrency(SNT_RAB_HONOR_FASIL_UNIT_PRICE * 6)}/bln). Lokasi dengan 2 fasilitator dikosongkan default — pilih dari dropdown atau biarkan kosong untuk blanko kwitansi.`
-                        : "Menarik realisasi aktual per fasilitator & harga satuan real/JP dari Rekap Honorarium DB."}
+                      {a4PricingMode === "RAB_SATUAN"
+                        ? `Standar Pelaporan RAB = ${formatCurrency(SNT_RAB_HONOR_FASIL_UNIT_PRICE)}/lokasi/bln (6 lokasi = ${formatCurrency(SNT_RAB_HONOR_FASIL_UNIT_PRICE * 6)}/bln). NPWP/NIK & Rekening otomatis diambil dari Profil Fasilitator DB.`
+                        : "Referensi realisasi per fasilitator & harga satuan real/JP dari Rekap Honorarium DB."}
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-1.5 shrink-0">
                     <button
                       type="button"
-                      onClick={() => setHonorPricingMode("RAB_SATUAN")}
+                      onClick={() => setA4PricingMode("RAB_SATUAN")}
                       className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                        honorPricingMode === "RAB_SATUAN"
-                          ? "bg-emerald-700 text-white shadow-xs"
+                        a4PricingMode === "RAB_SATUAN"
+                          ? "bg-emerald-700 text-white"
                           : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
                       }`}
                     >
@@ -685,24 +1107,28 @@ export function EvidenceDocsTab({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setHonorPricingMode("REAL_JP")}
+                      onClick={() => setA4PricingMode("REAL_JP")}
                       className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                        honorPricingMode === "REAL_JP"
-                          ? "bg-slate-900 text-white shadow-xs"
+                        a4PricingMode === "REAL_JP"
+                          ? "bg-slate-900 text-white"
                           : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
                       }`}
                     >
-                      Realisasi Real / JP (Rekap DB)
+                      Referensi Real / JP (Rekap DB)
                     </button>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Pilih Bulan Honorarium</label>
+                    <label className="block font-semibold text-slate-700 mb-1">Bulan Editor</label>
                     <select
-                      value={honorMonth}
-                      onChange={(e) => setHonorMonth(e.target.value)}
+                      value={a4Month}
+                      onChange={(e) => {
+                        setA4Month(e.target.value);
+                        const opt = SNT_HONOR_MONTH_OPTIONS.find((m) => m.key === e.target.value);
+                        if (opt) setA4TanggalCetak(opt.defaultDate);
+                      }}
                       className="w-full h-9 px-2.5 rounded-md border border-slate-200 bg-white text-xs font-semibold"
                     >
                       {HONOR_MONTHS.map((m) => (
@@ -713,25 +1139,11 @@ export function EvidenceDocsTab({
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Kop Surat PDF</label>
-                    <select
-                      value={honorKopSurat}
-                      onChange={(e) => setHonorKopSurat(e.target.value as KopSuratOption)}
-                      className="w-full h-9 px-2.5 rounded-md border border-slate-200 bg-white text-xs font-semibold"
-                    >
-                      {KOP_OPTIONS_LIST.map((k) => (
-                        <option key={k.value} value={k.value}>
-                          {k.shortLabel}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Tanggal Tanda Terima &amp; Kwitansi</label>
+                    <label className="block font-semibold text-slate-700 mb-1">Tanggal Bayar / Dokumen</label>
                     <Input
                       type="date"
-                      value={honorTanggalCetak}
-                      onChange={(e) => setHonorTanggalCetak(e.target.value)}
+                      value={a4TanggalCetak}
+                      onChange={(e) => setA4TanggalCetak(e.target.value)}
                       className="h-9 text-xs"
                     />
                   </div>
@@ -742,137 +1154,64 @@ export function EvidenceDocsTab({
                       variant="outline"
                       onClick={() => {
                         const freshRows =
-                          honorPricingMode === "RAB_SATUAN" ? rabUnitHonorSheet.rows : dbHonorSheet.rows;
-                        setCustomHonorRowsByKey((prev) => ({
-                          ...prev,
-                          [honorStateKey]: freshRows,
-                        }));
+                          a4PricingMode === "RAB_SATUAN" ? rabUnitA4Sheet.rows : dbA4Sheet.rows;
+                        setCustomA4RowsByKey((prev) => ({ ...prev, [a4StateKey]: freshRows }));
                         setBanner({
                           type: "ok",
-                          text:
-                            honorPricingMode === "RAB_SATUAN"
-                              ? `Daftar ${getMonthLabelId(honorMonth)} direset ke 6 lokasi standar RAB (${formatCurrency(SNT_RAB_HONOR_FASIL_UNIT_PRICE)}/lokasi).`
-                              : `Data ${getMonthLabelId(honorMonth)} disegarkan dari Rekap Honorarium (${dbHonorSheet.rows.length} fasilitator).`,
+                          text: `Data ${getMonthLabelId(a4Month)} disegarkan (${freshRows.length} baris).`,
                         });
                       }}
                       className="text-xs h-9 bg-white gap-1 flex-1"
                     >
-                      <Download className="w-3.5 h-3.5" /> {honorPricingMode === "RAB_SATUAN" ? "Reset 6 Lokasi" : "Muat Rekap DB"}
+                      <RotateCcw className="w-3.5 h-3.5" /> Reset 6 Lokasi
                     </Button>
                     <Button
                       type="button"
                       size="sm"
                       variant="outline"
                       onClick={() => {
-                        const cleared = activeHonorRows.map((r) => ({ ...r, nama: "" }));
-                        setCustomHonorRowsByKey((prev) => ({
+                        setCustomA4RowsByKey((prev) => ({
                           ...prev,
-                          [honorStateKey]: cleared,
+                          [a4StateKey]: activeA4Rows.map((r) => ({ ...r, nama: "" })),
                         }));
-                        setBanner({
-                          type: "ok",
-                          text: "Semua nama fasilitator dikosongkan (akan tercetak blanko titik-titik pada Daftar Tanda Terima & Kwitansi).",
-                        });
+                        setBanner({ type: "ok", text: "Semua nama fasilitator dikosongkan (blanko)." });
                       }}
-                      className="text-xs h-9 bg-white gap-1 text-amber-800 border-amber-300 hover:bg-amber-50"
-                      title="Kosongkan semua nama penerima di daftar & kwitansi"
+                      className="text-xs h-9 bg-white gap-1 text-amber-800 border-amber-300"
                     >
-                      <UserX className="w-3.5 h-3.5" /> Kosongkan Semua
+                      <UserX className="w-3.5 h-3.5" /> Kosongkan
                     </Button>
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-slate-50/70 p-3 text-xs">
-                  <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-blue-900">
-                    <input
-                      type="checkbox"
-                      checked={honorIncludeInvoice}
-                      onChange={(e) => setHonorIncludeInvoice(e.target.checked)}
-                    />
-                    <span>Cetak INVOICE Resmi (per bulan)</span>
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-emerald-900">
-                    <input
-                      type="checkbox"
-                      checked={honorIncludeKwitansi}
-                      onChange={(e) => setHonorIncludeKwitansi(e.target.checked)}
-                    />
-                    <span>Lampirkan Slip Honorarium per baris (auto profil fasil)</span>
-                  </label>
+                <div className="flex flex-wrap items-center gap-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={honorRecipientMode === "BLANK"}
-                      onChange={(e) => setHonorRecipientMode(e.target.checked ? "BLANK" : "MANUAL")}
+                      checked={a4RecipientMode === "BLANK"}
+                      onChange={(e) => setA4RecipientMode(e.target.checked ? "BLANK" : "MANUAL")}
                     />
                     <span>Paksa kosongkan semua nama saat cetak</span>
                   </label>
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={honorIncludeTransport}
-                      onChange={(e) => setHonorIncludeTransport(e.target.checked)}
+                      checked={a4IncludeTransport}
+                      onChange={(e) => setA4IncludeTransport(e.target.checked)}
                     />
                     <span>Sertakan info kolom Transport</span>
                   </label>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const monthInputs = SNT_HONOR_MONTH_OPTIONS.map((m) => {
-                        const key = `${honorPricingMode}:${m.key}`;
-                        const savedKey = `EVIDENCE_HONOR_FASIL_${honorPricingMode}_${m.key}`;
-                        const saved = evidenceDrafts[savedKey];
-                        const rows =
-                          customHonorRowsByKey[key] ||
-                          (saved && Array.isArray((saved as { rows?: MonthlyHonorReceiptRow[] }).rows)
-                            ? (saved as { rows: MonthlyHonorReceiptRow[] }).rows
-                            : honorPricingMode === "RAB_SATUAN"
-                              ? buildMonthlyRabUnitHonorReceipt(m.key, rekaps, fasilitators).rows
-                              : buildMonthlyFacilitatorHonorReceipt(rekaps, m.key).rows);
-                        return {
-                          sheet: {
-                            monthKey: m.key,
-                            monthLabel: m.label,
-                            pricingMode: honorPricingMode,
-                            rows,
-                            totalJpIntra: rows.reduce((s, r) => s + (Number(r.jpIntra) || 0), 0),
-                            totalJpEkstra: rows.reduce((s, r) => s + (Number(r.jpEkstra) || 0), 0),
-                            totalJP: rows.reduce((s, r) => s + (Number(r.totalJP) || 0), 0),
-                            totalHonor: rows.reduce((s, r) => s + (Number(r.totalHonor) || 0), 0),
-                            totalTransport: rows.reduce((s, r) => s + (Number(r.totalTransport) || 0), 0),
-                          },
-                          profile,
-                          fasilitators,
-                          kopSuratOverride: honorKopSurat,
-                          includeTransportColumn: honorIncludeTransport,
-                          recipientMode: honorRecipientMode,
-                          tanggalCetak: m.defaultDate,
-                          includeIndividualKwitansi: honorIncludeKwitansi,
-                          includeInvoice: honorIncludeInvoice,
-                          ppnPct: honorInvoicePpnPct,
-                          ditagihkanKepada: honorDitagihkanKepada,
-                        };
-                      });
-                      openHtmlWindow(renderMultiMonthFacilitatorHonorPdfHtml(monthInputs));
-                    }}
-                    className="ml-auto bg-white border-blue-300 text-blue-800 hover:bg-blue-50 text-[11px] h-7 gap-1"
-                  >
-                    <Printer className="w-3 h-3" /> Cetak Sekaligus 4 Bulan (Sep–Des)
-                  </Button>
                 </div>
 
-                {honorIncludeInvoice && (
+                {a4IncludeInvoice && (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 rounded-lg border border-blue-200 bg-blue-50/40 p-3 text-xs">
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
                         No. Invoice (Kosong = Otomatis per Bulan)
                       </label>
                       <Input
-                        value={honorInvoiceNo}
-                        onChange={(e) => setHonorInvoiceNo(e.target.value)}
-                        placeholder={`INV/MTC/SNT-W2-A4/.../${honorMonth}`}
+                        value={a4InvoiceNo}
+                        onChange={(e) => setA4InvoiceNo(e.target.value)}
+                        placeholder={`INV/MTC/SNT-W2-A4/.../${a4Month}`}
                         className="h-8 text-xs bg-white"
                       />
                     </div>
@@ -881,16 +1220,16 @@ export function EvidenceDocsTab({
                         Ditagihkan Kepada
                       </label>
                       <Input
-                        value={honorDitagihkanKepada}
-                        onChange={(e) => setHonorDitagihkanKepada(e.target.value)}
+                        value={a4DitagihkanKepada}
+                        onChange={(e) => setA4DitagihkanKepada(e.target.value)}
                         className="h-8 text-xs bg-white"
                       />
                     </div>
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">PPN (%)</label>
                       <select
-                        value={honorInvoicePpnPct}
-                        onChange={(e) => setHonorInvoicePpnPct(Number(e.target.value) || 0)}
+                        value={a4InvoicePpnPct}
+                        onChange={(e) => setA4InvoicePpnPct(Number(e.target.value) || 0)}
                         className="w-full h-8 px-2 rounded border border-slate-200 bg-white text-xs font-semibold"
                       >
                         <option value={0}>0% (Non-PPN)</option>
@@ -900,111 +1239,45 @@ export function EvidenceDocsTab({
                   </div>
                 )}
 
-                {/* Status Ringkasan Pencatatan Masuk RAB untuk Bulan Terpilih */}
-                {(() => {
-                  const statuses = activeHonorRows.map((r) => checkHonorRowRecorded(r, honorMonth));
-                  const recordedCount = statuses.filter((s) => s.isRecorded).length;
-                  const duplicateCount = statuses.filter((s) => s.count > 1).length;
-                  return (
-                    <div
-                      className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs ${
-                        duplicateCount > 0
-                          ? "bg-amber-50 border-amber-300 text-amber-900"
-                          : recordedCount > 0
-                            ? "bg-emerald-50/80 border-emerald-200 text-emerald-900"
-                            : "bg-slate-50 border-slate-200 text-slate-600"
-                      }`}
-                    >
-                      <div className="flex items-center gap-1.5 font-medium">
-                        <CheckCircle2
-                          className={`w-4 h-4 shrink-0 ${
-                            duplicateCount > 0
-                              ? "text-amber-600"
-                              : recordedCount > 0
-                                ? "text-emerald-600"
-                                : "text-slate-400"
-                          }`}
-                        />
-                        <span>
-                          Status Masuk RAB ({getMonthLabelId(honorMonth)} · Mode{" "}
-                          <strong>{recordTargetType === "PELAPORAN" ? "Pelaporan" : "Real Kas"}</strong>):{" "}
-                          <strong>
-                            {recordedCount}/{activeHonorRows.length} Lokasi Sudah Tercatat
-                          </strong>
-                        </span>
-                      </div>
-                      {duplicateCount > 0 && (
-                        <span className="text-[11px] font-semibold text-amber-800">
-                          ⚠ Terdeteksi {duplicateCount} lokasi tercatat &gt;1x (cek &amp; hapus duplikat di Pengeluaran Lapangan)
-                        </span>
-                      )}
-                    </div>
-                  );
-                })()}
-
                 <div className="overflow-x-auto border rounded-lg">
                   <table className="w-full text-xs text-left">
                     <thead className="bg-slate-100 border-b text-slate-700">
-                      {honorPricingMode === "RAB_SATUAN" ? (
-                        <tr>
-                          <th className="py-2 px-2">Lokasi SNT &amp; Pilihan Nama Fasilitator (Daftar &amp; Kwitansi)</th>
-                          <th className="py-2 px-2 text-center">Satuan</th>
-                          <th className="py-2 px-2 text-right">Harga Satuan (Rp)</th>
-                          <th className="py-2 px-2 text-right">Total Honor</th>
-                          <th className="py-2 px-2 text-center">Aksi</th>
-                        </tr>
-                      ) : (
-                        <tr>
-                          <th className="py-2 px-2">Fasilitator &amp; Lokasi</th>
-                          <th className="py-2 px-2 text-center">JP Intra</th>
-                          <th className="py-2 px-2 text-center">JP Ekstra</th>
-                          <th className="py-2 px-2 text-center">Total JP</th>
-                          <th className="py-2 px-2 text-right">Harga Satuan Real/JP</th>
-                          <th className="py-2 px-2 text-right">Total Honor</th>
-                          <th className="py-2 px-2 w-10"></th>
-                        </tr>
-                      )}
+                      <tr>
+                        <th className="py-2 px-2">Lokasi SNT &amp; Pilih Profil Fasilitator DB</th>
+                        <th className="py-2 px-2 text-center">Satuan</th>
+                        <th className="py-2 px-2 text-right">Harga Satuan (Rp)</th>
+                        <th className="py-2 px-2 text-right">Total Honor</th>
+                        <th className="py-2 px-2 text-center">Pelaporan RAB</th>
+                      </tr>
                     </thead>
                     <tbody className="divide-y bg-white">
-                      {activeHonorRows.length === 0 ? (
-                        <tr>
-                          <td colSpan={honorPricingMode === "RAB_SATUAN" ? 5 : 7} className="py-6 text-center text-slate-500">
-                            Belum ada data honorarium untuk {getMonthLabelId(honorMonth)}. Klik tombol &ldquo;+ Tambah Baris Manual&rdquo; untuk menyiapkan daftar bulan ini.
-                          </td>
-                        </tr>
-                      ) : (
-                        activeHonorRows.map((row, idx) => {
-                          const locId = row.locationId || matchWilayah2LocationId(row.lokasi);
-                          const localFasils = fasilitators.filter(
-                            (f) => locId && matchWilayah2LocationId(f.lokasiSNT) === locId
-                          );
-                          const otherFasils = fasilitators.filter(
-                            (f) => !locId || matchWilayah2LocationId(f.lokasiSNT) !== locId
-                          );
-                          const isSelectedInDb = fasilitators.some((f) => f.namaLengkap === row.nama);
+                      {activeA4Rows.map((row, idx) => {
+                        const locId = row.locationId || matchWilayah2LocationId(row.lokasi);
+                        const localFasils = fasilitators.filter(
+                          (f) => locId && matchWilayah2LocationId(f.lokasiSNT) === locId
+                        );
+                        const otherFasils = fasilitators.filter(
+                          (f) => !locId || matchWilayah2LocationId(f.lokasiSNT) !== locId
+                        );
+                        const isSelectedInDb = fasilitators.some((f) => f.namaLengkap === row.nama);
+                        const recStatus = checkA4RowRecorded(row, a4Month);
 
-                          const updateRow = (patch: Partial<MonthlyHonorReceiptRow>) => {
-                            const next = [...activeHonorRows];
-                            const merged = { ...row, ...patch };
-                            if (honorPricingMode === "RAB_SATUAN") {
-                              if (patch.hargaSatuanReal !== undefined && patch.totalHonor === undefined) {
-                                merged.totalHonor = Number(patch.hargaSatuanReal) || 0;
-                              } else if (patch.totalHonor !== undefined && patch.hargaSatuanReal === undefined) {
-                                merged.hargaSatuanReal = Number(patch.totalHonor) || 0;
-                              }
-                            } else {
-                              merged.totalJP = (Number(merged.jpIntra) || 0) + (Number(merged.jpEkstra) || 0);
-                              if (patch.jpIntra !== undefined || patch.jpEkstra !== undefined || patch.hargaSatuanReal !== undefined) {
-                                merged.totalHonor = merged.totalJP * (Number(merged.hargaSatuanReal) || 0);
-                              } else if (patch.totalHonor !== undefined && merged.totalJP > 0) {
-                                merged.hargaSatuanReal = Math.round((Number(patch.totalHonor) || 0) / merged.totalJP);
-                              }
+                        const updateRow = (patch: Partial<MonthlyHonorReceiptRow>) => {
+                          const next = [...activeA4Rows];
+                          const merged = { ...row, ...patch };
+                          if (a4PricingMode === "RAB_SATUAN") {
+                            if (patch.hargaSatuanReal !== undefined && patch.totalHonor === undefined) {
+                              merged.totalHonor = Number(patch.hargaSatuanReal) || 0;
+                            } else if (patch.totalHonor !== undefined && patch.hargaSatuanReal === undefined) {
+                              merged.hargaSatuanReal = Number(patch.totalHonor) || 0;
                             }
-                            next[idx] = merged;
-                            setCustomHonorRowsByKey((prev) => ({ ...prev, [honorStateKey]: next }));
-                          };
+                          }
+                          next[idx] = merged;
+                          setCustomA4RowsByKey((prev) => ({ ...prev, [a4StateKey]: next }));
+                        };
 
-                          const facilitatorSelectorCell = (
+                        return (
+                          <tr key={row.id || idx} className={recStatus.isRecorded ? "bg-emerald-50/30" : ""}>
                             <td className="py-2 px-2 space-y-1.5 min-w-[240px]">
                               <div className="flex items-center justify-between gap-1">
                                 <input
@@ -1012,19 +1285,7 @@ export function EvidenceDocsTab({
                                   value={row.lokasi}
                                   onChange={(e) => updateRow({ lokasi: e.target.value })}
                                   className="font-bold text-slate-800 text-xs bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 flex-1"
-                                  placeholder="Lokasi SNT..."
                                 />
-                                {honorPricingMode === "RAB_SATUAN" && (
-                                  <span
-                                    className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${
-                                      locId === "tidore"
-                                        ? "bg-blue-50 text-blue-700 border border-blue-200"
-                                        : "bg-amber-50 text-amber-800 border border-amber-200"
-                                    }`}
-                                  >
-                                    {locId === "tidore" ? "1 Fasil" : `${Math.max(2, localFasils.length)} Fasil`}
-                                  </span>
-                                )}
                               </div>
                               <select
                                 value={row.nama === "" ? "" : isSelectedInDb ? row.nama : "__CUSTOM__"}
@@ -1061,1782 +1322,65 @@ export function EvidenceDocsTab({
                                   <option value="__CUSTOM__">Manual: {row.nama}</option>
                                 )}
                               </select>
-                              <input
-                                type="text"
-                                value={row.nama}
-                                onChange={(e) => updateRow({ nama: e.target.value })}
-                                placeholder="Kosong (garis titik-titik) atau ketik nama manual..."
-                                className="w-full border border-slate-200 rounded px-1.5 py-0.5 text-[11px] text-slate-600"
-                              />
                             </td>
-                          );
-
-                          if (honorPricingMode === "RAB_SATUAN") {
-                            const recStatus = checkHonorRowRecorded(row, honorMonth);
-                            return (
-                              <tr key={row.id || idx} className={recStatus.isRecorded ? "bg-emerald-50/30" : ""}>
-                                {facilitatorSelectorCell}
-                                <td className="py-1.5 px-2 text-center whitespace-nowrap">
-                                  <span className="font-semibold text-slate-700">1 Bulan</span>
-                                  {row.totalJP > 0 && (
-                                    <div className="text-[10px] text-slate-400">({row.totalJP} JP tercatat)</div>
-                                  )}
-                                </td>
-                                <td className="py-1.5 px-1 text-right">
-                                  <input
-                                    type="number"
-                                    value={row.hargaSatuanReal}
-                                    onChange={(e) => updateRow({ hargaSatuanReal: Number(e.target.value) || 0 })}
-                                    className="w-28 border rounded px-1.5 py-1 text-right text-xs"
-                                  />
-                                </td>
-                                <td className="py-1.5 px-1 text-right">
-                                  <input
-                                    type="number"
-                                    value={row.totalHonor}
-                                    onChange={(e) => updateRow({ totalHonor: Number(e.target.value) || 0 })}
-                                    className="w-28 border rounded px-1.5 py-1 text-right text-xs font-semibold text-emerald-900"
-                                  />
-                                </td>
-                                <td className="py-1.5 px-2 text-center whitespace-nowrap">
-                                  <div className="flex items-center justify-center gap-1">
-                                    {recStatus.isRecorded ? (
-                                      <span
-                                        className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold border ${
-                                          recStatus.count > 1
-                                            ? "bg-amber-50 text-amber-800 border-amber-300"
-                                            : "bg-emerald-50 text-emerald-700 border-emerald-300"
-                                        }`}
-                                        title={
-                                          recStatus.count > 1
-                                            ? `Tercatat ${recStatus.count}x di RAB Pos A.4 (${recordTargetType})${recStatus.noKwitansi ? ` · ${recStatus.noKwitansi}` : ""}. Hapus duplikat di Pengeluaran Lapangan.`
-                                            : `Sudah masuk RAB Pos A.4 (${recordTargetType})${recStatus.noKwitansi ? ` · ${recStatus.noKwitansi}` : ""}. Terkunci agar tidak terklik 2x.`
-                                        }
-                                      >
-                                        <CheckCircle2 className="w-3 h-3 shrink-0" />
-                                        {recStatus.count > 1 ? `${recStatus.count}x di RAB` : "Masuk RAB"}
-                                      </span>
-                                    ) : (
-                                      <button
-                                        type="button"
-                                        disabled={recordingId === row.id || row.totalHonor <= 0}
-                                        onClick={() =>
-                                          handleRecordLineToRab(
-                                            row.id,
-                                            "4",
-                                            honorTanggalCetak,
-                                            `Honorarium Fasilitator ${row.lokasi} (${row.nama || "Fasilitator SNT"}) - ${getMonthLabelId(honorMonth)}`,
-                                            row.totalHonor,
-                                            {
-                                              dedupeTokens: [row.lokasi, getMonthLabelId(honorMonth)],
-                                              localRecordKey: recStatus.localKey,
-                                            }
-                                          )
-                                        }
-                                        className="px-1.5 py-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-semibold disabled:opacity-40"
-                                        title={`Catat honor ${getMonthLabelId(honorMonth)} ke Pos RAB A.4 (${recordTargetType})`}
-                                      >
-                                        {recordingId === row.id ? "..." : "+ RAB"}
-                                      </button>
-                                    )}
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const next = activeHonorRows.filter((_, i) => i !== idx);
-                                        setCustomHonorRowsByKey((prev) => ({ ...prev, [honorStateKey]: next }));
-                                      }}
-                                      className="p-1 text-rose-500 hover:bg-rose-50 rounded"
-                                      title="Hapus baris"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          }
-
-                          return (
-                            <tr key={row.id || idx}>
-                              {facilitatorSelectorCell}
-                              <td className="py-1.5 px-1 text-center">
-                                <input
-                                  type="number"
-                                  value={row.jpIntra}
-                                  onChange={(e) => updateRow({ jpIntra: Number(e.target.value) || 0 })}
-                                  className="w-14 border rounded px-1 py-1 text-center text-xs"
-                                />
-                              </td>
-                              <td className="py-1.5 px-1 text-center">
-                                <input
-                                  type="number"
-                                  value={row.jpEkstra}
-                                  onChange={(e) => updateRow({ jpEkstra: Number(e.target.value) || 0 })}
-                                  className="w-14 border rounded px-1 py-1 text-center text-xs"
-                                />
-                              </td>
-                              <td className="py-1.5 px-2 text-center font-bold">{row.totalJP}</td>
-                              <td className="py-1.5 px-1 text-right">
-                                <input
-                                  type="number"
-                                  value={row.hargaSatuanReal}
-                                  onChange={(e) => updateRow({ hargaSatuanReal: Number(e.target.value) || 0 })}
-                                  className="w-24 border rounded px-1.5 py-1 text-right text-xs"
-                                />
-                              </td>
-                              <td className="py-1.5 px-1 text-right">
-                                <input
-                                  type="number"
-                                  value={row.totalHonor}
-                                  onChange={(e) => updateRow({ totalHonor: Number(e.target.value) || 0 })}
-                                  className="w-28 border rounded px-1.5 py-1 text-right text-xs font-semibold"
-                                />
-                              </td>
-                              <td className="py-1.5 px-1 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const next = activeHonorRows.filter((_, i) => i !== idx);
-                                    setCustomHonorRowsByKey((prev) => ({ ...prev, [honorStateKey]: next }));
-                                  }}
-                                  className="p-1 text-rose-500 hover:bg-rose-50 rounded"
-                                  title="Hapus baris"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                    <tfoot className="bg-blue-50/70 border-t font-bold">
-                      {honorPricingMode === "RAB_SATUAN" ? (
-                        <tr>
-                          <td colSpan={3} className="py-2 px-2">
-                            TOTAL ({activeHonorRows.length} Lokasi × {formatCurrency(SNT_RAB_HONOR_FASIL_UNIT_PRICE)})
-                          </td>
-                          <td className="py-2 px-2 text-right text-blue-800 whitespace-nowrap">
-                            {formatCurrency(activeHonorSheet.totalHonor)}
-                          </td>
-                          <td></td>
-                        </tr>
-                      ) : (
-                        <tr>
-                          <td className="py-2 px-2">TOTAL ({activeHonorRows.length} Fasilitator)</td>
-                          <td className="py-2 px-2 text-center">{activeHonorSheet.totalJpIntra}</td>
-                          <td className="py-2 px-2 text-center">{activeHonorSheet.totalJpEkstra}</td>
-                          <td className="py-2 px-2 text-center">{activeHonorSheet.totalJP}</td>
-                          <td className="py-2 px-2 text-right">-</td>
-                          <td className="py-2 px-2 text-right text-blue-800 whitespace-nowrap">
-                            {formatCurrency(activeHonorSheet.totalHonor)}
-                          </td>
-                          <td></td>
-                        </tr>
-                      )}
-                    </tfoot>
-                  </table>
-                </div>
-
-                <div className="flex flex-wrap justify-between items-center gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const next: MonthlyHonorReceiptRow[] = [
-                        ...activeHonorRows,
-                        {
-                          id: `manual-${Date.now()}`,
-                          nama: "",
-                          lokasi: SNT_WILAYAH_2_LOCATIONS[0].label,
-                          jpIntra: honorPricingMode === "RAB_SATUAN" ? 0 : 32,
-                          jpEkstra: honorPricingMode === "RAB_SATUAN" ? 0 : 16,
-                          totalJP: honorPricingMode === "RAB_SATUAN" ? 0 : 48,
-                          hargaSatuanReal: honorPricingMode === "RAB_SATUAN" ? SNT_RAB_HONOR_FASIL_UNIT_PRICE : 65000,
-                          totalHonor: honorPricingMode === "RAB_SATUAN" ? SNT_RAB_HONOR_FASIL_UNIT_PRICE : 3120000,
-                          totalTransport: 0,
-                          status: "MANUAL",
-                        },
-                      ];
-                      setCustomHonorRowsByKey((prev) => ({ ...prev, [honorStateKey]: next }));
-                    }}
-                    className="text-xs bg-white gap-1"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Tambah Baris Manual
-                  </Button>
-                  <span className="text-[11px] text-slate-500">
-                    {honorPricingMode === "RAB_SATUAN"
-                      ? `Standar RAB A.4: Rp5.729.876/lokasi/bln × 6 lokasi × 4 bln = Rp137.517.024.`
-                      : "Tips: Tarif real JP umum = Rp65.000/JP (otomatis terhitung dari Honor / Total JP)."}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* ==================== 2. KONTRAK SEWA RUMAH & KWITANSI BULANAN (B.3b) ==================== */}
-            {activeType === "SEWA_RUMAH" && (
-              <div className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50/70 p-3">
-                  <div className="text-xs font-semibold text-amber-900">
-                    Mode Nama Pemilik Rumah &amp; Fasilitator di Dokumen Cetak:
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setSewaDraft({ ...sewaDraft, recipientMode: "BLANK" })}
-                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold ${
-                        sewaDraft.recipientMode === "BLANK"
-                          ? "bg-slate-900 text-white"
-                          : "bg-white border text-slate-700"
-                      }`}
-                    >
-                      <UserX className="w-3.5 h-3.5" /> Kosongkan (Blanko Tulis Tangan)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSewaDraft({ ...sewaDraft, recipientMode: "MANUAL" })}
-                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold ${
-                        sewaDraft.recipientMode === "MANUAL"
-                          ? "bg-emerald-600 text-white"
-                          : "bg-white border text-slate-700"
-                      }`}
-                    >
-                      <UserCheck className="w-3.5 h-3.5" /> Isi Manual
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Nomor Kontrak Sewa</label>
-                    <Input
-                      value={sewaDraft.nomorKontrak}
-                      onChange={(e) => setSewaDraft({ ...sewaDraft, nomorKontrak: e.target.value })}
-                      className="h-9 text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Lokasi SNT (Wilayah 2)</label>
-                    <select
-                      value={sewaDraft.lokasiSnt}
-                      onChange={(e) => setSewaDraft({ ...sewaDraft, lokasiSnt: e.target.value })}
-                      className="w-full h-9 px-2.5 rounded-md border border-slate-200 bg-white text-xs"
-                    >
-                      {SNT_WILAYAH_2_LOCATIONS.map((loc) => (
-                        <option key={loc.id} value={loc.label}>
-                          {loc.label} ({loc.province})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">
-                      Nama Pemilik Rumah {sewaDraft.recipientMode === "BLANK" && "(Akan dicetak kosong)"}
-                    </label>
-                    <Input
-                      value={sewaDraft.namaPemilik}
-                      onChange={(e) => setSewaDraft({ ...sewaDraft, namaPemilik: e.target.value })}
-                      placeholder="Kosongkan untuk blanko atau ketik manual..."
-                      className="h-9 text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">
-                      Nama Fasilitator Penghuni {sewaDraft.recipientMode === "BLANK" && "(Akan dicetak kosong)"}
-                    </label>
-                    <div className="flex gap-1.5">
-                      <Input
-                        value={sewaDraft.namaFasilitator}
-                        onChange={(e) => setSewaDraft({ ...sewaDraft, namaFasilitator: e.target.value })}
-                        placeholder="Ketik atau pilih..."
-                        className="h-9 text-xs flex-1"
-                      />
-                      <select
-                        value=""
-                        onChange={(e) => {
-                          if (e.target.value) {
-                            setSewaDraft({
-                              ...sewaDraft,
-                              recipientMode: "MANUAL",
-                              namaFasilitator: e.target.value,
-                            });
-                          }
-                        }}
-                        className="h-9 px-2 rounded-md border border-slate-200 bg-white text-[11px] max-w-[110px]"
-                      >
-                        <option value="">Pilih DB</option>
-                        {fasilitators.map((f) => (
-                          <option key={f.id} value={f.namaLengkap}>
-                            {f.namaLengkap}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Alamat Rumah / Kost Sewa</label>
-                    <Input
-                      value={sewaDraft.alamatRumahSewa}
-                      onChange={(e) => setSewaDraft({ ...sewaDraft, alamatRumahSewa: e.target.value })}
-                      placeholder="Alamat lengkap atau kosongkan untuk ditulis tangan..."
-                      className="h-9 text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Tanggal Kontrak</label>
-                    <Input
-                      type="date"
-                      value={sewaDraft.tanggalKontrak}
-                      onChange={(e) => setSewaDraft({ ...sewaDraft, tanggalKontrak: e.target.value })}
-                      className="h-9 text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Jumlah Bulan (1–4)</label>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={6}
-                      value={sewaDraft.jumlahBulan}
-                      onChange={(e) => setSewaDraft({ ...sewaDraft, jumlahBulan: Number(e.target.value) || 1 })}
-                      className="h-9 text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Tarif Sewa / Bulan (Maks RAB Rp2.000.000)</label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={sewaDraft.tarifPerBulan}
-                      onChange={(e) => setSewaDraft({ ...sewaDraft, tarifPerBulan: Number(e.target.value) || 0 })}
-                      className="h-9 text-xs font-semibold"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-blue-50/60 border-blue-200 p-3 text-xs">
-                  <label className="flex items-center gap-2 cursor-pointer text-blue-900 font-medium">
-                    <input
-                      type="checkbox"
-                      checked={sewaIncludeMonthlyKwt}
-                      onChange={(e) => setSewaIncludeMonthlyKwt(e.target.checked)}
-                    />
-                    <span>
-                      Sertakan cetak <strong>{sewaDraft.jumlahBulan} lembar Kwitansi Bulanan Sewa Rumah</strong> (Total: {formatCurrency(sewaDraft.jumlahBulan * sewaDraft.tarifPerBulan)})
-                    </span>
-                  </label>
-                  {(() => {
-                    const sewaDesc = `Bantuan Sewa Rumah Fasilitator ${sewaDraft.lokasiSnt} (${sewaDraft.jumlahBulan} bln)`;
-                    const sewaAmount = sewaDraft.jumlahBulan * sewaDraft.tarifPerBulan;
-                    const sewaRec = checkGenericLineRecorded("3b", `sewa-${sewaDraft.lokasiSnt}`, sewaDesc, sewaAmount);
-                    if (sewaRec.isRecorded) {
-                      return (
-                        <span
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-300 text-xs font-bold"
-                          title={`Sudah tercatat pada Pos RAB 3b (${recordTargetType})${sewaRec.noKwitansi ? ` · ${sewaRec.noKwitansi}` : ""}`}
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          Sudah Masuk RAB (Pos 3b)
-                        </span>
-                      );
-                    }
-                    return (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={recordingId === "sewa-total"}
-                        onClick={() =>
-                          handleRecordLineToRab(
-                            "sewa-total",
-                            "3b",
-                            sewaDraft.tanggalKontrak,
-                            sewaDesc,
-                            sewaAmount,
-                            {
-                              dedupeTokens: [sewaDraft.lokasiSnt, "sewa rumah"],
-                              localRecordKey: sewaRec.localKey,
-                            }
-                          )
-                        }
-                        className="bg-white border-blue-300 text-blue-800 hover:bg-blue-100 text-xs h-8 gap-1"
-                      >
-                        {recordingId === "sewa-total" ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <Send className="w-3.5 h-3.5" />
-                        )}
-                        Catat ke Realisasi RAB (Pos 3b)
-                      </Button>
-                    );
-                  })()}
-                </div>
-              </div>
-            )}
-
-            {/* ==================== 2B. SLIP HONORARIUM BULANAN KORWIL (A.3), TENAGA ADMIN (A.5) & SATUAN ==================== */}
-            {activeType === "SLIP_HONORARIUM" && (
-              <div className="space-y-4 text-xs">
-                <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-3.5 space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <div className="font-bold text-teal-950">
-                        Slip Honorarium Bulanan Sesuai RAB — Pos A.3 (Korwil) &amp; Pos A.5 (Tenaga Administrasi)
-                      </div>
-                      <p className="text-[11px] text-teal-800/80">
-                        Format resmi Yayasan Maleo (#0DA7A0). Pilih bulan untuk muat ke editor atau cetak langsung per bulan / seluruh periode 3,5 bulan (Sep–Des 2026).
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <select
-                        value={slipBulkMonth}
-                        onChange={(e) => setSlipBulkMonth(e.target.value)}
-                        className="h-8 px-2.5 rounded-md border border-teal-300 bg-white text-xs font-semibold text-teal-950"
-                      >
-                        {SNT_HONOR_MONTH_OPTIONS.map((m) => (
-                          <option key={m.key} value={m.key}>
-                            Bulan: {m.label}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        value={slipDraft.kopSurat}
-                        onChange={(e) =>
-                          setSlipDraft((p) => ({ ...p, kopSurat: e.target.value as KopSuratOption }))
-                        }
-                        className="h-8 px-2.5 rounded-md border border-teal-300 bg-white text-xs font-semibold text-teal-950"
-                      >
-                        {KOP_OPTIONS_LIST.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            Kop: {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* 2 Kartu Cetak Per Bulan Sesuai RAB: Pos A.3 Koordinator Wilayah & Pos A.5 Tenaga Administrasi */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-teal-200/70">
-                    {/* Kartu Pos A.3 — Koordinator Wilayah */}
-                    <div className="rounded-lg border border-teal-300 bg-white p-3 space-y-2.5">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <div className="font-bold text-teal-950">Pos A.3 — Koordinator Wilayah</div>
-                          <div className="text-[11px] text-slate-600">
-                            RAB: 1 Orang × 12 jam × 3,5 bln × Rp900.000 = <strong>Rp37.800.000</strong>
-                          </div>
-                        </div>
-                        <Badge variant="secondary" className="text-[10px] shrink-0 bg-teal-100 text-teal-900">
-                          3,5 Bln
-                        </Badge>
-                      </div>
-                      <div className="grid grid-cols-2 gap-1 text-[11px]">
-                        {SNT_KORWIL_MONTHLY_SCHEDULE.map((m) => {
-                          const isSelected = m.key === slipBulkMonth;
-                          return (
-                            <button
-                              key={m.key}
-                              type="button"
-                              onClick={() => {
-                                setSlipBulkMonth(m.key);
-                                const [korwilSlip] = buildMonthlyKorwilSlipHonorariumInputs(
-                                  profile,
-                                  slipDraft.kopSurat,
-                                  m.key,
-                                  {
-                                    namaPenerima: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
-                                      ? slipDraft.namaPenerima
-                                      : undefined,
-                                    npwpNik: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
-                                      ? slipDraft.npwpNik
-                                      : undefined,
-                                    rekening: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
-                                      ? slipDraft.rekening
-                                      : undefined,
-                                    disiapkanOleh: slipDraft.disiapkanOleh,
-                                  }
-                                );
-                                if (korwilSlip) {
-                                  setSlipDraft(korwilSlip);
-                                  setBanner({
-                                    type: "ok",
-                                    text: `Slip Korwil (A.3 · ${korwilSlip.periode}: ${korwilSlip.components[0]?.qty} × Rp900.000 = ${formatCurrency(korwilSlip.components[0]?.pendapatan || 0)}) dimuat ke editor.`,
-                                  });
-                                }
-                              }}
-                              className={`text-left px-2 py-1 rounded border transition-colors ${
-                                isSelected
-                                  ? "bg-teal-50 border-teal-400 text-teal-950 font-semibold"
-                                  : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-teal-50/50"
-                              }`}
-                            >
-                              <div>{m.label.replace(" 2026", "")} · {m.jam} jam</div>
-                              <div className="text-[10px] text-teal-800">{formatCurrency(m.nominal)}</div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            const slips = buildMonthlyKorwilSlipHonorariumInputs(
-                              profile,
-                              slipDraft.kopSurat,
-                              slipBulkMonth,
-                              {
-                                namaPenerima: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
-                                  ? slipDraft.namaPenerima
-                                  : undefined,
-                                npwpNik: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
-                                  ? slipDraft.npwpNik
-                                  : undefined,
-                                rekening: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
-                                  ? slipDraft.rekening
-                                  : undefined,
-                                disiapkanOleh: slipDraft.disiapkanOleh,
-                              }
-                            );
-                            openHtmlWindow(
-                              renderSlipHonorariumPdfDocumentHtml(
-                                slips,
-                                `Slip Honorarium Koordinator Wilayah — ${getMonthLabelId(slipBulkMonth)}`
-                              )
-                            );
-                          }}
-                          className="bg-white border-teal-400 text-teal-900 hover:bg-teal-50 text-[11px] h-8 gap-1 flex-1"
-                        >
-                          <Printer className="w-3.5 h-3.5" />
-                          Cetak {getMonthLabelId(slipBulkMonth).replace(" 2026", "")}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={() => {
-                            const slips = buildMonthlyKorwilSlipHonorariumInputs(
-                              profile,
-                              slipDraft.kopSurat,
-                              undefined,
-                              {
-                                namaPenerima: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
-                                  ? slipDraft.namaPenerima
-                                  : undefined,
-                                npwpNik: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
-                                  ? slipDraft.npwpNik
-                                  : undefined,
-                                rekening: slipDraft.peranJabatan.toLowerCase().includes("koordinator")
-                                  ? slipDraft.rekening
-                                  : undefined,
-                                disiapkanOleh: slipDraft.disiapkanOleh,
-                              }
-                            );
-                            openHtmlWindow(
-                              renderSlipHonorariumPdfDocumentHtml(
-                                slips,
-                                "Slip Honorarium Koordinator Wilayah — 3,5 Bulan (Sep–Des 2026)"
-                              )
-                            );
-                          }}
-                          className="bg-teal-700 hover:bg-teal-800 text-white text-[11px] h-8 gap-1 flex-1"
-                        >
-                          <Printer className="w-3.5 h-3.5" />
-                          Cetak 3,5 Bln (Sep–Des)
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Kartu Pos A.5 — Tenaga Administrasi */}
-                    <div className="rounded-lg border border-emerald-300 bg-white p-3 space-y-2.5">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <div className="font-bold text-emerald-950">Pos A.5 — Tenaga Administrasi</div>
-                          <div className="text-[11px] text-slate-600">
-                            RAB: 1 Orang × 3,5 bln × Rp5.729.876 = <strong>Rp20.054.566</strong>
-                          </div>
-                        </div>
-                        <Badge variant="secondary" className="text-[10px] shrink-0 bg-emerald-100 text-emerald-900">
-                          3,5 Bln
-                        </Badge>
-                      </div>
-                      <div className="grid grid-cols-2 gap-1 text-[11px]">
-                        {SNT_TENAGA_ADMIN_MONTHLY_SCHEDULE.map((m) => {
-                          const isSelected = m.key === slipBulkMonth;
-                          const blnShort = m.bulanFraction === 0.5 ? "0,5 bln" : "1 bln";
-                          return (
-                            <button
-                              key={m.key}
-                              type="button"
-                              onClick={() => {
-                                setSlipBulkMonth(m.key);
-                                const [adminSlip] = buildMonthlyTenagaAdminSlipHonorariumInputs(
-                                  profile,
-                                  slipDraft.kopSurat,
-                                  m.key,
-                                  {
-                                    namaPenerima: slipDraft.peranJabatan.toLowerCase().includes("administrasi")
-                                      ? slipDraft.namaPenerima
-                                      : undefined,
-                                    npwpNik: slipDraft.peranJabatan.toLowerCase().includes("administrasi")
-                                      ? slipDraft.npwpNik
-                                      : undefined,
-                                    rekening: slipDraft.peranJabatan.toLowerCase().includes("administrasi")
-                                      ? slipDraft.rekening
-                                      : undefined,
-                                    disiapkanOleh: slipDraft.disiapkanOleh,
-                                  }
-                                );
-                                if (adminSlip) {
-                                  setSlipDraft(adminSlip);
-                                  setBanner({
-                                    type: "ok",
-                                    text: `Slip Tenaga Administrasi (A.5 · ${adminSlip.periode}: ${adminSlip.components[0]?.qty} × Rp5.729.876 = ${formatCurrency(adminSlip.components[0]?.pendapatan || 0)}) dimuat ke editor.`,
-                                  });
-                                }
-                              }}
-                              className={`text-left px-2 py-1 rounded border transition-colors ${
-                                isSelected
-                                  ? "bg-emerald-50 border-emerald-400 text-emerald-950 font-semibold"
-                                  : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-emerald-50/50"
-                              }`}
-                            >
-                              <div>{m.label.replace(" 2026", "")} · {blnShort}</div>
-                              <div className="text-[10px] text-emerald-800">{formatCurrency(m.nominal)}</div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            const slips = buildMonthlyTenagaAdminSlipHonorariumInputs(
-                              profile,
-                              slipDraft.kopSurat,
-                              slipBulkMonth,
-                              {
-                                namaPenerima: slipDraft.peranJabatan.toLowerCase().includes("administrasi")
-                                  ? slipDraft.namaPenerima
-                                  : undefined,
-                                npwpNik: slipDraft.peranJabatan.toLowerCase().includes("administrasi")
-                                  ? slipDraft.npwpNik
-                                  : undefined,
-                                rekening: slipDraft.peranJabatan.toLowerCase().includes("administrasi")
-                                  ? slipDraft.rekening
-                                  : undefined,
-                                disiapkanOleh: slipDraft.disiapkanOleh,
-                              }
-                            );
-                            openHtmlWindow(
-                              renderSlipHonorariumPdfDocumentHtml(
-                                slips,
-                                `Slip Honorarium Tenaga Administrasi — ${getMonthLabelId(slipBulkMonth)}`
-                              )
-                            );
-                          }}
-                          className="bg-white border-emerald-400 text-emerald-900 hover:bg-emerald-50 text-[11px] h-8 gap-1 flex-1"
-                        >
-                          <Printer className="w-3.5 h-3.5" />
-                          Cetak {getMonthLabelId(slipBulkMonth).replace(" 2026", "")}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={() => {
-                            const slips = buildMonthlyTenagaAdminSlipHonorariumInputs(
-                              profile,
-                              slipDraft.kopSurat,
-                              undefined,
-                              {
-                                namaPenerima: slipDraft.peranJabatan.toLowerCase().includes("administrasi")
-                                  ? slipDraft.namaPenerima
-                                  : undefined,
-                                npwpNik: slipDraft.peranJabatan.toLowerCase().includes("administrasi")
-                                  ? slipDraft.npwpNik
-                                  : undefined,
-                                rekening: slipDraft.peranJabatan.toLowerCase().includes("administrasi")
-                                  ? slipDraft.rekening
-                                  : undefined,
-                                disiapkanOleh: slipDraft.disiapkanOleh,
-                              }
-                            );
-                            openHtmlWindow(
-                              renderSlipHonorariumPdfDocumentHtml(
-                                slips,
-                                "Slip Honorarium Tenaga Administrasi — 3,5 Bulan (Sep–Des 2026)"
-                              )
-                            );
-                          }}
-                          className="bg-slate-900 hover:bg-slate-800 text-white text-[11px] h-8 gap-1 flex-1"
-                        >
-                          <Printer className="w-3.5 h-3.5" />
-                          Cetak 3,5 Bln (Sep–Des)
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Utilitas Slip Satuan Custom + Akses Cepat Menu Honor Fasilitator (Pos A.4) */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-teal-200/70">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <select
-                        value=""
-                        onChange={(e) => {
-                          const f = fasilitators.find((x) => x.id === e.target.value);
-                          if (!f) return;
-                          const bankStr = [f.bankName, f.bankAccount].filter(Boolean).join(" — ");
-                          setSlipDraft((p) => ({
-                            ...p,
-                            namaPenerima: f.namaLengkap,
-                            peranJabatan: resolvePersonnelRoleFromRab("4", undefined, f.lokasiSNT || "Wilayah 2"),
-                            kegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
-                            npwpNik: f.npwpNik || p.npwpNik,
-                            rekening: bankStr || p.rekening,
-                          }));
-                          setBanner({
-                            type: "ok",
-                            text: `Data ${f.namaLengkap} (NPWP/NIK & Rekening) dimuat ke editor slip satuan.`,
-                          });
-                        }}
-                        className="h-8 px-2.5 rounded-md border border-teal-300 bg-white text-xs font-medium min-w-[220px]"
-                      >
-                        <option value="">-- Slip Satuan: Tarik Profil Fasil DB --</option>
-                        {fasilitators.map((f) => (
-                          <option key={f.id} value={f.id}>
-                            {f.namaLengkap} ({f.lokasiSNT || "Wilayah 2"})
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSlipDraft((p) => ({
-                            ...p,
-                            peranJabatan: "Pembina Kompetisi KKA & Robotika (Pos B.6a)",
-                            kegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
-                            components: [
-                              { komponen: "Honorarium", qty: "24 Pertemuan", pendapatan: 16800000, potongan: 0, keterangan: "24 pertemuan × Rp700.000 (Tahap I 80%)" },
-                              { komponen: "Tambahan honorarium", qty: "-", pendapatan: 0, potongan: 0, keterangan: "" },
-                              { komponen: "Pajak / potongan lainnya", qty: "-", pendapatan: 0, potongan: 0, keterangan: "" },
-                            ],
-                          }))
-                        }
-                        className="px-2 py-1 rounded bg-white hover:bg-teal-100 border border-teal-300 text-teal-900 font-semibold text-[11px]"
-                      >
-                        Preset B.6a Kompetisi (Rp16,8 jt)
-                      </button>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setActiveType("HONOR_FASIL_BULANAN")}
-                      className="text-[11px] font-semibold text-teal-800 hover:text-teal-950 underline"
-                    >
-                      Honor Fasilitator 6 Lokasi (Pos A.4) → Buka Menu Bulanan
-                    </button>
-                  </div>
-                </div>
-
-                {/* Form Identitas Slip */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Periode</label>
-                    <Input
-                      value={slipDraft.periode}
-                      onChange={(e) => setSlipDraft((p) => ({ ...p, periode: e.target.value }))}
-                      placeholder="Oktober 2026"
-                      className="h-8 text-xs"
-                    />
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block font-semibold text-slate-700">Nomor Dokumen</label>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          const totalNet = slipDraft.components.reduce(
-                            (s, c) => s + (Number(c.pendapatan) || 0) - (Number(c.potongan) || 0),
-                            0
-                          );
-                          const res = await allocateOfficialDocNumberForEvidence({
-                            kind: "KW",
-                            entityCode: resolveEntityCodeFromKop(slipDraft.kopSurat),
-                            date: slipDraft.tanggalBayar || new Date().toISOString().slice(0, 10),
-                            perihal: `Slip Honorarium ${slipDraft.namaPenerima || slipDraft.peranJabatan} (${slipDraft.periode})`,
-                            nominal: Math.max(0, totalNet),
-                          });
-                          if (!res.success || !("docNumber" in res)) {
-                            setBanner({ type: "err", text: ("error" in res && res.error) || "Gagal mengambil nomor." });
-                            return;
-                          }
-                          setSlipDraft((p) => ({ ...p, nomorDokumen: res.docNumber }));
-                          setBanner({ type: "ok", text: `Nomor resmi terdaftar: ${res.docNumber}` });
-                          router.refresh();
-                        }}
-                        className="text-[10px] font-bold text-teal-700 hover:underline"
-                      >
-                        + Ambil No. Resmi
-                      </button>
-                    </div>
-                    <Input
-                      value={slipDraft.nomorDokumen}
-                      onChange={(e) => setSlipDraft((p) => ({ ...p, nomorDokumen: e.target.value }))}
-                      className="h-8 text-xs font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Nama Penerima</label>
-                    <Input
-                      value={slipDraft.namaPenerima}
-                      onChange={(e) => setSlipDraft((p) => ({ ...p, namaPenerima: e.target.value }))}
-                      placeholder="Nama lengkap..."
-                      className="h-8 text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Peran / Jabatan</label>
-                    <Input
-                      value={slipDraft.peranJabatan}
-                      onChange={(e) => setSlipDraft((p) => ({ ...p, peranJabatan: e.target.value }))}
-                      className="h-8 text-xs"
-                    />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="block font-semibold text-slate-700 mb-1">Kegiatan</label>
-                    <Input
-                      value={slipDraft.kegiatan}
-                      onChange={(e) => setSlipDraft((p) => ({ ...p, kegiatan: e.target.value }))}
-                      className="h-8 text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Tanggal Kegiatan</label>
-                    <Input
-                      value={slipDraft.tanggalKegiatan}
-                      onChange={(e) => setSlipDraft((p) => ({ ...p, tanggalKegiatan: e.target.value }))}
-                      className="h-8 text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Tanggal Bayar</label>
-                    <Input
-                      type="date"
-                      value={slipDraft.tanggalBayar}
-                      onChange={(e) => setSlipDraft((p) => ({ ...p, tanggalBayar: e.target.value }))}
-                      className="h-8 text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">NPWP / NIK</label>
-                    <Input
-                      value={slipDraft.npwpNik}
-                      onChange={(e) => setSlipDraft((p) => ({ ...p, npwpNik: e.target.value }))}
-                      placeholder="NIK / NPWP penerima..."
-                      className="h-8 text-xs font-mono"
-                    />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="block font-semibold text-slate-700 mb-1">Rekening (Bank &amp; Nomor)</label>
-                    <Input
-                      value={slipDraft.rekening}
-                      onChange={(e) => setSlipDraft((p) => ({ ...p, rekening: e.target.value }))}
-                      placeholder="BRI / BCA / Mandiri — No. Rekening"
-                      className="h-8 text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Disiapkan oleh (Admin)</label>
-                    <Input
-                      value={slipDraft.disiapkanOleh || ""}
-                      onChange={(e) => setSlipDraft((p) => ({ ...p, disiapkanOleh: e.target.value }))}
-                      className="h-8 text-xs"
-                    />
-                  </div>
-                </div>
-
-                {/* Tabel Komponen Pendapatan & Potongan */}
-                <div className="border rounded-lg overflow-x-auto">
-                  <table className="w-full text-xs text-left">
-                    <thead className="bg-teal-700 text-white">
-                      <tr>
-                        <th className="py-2 px-3">Komponen</th>
-                        <th className="py-2 px-2 w-24 text-center">Qty</th>
-                        <th className="py-2 px-2 w-36 text-right">Pendapatan (Rp)</th>
-                        <th className="py-2 px-2 w-36 text-right">Potongan (Rp)</th>
-                        <th className="py-2 px-2">Keterangan</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 bg-white">
-                      {slipDraft.components.map((comp, idx) => (
-                        <tr key={idx}>
-                          <td className="py-1.5 px-2">
-                            <Input
-                              value={comp.komponen}
-                              onChange={(e) =>
-                                setSlipDraft((p) => ({
-                                  ...p,
-                                  components: p.components.map((c, i) =>
-                                    i === idx ? { ...c, komponen: e.target.value } : c
-                                  ),
-                                }))
-                              }
-                              className="h-7 text-xs"
-                            />
-                          </td>
-                          <td className="py-1.5 px-2">
-                            <Input
-                              value={comp.qty}
-                              onChange={(e) =>
-                                setSlipDraft((p) => ({
-                                  ...p,
-                                  components: p.components.map((c, i) =>
-                                    i === idx ? { ...c, qty: e.target.value } : c
-                                  ),
-                                }))
-                              }
-                              className="h-7 text-xs text-center"
-                            />
-                          </td>
-                          <td className="py-1.5 px-2">
-                            <Input
-                              type="number"
-                              value={comp.pendapatan}
-                              onChange={(e) =>
-                                setSlipDraft((p) => ({
-                                  ...p,
-                                  components: p.components.map((c, i) =>
-                                    i === idx ? { ...c, pendapatan: Number(e.target.value) || 0 } : c
-                                  ),
-                                }))
-                              }
-                              className="h-7 text-xs text-right"
-                            />
-                          </td>
-                          <td className="py-1.5 px-2">
-                            <Input
-                              type="number"
-                              value={comp.potongan}
-                              onChange={(e) =>
-                                setSlipDraft((p) => ({
-                                  ...p,
-                                  components: p.components.map((c, i) =>
-                                    i === idx ? { ...c, potongan: Number(e.target.value) || 0 } : c
-                                  ),
-                                }))
-                              }
-                              className="h-7 text-xs text-right"
-                            />
-                          </td>
-                          <td className="py-1.5 px-2">
-                            <Input
-                              value={comp.keterangan}
-                              onChange={(e) =>
-                                setSlipDraft((p) => ({
-                                  ...p,
-                                  components: p.components.map((c, i) =>
-                                    i === idx ? { ...c, keterangan: e.target.value } : c
-                                  ),
-                                }))
-                              }
-                              className="h-7 text-xs"
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot className="bg-teal-50 border-t-2 border-teal-200 font-bold">
-                      <tr>
-                        <td colSpan={2} className="py-2 px-3 text-right text-teal-950">
-                          HONORARIUM BERSIH DITERIMA:
-                        </td>
-                        <td className="py-2 px-2 text-right text-teal-800">
-                          {formatCurrency(
-                            slipDraft.components.reduce((s, c) => s + (Number(c.pendapatan) || 0), 0)
-                          )}
-                        </td>
-                        <td className="py-2 px-2 text-right text-rose-700">
-                          {formatCurrency(
-                            slipDraft.components.reduce((s, c) => s + (Number(c.potongan) || 0), 0)
-                          )}
-                        </td>
-                        <td className="py-2 px-3 text-right text-sm text-teal-900">
-                          {formatCurrency(
-                            Math.max(
-                              0,
-                              slipDraft.components.reduce(
-                                (s, c) => s + (Number(c.pendapatan) || 0) - (Number(c.potongan) || 0),
-                                0
-                              )
-                            )
-                          )}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Catatan</label>
-                  <Input
-                    value={slipDraft.catatan || ""}
-                    onChange={(e) => setSlipDraft((p) => ({ ...p, catatan: e.target.value }))}
-                    placeholder="Catatan tambahan (opsional)..."
-                    className="h-8 text-xs"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* ==================== 3. INVOICE MITRA & 8 DOKUMEN BUKTI WAJIB LAINNYA ==================== */}
-            {activeType !== "HONOR_FASIL_BULANAN" && activeType !== "SEWA_RUMAH" && activeType !== "SLIP_HONORARIUM" && (
-              <div className="space-y-4">
-                {/* Preset 1-Klik 10 Paket Tahap I / Mockup Drive (LPD, Robotic Explorer & Maleo) */}
-                {activeType === "INVOICE_KUITANSI_MITRA" && (
-                  <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-3.5 space-y-2.5">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <div className="text-xs font-bold text-indigo-950">
-                          Preset 1-Klik Paket Tahap I &amp; Mockup Drive (Kop LPD, Robotic Explorer &amp; Maleo)
-                        </div>
-                        <p className="text-[11px] text-indigo-800/80">
-                          Klik salah satu paket di bawah untuk mengisi otomatis Invoice, Kuitansi &amp; Daftar Tanda Terima sesuai Target Realisasi Tahap I (tanpa label MOCKUP saat dicetak).
-                        </p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                      {DRIVE_MOCKUP_PRESETS.map((preset) => (
-                        <button
-                          key={preset.id}
-                          type="button"
-                          onClick={() => {
-                            const built = buildDraftFromDriveMockupPreset(
-                              preset.id as DriveMockupPresetId,
-                              profile
-                            );
-                            updateGenericDraft(() => built);
-                            setGenericIncludeKwitansi(true);
-                            setBanner({
-                              type: "ok",
-                              text: `Preset "${preset.badge} — ${preset.title}" (${formatCurrency(preset.totalAmount)}) dimuat dengan Kop ${preset.kopSurat === "lpd" ? "LPD Jully Tjindrawan Robotik" : preset.kopSurat === "maleo" ? "Yayasan Maleo Talenta Cendekia" : "Robotic Explorer"}.`,
-                            });
-                          }}
-                          className="text-left p-2.5 rounded-lg border border-indigo-200 bg-white hover:bg-indigo-50 hover:border-indigo-400 transition-all"
-                        >
-                          <div className="flex items-center justify-between gap-1.5">
-                            <span
-                              className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                                preset.kopSurat === "lpd"
-                                  ? "bg-slate-900 text-white"
-                                  : preset.kopSurat === "maleo"
-                                    ? "bg-emerald-700 text-white"
-                                    : "bg-sky-600 text-white"
-                              }`}
-                            >
-                              {preset.badge}
-                            </span>
-                            <span className="text-[11px] font-bold text-slate-900">
-                              {formatCurrency(preset.totalAmount)}
-                            </span>
-                          </div>
-                          <div className="text-xs font-semibold text-slate-900 mt-1 line-clamp-1">
-                            {preset.title}
-                          </div>
-                          <div className="text-[10px] text-slate-500 mt-0.5">{preset.subtitle}</div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50/70 p-3">
-                  <div className="text-xs font-semibold text-amber-900">
-                    Mode Nama Penerima pada Daftar &amp; Kwitansi:
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => updateGenericDraft((p) => ({ ...p, recipientMode: "BLANK" }))}
-                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold ${
-                        currentGenericDraft.recipientMode === "BLANK"
-                          ? "bg-slate-900 text-white"
-                          : "bg-white border text-slate-700"
-                      }`}
-                    >
-                      <UserX className="w-3.5 h-3.5" /> Kosongkan (Blanko)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateGenericDraft((p) => ({ ...p, recipientMode: "MANUAL" }))}
-                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold ${
-                        currentGenericDraft.recipientMode === "MANUAL"
-                          ? "bg-emerald-600 text-white"
-                          : "bg-white border text-slate-700"
-                      }`}
-                    >
-                      <UserCheck className="w-3.5 h-3.5" /> Isi Manual
-                    </button>
-                  </div>
-                </div>
-
-                {/* Pilihan Kop Surat & Opsi Cetak Dokumen */}
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Kop Surat Dokumen</label>
-                    <select
-                      value={currentGenericDraft.kopSurat || profile.kopSurat}
-                      onChange={(e) => {
-                        const nextKop = e.target.value as KopSuratOption;
-                        const theme = resolveBrandKopTheme(nextKop, profile);
-                        updateGenericDraft((p) => ({
-                          ...p,
-                          kopSurat: nextKop,
-                          bankName: p.bankName || theme.defaultBankName,
-                          bankAccount: p.bankAccount || theme.defaultBankAccount,
-                          bankHolder: p.bankHolder || theme.defaultBankHolder,
-                        }));
-                      }}
-                      className="w-full h-9 px-2.5 rounded-md border border-slate-200 bg-white text-xs font-semibold"
-                    >
-                      {KOP_OPTIONS_LIST.map((k) => (
-                        <option key={k.value} value={k.value}>
-                          {k.shortLabel}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  {(activeType === "HONOR_TIM" || activeType === "INVOICE_KUITANSI_MITRA") && (
-                    <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Pos RAB Target</label>
-                      <select
-                        value={currentGenericDraft.rabCode}
-                        onChange={(e) => {
-                          const nextCode = e.target.value;
-                          if (activeType === "HONOR_TIM") {
-                            const preset = getHonorTimPresetByRabCode(nextCode, currentGenericDraft.tanggalDokumen);
-                            updateGenericDraft((p) => ({
-                              ...p,
-                              rabCode: nextCode,
-                              items: preset.length > 0 ? preset : p.items,
-                            }));
-                            if (nextCode === "5") {
-                              setBanner({
-                                type: "ok",
-                                text: `Preset Tenaga Administrasi (Pos A.5) dimuat: 3,5 bulan × ${formatCurrency(SNT_RAB_TENAGA_ADMIN_UNIT_PRICE)} = Rp20.054.566 (Sep–Nov 1 bln, Des 0,5 bln).`,
-                              });
-                            }
-                          } else {
-                            updateGenericDraft((p) => ({ ...p, rabCode: nextCode }));
-                          }
-                        }}
-                        className="w-full h-9 px-2.5 rounded-md border border-slate-200 bg-white text-xs font-semibold"
-                      >
-                        <option value="1">A.1 — Ketua Tim Pelaksana (Rp3,6 jt/bln)</option>
-                        <option value="2">A.2 — Tim Program Koding KA Robotika</option>
-                        <option value="3">A.3 — Koordinator Wilayah (3,5 bln · Rp37,8 jt)</option>
-                        <option value="5">A.5 — Tenaga Administrasi (3,5 bln · Rp20,05 jt)</option>
-                        <option value="1a">B.1a — Laporan Pendahuluan</option>
-                        <option value="1b">B.1b — Laporan Bulanan</option>
-                        <option value="1c">B.1c — Laporan Akhir</option>
-                        <option value="4a">B.4a — Pelatihan In / Narasumber</option>
-                        <option value="4b">B.4b — Sertifikasi STEM.org</option>
-                        <option value="6a">B.6a — Pembinaan Kompetisi</option>
-                      </select>
-                    </div>
-                  )}
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Periode Dokumen</label>
-                    <Input
-                      value={currentGenericDraft.periodeLabel}
-                      onChange={(e) => updateGenericDraft((p) => ({ ...p, periodeLabel: e.target.value }))}
-                      className="h-9 text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Tanggal Pengesahan</label>
-                    <Input
-                      type="date"
-                      value={currentGenericDraft.tanggalDokumen}
-                      onChange={(e) => updateGenericDraft((p) => ({ ...p, tanggalDokumen: e.target.value }))}
-                      className="h-9 text-xs"
-                    />
-                  </div>
-                </div>
-
-                {/* Panel Cetak Per Bulan khusus A.3, A.5 & Dokumen Bulanan (Invoice + Tanda Terima + Kuitansi) */}
-                {(activeType === "INVOICE_KUITANSI_MITRA" || activeType === "HONOR_TIM") && (
-                  <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 space-y-2.5 text-xs">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div>
-                        <div className="font-bold text-emerald-950">
-                          Cetak Per Bulan (Invoice, Daftar Tanda Terima &amp; Slip Honorarium — Pos A.3 &amp; A.5)
-                        </div>
-                        <p className="text-[11px] text-emerald-800/80">
-                          Pilih bulan tertentu atau &ldquo;Pisah Per Bulan&rdquo; agar setiap bulan tercetak 1 paket lengkap tersendiri.
-                        </p>
-                      </div>
-                      <select
-                        value={currentGenericDraft.monthlyPrintFilter || "ALL"}
-                        onChange={(e) =>
-                          updateGenericDraft((p) => ({
-                            ...p,
-                            monthlyPrintFilter: e.target.value as MonthlyPrintFilter,
-                          }))
-                        }
-                        className="h-8 px-2.5 rounded-md border border-emerald-300 bg-white text-xs font-semibold text-emerald-950 min-w-[210px]"
-                      >
-                        <option value="ALL">Gabungan / Semua Baris</option>
-                        <option value="SPLIT_EACH_MONTH">Pisah Paket Per Bulan (Sep, Okt, Nov, Des)</option>
-                        {SNT_HONOR_MONTH_OPTIONS.map((m) => (
-                          <option key={m.key} value={m.key}>
-                            Cetak Khusus {m.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-emerald-200/70">
-                      <span className="text-[11px] font-semibold text-emerald-900 mr-1">Isi Rincian Per Bulan:</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          updateGenericDraft(() => buildMonthlyPersonnelDraft("3", "RAB_4_BULAN", profile));
-                          setGenericIncludeKwitansi(true);
-                          setBanner({
-                            type: "ok",
-                            text: "Rincian bulanan Pos A.3 (Korwil · 3,5 bln: Sep–Nov 12 jam @Rp10,8 jt + Des 6 jam Rp5,4 jt = Rp37.800.000) siap dicetak per bulan (Invoice + Tanda Terima + Slip Honorarium).",
-                          });
-                        }}
-                        className="px-2 py-1 rounded bg-white hover:bg-emerald-100 border border-emerald-300 text-emerald-900 text-[11px] font-semibold"
-                      >
-                        A.3 Per Bulan RAB (3,5 bln = Rp37,8 jt)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          updateGenericDraft(() => buildMonthlyPersonnelDraft("3", "LPD_3_BULAN", profile));
-                          setGenericIncludeKwitansi(true);
-                          setBanner({
-                            type: "ok",
-                            text: "Rincian bulanan Pos A.3 Simulasi LPD (3 bln × Rp10.672.941 = Rp32.018.823) siap dicetak per bulan.",
-                          });
-                        }}
-                        className="px-2 py-1 rounded bg-white hover:bg-emerald-100 border border-emerald-300 text-emerald-900 text-[11px] font-semibold"
-                      >
-                        A.3 Per Bulan LPD (3× Rp10,67 jt)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          updateGenericDraft(() => buildMonthlyPersonnelDraft("5", "RAB_4_BULAN", profile));
-                          setGenericIncludeKwitansi(true);
-                          setBanner({
-                            type: "ok",
-                            text: "Rincian bulanan Pos A.5 (Tenaga Admin · 3,5 bln: Sep–Nov 1 bln @Rp5.729.876 + Des 0,5 bln Rp2.864.938 = Rp20.054.566) siap dicetak per bulan (Invoice + Tanda Terima + Slip Honorarium).",
-                          });
-                        }}
-                        className="px-2 py-1 rounded bg-white hover:bg-emerald-100 border border-emerald-300 text-emerald-900 text-[11px] font-semibold"
-                      >
-                        A.5 Per Bulan RAB (3,5 bln = Rp20,05 jt)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          updateGenericDraft(() => buildMonthlyPersonnelDraft("5", "LPD_3_BULAN", profile));
-                          setGenericIncludeKwitansi(true);
-                          setBanner({
-                            type: "ok",
-                            text: "Rincian bulanan Pos A.5 Simulasi LPD (3 bln = Rp9.987.397) siap dicetak per bulan.",
-                          });
-                        }}
-                        className="px-2 py-1 rounded bg-white hover:bg-emerald-100 border border-emerald-300 text-emerald-900 text-[11px] font-semibold"
-                      >
-                        A.5 Per Bulan LPD (3 bln = Rp9,98 jt)
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Sakelar Output Cetak: Invoice, Daftar Tanda Terima, Kuitansi, Kode RAB, PPh */}
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-slate-200 bg-slate-50/80 p-3 text-xs">
-                  <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-blue-900">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(currentGenericDraft.includeInvoice)}
-                      onChange={(e) =>
-                        updateGenericDraft((p) => ({ ...p, includeInvoice: e.target.checked }))
-                      }
-                    />
-                    <span>Cetak INVOICE Resmi</span>
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-800">
-                    <input
-                      type="checkbox"
-                      checked={currentGenericDraft.includeDaftarTandaTerima ?? !currentGenericDraft.includeInvoice}
-                      onChange={(e) =>
-                        updateGenericDraft((p) => ({
-                          ...p,
-                          includeDaftarTandaTerima: e.target.checked,
-                        }))
-                      }
-                    />
-                    <span>Cetak Daftar Tanda Terima</span>
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-800">
-                    <input
-                      type="checkbox"
-                      checked={genericIncludeKwitansi}
-                      onChange={(e) => setGenericIncludeKwitansi(e.target.checked)}
-                    />
-                    <span>
-                      {isSlipHonorariumRabCode(currentGenericDraft.rabCode, currentGenericDraft.judulDokumen)
-                        ? "Cetak Slip Honorarium"
-                        : "Cetak Kuitansi"}
-                    </span>
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={currentGenericDraft.showRabCode ?? true}
-                      onChange={(e) =>
-                        updateGenericDraft((p) => ({ ...p, showRabCode: e.target.checked }))
-                      }
-                    />
-                    <span>Tampilkan Kode RAB</span>
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(currentGenericDraft.includePphColumn)}
-                      onChange={(e) =>
-                        updateGenericDraft((p) => ({ ...p, includePphColumn: e.target.checked }))
-                      }
-                    />
-                    <span>Kolom PPh % (Neto)</span>
-                  </label>
-                  {currentGenericDraft.includePphColumn && (
-                    <div className="flex items-center gap-1">
-                      <span className="text-[11px] font-semibold text-slate-600">Tarif PPh (%):</span>
-                      <input
-                        type="number"
-                        min={0}
-                        max={30}
-                        step={0.5}
-                        value={currentGenericDraft.pphPct ?? 0}
-                        onChange={(e) =>
-                          updateGenericDraft((p) => ({ ...p, pphPct: Number(e.target.value) || 0 }))
-                        }
-                        className="w-16 h-7 px-1.5 border rounded bg-white text-xs text-center font-semibold"
-                      />
-                    </div>
-                  )}
-                </div>
-
-                {/* Pengaturan Khusus INVOICE (tampil bila Cetak INVOICE Resmi dicentang) */}
-                {currentGenericDraft.includeInvoice && (
-                  <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-3.5 space-y-2.5 text-xs">
-                    <div className="font-bold text-blue-950">Pengaturan INVOICE Resmi &amp; Rekening Transfer</div>
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
-                      <div>
-                        <div className="flex items-center justify-between mb-0.5">
-                          <label className="block text-[11px] font-semibold text-slate-700">No. Invoice</label>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              const activeKop = currentGenericDraft.kopSurat || profile.kopSurat;
-                              const entityCode = resolveEntityCodeFromKop(activeKop);
-                              const totalAmt = currentGenericDraft.items.reduce(
-                                (s, it) => s + (Number(it.nominal) || 0),
-                                0
-                              );
-                              const res = await allocateOfficialDocNumberForEvidence({
-                                kind: "INV",
-                                entityCode,
-                                date: currentGenericDraft.tanggalDokumen,
-                                perihal: currentGenericDraft.judulDokumen,
-                                nominal: totalAmt,
-                              });
-                              if (!res.success || !("docNumber" in res)) {
-                                setBanner({
-                                  type: "err",
-                                  text: ("error" in res && res.error) || "Gagal mengambil nomor invoice resmi.",
-                                });
-                                return;
-                              }
-                              updateGenericDraft((p) => ({ ...p, invoiceNo: res.docNumber }));
-                              setBanner({
-                                type: "ok",
-                                text: `Nomor Invoice resmi terdaftar di Buku Register: ${res.docNumber}`,
-                              });
-                              router.refresh();
-                            }}
-                            className="text-[10px] font-bold text-blue-700 hover:underline"
-                          >
-                            + Ambil No. Resmi
-                          </button>
-                        </div>
-                        <Input
-                          value={currentGenericDraft.invoiceNo || ""}
-                          onChange={(e) => updateGenericDraft((p) => ({ ...p, invoiceNo: e.target.value }))}
-                          placeholder="INV/LPD/SNT-W2/001/XI/2026"
-                          className="h-8 text-xs bg-white"
-                        />
-                      </div>
-                      <div>
-                        <div className="flex items-center justify-between mb-0.5">
-                          <label className="block text-[11px] font-semibold text-slate-700">No. Kuitansi</label>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              const activeKop = currentGenericDraft.kopSurat || profile.kopSurat;
-                              const entityCode = resolveEntityCodeFromKop(activeKop);
-                              const totalAmt = currentGenericDraft.items.reduce(
-                                (s, it) => s + (Number(it.nominal) || 0),
-                                0
-                              );
-                              const res = await allocateOfficialDocNumberForEvidence({
-                                kind: "KW",
-                                entityCode,
-                                date: currentGenericDraft.tanggalDokumen,
-                                perihal: currentGenericDraft.judulDokumen,
-                                nominal: totalAmt,
-                              });
-                              if (!res.success || !("docNumber" in res)) {
-                                setBanner({
-                                  type: "err",
-                                  text: ("error" in res && res.error) || "Gagal mengambil nomor kuitansi resmi.",
-                                });
-                                return;
-                              }
-                              updateGenericDraft((p) => ({ ...p, kuitansiNoPrefix: res.docNumber }));
-                              setBanner({
-                                type: "ok",
-                                text: `Nomor Kuitansi resmi terdaftar di Buku Register: ${res.docNumber}`,
-                              });
-                              router.refresh();
-                            }}
-                            className="text-[10px] font-bold text-emerald-700 hover:underline"
-                          >
-                            + Ambil No. Resmi
-                          </button>
-                        </div>
-                        <Input
-                          value={currentGenericDraft.kuitansiNoPrefix || ""}
-                          onChange={(e) =>
-                            updateGenericDraft((p) => ({ ...p, kuitansiNoPrefix: e.target.value }))
-                          }
-                          placeholder="KW/LPD/SNT-W2/001/XI/2026"
-                          className="h-8 text-xs bg-white"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Jatuh Tempo</label>
-                        <Input
-                          type="date"
-                          value={currentGenericDraft.jatuhTempo || ""}
-                          onChange={(e) => updateGenericDraft((p) => ({ ...p, jatuhTempo: e.target.value }))}
-                          className="h-8 text-xs bg-white"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">PPN (%)</label>
-                        <select
-                          value={currentGenericDraft.ppnPct ?? 0}
-                          onChange={(e) =>
-                            updateGenericDraft((p) => ({ ...p, ppnPct: Number(e.target.value) || 0 }))
-                          }
-                          className="w-full h-8 px-2 rounded border border-slate-200 bg-white text-xs font-semibold"
-                        >
-                          <option value={0}>0% (Non-PPN)</option>
-                          <option value={11}>11% (PPN)</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Ditagihkan Kepada</label>
-                        <Input
-                          value={currentGenericDraft.ditagihkanKepada || "Yayasan Maleo Talenta Cendekia"}
-                          onChange={(e) =>
-                            updateGenericDraft((p) => ({
-                              ...p,
-                              ditagihkanKepada: e.target.value,
-                              sudahTerimaDari: e.target.value,
-                            }))
-                          }
-                          className="h-8 text-xs bg-white"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Label Kode RAB</label>
-                        <Input
-                          value={currentGenericDraft.rabCodeLabel || currentGenericDraft.rabCode}
-                          onChange={(e) =>
-                            updateGenericDraft((p) => ({ ...p, rabCodeLabel: e.target.value }))
-                          }
-                          placeholder="A.3 / B.4a / B.1a, B.1b, B.1c"
-                          className="h-8 text-xs bg-white"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Penandatangan</label>
-                        <Input
-                          value={currentGenericDraft.signerName || profile.ketuaTimPelaksana}
-                          onChange={(e) =>
-                            updateGenericDraft((p) => ({ ...p, signerName: e.target.value }))
-                          }
-                          className="h-8 text-xs bg-white"
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Bank Transfer</label>
-                        <Input
-                          value={currentGenericDraft.bankName ?? ""}
-                          onChange={(e) => updateGenericDraft((p) => ({ ...p, bankName: e.target.value }))}
-                          placeholder="BCA / Mandiri..."
-                          className="h-8 text-xs bg-white"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">No. Rekening</label>
-                        <Input
-                          value={currentGenericDraft.bankAccount ?? ""}
-                          onChange={(e) => updateGenericDraft((p) => ({ ...p, bankAccount: e.target.value }))}
-                          placeholder="7040827000"
-                          className="h-8 text-xs bg-white"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Atas Nama Rekening</label>
-                        <Input
-                          value={currentGenericDraft.bankHolder ?? ""}
-                          onChange={(e) => updateGenericDraft((p) => ({ ...p, bankHolder: e.target.value }))}
-                          placeholder="PT Jully Tjindrawan Robotik"
-                          className="h-8 text-xs bg-white"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={handlePullFromExistingRab}
-                      className="bg-white text-xs h-8 gap-1"
-                    >
-                      <Download className="w-3.5 h-3.5" /> Tarik dari Transaksi Pos {currentGenericDraft.rabCode}
-                    </Button>
-                    {activeType === "HONOR_TIM" && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          const preset = getHonorTimPresetByRabCode(
-                            currentGenericDraft.rabCode,
-                            currentGenericDraft.tanggalDokumen
-                          );
-                          if (preset.length > 0) {
-                            updateGenericDraft((p) => ({ ...p, items: preset }));
-                            setBanner({
-                              type: "ok",
-                              text: `Preset RAB Pos ${currentGenericDraft.rabCode} dimuat (${preset.length} baris).`,
-                            });
-                          }
-                        }}
-                        className="bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100 text-xs h-8 gap-1"
-                      >
-                        Muat Preset RAB Pos {currentGenericDraft.rabCode}
-                      </Button>
-                    )}
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() =>
-                        updateGenericDraft((p) => ({
-                          ...p,
-                          items: [
-                            ...p.items,
-                            {
-                              id: `line-${Date.now()}`,
-                              tanggal: p.tanggalDokumen,
-                              lokasi: SNT_WILAYAH_2_LOCATIONS[0].label,
-                              uraian: "",
-                              penerima: "",
-                              volume: 1,
-                              satuan: "paket",
-                              hargaSatuan: 0,
-                              nominal: 0,
-                            },
-                          ],
-                        }))
-                      }
-                      className="bg-white text-xs h-8 gap-1"
-                    >
-                      <Plus className="w-3.5 h-3.5" /> Tambah Baris
-                    </Button>
-                  </div>
-                  <label className="flex items-center gap-1.5 text-xs font-medium text-slate-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={genericIncludeKwitansi}
-                      onChange={(e) => setGenericIncludeKwitansi(e.target.checked)}
-                    />
-                    <span>
-                      {isSlipHonorariumRabCode(currentGenericDraft.rabCode, currentGenericDraft.judulDokumen)
-                        ? "Sertakan Slip Honorarium tiap baris"
-                        : "Sertakan lembar Kwitansi tiap baris"}
-                    </span>
-                  </label>
-                </div>
-
-                <div className="overflow-x-auto border rounded-lg">
-                  <table className="w-full text-xs text-left">
-                    <thead className="bg-slate-100 border-b text-slate-700">
-                      <tr>
-                        <th className="py-2 px-2">Tanggal &amp; Lokasi</th>
-                        <th className="py-2 px-2">Uraian &amp; Penerima</th>
-                        <th className="py-2 px-2 text-center">Vol × Harga</th>
-                        <th className="py-2 px-2 text-right">Jumlah</th>
-                        <th className="py-2 px-2 text-center">Aksi</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y bg-white">
-                      {currentGenericDraft.items.map((it, idx) => {
-                        const patchItem = (patch: Partial<EvidenceLineItem>) => {
-                          updateGenericDraft((p) => {
-                            const next = [...p.items];
-                            const merged = { ...it, ...patch };
-                            if (patch.volume !== undefined || patch.hargaSatuan !== undefined) {
-                              merged.nominal = (Number(merged.volume) || 0) * (Number(merged.hargaSatuan) || 0);
-                            }
-                            next[idx] = merged;
-                            return { ...p, items: next };
-                          });
-                        };
-                        return (
-                          <tr key={it.id || idx}>
-                            <td className="py-1.5 px-2 space-y-1">
-                              <input
-                                type="date"
-                                value={it.tanggal}
-                                onChange={(e) => patchItem({ tanggal: e.target.value })}
-                                className="w-32 border rounded px-1.5 py-1 text-[11px]"
-                              />
-                              <input
-                                type="text"
-                                value={it.lokasi}
-                                onChange={(e) => patchItem({ lokasi: e.target.value })}
-                                placeholder="Lokasi SNT..."
-                                className="w-32 block border rounded px-1.5 py-0.5 text-[11px]"
-                              />
+                            <td className="py-1.5 px-2 text-center whitespace-nowrap">
+                              <span className="font-semibold text-slate-700">
+                                {a4PricingMode === "RAB_SATUAN" ? "1 Bulan" : `${row.totalJP} JP`}
+                              </span>
                             </td>
-                            <td className="py-1.5 px-2 space-y-1">
-                              <input
-                                type="text"
-                                value={it.uraian}
-                                onChange={(e) => patchItem({ uraian: e.target.value })}
-                                placeholder="Uraian pengeluaran..."
-                                className="w-full min-w-[170px] border rounded px-1.5 py-1 text-xs"
-                              />
-                              <input
-                                type="text"
-                                value={it.penerima}
-                                onChange={(e) => patchItem({ penerima: e.target.value })}
-                                placeholder={
-                                  currentGenericDraft.recipientMode === "BLANK"
-                                    ? "(Mode Blanko: akan dicetak garis kosong)"
-                                    : "Nama penerima manual..."
-                                }
-                                className="w-full border rounded px-1.5 py-0.5 text-[11px] text-slate-600"
-                              />
-                            </td>
-                            <td className="py-1.5 px-1 text-center space-y-1">
-                              <div className="flex items-center gap-1 justify-center">
-                                <input
-                                  type="number"
-                                  value={it.volume}
-                                  onChange={(e) => patchItem({ volume: Number(e.target.value) || 0 })}
-                                  className="w-12 border rounded px-1 py-0.5 text-center text-[11px]"
-                                />
-                                <input
-                                  type="text"
-                                  value={it.satuan}
-                                  onChange={(e) => patchItem({ satuan: e.target.value })}
-                                  className="w-14 border rounded px-1 py-0.5 text-center text-[11px]"
-                                />
-                              </div>
+                            <td className="py-1.5 px-1 text-right">
                               <input
                                 type="number"
-                                value={it.hargaSatuan}
-                                onChange={(e) => patchItem({ hargaSatuan: Number(e.target.value) || 0 })}
-                                className="w-24 border rounded px-1.5 py-0.5 text-right text-[11px]"
+                                value={row.hargaSatuanReal}
+                                onChange={(e) => updateRow({ hargaSatuanReal: Number(e.target.value) || 0 })}
+                                className="w-28 border rounded px-1.5 py-1 text-right text-xs"
                               />
                             </td>
-                            <td className="py-1.5 px-2 text-right font-semibold whitespace-nowrap">
-                              {formatCurrency(it.nominal)}
+                            <td className="py-1.5 px-1 text-right">
+                              <input
+                                type="number"
+                                value={row.totalHonor}
+                                onChange={(e) => updateRow({ totalHonor: Number(e.target.value) || 0 })}
+                                className="w-28 border rounded px-1.5 py-1 text-right text-xs font-semibold text-emerald-900"
+                              />
                             </td>
                             <td className="py-1.5 px-2 text-center whitespace-nowrap">
                               <div className="flex items-center justify-center gap-1">
-                                {(() => {
-                                  const lineDesc = it.uraian || activeMeta.shortTitle;
-                                  const lineRec = checkGenericLineRecorded(
-                                    currentGenericDraft.rabCode,
-                                    it.id,
-                                    lineDesc,
-                                    it.nominal
-                                  );
-                                  if (lineRec.isRecorded) {
-                                    return (
-                                      <span
-                                        className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold border ${
-                                          lineRec.count > 1
-                                            ? "bg-amber-50 text-amber-800 border-amber-300"
-                                            : "bg-emerald-50 text-emerald-700 border-emerald-300"
-                                        }`}
-                                        title={`Sudah masuk Pos RAB ${currentGenericDraft.rabCode} (${recordTargetType})${lineRec.noKwitansi ? ` · ${lineRec.noKwitansi}` : ""}. Terkunci agar tidak terklik 2x.`}
-                                      >
-                                        <CheckCircle2 className="w-3 h-3 shrink-0" />
-                                        {lineRec.count > 1 ? `${lineRec.count}x` : "Masuk RAB"}
-                                      </span>
-                                    );
-                                  }
-                                  return (
-                                    <button
-                                      type="button"
-                                      disabled={recordingId === it.id || it.nominal <= 0}
-                                      onClick={() =>
-                                        handleRecordLineToRab(
-                                          it.id,
-                                          currentGenericDraft.rabCode,
-                                          it.tanggal,
-                                          lineDesc,
-                                          it.nominal,
-                                          { localRecordKey: lineRec.localKey }
-                                        )
-                                      }
-                                      className="px-1.5 py-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-semibold disabled:opacity-40"
-                                      title={`Catat baris ini ke Realisasi Pos RAB ${currentGenericDraft.rabCode}`}
-                                    >
-                                      {recordingId === it.id ? "..." : "+ RAB"}
-                                    </button>
-                                  );
-                                })()}
+                                {recStatus.isRecorded ? (
+                                  <span
+                                    className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-300"
+                                    title={`Sudah tercatat pada Pos A.4 (PELAPORAN)${recStatus.noKwitansi ? ` · ${recStatus.noKwitansi}` : ""}`}
+                                  >
+                                    <CheckCircle2 className="w-3 h-3 shrink-0" /> Masuk SPJ
+                                  </span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    disabled={recordingId === row.id || row.totalHonor <= 0}
+                                    onClick={() =>
+                                      handleRecordLineToRab(
+                                        row.id,
+                                        "4",
+                                        a4TanggalCetak,
+                                        `Honorarium Fasilitator ${row.lokasi} (${row.nama || "Fasilitator SNT"}) - ${getMonthLabelId(a4Month)}`,
+                                        row.totalHonor,
+                                        {
+                                          dedupeTokens: [row.lokasi, getMonthLabelId(a4Month)],
+                                          localRecordKey: recStatus.localKey,
+                                        }
+                                      )
+                                    }
+                                    className="px-1.5 py-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-semibold disabled:opacity-40"
+                                  >
+                                    {recordingId === row.id ? "..." : "+ SPJ"}
+                                  </button>
+                                )}
                                 <button
                                   type="button"
                                   onClick={() =>
-                                    updateGenericDraft((p) => ({
-                                      ...p,
-                                      items: p.items.filter((_, i) => i !== idx),
+                                    setCustomA4RowsByKey((prev) => ({
+                                      ...prev,
+                                      [a4StateKey]: activeA4Rows.filter((_, i) => i !== idx),
                                     }))
                                   }
                                   className="p-1 text-rose-500 hover:bg-rose-50 rounded"
@@ -2850,20 +1394,663 @@ export function EvidenceDocsTab({
                         );
                       })}
                     </tbody>
-                    <tfoot className="bg-slate-50 border-t font-bold">
+                    <tfoot className="bg-blue-50/70 border-t font-bold">
                       <tr>
-                        <td colSpan={3} className="py-2 px-2 text-right">
-                          TOTAL DOKUMEN:
+                        <td colSpan={3} className="py-2 px-2">
+                          TOTAL BULAN {getMonthLabelId(a4Month).toUpperCase()} ({activeA4Rows.length} Lokasi)
                         </td>
                         <td className="py-2 px-2 text-right text-blue-800 whitespace-nowrap">
-                          {formatCurrency(
-                            currentGenericDraft.items.reduce((s, it) => s + (Number(it.nominal) || 0), 0)
-                          )}
+                          {formatCurrency(activeA4Sheet.totalHonor)}
                         </td>
                         <td></td>
                       </tr>
                     </tfoot>
                   </table>
+                </div>
+              </div>
+            ) : (
+              /* ==================== EDITOR STANDAR 22 POS RAB LAINNYA (A.1–A.3, A.5, B.1a–B.7d) ==================== */
+              <div className="space-y-4">
+                {/* Bar Sumber Data Pelaporan Khusus Pos Ini */}
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const fresh = buildDefaultRabPosDraft(activeRabCode, profile);
+                        updateCurrentDraft((p) => ({
+                          ...fresh,
+                          kopSurat: p.kopSurat || fresh.kopSurat,
+                          includeInvoice: p.includeInvoice,
+                          includeDaftarTandaTerima: p.includeDaftarTandaTerima,
+                          includeSlipGaji: p.includeSlipGaji,
+                          includeKwitansi: p.includeKwitansi,
+                          monthlyPrintFilter: p.monthlyPrintFilter,
+                          slipNamaPenerima: p.slipNamaPenerima || fresh.slipNamaPenerima,
+                          slipNpwpNik: p.slipNpwpNik || fresh.slipNpwpNik,
+                          slipRekening: p.slipRekening || fresh.slipRekening,
+                        }));
+                        setBanner({
+                          type: "ok",
+                          text: `Rincian Pagu RAB ${activeMeta.displayCode} (${formatCurrency(activeMeta.rabBudget)}) dimuat.`,
+                        });
+                      }}
+                      className="h-8 bg-white border-emerald-300 text-emerald-900 hover:bg-emerald-50 text-[11px] gap-1"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" /> Muat Rincian RAB ({formatCurrency(activeMeta.rabBudget)})
+                    </Button>
+
+                    {activeMeta.hasTahap1Preset && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const t1 = buildTahap1RabPosDraft(activeRabCode, profile);
+                          if (!t1) return;
+                          updateCurrentDraft((p) => ({
+                            ...t1,
+                            includeInvoice: p.includeInvoice,
+                            includeDaftarTandaTerima: p.includeDaftarTandaTerima,
+                            includeSlipGaji: p.includeSlipGaji,
+                            includeKwitansi: p.includeKwitansi,
+                            slipNamaPenerima: p.slipNamaPenerima || t1.slipNamaPenerima,
+                            slipNpwpNik: p.slipNpwpNik || t1.slipNpwpNik,
+                            slipRekening: p.slipRekening || t1.slipRekening,
+                          }));
+                          setBanner({
+                            type: "ok",
+                            text: `Preset ${activeMeta.tahap1Label || "Tahap I (80%)"} untuk ${activeMeta.displayCode} dimuat.`,
+                          });
+                        }}
+                        className="h-8 bg-indigo-50 border-indigo-300 text-indigo-900 hover:bg-indigo-100 text-[11px] gap-1"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" /> {activeMeta.tahap1Label || "Preset Tahap I (80%)"}
+                      </Button>
+                    )}
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={handlePullPelaporanFromDb}
+                      className="h-8 bg-white text-[11px] gap-1"
+                    >
+                      <Download className="w-3.5 h-3.5" /> Tarik Pelaporan DB
+                    </Button>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => updateCurrentDraft((p) => ({ ...p, recipientMode: "MANUAL" }))}
+                      className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-semibold ${
+                        currentDraft.recipientMode === "MANUAL"
+                          ? "bg-emerald-600 text-white"
+                          : "bg-white border text-slate-600"
+                      }`}
+                    >
+                      <UserCheck className="w-3 h-3" /> Isi Manual
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateCurrentDraft((p) => ({ ...p, recipientMode: "BLANK" }))}
+                      className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-semibold ${
+                        currentDraft.recipientMode === "BLANK"
+                          ? "bg-slate-900 text-white"
+                          : "bg-white border text-slate-600"
+                      }`}
+                    >
+                      <UserX className="w-3 h-3" /> Blanko
+                    </button>
+                  </div>
+                </div>
+
+                {/* Form Khusus Kontrak Sewa Rumah (muncul bila Pos B.3b & Kontrak Sewa dicentang) */}
+                {activeRabCode === "3b" && sewaIncludeKontrak && (
+                  <div className="rounded-lg border border-indigo-200 bg-indigo-50/40 p-3.5 space-y-2.5 text-xs">
+                    <div className="font-bold text-indigo-950 flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5" /> Pengaturan Surat Perjanjian Kontrak Sewa Rumah (Pos B.3b)
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Nomor Kontrak</label>
+                        <Input
+                          value={sewaDraft.nomorKontrak}
+                          onChange={(e) => setSewaDraft({ ...sewaDraft, nomorKontrak: e.target.value })}
+                          className="h-8 text-xs bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Lokasi SNT</label>
+                        <select
+                          value={sewaDraft.lokasiSnt}
+                          onChange={(e) => setSewaDraft({ ...sewaDraft, lokasiSnt: e.target.value })}
+                          className="w-full h-8 px-2 rounded border border-slate-200 bg-white text-xs"
+                        >
+                          {SNT_WILAYAH_2_LOCATIONS.map((loc) => (
+                            <option key={loc.id} value={loc.label}>
+                              {loc.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Nama Pemilik Rumah</label>
+                        <Input
+                          value={sewaDraft.namaPemilik}
+                          onChange={(e) => setSewaDraft({ ...sewaDraft, namaPemilik: e.target.value })}
+                          placeholder="Kosongkan untuk blanko..."
+                          className="h-8 text-xs bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Fasilitator Penghuni</label>
+                        <Input
+                          value={sewaDraft.namaFasilitator}
+                          onChange={(e) => setSewaDraft({ ...sewaDraft, namaFasilitator: e.target.value })}
+                          placeholder="Nama fasilitator..."
+                          className="h-8 text-xs bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Alamat Rumah Sewa</label>
+                        <Input
+                          value={sewaDraft.alamatRumahSewa}
+                          onChange={(e) => setSewaDraft({ ...sewaDraft, alamatRumahSewa: e.target.value })}
+                          placeholder="Alamat lengkap..."
+                          className="h-8 text-xs bg-white"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Bulan</label>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={6}
+                            value={sewaDraft.jumlahBulan}
+                            onChange={(e) => setSewaDraft({ ...sewaDraft, jumlahBulan: Number(e.target.value) || 1 })}
+                            className="h-8 text-xs bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Tarif/Bln</label>
+                          <Input
+                            type="number"
+                            value={sewaDraft.tarifPerBulan}
+                            onChange={(e) => setSewaDraft({ ...sewaDraft, tarifPerBulan: Number(e.target.value) || 0 })}
+                            className="h-8 text-xs bg-white"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Kotak Profil Penerima Slip Gaji / Honorarium (auto muncul saat Slip Gaji dicentang) */}
+                {currentDraft.includeSlipGaji && (
+                  <div className="rounded-lg border border-teal-200 bg-teal-50/40 p-3.5 space-y-2.5 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="font-bold text-teal-950">
+                        Profil Penerima Slip Gaji / Honorarium ({activeMeta.displayCode})
+                      </div>
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          const f = fasilitators.find((x) => x.id === e.target.value);
+                          if (!f) return;
+                          const bankStr = [f.bankName, f.bankAccount].filter(Boolean).join(" — ");
+                          updateCurrentDraft((p) => ({
+                            ...p,
+                            slipNamaPenerima: f.namaLengkap,
+                            slipNpwpNik: f.npwpNik || p.slipNpwpNik,
+                            slipRekening: bankStr || p.slipRekening,
+                          }));
+                        }}
+                        className="h-7 px-2 rounded border border-teal-300 bg-white text-[11px] font-medium"
+                      >
+                        <option value="">-- Tarik dari Profil Fasilitator DB (Opsional) --</option>
+                        {fasilitators.map((f) => (
+                          <option key={f.id} value={f.id}>
+                            {f.namaLengkap} ({f.lokasiSNT || "Wilayah 2"})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Nama Penerima Default</label>
+                        <Input
+                          value={currentDraft.slipNamaPenerima || ""}
+                          onChange={(e) =>
+                            updateCurrentDraft((p) => ({
+                              ...p,
+                              slipNamaPenerima: e.target.value,
+                              items: p.items.map((it) =>
+                                !it.penerima || it.penerima === p.slipNamaPenerima
+                                  ? { ...it, penerima: e.target.value }
+                                  : it
+                              ),
+                            }))
+                          }
+                          placeholder="Nama lengkap penerima..."
+                          className="h-8 text-xs bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Peran / Jabatan</label>
+                        <Input
+                          value={currentDraft.slipPeranJabatan || ""}
+                          onChange={(e) => updateCurrentDraft((p) => ({ ...p, slipPeranJabatan: e.target.value }))}
+                          className="h-8 text-xs bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Kegiatan</label>
+                        <Input
+                          value={currentDraft.slipKegiatan || DEFAULT_SLIP_KEGIATAN_LABEL}
+                          onChange={(e) => updateCurrentDraft((p) => ({ ...p, slipKegiatan: e.target.value }))}
+                          className="h-8 text-xs bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">NPWP / NIK</label>
+                        <Input
+                          value={currentDraft.slipNpwpNik || ""}
+                          onChange={(e) => updateCurrentDraft((p) => ({ ...p, slipNpwpNik: e.target.value }))}
+                          placeholder="NPWP / NIK penerima..."
+                          className="h-8 text-xs bg-white font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Rekening Penerima</label>
+                        <Input
+                          value={currentDraft.slipRekening || ""}
+                          onChange={(e) => updateCurrentDraft((p) => ({ ...p, slipRekening: e.target.value }))}
+                          placeholder="Bank — No. Rekening"
+                          className="h-8 text-xs bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Disiapkan oleh</label>
+                        <Input
+                          value={currentDraft.slipDisiapkanOleh || DEFAULT_ROBOTIC_PREPARER_LABEL}
+                          onChange={(e) => updateCurrentDraft((p) => ({ ...p, slipDisiapkanOleh: e.target.value }))}
+                          className="h-8 text-xs bg-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Pengaturan Nomor Dokumen, Periode, Tanggal & Invoice */}
+                <div className="rounded-lg border border-slate-200 bg-white p-3.5 space-y-2.5 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+                    <div>
+                      <div className="flex items-center justify-between mb-0.5">
+                        <label className="block text-[11px] font-semibold text-slate-700">No. Invoice</label>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const activeKop = currentDraft.kopSurat || activeMeta.defaultKop;
+                            const totalAmt = currentDraft.items.reduce((s, it) => s + (Number(it.nominal) || 0), 0);
+                            const res = await allocateOfficialDocNumberForEvidence({
+                              kind: "INV",
+                              entityCode: resolveEntityCodeFromKop(activeKop),
+                              date: currentDraft.tanggalDokumen,
+                              perihal: currentDraft.judulDokumen,
+                              nominal: totalAmt,
+                            });
+                            if (!res.success || !("docNumber" in res)) {
+                              setBanner({ type: "err", text: ("error" in res && res.error) || "Gagal mengambil nomor." });
+                              return;
+                            }
+                            updateCurrentDraft((p) => ({ ...p, invoiceNo: res.docNumber }));
+                            setBanner({ type: "ok", text: `Nomor Invoice resmi terdaftar: ${res.docNumber}` });
+                            router.refresh();
+                          }}
+                          className="text-[10px] font-bold text-blue-700 hover:underline"
+                        >
+                          + No. Resmi
+                        </button>
+                      </div>
+                      <Input
+                        value={currentDraft.invoiceNo || ""}
+                        onChange={(e) => updateCurrentDraft((p) => ({ ...p, invoiceNo: e.target.value }))}
+                        placeholder="Otomatis / klik + No. Resmi"
+                        className="h-8 text-xs font-mono"
+                      />
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-0.5">
+                        <label className="block text-[11px] font-semibold text-slate-700">No. Kwitansi / Slip</label>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const activeKop = currentDraft.kopSurat || activeMeta.defaultKop;
+                            const totalAmt = currentDraft.items.reduce((s, it) => s + (Number(it.nominal) || 0), 0);
+                            const res = await allocateOfficialDocNumberForEvidence({
+                              kind: "KW",
+                              entityCode: resolveEntityCodeFromKop(activeKop),
+                              date: currentDraft.tanggalDokumen,
+                              perihal: currentDraft.judulDokumen,
+                              nominal: totalAmt,
+                            });
+                            if (!res.success || !("docNumber" in res)) {
+                              setBanner({ type: "err", text: ("error" in res && res.error) || "Gagal mengambil nomor." });
+                              return;
+                            }
+                            updateCurrentDraft((p) => ({ ...p, kuitansiNoPrefix: res.docNumber }));
+                            setBanner({ type: "ok", text: `Nomor resmi terdaftar di Buku Register: ${res.docNumber}` });
+                            router.refresh();
+                          }}
+                          className="text-[10px] font-bold text-emerald-700 hover:underline"
+                        >
+                          + No. Resmi
+                        </button>
+                      </div>
+                      <Input
+                        value={currentDraft.kuitansiNoPrefix || ""}
+                        onChange={(e) => updateCurrentDraft((p) => ({ ...p, kuitansiNoPrefix: e.target.value }))}
+                        placeholder="Otomatis / klik + No. Resmi"
+                        className="h-8 text-xs font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Periode Dokumen</label>
+                      <Input
+                        value={currentDraft.periodeLabel}
+                        onChange={(e) => updateCurrentDraft((p) => ({ ...p, periodeLabel: e.target.value }))}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Tanggal Pengesahan</label>
+                      <Input
+                        type="date"
+                        value={currentDraft.tanggalDokumen}
+                        onChange={(e) => updateCurrentDraft((p) => ({ ...p, tanggalDokumen: e.target.value }))}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {currentDraft.includeInvoice && (
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 pt-2 border-t border-slate-100">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Ditagihkan Kepada</label>
+                        <Input
+                          value={currentDraft.ditagihkanKepada || "Yayasan Maleo Talenta Cendekia"}
+                          onChange={(e) =>
+                            updateCurrentDraft((p) => ({
+                              ...p,
+                              ditagihkanKepada: e.target.value,
+                              sudahTerimaDari: e.target.value,
+                            }))
+                          }
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Bank Transfer</label>
+                        <Input
+                          value={currentDraft.bankName ?? ""}
+                          onChange={(e) => updateCurrentDraft((p) => ({ ...p, bankName: e.target.value }))}
+                          placeholder="BCA / Mandiri"
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">No. Rekening</label>
+                        <Input
+                          value={currentDraft.bankAccount ?? ""}
+                          onChange={(e) => updateCurrentDraft((p) => ({ ...p, bankAccount: e.target.value }))}
+                          className="h-8 text-xs font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">PPN (%)</label>
+                        <select
+                          value={currentDraft.ppnPct ?? 0}
+                          onChange={(e) => updateCurrentDraft((p) => ({ ...p, ppnPct: Number(e.target.value) || 0 }))}
+                          className="w-full h-8 px-2 rounded border border-slate-200 bg-white text-xs font-semibold"
+                        >
+                          <option value={0}>0% (Non-PPN)</option>
+                          <option value={11}>11% (PPN)</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {currentDraft.includeDaftarTandaTerima && (
+                    <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-slate-100">
+                      <label className="flex items-center gap-1.5 cursor-pointer text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={currentDraft.showRabCode ?? true}
+                          onChange={(e) => updateCurrentDraft((p) => ({ ...p, showRabCode: e.target.checked }))}
+                        />
+                        <span>Tampilkan Kode RAB</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(currentDraft.includePphColumn)}
+                          onChange={(e) => updateCurrentDraft((p) => ({ ...p, includePphColumn: e.target.checked }))}
+                        />
+                        <span>Tabel PPh % (Neto) pada Daftar Tanda Terima</span>
+                      </label>
+                      {currentDraft.includePphColumn && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-[11px] font-semibold text-slate-600">Tarif PPh (%):</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={30}
+                            step={0.5}
+                            value={currentDraft.pphPct ?? 0}
+                            onChange={(e) => updateCurrentDraft((p) => ({ ...p, pphPct: Number(e.target.value) || 0 }))}
+                            className="w-16 h-7 px-1.5 border rounded bg-white text-xs text-center font-semibold"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Tabel Rincian Baris Pos RAB */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800">
+                      Rincian Item {activeMeta.displayCode} ({currentDraft.items.length} baris)
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        updateCurrentDraft((p) => ({
+                          ...p,
+                          items: [
+                            ...p.items,
+                            {
+                              id: `line-${Date.now()}`,
+                              tanggal: p.tanggalDokumen,
+                              lokasi: "Wilayah 2",
+                              uraian: "",
+                              penerima: p.slipNamaPenerima || "",
+                              volume: 1,
+                              satuan: "bulan",
+                              hargaSatuan: 0,
+                              nominal: 0,
+                            },
+                          ],
+                        }))
+                      }
+                      className="bg-white text-xs h-7 gap-1"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Tambah Baris
+                    </Button>
+                  </div>
+
+                  <div className="overflow-x-auto border rounded-lg">
+                    <table className="w-full text-xs text-left">
+                      <thead className="bg-slate-100 border-b text-slate-700">
+                        <tr>
+                          <th className="py-2 px-2">Tanggal &amp; Lokasi</th>
+                          <th className="py-2 px-2">Uraian &amp; Penerima</th>
+                          <th className="py-2 px-2 text-center">Vol × Harga</th>
+                          <th className="py-2 px-2 text-right">Jumlah</th>
+                          <th className="py-2 px-2 text-center">Pelaporan RAB</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y bg-white">
+                        {currentDraft.items.map((it, idx) => {
+                          const patchItem = (patch: Partial<EvidenceLineItem>) => {
+                            updateCurrentDraft((p) => {
+                              const next = [...p.items];
+                              const merged = { ...it, ...patch };
+                              if (patch.volume !== undefined || patch.hargaSatuan !== undefined) {
+                                merged.nominal = Math.round(
+                                  (Number(merged.volume) || 0) * (Number(merged.hargaSatuan) || 0)
+                                );
+                              }
+                              next[idx] = merged;
+                              return { ...p, items: next };
+                            });
+                          };
+                          const lineDesc = it.uraian || activeMeta.shortTitle;
+                          const lineRec = checkGenericLineRecorded(activeRabCode, it.id, lineDesc, it.nominal);
+
+                          return (
+                            <tr key={it.id || idx} className={lineRec.isRecorded ? "bg-emerald-50/30" : ""}>
+                              <td className="py-1.5 px-2 space-y-1">
+                                <input
+                                  type="date"
+                                  value={it.tanggal}
+                                  onChange={(e) => patchItem({ tanggal: e.target.value })}
+                                  className="w-32 border rounded px-1.5 py-1 text-[11px]"
+                                />
+                                <input
+                                  type="text"
+                                  value={it.lokasi}
+                                  onChange={(e) => patchItem({ lokasi: e.target.value })}
+                                  placeholder="Lokasi SNT..."
+                                  className="w-32 block border rounded px-1.5 py-0.5 text-[11px]"
+                                />
+                              </td>
+                              <td className="py-1.5 px-2 space-y-1">
+                                <input
+                                  type="text"
+                                  value={it.uraian}
+                                  onChange={(e) => patchItem({ uraian: e.target.value })}
+                                  placeholder="Uraian kegiatan / pembayaran..."
+                                  className="w-full min-w-[180px] border rounded px-1.5 py-1 text-xs"
+                                />
+                                <input
+                                  type="text"
+                                  value={it.penerima}
+                                  onChange={(e) => patchItem({ penerima: e.target.value })}
+                                  placeholder={
+                                    currentDraft.recipientMode === "BLANK"
+                                      ? "(Mode Blanko: akan dicetak garis kosong)"
+                                      : "Nama penerima..."
+                                  }
+                                  className="w-full border rounded px-1.5 py-0.5 text-[11px] text-slate-600"
+                                />
+                              </td>
+                              <td className="py-1.5 px-1 text-center space-y-1">
+                                <div className="flex items-center gap-1 justify-center">
+                                  <input
+                                    type="number"
+                                    step="0.5"
+                                    value={it.volume}
+                                    onChange={(e) => patchItem({ volume: Number(e.target.value) || 0 })}
+                                    className="w-12 border rounded px-1 py-0.5 text-center text-[11px]"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={it.satuan}
+                                    onChange={(e) => patchItem({ satuan: e.target.value })}
+                                    className="w-14 border rounded px-1 py-0.5 text-center text-[11px]"
+                                  />
+                                </div>
+                                <input
+                                  type="number"
+                                  value={it.hargaSatuan}
+                                  onChange={(e) => patchItem({ hargaSatuan: Number(e.target.value) || 0 })}
+                                  className="w-24 border rounded px-1.5 py-0.5 text-right text-[11px]"
+                                />
+                              </td>
+                              <td className="py-1.5 px-2 text-right font-semibold whitespace-nowrap">
+                                {formatCurrency(it.nominal)}
+                              </td>
+                              <td className="py-1.5 px-2 text-center whitespace-nowrap">
+                                <div className="flex items-center justify-center gap-1">
+                                  {lineRec.isRecorded ? (
+                                    <span
+                                      className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-300"
+                                      title={`Sudah tercatat pada ${activeMeta.displayCode} (PELAPORAN)${lineRec.noKwitansi ? ` · ${lineRec.noKwitansi}` : ""}`}
+                                    >
+                                      <CheckCircle2 className="w-3 h-3 shrink-0" /> Masuk SPJ
+                                    </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      disabled={recordingId === it.id || it.nominal <= 0}
+                                      onClick={() =>
+                                        handleRecordLineToRab(
+                                          it.id,
+                                          activeRabCode,
+                                          it.tanggal,
+                                          lineDesc,
+                                          it.nominal,
+                                          { localRecordKey: lineRec.localKey }
+                                        )
+                                      }
+                                      className="px-1.5 py-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-semibold disabled:opacity-40"
+                                      title={`Catat baris ini ke Pelaporan ${activeMeta.displayCode}`}
+                                    >
+                                      {recordingId === it.id ? "..." : "+ SPJ"}
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      updateCurrentDraft((p) => ({
+                                        ...p,
+                                        items: p.items.filter((_, i) => i !== idx),
+                                      }))
+                                    }
+                                    className="p-1 text-rose-500 hover:bg-rose-50 rounded"
+                                    title="Hapus baris"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot className="bg-slate-50 border-t font-bold">
+                        <tr>
+                          <td colSpan={3} className="py-2 px-2 text-right">
+                            TOTAL {activeMeta.displayCode}:
+                          </td>
+                          <td className="py-2 px-2 text-right text-blue-800 whitespace-nowrap">
+                            {formatCurrency(
+                              currentDraft.items.reduce((s, it) => s + (Number(it.nominal) || 0), 0)
+                            )}
+                          </td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
                 </div>
               </div>
             )}

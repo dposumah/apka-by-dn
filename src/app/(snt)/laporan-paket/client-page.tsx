@@ -38,7 +38,7 @@ import { KwitansiAuditTab } from "./KwitansiAuditTab";
 import { TemplateEditorTab } from "./TemplateEditorTab";
 import { EvidenceDocsTab } from "./EvidenceDocsTab";
 import { TargetStrategyTab } from "./TargetStrategyTab";
-import { EvidenceDocType } from "@/lib/snt-evidence-docs";
+import { normalizeRabPosCode, RabPosCode } from "@/lib/snt-rab-pos-catalog";
 
 interface DraftRecordItem {
   id: string;
@@ -65,7 +65,7 @@ interface WorkspaceInitialData {
 
 export function PaketLaporanClientPage({ initialData }: { initialData: WorkspaceInitialData }) {
   const [activeTab, setActiveTab] = useState<"export" | "editor" | "kwitansi" | "evidence" | "strategy">("export");
-  const [jumpEvidenceDocType, setJumpEvidenceDocType] = useState<EvidenceDocType | undefined>(undefined);
+  const [selectedRabPosCode, setSelectedRabPosCode] = useState<RabPosCode>("3");
   const [periodKey, setPeriodKey] = useState<string>("TAHAP_1");
   const [realizationBasis, setRealizationBasis] = useState<RealizationBasisMode>("PELAPORAN_SMART");
   const [selectedTemplates, setSelectedTemplates] = useState<SntTemplateCode[]>(["13", "02"]);
@@ -446,7 +446,7 @@ export function PaketLaporanClientPage({ initialData }: { initialData: Workspace
           }`}
         >
           <FolderCheck className="w-4 h-4" />
-          4. Dokumen Bukti Wajib (10 Jenis)
+          4. Dokumen Bukti per Pos RAB (23 Pos)
         </button>
         <button
           type="button"
@@ -964,11 +964,11 @@ export function PaketLaporanClientPage({ initialData }: { initialData: Workspace
         />
       )}
 
-      {/* TAB 4: DOKUMEN BUKTI WAJIB (10 JENIS + DAFTAR TANDA TERIMA HONOR BULANAN) */}
+      {/* TAB 4: DOKUMEN BUKTI PELAPORAN PER POS RAB (23 POS RESMI) */}
       {activeTab === "evidence" && (
         <EvidenceDocsTab
-          activeDocType={jumpEvidenceDocType || "HONOR_FASIL_BULANAN"}
-          onSelectDocType={setJumpEvidenceDocType}
+          activeRabCode={selectedRabPosCode}
+          onSelectRabCode={setSelectedRabPosCode}
           profile={profile}
           categories={categories}
           rekaps={initialData.rekaps || []}
@@ -982,8 +982,9 @@ export function PaketLaporanClientPage({ initialData }: { initialData: Workspace
       {activeTab === "strategy" && (
         <TargetStrategyTab
           rabSummary={rabSummary}
-          onJumpToEvidenceDoc={(docType) => {
-            setJumpEvidenceDocType(docType);
+          onJumpToRabPos={(rabCode) => {
+            const normalized = normalizeRabPosCode(rabCode);
+            if (normalized) setSelectedRabPosCode(normalized);
             setActiveTab("evidence");
           }}
         />

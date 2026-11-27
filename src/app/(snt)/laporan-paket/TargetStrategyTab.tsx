@@ -15,20 +15,17 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/format";
 import { generateSntEfficiencyRecommendation } from "@/app/actions/snt-reports";
-import {
-  computeTarget80Strategy,
-  EvidenceDocType,
-} from "@/lib/snt-evidence-docs";
+import { computeTarget80Strategy } from "@/lib/snt-evidence-docs";
 import { RabRealizationSummary } from "@/lib/snt-report-templates";
 
 interface TargetStrategyTabProps {
   rabSummary: RabRealizationSummary;
-  onJumpToEvidenceDoc: (docType: EvidenceDocType) => void;
+  onJumpToRabPos: (rabCode: string) => void;
 }
 
 export function TargetStrategyTab({
   rabSummary,
-  onJumpToEvidenceDoc,
+  onJumpToRabPos,
 }: TargetStrategyTabProps) {
   const strategy = useMemo(() => computeTarget80Strategy(rabSummary), [rabSummary]);
 
@@ -337,22 +334,16 @@ export function TargetStrategyTab({
                     {row.requiredEvidence}
                   </td>
                   <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                    {row.recommendedEvidenceDocType ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          onJumpToEvidenceDoc(row.recommendedEvidenceDocType as EvidenceDocType)
-                        }
-                        className="bg-white hover:bg-emerald-50 text-emerald-700 border-emerald-300 text-[11px] h-7 gap-1"
-                      >
-                        <span>Siapkan</span>
-                        <ArrowRight className="w-3 h-3" />
-                      </Button>
-                    ) : (
-                      <span className="text-[11px] text-slate-400">Nota / Invoice</span>
-                    )}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onJumpToRabPos(row.rabCode)}
+                      className="bg-white hover:bg-emerald-50 text-emerald-700 border-emerald-300 text-[11px] h-7 gap-1"
+                    >
+                      <span>Siapkan</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </Button>
                   </td>
                 </tr>
               ))}

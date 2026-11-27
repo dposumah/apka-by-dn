@@ -89,7 +89,10 @@ export interface MonthlyFacilitatorHonorPdfInput {
   includeTransportColumn: boolean;
   recipientMode: RecipientMode;
   tanggalCetak: string;
+  includeTandaTerima?: boolean;
   includeIndividualKwitansi?: boolean;
+  includeSlipGaji?: boolean;
+  includeKwitansi?: boolean;
   includeInvoice?: boolean;
   invoiceNo?: string;
   jatuhTempo?: string;
@@ -112,9 +115,12 @@ function buildMonthlyFacilitatorHonorBodyHtml(input: MonthlyFacilitatorHonorPdfI
     input.invoiceNo?.trim() ||
     `INV/${brandCode}/SNT-W2-A4/${monthMeta?.seq || "001"}/${monthMeta?.roman || "X"}/2026`;
 
+  const includeTandaTerima = input.includeTandaTerima ?? true;
+  const emitSlipGaji = input.includeSlipGaji ?? Boolean(input.includeIndividualKwitansi);
+  const emitKwitansi = Boolean(input.includeKwitansi);
+
   const invoiceSection = input.includeInvoice
-    ? `
-      ${renderModernInvoiceHtml({
+    ? renderModernInvoiceHtml({
         kopSurat: activeKop,
         profile,
         noInvoice: autoInvNo,
@@ -137,9 +143,7 @@ function buildMonthlyFacilitatorHonorBodyHtml(input: MonthlyFacilitatorHonorPdfI
         bankAccount: input.bankAccount,
         bankHolder: input.bankHolder,
         kota: profile.kotaPengesahan || "Jakarta",
-      })}
-      <div class="page-break"></div>
-    `
+      })
     : "";
 
   const bodyRows = sheet.rows
@@ -178,74 +182,94 @@ function buildMonthlyFacilitatorHonorBodyHtml(input: MonthlyFacilitatorHonorPdfI
     })
     .join("");
 
-  // Pos A.4 (Honorarium Fasilitator): gunakan Slip Honorarium resmi (bukan Kwitansi) dengan auto-fill profil fasilitator
+  // Pos A.4 (Honorarium Fasilitator): Slip Honorarium (auto-fill profil fasil) & Kwitansi opsional
   const fasilList = input.fasilitators || [];
-  const kwtPages = input.includeIndividualKwitansi
-    ? sheet.rows
-        .map((r, idx) => {
-          const matchedFasil =
-            (r.nama
-              ? fasilList.find(
-                  (f) => f.namaLengkap.trim().toLowerCase() === r.nama.trim().toLowerCase()
-                )
-              : undefined) ||
-            (r.locationId
-              ? fasilList.find((f) => matchWilayah2LocationId(f.lokasiSNT) === r.locationId)
-              : undefined);
-          const displayName = resolveRecipientDisplay(recipientMode, r.nama);
-          const bankStr = [matchedFasil?.bankName, matchedFasil?.bankAccount]
-            .filter(Boolean)
-            .join(" — ");
-          const roleText = resolvePersonnelRoleFromRab("4", undefined, r.lokasi);
-          const slipDatePart = (tanggalCetak || monthMeta?.defaultDate || "2026-10-31").replace(/-/g, ".");
-          const slipNo = `SLIP.${slipDatePart}.${String(idx + 1).padStart(3, "0")}`;
+  const slipPages: string[] = emitSlipGaji
+    ? sheet.rows.map((r, idx) => {
+        const matchedFasil =
+          (r.nama
+            ? fasilList.find(
+                (f) => f.namaLengkap.trim().toLowerCase() === r.nama.trim().toLowerCase()
+              )
+            : undefined) ||
+          (r.locationId
+            ? fasilList.find((f) => matchWilayah2LocationId(f.lokasiSNT) === r.locationId)
+            : undefined);
+        const displayName = resolveRecipientDisplay(recipientMode, r.nama);
+        const bankStr = [matchedFasil?.bankName, matchedFasil?.bankAccount]
+          .filter(Boolean)
+          .join(" — ");
+        const roleText = resolvePersonnelRoleFromRab("4", undefined, r.lokasi);
+        const slipDatePart = (tanggalCetak || monthMeta?.defaultDate || "2026-10-31").replace(/-/g, ".");
+        const slipNo = `SLIP.${slipDatePart}.${String(idx + 1).padStart(3, "0")}`;
 
-          return `
-        <div class="page-break">
-          ${renderSlipHonorariumHtml({
-            kopSurat: activeKop,
-            profile,
-            periode: sheet.monthLabel,
-            namaPenerima: displayName,
-            nomorDokumen: slipNo,
-            peranJabatan: roleText,
-            kegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
-            tanggalKegiatan: `Bulan ${sheet.monthLabel}`,
-            tanggalBayar: tanggalCetak,
-            npwpNik: recipientMode === "BLANK" ? "-" : matchedFasil?.npwpNik || "-",
-            rekening: recipientMode === "BLANK" ? "-" : bankStr || "-",
-            components: [
-              {
-                komponen: "Honorarium",
-                qty: isRabSatuan ? "1 Bulan" : `${r.totalJP} JP`,
-                pendapatan: r.totalHonor,
-                potongan: 0,
-                keterangan: isRabSatuan
-                  ? `Lokasi SNT ${r.lokasi}`
-                  : `${r.totalJP} JP × ${formatCurrency(r.hargaSatuanReal)}/JP (${r.lokasi})`,
-              },
-              {
-                komponen: "Tambahan honorarium",
-                qty: includeTransportColumn && r.totalTransport > 0 ? "1 Bulan" : "-",
-                pendapatan: includeTransportColumn ? r.totalTransport : 0,
-                potongan: 0,
-                keterangan: includeTransportColumn && r.totalTransport > 0 ? "Transport mengajar" : "-",
-              },
-              {
-                komponen: "Pajak / potongan lainnya",
-                qty: "-",
-                pendapatan: 0,
-                potongan: 0,
-                keterangan: "-",
-              },
-            ],
-            catatan: `Lokasi SNT: ${r.lokasi}`,
-            disiapkanOleh: DEFAULT_ROBOTIC_PREPARER_LABEL,
-          })}
-        </div>`;
-        })
-        .join("")
-    : "";
+        return renderSlipHonorariumHtml({
+          kopSurat: activeKop,
+          profile,
+          periode: sheet.monthLabel,
+          namaPenerima: displayName,
+          nomorDokumen: slipNo,
+          peranJabatan: roleText,
+          kegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
+          tanggalKegiatan: `Bulan ${sheet.monthLabel}`,
+          tanggalBayar: tanggalCetak,
+          npwpNik: recipientMode === "BLANK" ? "-" : matchedFasil?.npwpNik || "-",
+          rekening: recipientMode === "BLANK" ? "-" : bankStr || "-",
+          components: [
+            {
+              komponen: "Honorarium",
+              qty: isRabSatuan ? "1 Bulan" : `${r.totalJP} JP`,
+              pendapatan: r.totalHonor,
+              potongan: 0,
+              keterangan: isRabSatuan
+                ? `Lokasi SNT ${r.lokasi}`
+                : `${r.totalJP} JP × ${formatCurrency(r.hargaSatuanReal)}/JP (${r.lokasi})`,
+            },
+            {
+              komponen: "Tambahan honorarium",
+              qty: includeTransportColumn && r.totalTransport > 0 ? "1 Bulan" : "-",
+              pendapatan: includeTransportColumn ? r.totalTransport : 0,
+              potongan: 0,
+              keterangan: includeTransportColumn && r.totalTransport > 0 ? "Transport mengajar" : "-",
+            },
+            {
+              komponen: "Pajak / potongan lainnya",
+              qty: "-",
+              pendapatan: 0,
+              potongan: 0,
+              keterangan: "-",
+            },
+          ],
+          catatan: `Lokasi SNT: ${r.lokasi}`,
+          disiapkanOleh: DEFAULT_ROBOTIC_PREPARER_LABEL,
+        });
+      })
+    : [];
+
+  const kwitansiPages: string[] = emitKwitansi
+    ? sheet.rows.map((r, idx) => {
+        const displayName = resolveRecipientDisplay(recipientMode, r.nama);
+        const kwtDatePart = (tanggalCetak || monthMeta?.defaultDate || "2026-10-31").replace(/-/g, ".");
+        const kwtNo =
+          activeKop === "maleo"
+            ? `KWT.${kwtDatePart}.${String(idx + 1).padStart(3, "0")}`
+            : `KW/${brandCode}/SNT-W2-A4/${String(idx + 1).padStart(3, "0")}/${monthMeta?.roman || "X"}/2026`;
+        return renderKwitansiSlipHtml({
+          kopSurat: activeKop,
+          profile,
+          noKwitansi: kwtNo,
+          sudahTerimaDari: input.ditagihkanKepada || "Yayasan Maleo Talenta Cendekia",
+          amount: r.totalHonor + (includeTransportColumn ? r.totalTransport : 0),
+          untukPembayaran: `Honorarium Fasilitator KKA & Robotika Bulan ${sheet.monthLabel} — Lokasi SNT ${r.lokasi}`,
+          rabCode: "A.4",
+          showRabCode: false,
+          kota: profile.kotaPengesahan || "Jakarta",
+          tanggal: tanggalCetak,
+          penerimaDisplay: displayName,
+          penerimaRole: "Yang menerima,",
+        });
+      })
+    : [];
 
   const headBg = `background:${theme.primaryColor}; color:#fff;`;
   const tableHead = isRabSatuan
@@ -302,8 +326,8 @@ function buildMonthlyFacilitatorHonorBodyHtml(input: MonthlyFacilitatorHonorPdfI
             <td></td>
           </tr>`;
 
-  return `
-      ${invoiceSection}
+  const tandaTerimaSection = includeTandaTerima
+    ? `
       ${renderKop(activeKop, profile)}
       <div class="doc-head">
         <h1 style="color:${theme.primaryColor};">DAFTAR TANDA TERIMA HONORARIUM FASILITATOR KKA &amp; ROBOTIKA</h1>
@@ -343,9 +367,18 @@ function buildMonthlyFacilitatorHonorBodyHtml(input: MonthlyFacilitatorHonorPdfI
           </td>
         </tr>
       </table>
+    `
+    : "";
 
-      ${kwtPages}
-    `;
+  const sections: string[] = [];
+  if (invoiceSection) sections.push(invoiceSection);
+  if (tandaTerimaSection) sections.push(tandaTerimaSection);
+  sections.push(...slipPages);
+  sections.push(...kwitansiPages);
+
+  return sections
+    .map((sec, idx) => (idx === 0 ? sec : `<div class="page-break">${sec}</div>`))
+    .join("\n");
 }
 
 export function renderMonthlyFacilitatorHonorPdfHtml(
@@ -371,6 +404,58 @@ export function renderMultiMonthFacilitatorHonorPdfHtml(
     `Paket Honorarium Fasilitator Bulanan (${inputs.length} Bulan)`,
     combined
   );
+}
+
+export function buildSewaRumahContractPageHtml(
+  draft: SewaRumahContractDraft,
+  profile: SntReportProfile
+): string {
+  const pemilikDisplay = resolveRecipientDisplay(draft.recipientMode, draft.namaPemilik);
+  const fasilDisplay = resolveRecipientDisplay(draft.recipientMode, draft.namaFasilitator);
+  const totalKontrak = (Number(draft.jumlahBulan) || 0) * (Number(draft.tarifPerBulan) || 0);
+  const months =
+    draft.daftarBulan && draft.daftarBulan.length > 0
+      ? draft.daftarBulan.slice(0, Math.max(1, draft.jumlahBulan))
+      : Array.from({ length: Math.max(1, draft.jumlahBulan) }, (_, i) => `Bulan ke-${i + 1}`);
+
+  return `
+      ${renderKop(profile.kopSurat, profile)}
+      <div class="doc-head">
+        <div class="badge">POS RAB B.3b · TEMPLATE 13 BUKTI WAJIB</div>
+        <h1>SURAT PERJANJIAN SEWA MENYEWA RUMAH / KOST</h1>
+        <p class="subtitle">Nomor: ${esc(draft.nomorKontrak || "................................")}</p>
+      </div>
+
+      <p>Pada hari ini, tanggal ${esc(formatDateId(draft.tanggalKontrak))}, kami yang bertanda tangan di bawah ini:</p>
+      <table class="meta-table">
+        <tr><td class="meta-k"><strong>PIHAK PERTAMA (Pemilik/Pengelola)</strong></td><td>Nama: <strong>${esc(pemilikDisplay)}</strong><br/>NIK: ${esc(draft.nikPemilik || "................................")}<br/>Alamat: ${esc(draft.alamatPemilik || "................................................................")}</td></tr>
+        <tr><td class="meta-k"><strong>PIHAK KEDUA (Penyewa / Pelaksana)</strong></td><td>Instansi: <strong>${esc(profile.namaYayasan)}</strong><br/>Diwakili oleh / Fasilitator: ${esc(fasilDisplay)}<br/>Lokasi Penugasan: ${esc(draft.lokasiSnt)}</td></tr>
+      </table>
+
+      <p>Kedua belah pihak sepakat mengadakan perjanjian sewa menyewa tempat tinggal (rumah/kost) untuk menunjang pelaksanaan tugas Fasilitator Program KKA &amp; Robotika SNT Tahun 2026 dengan ketentuan sebagai berikut:</p>
+      <ol class="clause-list">
+        <li><strong>Objek Sewa:</strong> Rumah / kamar kost berlokasi di ${esc(draft.alamatRumahSewa || "................................................................")} (${esc(draft.lokasiSnt)}).</li>
+        <li><strong>Jangka Waktu:</strong> Selama <strong>${draft.jumlahBulan} (${draft.jumlahBulan}) bulan</strong>, mulai ${esc(draft.periodeMulai || "September 2026")} (${esc(months.join(", "))}).</li>
+        <li><strong>Nilai Sewa &amp; Pembayaran:</strong> Biaya sewa disepakati sebesar <strong>${esc(formatCurrency(draft.tarifPerBulan))} / bulan</strong> (Total: <strong>${esc(formatCurrency(totalKontrak))}</strong> — <em>${esc(totalKontrak > 0 ? terbilangRupiah(totalKontrak) : "-")}</em>), dibayarkan secara bulanan disertai tanda bukti kwitansi resmi.</li>
+        <li><strong>Kewajiban &amp; Pemeliharaan:</strong> Pihak Kedua menjaga kebersihan dan ketertiban objek sewa, serta Pihak Pertama menjamin ketersediaan hunian layak selama masa sewa.</li>
+      </ol>
+
+      <div class="sign-date">${esc(draft.lokasiSnt || profile.kotaPengesahan)}, ${esc(formatDateId(draft.tanggalKontrak))}</div>
+      <table class="sign-table">
+        <tr>
+          <td style="width:50%">
+            <div class="sign-role">PIHAK PERTAMA,<br/>Pemilik / Pengelola Rumah</div>
+            <div class="sign-space"><em>(Meterai Rp10.000)</em></div>
+            <div class="sign-name">${esc(pemilikDisplay)}</div>
+          </td>
+          <td style="width:50%">
+            <div class="sign-role">PIHAK KEDUA,<br/>${esc(profile.namaYayasan)} / Fasilitator</div>
+            <div class="sign-space"></div>
+            <div class="sign-name">${esc(fasilDisplay)}</div>
+          </td>
+        </tr>
+      </table>
+  `;
 }
 
 export function renderSewaRumahPdfHtml(input: {
@@ -520,7 +605,7 @@ function buildGenericEvidencePages(
   if (includeDaftar && activeKop === "maleo" && !includePph) {
     const firstRecipient = resolveRecipientDisplay(
       draft.recipientMode,
-      draft.items[0]?.penerima || draft.ditagihkanKepada || ""
+      draft.items[0]?.penerima || draft.slipNamaPenerima || draft.ditagihkanKepada || ""
     );
     pages.push(
       renderMaleoTandaTerimaHtml({
@@ -532,7 +617,7 @@ function buildGenericEvidencePages(
           deskripsi: `${it.uraian}${it.lokasi ? ` (${it.lokasi})` : ""}`,
           total: Number(it.nominal) || 0,
         })),
-        dibayarkanOleh: profile.bagianAdministrasi || "Yayasan Maleo Talenta Cendekia",
+        dibayarkanOleh: draft.slipDisiapkanOleh?.trim() || DEFAULT_ROBOTIC_PREPARER_LABEL,
         diterimaOleh: firstRecipient,
         catatan: draft.catatan,
       })
@@ -692,63 +777,79 @@ function buildGenericEvidencePages(
     pages.push(daftarHtml);
   }
 
-  // 3. Lembar SLIP HONORARIUM (untuk Pos A.3 Korwil, A.4 Fasilitator, A.5 Tenaga Administrasi) atau KUITANSI (pos lain)
-  const useSlipHonorarium = isSlipHonorariumRabCode(draft.rabCode, draft.judulDokumen);
-  if (includeKwitansiSlips) {
-    if (useSlipHonorarium) {
-      draft.items.forEach((it, idx) => {
-        const recDisplay = resolveRecipientDisplay(
-          draft.recipientMode,
-          it.penerima || draft.signerName
-        );
-        const bruto = Number(it.nominal) || 0;
-        const pphRow = includePph ? Math.round((bruto * pphPct) / 100) : 0;
-        const docNo =
-          it.noDokumen ||
-          draft.kuitansiNoPrefix ||
-          `SLIP/${draft.rabCode.toUpperCase()}/${String(idx + 1).padStart(3, "0")}`;
-        pages.push(
-          renderSlipHonorariumHtml({
-            kopSurat: activeKop,
-            profile,
-            periode: draft.periodeLabel,
-            namaPenerima: recDisplay,
-            nomorDokumen: docNo,
-            peranJabatan: resolvePersonnelRoleFromRab(draft.rabCode, draft.judulDokumen, it.lokasi),
-            kegiatan: DEFAULT_SLIP_KEGIATAN_LABEL,
-            tanggalKegiatan: draft.periodeLabel,
-            tanggalBayar: it.tanggal || draft.tanggalDokumen,
-            npwpNik: "-",
-            rekening: [draft.bankName, draft.bankAccount].filter(Boolean).join(" — ") || "-",
-            components: [
-              {
-                komponen: "Honorarium",
-                qty: `${it.volume || 1} ${it.satuan || "bulan"}`,
-                pendapatan: bruto,
-                potongan: 0,
-                keterangan: it.uraian,
-              },
-              {
-                komponen: "Tambahan honorarium",
-                qty: "-",
-                pendapatan: 0,
-                potongan: 0,
-                keterangan: "-",
-              },
-              {
-                komponen: "Pajak / potongan lainnya",
-                qty: includePph && pphPct > 0 ? `${pphPct}%` : "-",
-                pendapatan: 0,
-                potongan: pphRow,
-                keterangan: includePph && pphPct > 0 ? `PPh ${pphPct}%` : "-",
-              },
-            ],
-            catatan: draft.catatan || it.lokasi || "-",
-            disiapkanOleh: DEFAULT_ROBOTIC_PREPARER_LABEL,
-          })
-        );
-      });
-    } else if (includeInvoice && !includeDaftar && draft.items.length > 0) {
+  // 3. Lembar SLIP GAJI / HONORARIUM & KWITANSI — mendukung 4 checklist independen (Invoice, Tanda Terima, Slip Gaji, Kwitansi)
+  const hasExplicitSlipOrKwt =
+    draft.includeSlipGaji !== undefined || draft.includeKwitansi !== undefined;
+  const legacyUseSlip = isSlipHonorariumRabCode(draft.rabCode, draft.judulDokumen);
+  const emitSlip = hasExplicitSlipOrKwt
+    ? Boolean(draft.includeSlipGaji)
+    : includeKwitansiSlips && legacyUseSlip;
+  const emitKwitansi = hasExplicitSlipOrKwt
+    ? Boolean(draft.includeKwitansi)
+    : includeKwitansiSlips && !legacyUseSlip;
+
+  if (emitSlip) {
+    draft.items.forEach((it, idx) => {
+      const recDisplay = resolveRecipientDisplay(
+        draft.recipientMode,
+        it.penerima || draft.slipNamaPenerima || draft.signerName
+      );
+      const bruto = Number(it.nominal) || 0;
+      const pphRow = includePph ? Math.round((bruto * pphPct) / 100) : 0;
+      const docNo =
+        it.noDokumen ||
+        draft.kuitansiNoPrefix ||
+        `SLIP/${draft.rabCode.toUpperCase()}/${String(idx + 1).padStart(3, "0")}`;
+      pages.push(
+        renderSlipHonorariumHtml({
+          kopSurat: activeKop,
+          profile,
+          periode: draft.periodeLabel,
+          namaPenerima: recDisplay,
+          nomorDokumen: docNo,
+          peranJabatan:
+            draft.slipPeranJabatan?.trim() ||
+            resolvePersonnelRoleFromRab(draft.rabCode, draft.judulDokumen, it.lokasi),
+          kegiatan: draft.slipKegiatan?.trim() || DEFAULT_SLIP_KEGIATAN_LABEL,
+          tanggalKegiatan: draft.periodeLabel,
+          tanggalBayar: it.tanggal || draft.tanggalDokumen,
+          npwpNik: draft.slipNpwpNik?.trim() || "-",
+          rekening:
+            draft.slipRekening?.trim() ||
+            [draft.bankName, draft.bankAccount].filter(Boolean).join(" — ") ||
+            "-",
+          components: [
+            {
+              komponen: "Honorarium",
+              qty: `${it.volume || 1} ${it.satuan || "bulan"}`,
+              pendapatan: bruto,
+              potongan: 0,
+              keterangan: it.uraian,
+            },
+            {
+              komponen: "Tambahan honorarium",
+              qty: "-",
+              pendapatan: 0,
+              potongan: 0,
+              keterangan: "-",
+            },
+            {
+              komponen: "Pajak / potongan lainnya",
+              qty: includePph && pphPct > 0 ? `${pphPct}%` : "-",
+              pendapatan: 0,
+              potongan: pphRow,
+              keterangan: includePph && pphPct > 0 ? `PPh ${pphPct}%` : "-",
+            },
+          ],
+          catatan: draft.catatan || it.lokasi || "-",
+          disiapkanOleh: draft.slipDisiapkanOleh?.trim() || DEFAULT_ROBOTIC_PREPARER_LABEL,
+        })
+      );
+    });
+  }
+
+  if (emitKwitansi) {
+    if (includeInvoice && !includeDaftar && draft.items.length > 0) {
       const ppnPct = Number(draft.ppnPct) || 0;
       const grandTotal = totalNominal + Math.round((totalNominal * ppnPct) / 100);
       const firstRec = resolveRecipientDisplay(draft.recipientMode, draft.signerName || draft.items[0]?.penerima);
@@ -812,10 +913,11 @@ export function renderGenericEvidencePdfHtml(input: {
   draft: GenericEvidenceDraft;
   profile: SntReportProfile;
   includeKwitansiSlips: boolean;
+  prependPagesHtml?: string[];
 }): string {
-  const { type, draft, profile, includeKwitansiSlips } = input;
+  const { type, draft, profile, includeKwitansiSlips, prependPagesHtml } = input;
   const slices = expandDraftIntoMonthlySlices(draft, draft.monthlyPrintFilter || "ALL");
-  const allPages: string[] = [];
+  const allPages: string[] = [...(prependPagesHtml || [])];
   for (const slice of slices) {
     allPages.push(...buildGenericEvidencePages(type, slice, profile, includeKwitansiSlips));
   }

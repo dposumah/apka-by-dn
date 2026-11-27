@@ -29,6 +29,12 @@ import {
   renderSewaRumahPdfHtml,
 } from "../lib/snt-evidence-pdf";
 import {
+  buildDefaultRabPosDraft,
+  buildTahap1RabPosDraft,
+  normalizeRabPosCode,
+  RAB_POS_CATALOG,
+} from "../lib/snt-rab-pos-catalog";
+import {
   computeRabRealizationSummary,
   getDefaultSntReportProfile,
   SntFasilitatorRecord,
@@ -394,6 +400,15 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
     expect(adminSlips.reduce((s, sl) => s + sl.components[0].pendapatan, 0)).toBe(20054566);
     expect(adminSlips[0].kegiatan).toBe("KKA Sekolah Nasional Terintegrasi Tahun 2026");
     expect(adminSlips[0].disiapkanOleh).toBe("PT Jully Tjindrawan Robotik (Robotic Explorer)");
+    const adminWithTtHtml = renderSlipHonorariumPdfDocumentHtml(
+      adminSlips,
+      "Tanda Terima & Slip Tenaga Administrasi",
+      { includeTandaTerima: true }
+    );
+    expect(adminWithTtHtml).toContain("TANDA TERIMA");
+    expect(adminWithTtHtml).toContain("SLIP HONORARIUM");
+    expect(adminWithTtHtml).toContain("(8 lembar)");
+    expect(adminWithTtHtml).toContain("PT Jully Tjindrawan Robotik (Robotic Explorer)");
     const a5Lpd = buildMonthlyPersonnelDraft("5", "LPD_3_BULAN", profile);
     expect(a5Lpd.items).toHaveLength(3);
     expect(a5Lpd.items.reduce((s, it) => s + it.nominal, 0)).toBe(9987397);
@@ -495,5 +510,66 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
     expect(slipHtml).toContain("HONORARIUM BERSIH DITERIMA");
     expect(slipHtml).toContain("8201010101900001");
     expect(slipHtml).toContain("Slip gaji ini dibuat secara elektronik dan hanya digunakan untuk keperluan internal.");
+  });
+
+  it("provides 23 official RAB pos menus with independent 4-document checklists (Invoice, Tanda Terima, Slip Gaji, Kwitansi)", () => {
+    expect(RAB_POS_CATALOG).toHaveLength(23);
+    expect(RAB_POS_CATALOG.filter((m) => m.group === "A")).toHaveLength(5);
+    expect(RAB_POS_CATALOG.filter((m) => m.group === "B")).toHaveLength(18);
+    expect(normalizeRabPosCode("A.3")).toBe("3");
+    expect(normalizeRabPosCode("B.6a")).toBe("6a");
+
+    const profile = getDefaultSntReportProfile();
+    const a3 = buildDefaultRabPosDraft("3", profile);
+    expect(a3.items.reduce((s, it) => s + it.nominal, 0)).toBe(37800000);
+    expect(a3.includeDaftarTandaTerima).toBe(true);
+    expect(a3.includeSlipGaji).toBe(true);
+    expect(a3.includeInvoice).toBe(false);
+    expect(a3.includeKwitansi).toBe(false);
+
+    // Admin mencentang ke-4 dokumen sekaligus untuk Oktober 2026
+    const all4Html = renderGenericEvidencePdfHtml({
+      type: "INVOICE_KUITANSI_MITRA",
+      draft: {
+        ...a3,
+        includeInvoice: true,
+        includeDaftarTandaTerima: true,
+        includeSlipGaji: true,
+        includeKwitansi: true,
+        monthlyPrintFilter: "2026-10",
+        slipNpwpNik: "3173010101800001",
+      },
+      profile,
+      includeKwitansiSlips: true,
+    });
+    expect(all4Html).toContain("INVOICE");
+    expect(all4Html).toContain("TANDA TERIMA");
+    expect(all4Html).toContain("SLIP HONORARIUM");
+    expect(all4Html).toContain("KWITANSI");
+    expect(all4Html).toContain("3173010101800001");
+
+    const a5 = buildDefaultRabPosDraft("5", profile);
+    expect(a5.items.reduce((s, it) => s + it.nominal, 0)).toBe(20054566);
+    expect(buildTahap1RabPosDraft("2", profile)?.items.reduce((s, it) => s + it.nominal, 0)).toBe(112941177);
+    expect(buildTahap1RabPosDraft("3", profile)?.items.reduce((s, it) => s + it.nominal, 0)).toBe(32018823);
+    expect(buildTahap1RabPosDraft("5", profile)?.items.reduce((s, it) => s + it.nominal, 0)).toBe(9987397);
+
+    // Pos A.4 mendukung ke-4 checklist secara independen
+    const a4All4Html = renderMonthlyFacilitatorHonorPdfHtml({
+      sheet: buildMonthlyRabUnitHonorReceipt("2026-10", [], []),
+      profile,
+      kopSuratOverride: "maleo",
+      includeTransportColumn: false,
+      recipientMode: "MANUAL",
+      tanggalCetak: "2026-10-31",
+      includeInvoice: true,
+      includeTandaTerima: true,
+      includeSlipGaji: true,
+      includeKwitansi: true,
+    });
+    expect(a4All4Html).toContain("INVOICE");
+    expect(a4All4Html).toContain("DAFTAR TANDA TERIMA HONORARIUM FASILITATOR");
+    expect(a4All4Html).toContain("SLIP HONORARIUM");
+    expect(a4All4Html).toContain("KWITANSI");
   });
 });

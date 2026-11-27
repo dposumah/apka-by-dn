@@ -694,15 +694,109 @@ export function renderSlipHonorariumHtml(params: SlipHonorariumInput): string {
   `;
 }
 
+export function buildTandaTerimaInputFromSlip(slip: SlipHonorariumInput): MaleoTandaTerimaInput {
+  const totalPendapatan = slip.components.reduce((s, c) => s + (Number(c.pendapatan) || 0), 0);
+  const totalPotongan = slip.components.reduce((s, c) => s + (Number(c.potongan) || 0), 0);
+  const honorBersih = Math.max(0, totalPendapatan - totalPotongan);
+
+  const positiveComps = slip.components.filter((c) => (Number(c.pendapatan) || 0) > 0);
+  const items: MaleoTandaTerimaLine[] =
+    positiveComps.length > 0 && totalPotongan === 0
+      ? positiveComps.map((c) => {
+          const detail = [c.keterangan && c.keterangan !== "-" ? c.keterangan : "", c.qty && c.qty !== "-" ? c.qty : ""]
+            .filter(Boolean)
+            .join(" · ");
+          return {
+            deskripsi: `${c.komponen} ${slip.peranJabatan} — ${slip.kegiatan} (Periode ${slip.periode}${detail ? ` · ${detail}` : ""})`,
+            total: Number(c.pendapatan) || 0,
+          };
+        })
+      : [
+          {
+            deskripsi: `Honorarium Bersih ${slip.peranJabatan} — ${slip.kegiatan} (Periode ${slip.periode})`,
+            total: honorBersih,
+          },
+        ];
+
+  const catatanParts = [
+    slip.nomorDokumen ? `Ref. Slip: ${slip.nomorDokumen}` : "",
+    totalPotongan > 0 ? `Potongan: ${formatCurrency(totalPotongan)}` : "",
+    slip.catatan && slip.catatan !== "-" ? slip.catatan : "",
+  ].filter(Boolean);
+
+  return {
+    kopSurat: slip.kopSurat,
+    profile: slip.profile,
+    originPrefix: slip.originPrefix,
+    tanggal: slip.tanggalBayar,
+    kepadaYth: slip.namaPenerima,
+    items,
+    dibayarkanOleh: slip.disiapkanOleh || DEFAULT_ROBOTIC_PREPARER_LABEL,
+    diterimaOleh: slip.namaPenerima,
+    catatan: catatanParts.join(" | "),
+  };
+}
+
+export function renderTandaTerimaPdfDocumentHtml(
+  receipts: MaleoTandaTerimaInput[],
+  docTitle = "Tanda Terima Honorarium — Yayasan Maleo Talenta Cendekia"
+): string {
+  const body = receipts
+    .map((r, idx) =>
+      idx === 0
+        ? renderMaleoTandaTerimaHtml(r)
+        : `<div style="page-break-before:always; margin-top:20px;">${renderMaleoTandaTerimaHtml(r)}</div>`
+    )
+    .join("\n");
+
+  return `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>${esc(docTitle)}</title>
+  <style>
+    @page { size: A4 portrait; margin: 14mm; }
+    body { margin: 0; background: #f1f5f9; font-family: 'Open Sans', 'Segoe UI', Arial, sans-serif; }
+    .toolbar { display:flex; justify-content:space-between; align-items:center; background:#0f172a; color:#fff; padding:10px 18px; position:sticky; top:0; z-index:10; }
+    .toolbar button { background:#00ADB5; color:#fff; border:none; padding:7px 16px; border-radius:6px; font-weight:700; cursor:pointer; font-size:12px; }
+    .sheet { padding: 18px 12px; }
+    @media print {
+      body { background: #fff; }
+      .toolbar { display: none; }
+      .sheet { padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <div><strong>${esc(docTitle)}</strong> (${receipts.length} lembar)</div>
+    <button onclick="window.print()">Cetak / Simpan PDF</button>
+  </div>
+  <div class="sheet">
+    ${body}
+  </div>
+</body>
+</html>`;
+}
+
 export function renderSlipHonorariumPdfDocumentHtml(
   slips: SlipHonorariumInput[],
-  docTitle = "Slip Honorarium — Yayasan Maleo Talenta Cendekia"
+  docTitle = "Slip Honorarium — Yayasan Maleo Talenta Cendekia",
+  options?: { includeTandaTerima?: boolean }
 ): string {
-  const body = slips
-    .map((s, idx) =>
+  const pages: string[] = [];
+  for (const s of slips) {
+    if (options?.includeTandaTerima) {
+      pages.push(renderMaleoTandaTerimaHtml(buildTandaTerimaInputFromSlip(s)));
+    }
+    pages.push(renderSlipHonorariumHtml(s));
+  }
+
+  const body = pages
+    .map((pageHtml, idx) =>
       idx === 0
-        ? renderSlipHonorariumHtml(s)
-        : `<div style="page-break-before:always; margin-top:20px;">${renderSlipHonorariumHtml(s)}</div>`
+        ? pageHtml
+        : `<div style="page-break-before:always; margin-top:20px;">${pageHtml}</div>`
     )
     .join("\n");
 
@@ -726,7 +820,7 @@ export function renderSlipHonorariumPdfDocumentHtml(
 </head>
 <body>
   <div class="toolbar">
-    <div><strong>${esc(docTitle)}</strong> (${slips.length} lembar)</div>
+    <div><strong>${esc(docTitle)}</strong> (${pages.length} lembar)</div>
     <button onclick="window.print()">Cetak / Simpan PDF</button>
   </div>
   <div class="sheet">

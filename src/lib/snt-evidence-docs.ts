@@ -60,12 +60,12 @@ export const EVIDENCE_DOC_CATALOG: EvidenceDocMeta[] = [
   {
     type: "SLIP_HONORARIUM",
     rabCode: "A.3 & A.5",
-    shortTitle: "Slip Honorarium Korwil & Tenaga Admin (Bulanan)",
-    fullTitle: "Slip Honorarium Bulanan — Koordinator Wilayah (A.3), Tenaga Administrasi (A.5) & Satuan",
+    shortTitle: "Tanda Terima & Slip Korwil / Tenaga Admin",
+    fullTitle: "Tanda Terima & Slip Honorarium Bulanan — Koordinator Wilayah (A.3) & Tenaga Administrasi (A.5)",
     template13Ref: "Pos A.3 (Korwil · 1 Org × 12 jam × 3,5 bln = Rp37,8 jt) & Pos A.5 (Tenaga Admin · 1 Org × 3,5 bln = Rp20,05 jt) · Format Resmi Maleo",
     defaultRecipientMode: "MANUAL",
     description:
-      "Cetak Slip Honorarium per bulan sesuai rincian RAB untuk Koordinator Wilayah (A.3) & Tenaga Administrasi (A.5), lengkap dengan editor slip satuan.",
+      "Cetak Tanda Terima & Slip Honorarium per bulan sesuai rincian RAB untuk Koordinator Wilayah (A.3) & Tenaga Administrasi (A.5), lengkap dengan editor slip satuan.",
   },
   {
     type: "INVOICE_KUITANSI_MITRA",
@@ -404,6 +404,14 @@ export interface GenericEvidenceDraft {
   showRabCode?: boolean;
   includeInvoice?: boolean;
   includeDaftarTandaTerima?: boolean;
+  includeSlipGaji?: boolean;
+  includeKwitansi?: boolean;
+  slipNamaPenerima?: string;
+  slipPeranJabatan?: string;
+  slipKegiatan?: string;
+  slipNpwpNik?: string;
+  slipRekening?: string;
+  slipDisiapkanOleh?: string;
   invoiceNo?: string;
   kuitansiNoPrefix?: string;
   jatuhTempo?: string;
