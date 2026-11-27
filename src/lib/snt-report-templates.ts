@@ -225,16 +225,17 @@ export interface SntExpenseRecord {
   receiptUrl?: string | null;
   receiptUrls?: string[] | null;
   paymentReceiptUrl?: string | null;
+  vendorReceiptNo?: string | null;
   fasilitator?: { id?: string; namaLengkap: string; lokasiSNT?: string | null } | null;
   createdBy?: { name?: string | null } | null;
   rabItem?: { id?: string; code?: string; name?: string; category?: { name?: string } | null } | null;
   kwitansiRecord?:
-    | { id: string; noKwitansi: string; tanggal?: string | Date; perihal?: string; nominal?: number; owner?: string }
-    | Array<{ id: string; noKwitansi: string; tanggal?: string | Date; perihal?: string; nominal?: number; owner?: string }>
+    | { id: string; noKwitansi: string; entityCode?: string; tanggal?: string | Date; perihal?: string; nominal?: number; owner?: string }
+    | Array<{ id: string; noKwitansi: string; entityCode?: string; tanggal?: string | Date; perihal?: string; nominal?: number; owner?: string }>
     | null;
   invoiceRecord?:
-    | { id: string; noInvoice: string }
-    | Array<{ id: string; noInvoice: string }>
+    | { id: string; noInvoice: string; entityCode?: string; tanggal?: string | Date; perihal?: string; nominal?: number; owner?: string }
+    | Array<{ id: string; noInvoice: string; entityCode?: string; tanggal?: string | Date; perihal?: string; nominal?: number; owner?: string }>
     | null;
 }
 
@@ -361,11 +362,22 @@ export function getRequiredEvidenceForRabItem(code: string, name: string): strin
 
 export function getPrimaryKwitansiRecord(
   rec?: SntExpenseRecord["kwitansiRecord"]
-): { id: string; noKwitansi: string; tanggal?: string | Date; perihal?: string; nominal?: number; owner?: string } | null {
+): { id: string; noKwitansi: string; entityCode?: string; tanggal?: string | Date; perihal?: string; nominal?: number; owner?: string } | null {
   if (!rec) return null;
   const list = Array.isArray(rec) ? rec : [rec];
   const valid = list.find(
     (item) => item && item.noKwitansi && !String(item.noKwitansi).includes("TEMP")
+  );
+  return valid || null;
+}
+
+export function getPrimaryInvoiceRecord(
+  rec?: SntExpenseRecord["invoiceRecord"]
+): { id: string; noInvoice: string; entityCode?: string; tanggal?: string | Date; perihal?: string; nominal?: number; owner?: string } | null {
+  if (!rec) return null;
+  const list = Array.isArray(rec) ? rec : [rec];
+  const valid = list.find(
+    (item) => item && item.noInvoice && !String(item.noInvoice).includes("TEMP")
   );
   return valid || null;
 }
@@ -665,12 +677,21 @@ export interface KwitansiAuditRow {
   realizationType: ExpenseRealizationType;
   receiptUrls: string[];
   hasReceipt: boolean;
+  vendorReceiptNo: string | null;
   kwitansiId: string | null;
   noKwitansi: string | null;
+  kwitansiEntityCode: string | null;
   kwitansiTanggal: string | null;
   kwitansiOwner: string | null;
   kwitansiPerihal: string | null;
   hasKwitansi: boolean;
+  invoiceId: string | null;
+  noInvoice: string | null;
+  invoiceEntityCode: string | null;
+  invoiceTanggal: string | null;
+  invoiceOwner: string | null;
+  invoicePerihal: string | null;
+  hasInvoice: boolean;
   requiredEvidence: string;
   rawExpense: SntExpenseRecord;
 }
@@ -683,6 +704,8 @@ export interface KwitansiAuditSummary {
   missingReceiptCount: number;
   withKwitansiCount: number;
   missingKwitansiCount: number;
+  withInvoiceCount: number;
+  withVendorReceiptNoCount: number;
   fullyReadyCount: number;
   readinessPct: number;
 }
@@ -709,11 +732,16 @@ export function computeKwitansiAuditSummary(
       for (const exp of targetExpenses) {
         const urls = getExpenseReceiptUrls(exp);
         const kwtRec = getPrimaryKwitansiRecord(exp.kwitansiRecord);
+        const invRec = getPrimaryInvoiceRecord(exp.invoiceRecord);
         const noKwt = kwtRec?.noKwitansi || null;
+        const noInv = invRec?.noInvoice || null;
         const d = exp.date || exp.createdAt;
         const dateIso = d ? new Date(d).toISOString().slice(0, 10) : "";
         const kwtTanggalIso = kwtRec?.tanggal
           ? new Date(kwtRec.tanggal).toISOString().slice(0, 10)
+          : null;
+        const invTanggalIso = invRec?.tanggal
+          ? new Date(invRec.tanggal).toISOString().slice(0, 10)
           : null;
 
         rows.push({
@@ -729,12 +757,21 @@ export function computeKwitansiAuditSummary(
           realizationType: normalizeExpenseRealizationType(exp.realizationType),
           receiptUrls: urls,
           hasReceipt: urls.length > 0,
+          vendorReceiptNo: exp.vendorReceiptNo || null,
           kwitansiId: kwtRec?.id || null,
           noKwitansi: noKwt,
+          kwitansiEntityCode: kwtRec?.entityCode || null,
           kwitansiTanggal: kwtTanggalIso,
           kwitansiOwner: kwtRec?.owner || null,
           kwitansiPerihal: kwtRec?.perihal || null,
           hasKwitansi: Boolean(noKwt),
+          invoiceId: invRec?.id || null,
+          noInvoice: noInv,
+          invoiceEntityCode: invRec?.entityCode || null,
+          invoiceTanggal: invTanggalIso,
+          invoiceOwner: invRec?.owner || null,
+          invoicePerihal: invRec?.perihal || null,
+          hasInvoice: Boolean(noInv),
           requiredEvidence: reqEvidence,
           rawExpense: exp,
         });
@@ -748,6 +785,8 @@ export function computeKwitansiAuditSummary(
   const totalAmount = rows.reduce((s, r) => s + r.amount, 0);
   const withReceiptCount = rows.filter((r) => r.hasReceipt).length;
   const withKwitansiCount = rows.filter((r) => r.hasKwitansi).length;
+  const withInvoiceCount = rows.filter((r) => r.hasInvoice).length;
+  const withVendorReceiptNoCount = rows.filter((r) => Boolean(r.vendorReceiptNo)).length;
   const fullyReadyCount = rows.filter((r) => r.hasReceipt && r.hasKwitansi).length;
 
   return {
@@ -758,6 +797,8 @@ export function computeKwitansiAuditSummary(
     missingReceiptCount: totalTx - withReceiptCount,
     withKwitansiCount,
     missingKwitansiCount: totalTx - withKwitansiCount,
+    withInvoiceCount,
+    withVendorReceiptNoCount,
     fullyReadyCount,
     readinessPct: totalTx > 0 ? Math.round((fullyReadyCount / totalTx) * 100) : 100,
   };

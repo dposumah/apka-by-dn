@@ -16,6 +16,11 @@ import {
   X,
   Lock,
   Save,
+  BookOpen,
+  Download,
+  Trash2,
+  Receipt,
+  Check,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,9 +30,24 @@ import { formatCurrency } from "@/lib/format";
 import { uploadFileClient } from "@/lib/upload-client";
 import {
   appendExpenseReceipts,
+  bulkGenerateMissingInvoices,
   bulkGenerateMissingKwitansi,
+  deleteDocumentNumberRecord,
+  updateExpenseVendorReceiptNo,
   updateKwitansiRecordDetails,
 } from "@/app/actions/snt-reports";
+import {
+  buildDocumentRegisterCsv,
+  computeNextSeqForEntity,
+  DocumentRegisterEntry,
+  formatSntDocumentNumber,
+  normalizeEntityCode,
+  renderDocumentRegisterPdfHtml,
+  resolveEntityCodeFromOwner,
+  resolveKopFromEntityCode,
+  SNT_ENTITY_OPTIONS,
+  SntEntityCode,
+} from "@/lib/snt-doc-numbering";
 import {
   computeKwitansiAuditSummary,
   KopSuratOption,
@@ -66,14 +86,22 @@ interface QuickKwitansiModalState {
 export function KwitansiAuditTab({ categories, rabSummary, profile, realizationBasis }: KwitansiAuditTabProps) {
   const router = useRouter();
   const [onlyOfficialRab, setOnlyOfficialRab] = useState(true);
+  const [viewMode, setViewMode] = useState<"AUDIT" | "REGISTER">("AUDIT");
   const [typeFilter, setTypeFilter] = useState<"ALL" | "REAL" | "PELAPORAN">("ALL");
   const [filterMode, setFilterMode] = useState<"ALL" | "MISSING_RECEIPT" | "MISSING_KWT" | "READY">("ALL");
+  const [entityMode, setEntityMode] = useState<"AUTO" | SntEntityCode>("AUTO");
+  const [regEntityFilter, setRegEntityFilter] = useState<"ALL" | SntEntityCode>("ALL");
+  const [regKindFilter, setRegKindFilter] = useState<"ALL" | "KW" | "INV" | "NOTA">("ALL");
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkIncludeReceipts, setBulkIncludeReceipts] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatingSingleId, setGeneratingSingleId] = useState<string | null>(null);
+  const [generatingInvId, setGeneratingInvId] = useState<string | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [editingNotaId, setEditingNotaId] = useState<string | null>(null);
+  const [editingNotaVal, setEditingNotaVal] = useState("");
+  const [savingNotaId, setSavingNotaId] = useState<string | null>(null);
   const [showRabMatrix, setShowRabMatrix] = useState(true);
   const [statusBanner, setStatusBanner] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
@@ -113,6 +141,11 @@ export function KwitansiAuditTab({ categories, rabSummary, profile, realizationB
     [audit.rows]
   );
 
+  const missingInvoiceIds = useMemo(
+    () => audit.rows.filter((r) => !r.hasInvoice).map((r) => r.expenseId),
+    [audit.rows]
+  );
+
   const rowsWithKwitansi = useMemo(
     () => audit.rows.filter((r) => r.hasKwitansi),
     [audit.rows]
@@ -123,10 +156,110 @@ export function KwitansiAuditTab({ categories, rabSummary, profile, realizationB
     [selectedIds, missingKwitansiIds]
   );
 
+  const selectedMissingInvIds = useMemo(
+    () => selectedIds.filter((id) => missingInvoiceIds.includes(id)),
+    [selectedIds, missingInvoiceIds]
+  );
+
   const selectedReadyKwtRows = useMemo(
     () => rowsWithKwitansi.filter((r) => selectedIds.includes(r.expenseId)),
     [rowsWithKwitansi, selectedIds]
   );
+
+  // Buku Register Nomor (Kwitansi, Invoice & Nota Vendor) dari seluruh transaksi yang tampil
+  const registerEntries = useMemo<DocumentRegisterEntry[]>(() => {
+    const list: DocumentRegisterEntry[] = [];
+    for (const r of audit.rows) {
+      if (r.hasKwitansi && r.noKwitansi) {
+        const entity = r.kwitansiEntityCode
+          ? normalizeEntityCode(r.kwitansiEntityCode)
+          : resolveEntityCodeFromOwner(r.kwitansiOwner);
+        list.push({
+          id: `kw-${r.kwitansiId || r.expenseId}`,
+          kind: "KW",
+          docNumber: r.noKwitansi,
+          entityCode: entity,
+          tanggal: r.kwitansiTanggal || r.date,
+          rabCode: r.rabCode,
+          rabName: r.rabName,
+          realizationType: r.realizationType,
+          perihal: r.kwitansiPerihal || r.description,
+          penerimaOrOwner: r.kwitansiOwner || r.penerima,
+          vendorReceiptNo: r.vendorReceiptNo,
+          nominal: r.amount,
+          expenseId: r.expenseId,
+          recordId: r.kwitansiId,
+        });
+      }
+      if (r.hasInvoice && r.noInvoice) {
+        const entity = r.invoiceEntityCode
+          ? normalizeEntityCode(r.invoiceEntityCode)
+          : resolveEntityCodeFromOwner(r.invoiceOwner);
+        list.push({
+          id: `inv-${r.invoiceId || r.expenseId}`,
+          kind: "INV",
+          docNumber: r.noInvoice,
+          entityCode: entity,
+          tanggal: r.invoiceTanggal || r.date,
+          rabCode: r.rabCode,
+          rabName: r.rabName,
+          realizationType: r.realizationType,
+          perihal: r.invoicePerihal || r.description,
+          penerimaOrOwner: r.invoiceOwner || r.penerima,
+          vendorReceiptNo: r.vendorReceiptNo,
+          nominal: r.amount,
+          expenseId: r.expenseId,
+          recordId: r.invoiceId,
+        });
+      }
+      if (r.vendorReceiptNo) {
+        list.push({
+          id: `nota-${r.expenseId}`,
+          kind: "NOTA",
+          docNumber: r.vendorReceiptNo,
+          entityCode: "MTC",
+          tanggal: r.date,
+          rabCode: r.rabCode,
+          rabName: r.rabName,
+          realizationType: r.realizationType,
+          perihal: r.description,
+          penerimaOrOwner: r.penerima,
+          vendorReceiptNo: r.vendorReceiptNo,
+          nominal: r.amount,
+          expenseId: r.expenseId,
+          recordId: null,
+        });
+      }
+    }
+    return list;
+  }, [audit.rows]);
+
+  const filteredRegisterEntries = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return registerEntries.filter((e) => {
+      if (regEntityFilter !== "ALL" && e.entityCode !== regEntityFilter) return false;
+      if (regKindFilter !== "ALL" && e.kind !== regKindFilter) return false;
+      if (!q) return true;
+      return (
+        e.docNumber.toLowerCase().includes(q) ||
+        (e.vendorReceiptNo || "").toLowerCase().includes(q) ||
+        e.perihal.toLowerCase().includes(q) ||
+        e.rabCode.toLowerCase().includes(q) ||
+        e.rabName.toLowerCase().includes(q)
+      );
+    });
+  }, [registerEntries, regEntityFilter, regKindFilter, search]);
+
+  const nextNumbersPreview = useMemo(() => {
+    const allKw = registerEntries.filter((e) => e.kind === "KW").map((e) => e.docNumber);
+    const allInv = registerEntries.filter((e) => e.kind === "INV").map((e) => e.docNumber);
+    const today = new Date().toISOString().slice(0, 10);
+    return SNT_ENTITY_OPTIONS.map((ent) => ({
+      ...ent,
+      nextKw: formatSntDocumentNumber("KW", ent.code, computeNextSeqForEntity(allKw, "KW", ent.code), today),
+      nextInv: formatSntDocumentNumber("INV", ent.code, computeNextSeqForEntity(allInv, "INV", ent.code), today),
+    }));
+  }, [registerEntries]);
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) =>
@@ -177,6 +310,10 @@ export function KwitansiAuditTab({ categories, rabSummary, profile, realizationB
       row.kwitansiOwner ||
       (profile.kopSurat === "maleo" ? "Yayasan Maleo Talenta Cendekia" : profile.namaYayasan);
 
+    const entityCode = row.kwitansiEntityCode
+      ? normalizeEntityCode(row.kwitansiEntityCode)
+      : resolveEntityCodeFromOwner(defaultOwner);
+
     setPdfModal({
       kwitansiId: override?.id || row.kwitansiId,
       noKwitansi,
@@ -186,7 +323,7 @@ export function KwitansiAuditTab({ categories, rabSummary, profile, realizationB
       perihal: override?.perihal || row.kwitansiPerihal || `${row.description} - ${row.rabName}`,
       rabLabel: `${row.rabCode} - ${row.rabName}`,
       amount: row.amount,
-      kopSurat: profile.kopSurat,
+      kopSurat: resolveKopFromEntityCode(entityCode),
       includeReceipts: row.receiptUrls.length > 0,
       receiptUrls: row.receiptUrls,
     });
@@ -215,9 +352,13 @@ export function KwitansiAuditTab({ categories, rabSummary, profile, realizationB
       setStatusBanner({ type: "err", text: "Semua transaksi yang dipilih sudah memiliki nomor kwitansi resmi." });
       return;
     }
+    const seriDesc =
+      entityMode === "AUTO"
+        ? "otomatis sesuai Pos RAB (LPD / RE / MTC)"
+        : `seri ${entityMode}`;
     if (
       !confirm(
-        `Generate nomor Kwitansi resmi (format KWC/MTC/YYYY.MM.DD.NNN) untuk ${idsToGenerate.length} transaksi yang belum memiliki kwitansi? Nomor kwitansi yang sudah ada tidak akan diubah.`
+        `Generate nomor Kwitansi resmi (KW/{ENTITAS}/SNT-W2/{NNN}/{ROMAWI}/2026 — ${seriDesc}) untuk ${idsToGenerate.length} transaksi? Nomor resmi lama tidak akan diubah.`
       )
     ) {
       return;
@@ -226,7 +367,7 @@ export function KwitansiAuditTab({ categories, rabSummary, profile, realizationB
     setIsGenerating(true);
     setStatusBanner(null);
     try {
-      const res = await bulkGenerateMissingKwitansi(idsToGenerate);
+      const res = await bulkGenerateMissingKwitansi(idsToGenerate, entityMode);
       if (!res.success) {
         setStatusBanner({ type: "err", text: res.error || "Gagal generate kwitansi masal" });
         return;
@@ -234,7 +375,43 @@ export function KwitansiAuditTab({ categories, rabSummary, profile, realizationB
       setSelectedIds([]);
       setStatusBanner({
         type: "ok",
-        text: `Berhasil membuat ${res.generatedCount} nomor Kwitansi resmi baru (${res.skippedCount} dilewati karena sudah punya nomor resmi). Gunakan tombol "Cetak Semua PDF Kwitansi" untuk mencetak masal.`,
+        text: `Berhasil membuat ${res.generatedCount} nomor Kwitansi resmi baru (${res.skippedCount} dilewati karena sudah punya nomor resmi).`,
+      });
+      router.refresh();
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleBulkGenerateInvoices = async (idsToGenerate: string[]) => {
+    if (idsToGenerate.length === 0) {
+      setStatusBanner({ type: "err", text: "Semua transaksi yang dipilih sudah memiliki nomor invoice resmi." });
+      return;
+    }
+    const seriDesc =
+      entityMode === "AUTO"
+        ? "otomatis sesuai Pos RAB (LPD / RE / MTC)"
+        : `seri ${entityMode}`;
+    if (
+      !confirm(
+        `Generate nomor Invoice resmi (INV/{ENTITAS}/SNT-W2/{NNN}/{ROMAWI}/2026 — ${seriDesc}) untuk ${idsToGenerate.length} transaksi?`
+      )
+    ) {
+      return;
+    }
+
+    setIsGenerating(true);
+    setStatusBanner(null);
+    try {
+      const res = await bulkGenerateMissingInvoices(idsToGenerate, entityMode);
+      if (!res.success) {
+        setStatusBanner({ type: "err", text: res.error || "Gagal generate invoice masal" });
+        return;
+      }
+      setSelectedIds([]);
+      setStatusBanner({
+        type: "ok",
+        text: `Berhasil membuat ${res.generatedCount} nomor Invoice resmi baru (${res.skippedCount} dilewati karena sudah ada).`,
       });
       router.refresh();
     } finally {
@@ -246,7 +423,7 @@ export function KwitansiAuditTab({ categories, rabSummary, profile, realizationB
     setGeneratingSingleId(row.expenseId);
     setStatusBanner(null);
     try {
-      const res = await bulkGenerateMissingKwitansi([row.expenseId]);
+      const res = await bulkGenerateMissingKwitansi([row.expenseId], entityMode);
       if (!res.success) {
         setStatusBanner({ type: "err", text: res.error || "Gagal generate kwitansi" });
         return;
@@ -269,6 +446,100 @@ export function KwitansiAuditTab({ categories, rabSummary, profile, realizationB
     } finally {
       setGeneratingSingleId(null);
     }
+  };
+
+  const handleSingleGenerateInvoice = async (row: KwitansiAuditRow) => {
+    setGeneratingInvId(row.expenseId);
+    setStatusBanner(null);
+    try {
+      const res = await bulkGenerateMissingInvoices([row.expenseId], entityMode);
+      if (!res.success) {
+        setStatusBanner({ type: "err", text: res.error || "Gagal generate invoice" });
+        return;
+      }
+      const created = res.createdNumbers?.[0];
+      if (created) {
+        setStatusBanner({
+          type: "ok",
+          text: `Nomor Invoice resmi berhasil dibuat: ${created.noInvoice}`,
+        });
+      }
+      router.refresh();
+    } finally {
+      setGeneratingInvId(null);
+    }
+  };
+
+  const handleSaveVendorNota = async (expenseId: string) => {
+    setSavingNotaId(expenseId);
+    setStatusBanner(null);
+    try {
+      const res = await updateExpenseVendorReceiptNo(expenseId, editingNotaVal);
+      if (!res.success) {
+        setStatusBanner({ type: "err", text: res.error || "Gagal menyimpan No. Nota Vendor" });
+        return;
+      }
+      setEditingNotaId(null);
+      setStatusBanner({
+        type: "ok",
+        text: editingNotaVal.trim()
+          ? `No. Nota Vendor "${editingNotaVal.trim()}" tersimpan.`
+          : "No. Nota Vendor dikosongkan.",
+      });
+      router.refresh();
+    } finally {
+      setSavingNotaId(null);
+    }
+  };
+
+  const handleDeleteDocRecord = async (entry: DocumentRegisterEntry) => {
+    if (!entry.recordId || (entry.kind !== "KW" && entry.kind !== "INV")) return;
+    if (
+      !confirm(
+        `Hapus nomor ${entry.kind === "KW" ? "Kwitansi" : "Invoice"} "${entry.docNumber}" dari Buku Register? Transaksi pengeluaran tidak akan terhapus.`
+      )
+    ) {
+      return;
+    }
+    const res = await deleteDocumentNumberRecord(entry.kind, entry.recordId);
+    if (!res.success) {
+      setStatusBanner({ type: "err", text: res.error || "Gagal menghapus nomor dokumen." });
+      return;
+    }
+    setStatusBanner({ type: "ok", text: `Nomor ${entry.docNumber} dihapus dari Buku Register.` });
+    router.refresh();
+  };
+
+  const handleExportRegisterCsv = () => {
+    const csv = buildDocumentRegisterCsv(filteredRegisterEntries);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Buku_Register_Nomor_SNT_W2_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handlePrintRegisterPdf = () => {
+    const html = renderDocumentRegisterPdfHtml({
+      title: "BUKU REGISTER NOMOR KWITANSI, INVOICE & NOTA VENDOR",
+      subtitle: `SNT Wilayah 2 · Filter Entitas: ${regEntityFilter} · Jenis: ${regKindFilter}`,
+      entries: filteredRegisterEntries,
+      printedAt: new Date().toLocaleDateString("id-ID", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      }),
+    });
+    const w = window.open("", "_blank");
+    if (!w) {
+      alert("Popup diblokir browser. Izinkan popup untuk mencetak Buku Register.");
+      return;
+    }
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
   };
 
   const handleModalPrint = async (saveChangesFirst: boolean) => {
@@ -514,17 +785,40 @@ export function KwitansiAuditTab({ categories, rabSummary, profile, realizationB
         )}
       </Card>
 
-      {/* Toolbar Aksi Masal & Filter */}
+      {/* Toolbar Aksi Masal, Seri Entitas & Switcher Buku Register */}
       <Card>
         <CardHeader className="py-4 px-5 bg-slate-50 border-b space-y-3">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-            <div>
-              <CardTitle className="text-base font-bold text-slate-900">
-                Daftar Transaksi &amp; Generator Kwitansi Resmi
-              </CardTitle>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Upload bukti multi-file (gambar/PDF), generate nomor kwitansi resmi, dan cetak/generate ulang PDF kwitansi satuan maupun masal.
-              </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex rounded-lg border border-slate-300 bg-white p-0.5 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("AUDIT")}
+                  className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 transition-colors ${
+                    viewMode === "AUDIT"
+                      ? "bg-slate-900 text-white"
+                      : "text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  <FileCheck2 className="w-3.5 h-3.5" />
+                  Audit Transaksi &amp; Generator
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("REGISTER")}
+                  className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 transition-colors ${
+                    viewMode === "REGISTER"
+                      ? "bg-indigo-700 text-white"
+                      : "text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  Buku Register Nomor ({registerEntries.length})
+                </button>
+              </div>
+              <div className="text-[11px] text-slate-500">
+                Inv: <strong>{audit.withInvoiceCount}</strong> · Kwt: <strong>{audit.withKwitansiCount}</strong> · Nota Vendor: <strong>{audit.withVendorReceiptNoCount}</strong>
+              </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <div className="inline-flex rounded-md border border-slate-200 bg-white p-0.5 text-[11px] font-semibold">
@@ -560,32 +854,153 @@ export function KwitansiAuditTab({ categories, rabSummary, profile, realizationB
               >
                 Cakupan: {onlyOfficialRab ? "Khusus RAB A & B" : "Semua Kategori A–F"}
               </Button>
-              {selectedMissingKwtIds.length > 0 && (
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={isGenerating}
-                  onClick={() => handleBulkGenerate(selectedMissingKwtIds)}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs gap-1.5"
-                >
-                  {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileCheck2 className="w-3.5 h-3.5" />}
-                  Generate Kwt Terpilih ({selectedMissingKwtIds.length})
-                </Button>
-              )}
-              <Button
-                type="button"
-                size="sm"
-                disabled={isGenerating || missingKwitansiIds.length === 0}
-                onClick={() => handleBulkGenerate(missingKwitansiIds)}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5"
-              >
-                {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                Generate Semua Belum Kwt ({missingKwitansiIds.length})
-              </Button>
             </div>
           </div>
 
+          {/* Baris Pengaturan Seri Entitas (LPD / RE / MTC) & Generator Masal */}
+          {viewMode === "AUDIT" && (
+            <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-lg border border-indigo-200 bg-indigo-50/50 px-3.5 py-2.5">
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="font-bold text-indigo-950">Seri Penerbit Nomor:</span>
+                <select
+                  value={entityMode}
+                  onChange={(e) => setEntityMode(e.target.value as "AUTO" | SntEntityCode)}
+                  className="h-8 px-2 rounded-md border border-indigo-300 bg-white text-xs font-semibold text-indigo-950"
+                >
+                  <option value="AUTO">Otomatis per Pos RAB (LPD / RE / MTC)</option>
+                  <option value="LPD">LPD — Jully Tjindrawan Robotik</option>
+                  <option value="RE">RE — Robotic Explorer</option>
+                  <option value="MTC">MTC — Yayasan Maleo</option>
+                </select>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {selectedMissingKwtIds.length > 0 && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={isGenerating}
+                    onClick={() => handleBulkGenerate(selectedMissingKwtIds)}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8 gap-1.5"
+                  >
+                    {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileCheck2 className="w-3.5 h-3.5" />}
+                    Buat Kwt Terpilih ({selectedMissingKwtIds.length})
+                  </Button>
+                )}
+                {selectedMissingInvIds.length > 0 && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={isGenerating}
+                    onClick={() => handleBulkGenerateInvoices(selectedMissingInvIds)}
+                    className="bg-sky-700 hover:bg-sky-800 text-white text-xs h-8 gap-1.5"
+                  >
+                    {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Receipt className="w-3.5 h-3.5" />}
+                    Buat Inv Terpilih ({selectedMissingInvIds.length})
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={isGenerating || missingKwitansiIds.length === 0}
+                  onClick={() => handleBulkGenerate(missingKwitansiIds)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8 gap-1.5"
+                >
+                  {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                  Generate Semua Belum Kwt ({missingKwitansiIds.length})
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Ringkasan Nomor Berikutnya & Tombol Export pada Mode Buku Register */}
+          {viewMode === "REGISTER" && (
+            <div className="space-y-2.5 rounded-lg border border-indigo-200 bg-indigo-50/50 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-xs font-bold text-indigo-950">
+                  Urutan Nomor Resmi Berikutnya per Entitas (Atomic DB Counter):
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={handleExportRegisterCsv}
+                    className="bg-white border-indigo-300 text-indigo-900 hover:bg-indigo-100 text-xs h-8 gap-1.5"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Export CSV ({filteredRegisterEntries.length})
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handlePrintRegisterPdf}
+                    className="bg-slate-900 hover:bg-slate-800 text-white text-xs h-8 gap-1.5"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    Cetak Buku Register (PDF)
+                  </Button>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                {nextNumbersPreview.map((ent) => (
+                  <div
+                    key={ent.code}
+                    className="rounded-md border border-slate-200 bg-white px-2.5 py-2 text-[11px]"
+                  >
+                    <span className={`inline-block font-bold px-1.5 py-0.5 rounded border text-[10px] ${ent.badgeClass}`}>
+                      {ent.shortLabel}
+                    </span>
+                    <div className="mt-1 font-mono text-[10px] text-slate-700">
+                      Next Inv: <strong>{ent.nextInv}</strong>
+                    </div>
+                    <div className="font-mono text-[10px] text-emerald-800">
+                      Next Kwt: <strong>{ent.nextKw}</strong>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <span className="text-[11px] font-semibold text-slate-600">Entitas:</span>
+                {(["ALL", "MTC", "LPD", "RE"] as const).map((ent) => (
+                  <button
+                    key={ent}
+                    type="button"
+                    onClick={() => setRegEntityFilter(ent)}
+                    className={`px-2 py-1 rounded text-[11px] font-semibold ${
+                      regEntityFilter === ent
+                        ? "bg-slate-900 text-white"
+                        : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"
+                    }`}
+                  >
+                    {ent === "ALL" ? "Semua Entitas" : ent}
+                  </button>
+                ))}
+                <span className="text-[11px] font-semibold text-slate-600 ml-2">Jenis:</span>
+                {([
+                  { k: "ALL" as const, l: "Semua" },
+                  { k: "KW" as const, l: "Kuitansi" },
+                  { k: "INV" as const, l: "Invoice" },
+                  { k: "NOTA" as const, l: "Nota Vendor" },
+                ]).map((j) => (
+                  <button
+                    key={j.k}
+                    type="button"
+                    onClick={() => setRegKindFilter(j.k)}
+                    className={`px-2 py-1 rounded text-[11px] font-semibold ${
+                      regKindFilter === j.k
+                        ? "bg-indigo-700 text-white"
+                        : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"
+                    }`}
+                  >
+                    {j.l}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Baris Cetak PDF Kwitansi Masal */}
+          {viewMode === "AUDIT" && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50/60 px-3.5 py-2">
             <label className="flex items-center gap-2 text-xs font-medium text-blue-900 cursor-pointer">
               <input
@@ -620,6 +1035,7 @@ export function KwitansiAuditTab({ categories, rabSummary, profile, realizationB
               </Button>
             </div>
           </div>
+          )}
 
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[220px]">
@@ -627,10 +1043,11 @@ export function KwitansiAuditTab({ categories, rabSummary, profile, realizationB
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Cari uraian, pos RAB, penerima, atau no kwitansi..."
+                placeholder="Cari uraian, pos RAB, penerima, no kwitansi, no invoice, atau no nota vendor..."
                 className="pl-8 h-9 text-xs bg-white"
               />
             </div>
+            {viewMode === "AUDIT" && (
             <div className="flex flex-wrap gap-1.5">
               {[
                 { k: "ALL" as const, label: `Semua (${audit.totalTx})` },
@@ -652,10 +1069,102 @@ export function KwitansiAuditTab({ categories, rabSummary, profile, realizationB
                 </button>
               ))}
             </div>
+            )}
           </div>
         </CardHeader>
 
         <CardContent className="p-0 overflow-x-auto">
+          {viewMode === "REGISTER" ? (
+            <table className="w-full text-xs text-left">
+              <thead className="bg-slate-100 text-slate-700 border-b">
+                <tr>
+                  <th className="py-2.5 px-3 text-center w-10">No</th>
+                  <th className="py-2.5 px-3 text-center">Jenis</th>
+                  <th className="py-2.5 px-3 text-center">Entitas</th>
+                  <th className="py-2.5 px-3">Nomor Dokumen</th>
+                  <th className="py-2.5 px-3">No. Nota Vendor</th>
+                  <th className="py-2.5 px-3 whitespace-nowrap">Tanggal</th>
+                  <th className="py-2.5 px-3">Pos RAB &amp; Perihal</th>
+                  <th className="py-2.5 px-3 text-right whitespace-nowrap">Nominal</th>
+                  <th className="py-2.5 px-3 text-center">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {filteredRegisterEntries.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="py-10 text-center text-slate-500">
+                      Belum ada nomor dokumen pada filter ini.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredRegisterEntries.map((entry, idx) => (
+                    <tr key={entry.id} className="hover:bg-slate-50/80">
+                      <td className="py-2 px-3 text-center text-slate-500">{idx + 1}</td>
+                      <td className="py-2 px-3 text-center">
+                        <span
+                          className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                            entry.kind === "KW"
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              : entry.kind === "INV"
+                                ? "bg-sky-50 text-sky-700 border-sky-200"
+                                : "bg-amber-50 text-amber-800 border-amber-200"
+                          }`}
+                        >
+                          {entry.kind === "KW" ? "KUITANSI" : entry.kind === "INV" ? "INVOICE" : "NOTA"}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3 text-center">
+                        <span className="inline-block font-bold text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-800">
+                          {entry.entityCode}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3 font-mono text-[11px] font-semibold text-slate-900 whitespace-nowrap">
+                        {entry.docNumber}
+                      </td>
+                      <td className="py-2 px-3 font-mono text-[11px] text-slate-600 whitespace-nowrap">
+                        {entry.vendorReceiptNo || "-"}
+                      </td>
+                      <td className="py-2 px-3 whitespace-nowrap text-slate-600">{entry.tanggal}</td>
+                      <td className="py-2 px-3">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`text-[9px] font-bold px-1 py-0.5 rounded border ${
+                              entry.realizationType === "PELAPORAN"
+                                ? "bg-blue-50 text-blue-700 border-blue-200"
+                                : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            }`}
+                          >
+                            {entry.realizationType}
+                          </span>
+                          <span className="font-semibold text-slate-800">
+                            {entry.rabCode} - {entry.rabName}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{entry.perihal}</div>
+                      </td>
+                      <td className="py-2 px-3 text-right font-semibold whitespace-nowrap">
+                        {formatCurrency(entry.nominal)}
+                      </td>
+                      <td className="py-2 px-3 text-center">
+                        {entry.recordId && (entry.kind === "KW" || entry.kind === "INV") ? (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDocRecord(entry)}
+                            className="p-1 rounded text-rose-500 hover:bg-rose-50 hover:text-rose-700"
+                            title="Hapus nomor dokumen ini dari Buku Register"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <span className="text-slate-300">-</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          ) : (
           <table className="w-full text-xs text-left">
             <thead className="bg-slate-100 text-slate-700 border-b">
               <tr>
@@ -753,16 +1262,70 @@ export function KwitansiAuditTab({ categories, rabSummary, profile, realizationB
                       )}
                     </td>
                     <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                      {row.hasKwitansi ? (
-                        <span className="inline-block font-mono text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
-                          {row.noKwitansi}
-                        </span>
-                      ) : (
-                        <span className="text-[11px] font-medium text-rose-600">Belum Ada</span>
-                      )}
+                      <div className="space-y-1">
+                        {row.hasKwitansi ? (
+                          <div>
+                            <span className="inline-block font-mono text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                              {row.noKwitansi}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="text-[11px] font-medium text-rose-600">Belum Kwt</div>
+                        )}
+                        {row.hasInvoice && (
+                          <div>
+                            <span className="inline-block font-mono text-[10px] font-semibold text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded">
+                              {row.noInvoice}
+                            </span>
+                          </div>
+                        )}
+                        {editingNotaId === row.expenseId ? (
+                          <div className="flex items-center justify-center gap-1 mt-1">
+                            <input
+                              type="text"
+                              value={editingNotaVal}
+                              onChange={(e) => setEditingNotaVal(e.target.value)}
+                              placeholder="No. Nota Vendor..."
+                              className="w-28 h-6 px-1.5 text-[10px] border rounded bg-white"
+                            />
+                            <button
+                              type="button"
+                              disabled={savingNotaId === row.expenseId}
+                              onClick={() => handleSaveVendorNota(row.expenseId)}
+                              className="p-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
+                              title="Simpan No. Nota Vendor"
+                            >
+                              {savingNotaId === row.expenseId ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Check className="w-3 h-3" />
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingNotaId(null)}
+                              className="p-1 rounded bg-slate-200 text-slate-700 hover:bg-slate-300"
+                              title="Batal"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingNotaId(row.expenseId);
+                              setEditingNotaVal(row.vendorReceiptNo || "");
+                            }}
+                            className="text-[10px] text-slate-500 hover:text-indigo-700 underline"
+                          >
+                            {row.vendorReceiptNo ? `Nota: ${row.vendorReceiptNo}` : "+ No. Nota Vendor"}
+                          </button>
+                        )}
+                      </div>
                     </td>
                     <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                      <div className="flex items-center justify-center gap-1.5">
+                      <div className="flex items-center justify-center gap-1.5 flex-wrap">
                         <label
                           className={`inline-flex items-center gap-1 px-2 py-1 rounded border text-[11px] font-medium cursor-pointer transition-colors ${
                             uploadingId === row.expenseId
@@ -789,6 +1352,23 @@ export function KwitansiAuditTab({ categories, rabSummary, profile, realizationB
                             }}
                           />
                         </label>
+
+                        {!row.hasInvoice && (
+                          <button
+                            type="button"
+                            disabled={generatingInvId === row.expenseId || isGenerating}
+                            onClick={() => handleSingleGenerateInvoice(row)}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded bg-sky-600 hover:bg-sky-700 text-white text-[11px] font-semibold disabled:opacity-50 cursor-pointer"
+                            title="Generate nomor Invoice resmi (INV/{ENTITAS}/SNT-W2/...)"
+                          >
+                            {generatingInvId === row.expenseId ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Receipt className="w-3 h-3" />
+                            )}
+                            <span>+ Inv</span>
+                          </button>
+                        )}
 
                         {row.hasKwitansi ? (
                           <button
@@ -823,6 +1403,7 @@ export function KwitansiAuditTab({ categories, rabSummary, profile, realizationB
               )}
             </tbody>
           </table>
+          )}
         </CardContent>
       </Card>
 

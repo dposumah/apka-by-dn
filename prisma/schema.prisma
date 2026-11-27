@@ -574,6 +574,7 @@ model ExpenseRequest {
   receiptUrl        String?
   receiptUrls       String[]               @default([])
   paymentReceiptUrl String?
+  vendorReceiptNo   String?                // No. Nota / Faktur / Tiket / Bill Vendor Asli
   date              DateTime               @default(now())
   status            ExpenseStatus          @default(PENDING)
   realizationType   ExpenseRealizationType @default(REAL)
@@ -750,6 +751,7 @@ model KwitansiRecord {
   id         String   @id @default(cuid())
   noUrut     Int      @unique @default(autoincrement())
   noKwitansi String   @unique
+  entityCode String   @default("MTC") // "MTC" | "LPD" | "RE"
   tanggal    DateTime @default(now())
   perihal    String
   owner      String   @default("Robotic Explorer")
@@ -764,17 +766,19 @@ model KwitansiRecord {
   tipeKwitansi String   @default("HONOR")
   createdAt    DateTime @default(now())
 
+  @@index([entityCode])
   @@map("kwitansi_record")
 }
 
 model InvoiceRecord {
-  id        String   @id @default(cuid())
-  noUrut    Int      @unique @default(autoincrement())
-  noInvoice String   @unique
-  tanggal   DateTime @default(now())
-  perihal   String
-  owner     String   @default("Robotic Explorer")
-  nominal   Float
+  id         String   @id @default(cuid())
+  noUrut     Int      @unique @default(autoincrement())
+  noInvoice  String   @unique
+  entityCode String   @default("MTC") // "MTC" | "LPD" | "RE"
+  tanggal    DateTime @default(now())
+  perihal    String
+  owner      String   @default("Robotic Explorer")
+  nominal    Float
 
   expenseId String?         @unique
   expense   ExpenseRequest? @relation(fields: [expenseId], references: [id])
@@ -784,6 +788,7 @@ model InvoiceRecord {
   rekapId String? @unique
   rekap RekapHonorarium? @relation(fields: [rekapId], references: [id])
 
+  @@index([entityCode])
   @@map("invoice_record")
 }
 

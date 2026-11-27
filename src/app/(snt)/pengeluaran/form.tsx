@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { uploadFileClient } from '@/lib/upload-client'
 import { getExpenseReceiptUrls, renderReceiptAttachmentPagesHtml } from '@/lib/expense-receipts'
 import { renderModernInvoiceHtml, renderModernKuitansiHtml, resolveBrandKopTheme } from '@/lib/snt-brand-kop'
+import { resolveEntityCodeFromKop } from '@/lib/snt-doc-numbering'
 import type { KopSuratOption } from '@/lib/snt-report-templates'
 
 export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilitators: any[] }) {
@@ -23,6 +24,7 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
   const [selectedItemId, setSelectedItemId] = useState('')
   const [selectedFasilitatorId, setSelectedFasilitatorId] = useState('')
   const [realizationType, setRealizationType] = useState<'REAL' | 'PELAPORAN'>('REAL')
+  const [vendorReceiptNo, setVendorReceiptNo] = useState('')
   const [files, setFiles] = useState<File[]>([])
 
   const handleAddFiles = (incoming: FileList | null) => {
@@ -104,6 +106,7 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
         fasilitatorId: isHonorarium ? selectedFasilitatorId : undefined,
         date: expenseDate,
         realizationType,
+        vendorReceiptNo: vendorReceiptNo.trim() || undefined,
       })
 
       if (res?.error) {
@@ -117,6 +120,7 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
       setSelectedItemId('')
       setSelectedFasilitatorId('')
       setRealizationType('REAL')
+      setVendorReceiptNo('')
       setFiles([])
       setExpenseDate(new Date().toISOString().split('T')[0])
       
@@ -201,7 +205,8 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
           submittedExpense.id, 
           isUnlockedInvoice ? inputInvoiceNoUrut : undefined, 
           isUnlockedInvoice ? inputInvoiceTanggal : undefined, 
-          forceNewInv
+          forceNewInv,
+          resolveEntityCodeFromKop(selectedKop)
         );
         if (invRecord?.error) {
           alert('Gagal generate invoice: ' + invRecord.error);
@@ -220,7 +225,8 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
           submittedExpense.id, 
           isUnlockedKwitansi ? inputNoUrut : undefined, 
           isUnlockedKwitansi ? inputTanggal : undefined, 
-          forceNewKw
+          forceNewKw,
+          resolveEntityCodeFromKop(selectedKop)
         );
         if (record?.error) {
           alert('Gagal generate kwitansi: ' + record.error);
@@ -361,7 +367,8 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
           </div>
         </div>
 
-        <div className="space-y-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-2">
             <Label>Tanggal Pengeluaran</Label>
             <Input 
               type="date"
@@ -372,6 +379,17 @@ export function PengeluaranForm({ items, fasilitators }: { items: any[], fasilit
               className="w-full"
             />
           </div>
+          <div className="space-y-2">
+            <Label>No. Nota / Faktur Vendor (Opsional)</Label>
+            <Input
+              type="text"
+              value={vendorReceiptNo}
+              onChange={(e) => setVendorReceiptNo(e.target.value)}
+              placeholder="Contoh: INV-SNAPY-001 / Kode Booking / Bill Hotel"
+              className="w-full"
+            />
+          </div>
+        </div>
           
           <div className="space-y-2">
             <Label>Nominal Pengeluaran (Rp)</Label>

@@ -1,6 +1,5 @@
 "use server";
 
-import crypto from "crypto";
 import { revalidatePath } from "next/cache";
 import { GoogleGenAI } from "@google/genai";
 import prisma from "@/lib/prisma";
@@ -11,7 +10,15 @@ import {
 } from "@/lib/auth-check";
 import { normalizeReceiptUrlList } from "@/lib/expense-receipts";
 import {
-  formatKwitansiNumber,
+  normalizeEntityCode,
+  resolveEntityCodeFromOwner,
+  resolveOwnerNameFromEntity,
+  SntDocKind,
+  SntEntityCode,
+  suggestEntityCodeForRabCode,
+} from "@/lib/snt-doc-numbering";
+import { allocateNextSntDocNumber } from "@/lib/snt-doc-numbering-server";
+import {
   getDefaultSntReportProfile,
   SntReportProfile,
 } from "@/lib/snt-report-templates";
@@ -58,6 +65,7 @@ export async function getSntReportWorkspaceData() {
                         select: {
                           id: true,
                           noKwitansi: true,
+                          entityCode: true,
                           tanggal: true,
                           perihal: true,
                           nominal: true,
@@ -65,7 +73,15 @@ export async function getSntReportWorkspaceData() {
                         },
                       },
                       invoiceRecord: {
-                        select: { id: true, noInvoice: true },
+                        select: {
+                          id: true,
+                          noInvoice: true,
+                          entityCode: true,
+                          tanggal: true,
+                          perihal: true,
+                          nominal: true,
+                          owner: true,
+                        },
                       },
                     },
                     orderBy: { date: "desc" },
@@ -235,11 +251,15 @@ export async function saveSntReportDraft(input: {
 }
 
 /**
- * Menghasilkan nomor Kwitansi resmi (format KWC/MTC/YYYY.MM.DD.NNN) secara aman & idempoten
- * bagi transaksi ExpenseRequest yang belum memiliki KwitansiRecord valid (non-TEMP).
+ * Menghasilkan nomor Kwitansi resmi (format KW/{LPD|RE|MTC}/SNT-W2/{NNN}/{ROMAWI}/{YYYY})
+ * secara aman & idempoten dari atomic counter PostgreSQL bagi transaksi ExpenseRequest
+ * yang belum memiliki KwitansiRecord valid (non-TEMP).
  * Tidak pernah menimpa nomor kwitansi resmi yang sudah ada.
  */
-export async function bulkGenerateMissingKwitansi(expenseIds: string[]) {
+export async function bulkGenerateMissingKwitansi(
+  expenseIds: string[],
+  entityMode: "AUTO" | SntEntityCode = "AUTO"
+) {
   try {
     const { error: authError } = await checkAuth(SNT_MANAGE_ROLES);
     if (authError) {
@@ -270,6 +290,7 @@ export async function bulkGenerateMissingKwitansi(expenseIds: string[]) {
       id: string;
       expenseId: string;
       noKwitansi: string;
+      entityCode: SntEntityCode;
       tanggal: string;
       perihal: string;
       owner: string;
@@ -298,22 +319,26 @@ export async function bulkGenerateMissingKwitansi(expenseIds: string[]) {
         (exp.rabItem?.name || "").toLowerCase().includes("transport") ||
         (exp.description || "").toLowerCase().includes("transport");
       const tipeKwitansi = isTransport ? "TRANSPORT" : "HONOR";
+      const resolvedEntity: SntEntityCode =
+        entityMode === "AUTO"
+          ? suggestEntityCodeForRabCode(exp.rabItem?.code)
+          : normalizeEntityCode(entityMode);
 
       const result = await prisma.$transaction(
         async (tx) => {
+          const allocated = await allocateNextSntDocNumber(tx, {
+            kind: "KW",
+            entityCode: resolvedEntity,
+            date: expDate,
+          });
+
           if (tempExisting) {
-            let finalNo = formatKwitansiNumber(expDate, tempExisting.noUrut);
-            const conflict = await tx.kwitansiRecord.findUnique({
-              where: { noKwitansi: finalNo },
-              select: { id: true },
-            });
-            if (conflict && conflict.id !== tempExisting.id) {
-              finalNo = `${finalNo}-${tempExisting.noUrut}`;
-            }
             return await tx.kwitansiRecord.update({
               where: { id: tempExisting.id },
               data: {
-                noKwitansi: finalNo,
+                noKwitansi: allocated.docNumber,
+                entityCode: allocated.entityCode,
+                owner: allocated.defaultOwner,
                 tanggal: expDate,
                 perihal,
                 nominal: exp.amount,
@@ -322,6 +347,7 @@ export async function bulkGenerateMissingKwitansi(expenseIds: string[]) {
               select: {
                 id: true,
                 noKwitansi: true,
+                entityCode: true,
                 tanggal: true,
                 perihal: true,
                 owner: true,
@@ -330,35 +356,21 @@ export async function bulkGenerateMissingKwitansi(expenseIds: string[]) {
             });
           }
 
-          // Biarkan PostgreSQL autoincrement menentukan noUrut secara konsisten
-          const placeholder = `KWT/GEN/${crypto.randomUUID()}`;
-          const created = await tx.kwitansiRecord.create({
+          return await tx.kwitansiRecord.create({
             data: {
-              noKwitansi: placeholder,
+              noKwitansi: allocated.docNumber,
+              entityCode: allocated.entityCode,
+              owner: allocated.defaultOwner,
               tanggal: expDate,
               perihal,
               nominal: exp.amount,
               expenseId: exp.id,
               tipeKwitansi,
             },
-            select: { id: true, noUrut: true },
-          });
-
-          let finalNo = formatKwitansiNumber(expDate, created.noUrut);
-          const conflict = await tx.kwitansiRecord.findUnique({
-            where: { noKwitansi: finalNo },
-            select: { id: true },
-          });
-          if (conflict && conflict.id !== created.id) {
-            finalNo = `${finalNo}-${created.noUrut}`;
-          }
-
-          return await tx.kwitansiRecord.update({
-            where: { id: created.id },
-            data: { noKwitansi: finalNo },
             select: {
               id: true,
               noKwitansi: true,
+              entityCode: true,
               tanggal: true,
               perihal: true,
               owner: true,
@@ -374,6 +386,7 @@ export async function bulkGenerateMissingKwitansi(expenseIds: string[]) {
         id: result.id,
         expenseId: exp.id,
         noKwitansi: result.noKwitansi,
+        entityCode: normalizeEntityCode(result.entityCode),
         tanggal: result.tanggal.toISOString().slice(0, 10),
         perihal: result.perihal,
         owner: result.owner,
@@ -391,6 +404,274 @@ export async function bulkGenerateMissingKwitansi(expenseIds: string[]) {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Gagal membuat nomor kwitansi";
     console.error("Error in bulkGenerateMissingKwitansi:", err);
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Menghasilkan nomor Invoice resmi (format INV/{LPD|RE|MTC}/SNT-W2/{NNN}/{ROMAWI}/{YYYY})
+ * secara aman & idempoten dari atomic counter PostgreSQL bagi transaksi ExpenseRequest.
+ */
+export async function bulkGenerateMissingInvoices(
+  expenseIds: string[],
+  entityMode: "AUTO" | SntEntityCode = "AUTO"
+) {
+  try {
+    const { error: authError } = await checkAuth(SNT_MANAGE_ROLES);
+    if (authError) {
+      return { success: false, error: authError };
+    }
+
+    const uniqueIds = Array.from(new Set((expenseIds || []).filter(Boolean)));
+    if (uniqueIds.length === 0) {
+      return { success: false, error: "Tidak ada transaksi yang dipilih" };
+    }
+
+    const expenses = await prisma.expenseRequest.findMany({
+      where: {
+        id: { in: uniqueIds },
+        status: "APPROVED",
+      },
+      include: {
+        rabItem: { select: { code: true, name: true } },
+        invoiceRecord: true,
+      },
+      orderBy: [{ date: "asc" }, { createdAt: "asc" }],
+    });
+
+    let generatedCount = 0;
+    let skippedCount = 0;
+    const createdNumbers: Array<{
+      id: string;
+      expenseId: string;
+      noInvoice: string;
+      entityCode: SntEntityCode;
+      tanggal: string;
+      perihal: string;
+      owner: string;
+      nominal: number;
+    }> = [];
+
+    for (const exp of expenses) {
+      const existing = exp.invoiceRecord;
+      if (existing && existing.noInvoice && !existing.noInvoice.includes("TEMP")) {
+        skippedCount++;
+        continue;
+      }
+
+      const expDate = exp.date || exp.createdAt || new Date();
+      const perihal = `${exp.description} - ${exp.rabItem?.name || "Pengeluaran SNT"}`;
+      const resolvedEntity: SntEntityCode =
+        entityMode === "AUTO"
+          ? suggestEntityCodeForRabCode(exp.rabItem?.code)
+          : normalizeEntityCode(entityMode);
+
+      const result = await prisma.$transaction(
+        async (tx) => {
+          const allocated = await allocateNextSntDocNumber(tx, {
+            kind: "INV",
+            entityCode: resolvedEntity,
+            date: expDate,
+          });
+
+          if (existing) {
+            return await tx.invoiceRecord.update({
+              where: { id: existing.id },
+              data: {
+                noInvoice: allocated.docNumber,
+                entityCode: allocated.entityCode,
+                owner: allocated.defaultOwner,
+                tanggal: expDate,
+                perihal,
+                nominal: exp.amount,
+              },
+              select: {
+                id: true,
+                noInvoice: true,
+                entityCode: true,
+                tanggal: true,
+                perihal: true,
+                owner: true,
+                nominal: true,
+              },
+            });
+          }
+
+          return await tx.invoiceRecord.create({
+            data: {
+              noInvoice: allocated.docNumber,
+              entityCode: allocated.entityCode,
+              owner: allocated.defaultOwner,
+              tanggal: expDate,
+              perihal,
+              nominal: exp.amount,
+              expenseId: exp.id,
+            },
+            select: {
+              id: true,
+              noInvoice: true,
+              entityCode: true,
+              tanggal: true,
+              perihal: true,
+              owner: true,
+              nominal: true,
+            },
+          });
+        },
+        { maxWait: 10000, timeout: 20000 }
+      );
+
+      generatedCount++;
+      createdNumbers.push({
+        id: result.id,
+        expenseId: exp.id,
+        noInvoice: result.noInvoice,
+        entityCode: normalizeEntityCode(result.entityCode),
+        tanggal: result.tanggal.toISOString().slice(0, 10),
+        perihal: result.perihal,
+        owner: result.owner,
+        nominal: result.nominal,
+      });
+    }
+
+    revalidateSntReportPaths();
+    return {
+      success: true,
+      generatedCount,
+      skippedCount,
+      createdNumbers,
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Gagal membuat nomor invoice";
+    console.error("Error in bulkGenerateMissingInvoices:", err);
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Menyimpan No. Nota / Faktur Vendor Asli pada ExpenseRequest (untuk pencocokan audit SPJ).
+ */
+export async function updateExpenseVendorReceiptNo(
+  expenseId: string,
+  vendorReceiptNo: string
+) {
+  try {
+    const { error: authError } = await checkAuth(SNT_MANAGE_ROLES);
+    if (authError) {
+      return { success: false, error: authError };
+    }
+    if (!expenseId) {
+      return { success: false, error: "ID transaksi tidak valid" };
+    }
+
+    const updated = await prisma.expenseRequest.update({
+      where: { id: expenseId },
+      data: { vendorReceiptNo: vendorReceiptNo.trim() || null },
+      select: { id: true, vendorReceiptNo: true },
+    });
+
+    revalidateSntReportPaths();
+    return { success: true, expense: updated };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Gagal menyimpan nomor nota vendor";
+    console.error("Error in updateExpenseVendorReceiptNo:", err);
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Mengalokasikan & mendaftarkan nomor dokumen resmi (KW / INV) untuk Tab 4 Dokumen Bukti Wajib
+ * agar langsung tercatat di Buku Register PostgreSQL tanpa duplikasi.
+ */
+export async function allocateOfficialDocNumberForEvidence(input: {
+  kind: SntDocKind;
+  entityCode: SntEntityCode;
+  date: string;
+  perihal: string;
+  nominal: number;
+  owner?: string;
+}) {
+  try {
+    const { error: authError } = await checkAuth(SNT_MANAGE_ROLES);
+    if (authError) {
+      return { success: false, error: authError };
+    }
+    const parsedDate = input.date ? new Date(`${input.date}T00:00:00.000Z`) : new Date();
+    const safeDate = Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
+    const entity = normalizeEntityCode(input.entityCode);
+    const owner = input.owner?.trim() || resolveOwnerNameFromEntity(entity);
+    const nominal = Math.max(0, Number(input.nominal) || 0);
+    const perihal = input.perihal?.trim() || "Dokumen Bukti Wajib SNT Wilayah 2";
+
+    const created = await prisma.$transaction(
+      async (tx) => {
+        const allocated = await allocateNextSntDocNumber(tx, {
+          kind: input.kind,
+          entityCode: entity,
+          date: safeDate,
+        });
+        if (input.kind === "KW") {
+          const rec = await tx.kwitansiRecord.create({
+            data: {
+              noKwitansi: allocated.docNumber,
+              entityCode: entity,
+              tanggal: safeDate,
+              perihal,
+              owner,
+              nominal,
+              tipeKwitansi: "HONOR",
+            },
+            select: { id: true, noKwitansi: true, entityCode: true },
+          });
+          return { id: rec.id, docNumber: rec.noKwitansi, entityCode: entity };
+        }
+        const rec = await tx.invoiceRecord.create({
+          data: {
+            noInvoice: allocated.docNumber,
+            entityCode: entity,
+            tanggal: safeDate,
+            perihal,
+            owner,
+            nominal,
+          },
+          select: { id: true, noInvoice: true, entityCode: true },
+        });
+        return { id: rec.id, docNumber: rec.noInvoice, entityCode: entity };
+      },
+      { maxWait: 10000, timeout: 20000 }
+    );
+
+    revalidateSntReportPaths();
+    return { success: true, ...created };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Gagal mengalokasikan nomor dokumen resmi";
+    console.error("Error in allocateOfficialDocNumberForEvidence:", err);
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Menghapus record nomor Kwitansi atau Invoice yang keliru (Admin/Pengelola SNT).
+ */
+export async function deleteDocumentNumberRecord(kind: SntDocKind, recordId: string) {
+  try {
+    const { error: authError } = await checkAuth(SNT_MANAGE_ROLES);
+    if (authError) {
+      return { success: false, error: authError };
+    }
+    if (!recordId) return { success: false, error: "ID dokumen tidak valid" };
+
+    if (kind === "KW") {
+      await prisma.kwitansiRecord.delete({ where: { id: recordId } });
+    } else {
+      await prisma.invoiceRecord.delete({ where: { id: recordId } });
+    }
+
+    revalidateSntReportPaths();
+    return { success: true };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Gagal menghapus record nomor dokumen";
+    console.error("Error in deleteDocumentNumberRecord:", err);
     return { success: false, error: msg };
   }
 }
@@ -452,6 +733,7 @@ export async function updateKwitansiRecordDetails(input: {
   tanggal: string;
   owner: string;
   perihal: string;
+  entityCode?: SntEntityCode;
 }) {
   try {
     const { error: authError } = await checkAuth(SNT_MANAGE_ROLES);
@@ -474,10 +756,12 @@ export async function updateKwitansiRecordDetails(input: {
         tanggal: parsedDate,
         owner: input.owner.trim() || "Yayasan Maleo Talenta Cendekia",
         perihal: input.perihal.trim(),
+        ...(input.entityCode ? { entityCode: normalizeEntityCode(input.entityCode) } : {}),
       },
       select: {
         id: true,
         noKwitansi: true,
+        entityCode: true,
         tanggal: true,
         owner: true,
         perihal: true,
@@ -618,35 +902,30 @@ export async function recordEvidenceToRabExpense(input: {
 
         let noKwitansi: string | null = null;
         if (input.generateKwitansi) {
-          const placeholder = `KWT/GEN/${crypto.randomUUID()}`;
           const isTransport =
             matchedItemName.toLowerCase().includes("transport") ||
             input.description.toLowerCase().includes("transport");
-          const createdKwt = await tx.kwitansiRecord.create({
+          const entityCode = input.kwitansiOwner
+            ? resolveEntityCodeFromOwner(input.kwitansiOwner)
+            : suggestEntityCodeForRabCode(input.rabCode);
+          const allocated = await allocateNextSntDocNumber(tx, {
+            kind: "KW",
+            entityCode,
+            date: safeDate,
+          });
+          await tx.kwitansiRecord.create({
             data: {
-              noKwitansi: placeholder,
+              noKwitansi: allocated.docNumber,
+              entityCode: allocated.entityCode,
               tanggal: safeDate,
               perihal: `${input.description.trim()} - ${matchedItemName}`,
-              owner: input.kwitansiOwner?.trim() || "Yayasan Maleo Talenta Cendekia",
+              owner: input.kwitansiOwner?.trim() || allocated.defaultOwner,
               nominal: amount,
               expenseId: expense.id,
               tipeKwitansi: isTransport ? "TRANSPORT" : "HONOR",
             },
-            select: { id: true, noUrut: true },
           });
-          let finalNo = formatKwitansiNumber(safeDate, createdKwt.noUrut);
-          const conflict = await tx.kwitansiRecord.findUnique({
-            where: { noKwitansi: finalNo },
-            select: { id: true },
-          });
-          if (conflict && conflict.id !== createdKwt.id) {
-            finalNo = `${finalNo}-${createdKwt.noUrut}`;
-          }
-          await tx.kwitansiRecord.update({
-            where: { id: createdKwt.id },
-            data: { noKwitansi: finalNo },
-          });
-          noKwitansi = finalNo;
+          noKwitansi = allocated.docNumber;
         }
 
         return { expense, noKwitansi };

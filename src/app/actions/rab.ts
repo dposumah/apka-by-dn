@@ -202,6 +202,7 @@ export async function submitExpense(data: {
   fasilitatorId?: string;
   date?: string;
   realizationType?: 'REAL' | 'PELAPORAN';
+  vendorReceiptNo?: string;
 }) {
   const { error: authError, session } = await checkAuth(SNT_MANAGE_ROLES);
   if (authError) return { error: authError };
@@ -230,6 +231,7 @@ export async function submitExpense(data: {
         description: data.description,
         receiptUrl: normalizedReceiptUrls[0] || null,
         receiptUrls: normalizedReceiptUrls,
+        vendorReceiptNo: data.vendorReceiptNo?.trim() || null,
         createdById,
         fasilitatorId: data.fasilitatorId || null,
         status: 'APPROVED',
@@ -952,7 +954,8 @@ export async function updateExpense(
     date?: Date,
     receiptUrl?: string,
     receiptUrls?: string[],
-    realizationType?: 'REAL' | 'PELAPORAN'
+    realizationType?: 'REAL' | 'PELAPORAN',
+    vendorReceiptNo?: string | null
   }
 ) {
   const { error: authError, session } = await checkAuth(SNT_MANAGE_ROLES);
@@ -980,6 +983,7 @@ export async function updateExpense(
         description: data.description,
         fasilitatorId: data.fasilitatorId || null,
         ...(data.realizationType ? { realizationType: data.realizationType } : {}),
+        ...(data.vendorReceiptNo !== undefined ? { vendorReceiptNo: data.vendorReceiptNo?.trim() || null } : {}),
         ...(data.date ? { date: data.date } : {}),
         ...(hasReceiptUrlsOverride
           ? {

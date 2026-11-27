@@ -35,6 +35,7 @@ import {
   renderReceiptAttachmentPagesHtml,
 } from '@/lib/expense-receipts'
 import { renderModernInvoiceHtml, renderModernKuitansiHtml, resolveBrandKopTheme } from '@/lib/snt-brand-kop'
+import { resolveEntityCodeFromKop } from '@/lib/snt-doc-numbering'
 import type { KopSuratOption } from '@/lib/snt-report-templates'
 
 interface RecentExpensesProps {
@@ -415,7 +416,8 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
           selectedExpense.id, 
           isUnlockedInvoice ? inputInvoiceNoUrut : undefined, 
           isUnlockedInvoice ? inputInvoiceTanggal : undefined, 
-          forceNewInv
+          forceNewInv,
+          resolveEntityCodeFromKop(selectedKop)
         )
         if (invRecord?.error) {
           alert('Gagal memproses invoice: ' + invRecord.error)
@@ -431,10 +433,11 @@ export function RecentExpensesList({ expenses, items, fasilitators, categories }
           selectedExpense.id, 
           isUnlockedKwitansi ? inputNoUrut : undefined, 
           isUnlockedKwitansi ? inputTanggal : undefined, 
-          forceNewKw
+          forceNewKw,
+          resolveEntityCodeFromKop(selectedKop)
         )
         if (record?.error) {
-          alert('Gagal mengambil nomor kwitansi dari Google Sheets: ' + record.error)
+          alert('Gagal membuat nomor kwitansi: ' + record.error)
           setIsGeneratingPdf(false)
           return
         }

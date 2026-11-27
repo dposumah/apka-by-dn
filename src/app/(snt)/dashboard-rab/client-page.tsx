@@ -5,6 +5,7 @@ import { formatCurrency, terbilangRupiah } from '@/lib/format'
 import { Badge } from '@/components/ui/badge'
 import { getExpenseReceiptUrls, renderReceiptAttachmentPagesHtml } from '@/lib/expense-receipts'
 import { renderModernInvoiceHtml, renderModernKuitansiHtml, resolveBrandKopTheme } from '@/lib/snt-brand-kop'
+import { resolveEntityCodeFromKop } from '@/lib/snt-doc-numbering'
 import type { KopSuratOption } from '@/lib/snt-report-templates'
 import { DeleteExpenseButton } from './DeleteExpenseButton'
 import Link from 'next/link'
@@ -344,7 +345,8 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
           selectedExpense.id,
           isUnlockedInvoice ? inputInvoiceNoUrut : undefined,
           isUnlockedInvoice ? inputInvoiceTanggal : undefined,
-          forceNewInv
+          forceNewInv,
+          resolveEntityCodeFromKop(selectedKop)
         );
         if (invRecord?.error) {
           alert('Gagal memproses invoice: ' + invRecord.error);
@@ -359,7 +361,8 @@ export function RabDashboardClient({ data, expenses, pendingWeekly, pendingHonor
           selectedExpense.id,
           isUnlockedKwitansi ? inputNoUrut : undefined,
           isUnlockedKwitansi ? inputTanggal : undefined,
-          forceNewKw
+          forceNewKw,
+          resolveEntityCodeFromKop(selectedKop)
         );
         if (record?.error) {
           alert('Gagal generate kwitansi: ' + record.error);

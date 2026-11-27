@@ -21,9 +21,11 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/format";
 import {
+  allocateOfficialDocNumberForEvidence,
   recordEvidenceToRabExpense,
   saveSntReportDraft,
 } from "@/app/actions/snt-reports";
+import { resolveEntityCodeFromKop } from "@/lib/snt-doc-numbering";
 import {
   buildDraftFromDriveMockupPreset,
   buildMonthlyFacilitatorHonorReceipt,
@@ -1756,7 +1758,43 @@ export function EvidenceDocsTab({
                     <div className="font-bold text-blue-950">Pengaturan INVOICE Resmi &amp; Rekening Transfer</div>
                     <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">No. Invoice</label>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <label className="block text-[11px] font-semibold text-slate-700">No. Invoice</label>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const activeKop = currentGenericDraft.kopSurat || profile.kopSurat;
+                              const entityCode = resolveEntityCodeFromKop(activeKop);
+                              const totalAmt = currentGenericDraft.items.reduce(
+                                (s, it) => s + (Number(it.nominal) || 0),
+                                0
+                              );
+                              const res = await allocateOfficialDocNumberForEvidence({
+                                kind: "INV",
+                                entityCode,
+                                date: currentGenericDraft.tanggalDokumen,
+                                perihal: currentGenericDraft.judulDokumen,
+                                nominal: totalAmt,
+                              });
+                              if (!res.success || !("docNumber" in res)) {
+                                setBanner({
+                                  type: "err",
+                                  text: ("error" in res && res.error) || "Gagal mengambil nomor invoice resmi.",
+                                });
+                                return;
+                              }
+                              updateGenericDraft((p) => ({ ...p, invoiceNo: res.docNumber }));
+                              setBanner({
+                                type: "ok",
+                                text: `Nomor Invoice resmi terdaftar di Buku Register: ${res.docNumber}`,
+                              });
+                              router.refresh();
+                            }}
+                            className="text-[10px] font-bold text-blue-700 hover:underline"
+                          >
+                            + Ambil No. Resmi
+                          </button>
+                        </div>
                         <Input
                           value={currentGenericDraft.invoiceNo || ""}
                           onChange={(e) => updateGenericDraft((p) => ({ ...p, invoiceNo: e.target.value }))}
@@ -1765,7 +1803,43 @@ export function EvidenceDocsTab({
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">No. Kuitansi</label>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <label className="block text-[11px] font-semibold text-slate-700">No. Kuitansi</label>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const activeKop = currentGenericDraft.kopSurat || profile.kopSurat;
+                              const entityCode = resolveEntityCodeFromKop(activeKop);
+                              const totalAmt = currentGenericDraft.items.reduce(
+                                (s, it) => s + (Number(it.nominal) || 0),
+                                0
+                              );
+                              const res = await allocateOfficialDocNumberForEvidence({
+                                kind: "KW",
+                                entityCode,
+                                date: currentGenericDraft.tanggalDokumen,
+                                perihal: currentGenericDraft.judulDokumen,
+                                nominal: totalAmt,
+                              });
+                              if (!res.success || !("docNumber" in res)) {
+                                setBanner({
+                                  type: "err",
+                                  text: ("error" in res && res.error) || "Gagal mengambil nomor kuitansi resmi.",
+                                });
+                                return;
+                              }
+                              updateGenericDraft((p) => ({ ...p, kuitansiNoPrefix: res.docNumber }));
+                              setBanner({
+                                type: "ok",
+                                text: `Nomor Kuitansi resmi terdaftar di Buku Register: ${res.docNumber}`,
+                              });
+                              router.refresh();
+                            }}
+                            className="text-[10px] font-bold text-emerald-700 hover:underline"
+                          >
+                            + Ambil No. Resmi
+                          </button>
+                        </div>
                         <Input
                           value={currentGenericDraft.kuitansiNoPrefix || ""}
                           onChange={(e) =>
