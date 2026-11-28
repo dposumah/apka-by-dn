@@ -1005,7 +1005,13 @@ export function renderModernInvoiceHtml(params: ModernInvoiceInput): string {
         <div style="margin-top:16px; padding:10px 12px; border:1px solid #cbd5e1; background:#f0fdfa; border-radius:4px; font-size:11px; line-height:1.5;">
           <div><strong>Keterangan:</strong> ${esc(params.catatan || params.program || "Pembayaran Program SNT Wilayah 2")}</div>
           <div style="margin-top:6px;"><strong>Pembayaran dapat melalui :</strong></div>
-          <div style="font-weight:800; color:#0f766e;">${esc(bankName || "BANK MANDIRI")}${bankAccount ? ` — No. Rekening: ${esc(bankAccount)}` : ""}</div>
+          <div style="font-weight:800; color:#0f766e;">${
+            bankName && bankAccount
+              ? `${esc(bankName)} — No. Rekening: ${esc(bankAccount)}`
+              : bankAccount
+                ? `No. Rekening: ${esc(bankAccount)}`
+                : esc(bankName || "BANK MANDIRI")
+          }</div>
           <div style="font-weight:700; color:#0f172a;">a.n. ${esc(bankHolder || "MALEO TALENTA CENDEKIA")}</div>
         </div>
 

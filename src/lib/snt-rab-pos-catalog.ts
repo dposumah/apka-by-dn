@@ -453,38 +453,19 @@ export function getRabPosMeta(code: RabPosCode): RabPosCatalogMeta {
   return RAB_POS_CATALOG.find((m) => m.code === code) || RAB_POS_CATALOG[2]; // fallback A.3
 }
 
-function defaultSlipProfileForPos(
-  meta: RabPosCatalogMeta,
-  profile?: Partial<SntReportProfile>
-) {
-  const isKorwil = meta.code === "3";
+function defaultSlipProfileForPos(meta: RabPosCatalogMeta) {
   const isAdmin = meta.code === "5";
-  const isKetua = meta.code === "1";
-  const nama = isKorwil
-    ? DEFAULT_SNT_KORWIL_PROFILE.nama
-    : isAdmin
-      ? DEFAULT_SNT_ADMIN_PROFILE.nama
-      : isKetua
-        ? profile?.ketuaTimPelaksana?.trim() || "Jully Tjindrawan, MBA"
-        : "";
+  const nama = isAdmin ? DEFAULT_SNT_ADMIN_PROFILE.nama : DEFAULT_SNT_KORWIL_PROFILE.nama;
   const peran =
     meta.code === "3" || meta.code === "4" || meta.code === "5"
       ? resolvePersonnelRoleFromRab(meta.code, meta.fullTitle, "Wilayah 2")
       : `${meta.shortTitle} — SNT Wilayah 2`;
-  const npwpNik = isKorwil
-    ? DEFAULT_SNT_KORWIL_PROFILE.npwpNik
-    : isAdmin
-      ? DEFAULT_SNT_ADMIN_PROFILE.npwpNik
-      : "";
-  const bankStr = isKorwil
-    ? DEFAULT_SNT_KORWIL_PROFILE.rekening
-    : isAdmin
-      ? DEFAULT_SNT_ADMIN_PROFILE.rekening
-      : meta.defaultKop === "robotic"
-        ? [profile?.reBankName || "BCA", profile?.reBankAccount || "7040827000"].filter(Boolean).join(" — ")
-        : meta.defaultKop === "lpd"
-          ? [profile?.lpdBankName, profile?.lpdBankAccount].filter(Boolean).join(" — ")
-          : [profile?.maleoBankName || "BANK MANDIRI", profile?.maleoBankAccount].filter(Boolean).join(" — ");
+  const npwpNik = isAdmin
+    ? DEFAULT_SNT_ADMIN_PROFILE.npwpNik
+    : DEFAULT_SNT_KORWIL_PROFILE.npwpNik;
+  const bankStr = isAdmin
+    ? DEFAULT_SNT_ADMIN_PROFILE.rekening
+    : DEFAULT_SNT_KORWIL_PROFILE.rekening;
 
   return {
     slipNamaPenerima: nama,
@@ -505,8 +486,8 @@ export function buildDefaultRabPosDraft(
 ): GenericEvidenceDraft {
   const meta = getRabPosMeta(code);
   const maleoName = "Yayasan Maleo Talenta Cendekia";
-  const signerName = profile?.ketuaTimPelaksana || "Jully Tjindrawan, MBA";
-  const slipProfile = defaultSlipProfileForPos(meta, profile);
+  const signerName = DEFAULT_SNT_KORWIL_PROFILE.nama;
+  const slipProfile = defaultSlipProfileForPos(meta);
   const baseFlags = {
     rabCode: meta.code,
     rabCodeLabel: meta.displayCode,
@@ -521,23 +502,20 @@ export function buildDefaultRabPosDraft(
     ...slipProfile,
   };
 
-  const lpdBank = {
-    bankName: profile?.lpdBankName || "",
-    bankAccount: profile?.lpdBankAccount || "",
-    bankHolder: profile?.lpdBankHolder || "LPD Jully Tjindrawan Robotik",
-  };
-  const reBank = {
-    bankName: profile?.reBankName || "BCA",
-    bankAccount: profile?.reBankAccount || "7040827000",
-    bankHolder: profile?.reBankHolder || "PT Jully Tjindrawan Robotik",
-  };
-  const maleoBank = {
-    bankName: profile?.maleoBankName || "BANK MANDIRI",
-    bankAccount: profile?.maleoBankAccount || "",
-    bankHolder: profile?.maleoBankHolder || "MALEO TALENTA CENDEKIA",
-  };
+  // Tujuan rekening transfer pada Invoice & dokumen lain default menggunakan data Korwil
+  // (khusus Pos A.5 Tenaga Administrasi menggunakan data Admin), tetap bisa diedit bebas.
   const defaultBank =
-    meta.defaultKop === "robotic" ? reBank : meta.defaultKop === "lpd" ? lpdBank : maleoBank;
+    code === "5"
+      ? {
+          bankName: "",
+          bankAccount: DEFAULT_SNT_ADMIN_PROFILE.rekening,
+          bankHolder: DEFAULT_SNT_ADMIN_PROFILE.nama,
+        }
+      : {
+          bankName: profile?.lpdBankName?.trim() || "",
+          bankAccount: DEFAULT_SNT_KORWIL_PROFILE.rekening,
+          bankHolder: DEFAULT_SNT_KORWIL_PROFILE.nama,
+        };
 
   if (code === "3") {
     const d = buildMonthlyPersonnelDraft("3", "RAB_4_BULAN", profile);
@@ -580,6 +558,8 @@ export function buildDefaultRabPosDraft(
     return {
       ...d,
       ...baseFlags,
+      ...defaultBank,
+      signerName,
       periodeLabel: "September – Desember 2026 (Pagu RAB Penuh)",
       items: [
         {
@@ -817,6 +797,8 @@ export function buildDefaultRabPosDraft(
     return {
       ...d,
       ...baseFlags,
+      ...defaultBank,
+      signerName,
       items: [
         {
           id: "b4a-rab-1",
@@ -838,6 +820,8 @@ export function buildDefaultRabPosDraft(
     return {
       ...d,
       ...baseFlags,
+      ...defaultBank,
+      signerName,
       items: [
         {
           id: "b4b-rab-1",
@@ -945,6 +929,8 @@ export function buildDefaultRabPosDraft(
     return {
       ...d,
       ...baseFlags,
+      ...defaultBank,
+      signerName,
       periodeLabel: "September – Desember 2026 (Pagu RAB Penuh)",
       items: SNT_WILAYAH_2_LOCATIONS.map((loc, idx) => ({
         id: `b7a-${idx + 1}`,
@@ -962,7 +948,7 @@ export function buildDefaultRabPosDraft(
 
   if (code === "7c") {
     const d = buildDraftFromDriveMockupPreset("B7C_HDD", profile);
-    return { ...d, ...baseFlags };
+    return { ...d, ...baseFlags, ...defaultBank, signerName };
   }
 
   // B.7b (Video Conference) & B.7d (Cloud Storage) & fallback A.4
@@ -1004,12 +990,26 @@ export function buildTahap1RabPosDraft(
   profile?: Partial<SntReportProfile>
 ): GenericEvidenceDraft | null {
   const meta = getRabPosMeta(code);
-  const slipProfile = defaultSlipProfileForPos(meta, profile);
+  const slipProfile = defaultSlipProfileForPos(meta);
+  const bankDefaults =
+    code === "5"
+      ? {
+          bankName: "",
+          bankAccount: DEFAULT_SNT_ADMIN_PROFILE.rekening,
+          bankHolder: DEFAULT_SNT_ADMIN_PROFILE.nama,
+        }
+      : {
+          bankName: profile?.lpdBankName?.trim() || "",
+          bankAccount: DEFAULT_SNT_KORWIL_PROFILE.rekening,
+          bankHolder: DEFAULT_SNT_KORWIL_PROFILE.nama,
+        };
   const docFlags = {
     includeInvoice: meta.defaultDocs.includeInvoice,
     includeDaftarTandaTerima: meta.defaultDocs.includeTandaTerima,
     includeSlipGaji: meta.defaultDocs.includeSlipGaji,
     includeKwitansi: meta.defaultDocs.includeKwitansi,
+    tandaTerimaDibayarkanOleh: DEFAULT_ROBOTIC_PREPARER_LABEL,
+    ...bankDefaults,
     ...slipProfile,
   };
 

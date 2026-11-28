@@ -31,6 +31,8 @@ import { resolveEntityCodeFromKop } from "@/lib/snt-doc-numbering";
 import {
   buildMonthlyFacilitatorHonorReceipt,
   buildMonthlyRabUnitHonorReceipt,
+  DEFAULT_SNT_ADMIN_PROFILE,
+  DEFAULT_SNT_KORWIL_PROFILE,
   EvidenceLineItem,
   GenericEvidenceDraft,
   getDefaultSewaRumahDraft,
@@ -55,7 +57,6 @@ import {
   DEFAULT_ROBOTIC_PREPARER_LABEL,
   DEFAULT_SLIP_KEGIATAN_LABEL,
   KOP_OPTIONS_LIST,
-  resolveBrandKopTheme,
 } from "@/lib/snt-brand-kop";
 import {
   buildSewaRumahContractPageHtml,
@@ -124,9 +125,9 @@ export function EvidenceDocsTab({
   const [a4InvoiceNo, setA4InvoiceNo] = useState<string>("");
   const [a4InvoicePpnPct, setA4InvoicePpnPct] = useState<number>(0);
   const [a4DitagihkanKepada, setA4DitagihkanKepada] = useState<string>("Yayasan Maleo Talenta Cendekia");
-  const [a4BankName, setA4BankName] = useState<string>(profile.maleoBankName || "BANK MANDIRI");
-  const [a4BankAccount, setA4BankAccount] = useState<string>(profile.maleoBankAccount || "");
-  const [a4BankHolder, setA4BankHolder] = useState<string>(profile.maleoBankHolder || "MALEO TALENTA CENDEKIA");
+  const [a4BankName, setA4BankName] = useState<string>(profile.lpdBankName || "");
+  const [a4BankAccount, setA4BankAccount] = useState<string>(DEFAULT_SNT_KORWIL_PROFILE.rekening);
+  const [a4BankHolder, setA4BankHolder] = useState<string>(DEFAULT_SNT_KORWIL_PROFILE.nama);
   const [a4DibayarkanOleh, setA4DibayarkanOleh] = useState<string>(DEFAULT_ROBOTIC_PREPARER_LABEL);
   const [a4TanggalCetak, setA4TanggalCetak] = useState<string>("2026-10-31");
   const [customA4RowsByKey, setCustomA4RowsByKey] = useState<Record<string, MonthlyHonorReceiptRow[]>>({});
@@ -194,18 +195,27 @@ export function EvidenceDocsTab({
           ...savedDraft,
           items: isLegacyCombinedSewa ? freshDefault.items : savedDraft.items,
         };
-        // Pastikan default profil Korwil (A.3) & Admin (A.5) terisi bila draft lama masih kosong
+        // Pastikan default profil & tujuan rekening Korwil (dan Admin untuk A.5) terisi bila draft lama masih kosong/lama
+        const isBlank = (v?: string) => !v || v.trim() === "" || v.trim() === "-";
+        const isLegacyGenericBank =
+          isBlank(mergedDraft.bankAccount) ||
+          mergedDraft.bankHolder?.trim().toUpperCase() === "MALEO TALENTA CENDEKIA" ||
+          mergedDraft.bankHolder?.trim().toLowerCase() === "lpd jully tjindrawan robotik";
+        if (isLegacyGenericBank) {
+          mergedDraft.bankName = freshDefault.bankName;
+          mergedDraft.bankAccount = freshDefault.bankAccount;
+          mergedDraft.bankHolder = freshDefault.bankHolder;
+        }
+        if (isBlank(mergedDraft.slipNamaPenerima) || (meta.code === "5" && mergedDraft.slipNamaPenerima?.toLowerCase().includes("bagian administrasi"))) {
+          mergedDraft.slipNamaPenerima = freshDefault.slipNamaPenerima;
+        }
+        if (isBlank(mergedDraft.slipNpwpNik)) {
+          mergedDraft.slipNpwpNik = freshDefault.slipNpwpNik;
+        }
+        if (isBlank(mergedDraft.slipRekening) || mergedDraft.slipRekening?.trim().toUpperCase() === "BANK MANDIRI") {
+          mergedDraft.slipRekening = freshDefault.slipRekening;
+        }
         if (meta.code === "3" || meta.code === "5") {
-          const isBlank = (v?: string) => !v || v.trim() === "" || v.trim() === "-";
-          if (isBlank(mergedDraft.slipNamaPenerima) || (meta.code === "5" && mergedDraft.slipNamaPenerima?.toLowerCase().includes("bagian administrasi"))) {
-            mergedDraft.slipNamaPenerima = freshDefault.slipNamaPenerima;
-          }
-          if (isBlank(mergedDraft.slipNpwpNik)) {
-            mergedDraft.slipNpwpNik = freshDefault.slipNpwpNik;
-          }
-          if (isBlank(mergedDraft.slipRekening) || mergedDraft.slipRekening?.trim().toUpperCase() === "BANK MANDIRI") {
-            mergedDraft.slipRekening = freshDefault.slipRekening;
-          }
           mergedDraft.items = mergedDraft.items.map((it) => ({
             ...it,
             penerima: isBlank(it.penerima) ? mergedDraft.slipNamaPenerima || "" : it.penerima,
@@ -929,19 +939,12 @@ export function EvidenceDocsTab({
                     value={activeRabCode === "4" ? a4KopSurat : currentDraft.kopSurat || activeMeta.defaultKop}
                     onChange={(e) => {
                       const nextKop = e.target.value as KopSuratOption;
-                      const theme = resolveBrandKopTheme(nextKop, profile);
                       if (activeRabCode === "4") {
                         setA4KopSurat(nextKop);
-                        setA4BankName(theme.defaultBankName);
-                        setA4BankAccount(theme.defaultBankAccount);
-                        setA4BankHolder(theme.defaultBankHolder);
                       } else {
                         updateCurrentDraft((p) => ({
                           ...p,
                           kopSurat: nextKop,
-                          bankName: theme.defaultBankName,
-                          bankAccount: theme.defaultBankAccount,
-                          bankHolder: theme.defaultBankHolder,
                         }));
                       }
                     }}
@@ -2023,9 +2026,53 @@ export function EvidenceDocsTab({
 
                   {currentDraft.includeInvoice && (
                     <div className="space-y-2.5 pt-2.5 border-t border-slate-100">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="text-[11px] font-bold text-blue-900">
                         Pengaturan Invoice &amp; Rekening Penerima Transfer
                       </div>
+                      <div className="flex flex-wrap gap-1">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateCurrentDraft((p) => ({
+                              ...p,
+                              bankAccount: DEFAULT_SNT_KORWIL_PROFILE.rekening,
+                              bankHolder: DEFAULT_SNT_KORWIL_PROFILE.nama,
+                            }))
+                          }
+                          className="px-2 py-0.5 rounded border border-blue-200 bg-blue-50 hover:bg-blue-100 text-[10px] font-semibold text-blue-900"
+                        >
+                          Rek. Korwil ({DEFAULT_SNT_KORWIL_PROFILE.rekening})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateCurrentDraft((p) => ({
+                              ...p,
+                              bankAccount: DEFAULT_SNT_ADMIN_PROFILE.rekening,
+                              bankHolder: DEFAULT_SNT_ADMIN_PROFILE.nama,
+                            }))
+                          }
+                          className="px-2 py-0.5 rounded border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-[10px] font-semibold text-emerald-900"
+                        >
+                          Rek. Admin ({DEFAULT_SNT_ADMIN_PROFILE.rekening})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateCurrentDraft((p) => ({
+                              ...p,
+                              bankName: profile.reBankName || "BCA",
+                              bankAccount: profile.reBankAccount || "7040827000",
+                              bankHolder: profile.reBankHolder || "PT Jully Tjindrawan Robotik",
+                            }))
+                          }
+                          className="px-2 py-0.5 rounded border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[10px] font-semibold text-slate-800"
+                        >
+                          Rek. Robotic (7040827000)
+                        </button>
+                      </div>
+                    </div>
                       <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
                         <div className="sm:col-span-2">
                           <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Ditagihkan Kepada</label>

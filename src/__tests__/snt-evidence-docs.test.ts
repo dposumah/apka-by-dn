@@ -525,10 +525,20 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
     expect(a3.slipNamaPenerima).toBe("Jully Tjindrawan");
     expect(a3.slipNpwpNik).toBe("73.672.680.3-039.000 / 3173055009710007");
     expect(a3.slipRekening).toBe("7040680009");
+    expect(a3.bankAccount).toBe("7040680009");
+    expect(a3.bankHolder).toBe("Jully Tjindrawan");
     expect(a3.includeDaftarTandaTerima).toBe(true);
     expect(a3.includeSlipGaji).toBe(true);
     expect(a3.includeInvoice).toBe(false);
     expect(a3.includeKwitansi).toBe(false);
+
+    // Pos lain (mis. A.2 & B.7a) juga memakai rekening Korwil sebagai tujuan rekening Invoice default
+    const a2 = buildDefaultRabPosDraft("2", profile);
+    expect(a2.bankAccount).toBe("7040680009");
+    expect(a2.bankHolder).toBe("Jully Tjindrawan");
+    const b7a = buildDefaultRabPosDraft("7a", profile);
+    expect(b7a.bankAccount).toBe("7040680009");
+    expect(b7a.bankHolder).toBe("Jully Tjindrawan");
 
     // Admin mencentang ke-4 dokumen sekaligus untuk Oktober 2026
     const all4Html = renderGenericEvidencePdfHtml({
@@ -556,6 +566,8 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
     expect(a5.slipNamaPenerima).toBe("Galvin Amaris Limbrawan");
     expect(a5.slipNpwpNik).toBe("84.747.411.1-039.000 / 3173050304000006");
     expect(a5.slipRekening).toBe("7040804000");
+    expect(a5.bankAccount).toBe("7040804000");
+    expect(a5.bankHolder).toBe("Galvin Amaris Limbrawan");
     expect(a5.items[0].penerima).toBe("Galvin Amaris Limbrawan");
     expect(buildTahap1RabPosDraft("2", profile)?.items.reduce((s, it) => s + it.nominal, 0)).toBe(112941177);
     expect(buildTahap1RabPosDraft("3", profile)?.items.reduce((s, it) => s + it.nominal, 0)).toBe(32018823);
