@@ -16,6 +16,7 @@ import {
   Search,
   Sparkles,
   RotateCcw,
+  Paperclip,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -48,11 +49,14 @@ import {
 } from "@/lib/snt-evidence-docs";
 import {
   buildDefaultRabPosDraft,
+  buildRealExpenseLineItems,
   buildTahap1RabPosDraft,
   getRabPosMeta,
+  isKorwilRealExpensePos,
   RAB_POS_CATALOG,
   RabPosCode,
 } from "@/lib/snt-rab-pos-catalog";
+import { getExpenseReceiptUrls, normalizeReceiptUrlList } from "@/lib/expense-receipts";
 import {
   DEFAULT_ROBOTIC_PREPARER_LABEL,
   DEFAULT_SLIP_KEGIATAN_LABEL,
@@ -176,12 +180,63 @@ export function EvidenceDocsTab({
     }));
   };
 
+  // ==================== INDEKS TRANSAKSI REAL & PELAPORAN DB PER KODE RAB ====================
+  const realExpensesByRabCode = useMemo(() => {
+    const map = new Map<string, SntExpenseRecord[]>();
+    for (const cat of categories || []) {
+      for (const item of cat.items || []) {
+        const codeKey = (item.code || "").trim().toLowerCase();
+        const existing = map.get(codeKey) || [];
+        const realApproved = (item.expenses || []).filter(
+          (e) =>
+            (!e.status || e.status === "APPROVED") &&
+            normalizeExpenseRealizationType(e.realizationType) === "REAL"
+        );
+        map.set(codeKey, [...existing, ...realApproved]);
+      }
+    }
+    return map;
+  }, [categories]);
+
+  const pelaporanExpensesByRabCode = useMemo(() => {
+    const map = new Map<string, SntExpenseRecord[]>();
+    for (const cat of categories || []) {
+      for (const item of cat.items || []) {
+        const codeKey = (item.code || "").trim().toLowerCase();
+        const existing = map.get(codeKey) || [];
+        const pelaporanApproved = (item.expenses || []).filter(
+          (e) =>
+            (!e.status || e.status === "APPROVED") &&
+            normalizeExpenseRealizationType(e.realizationType) === "PELAPORAN"
+        );
+        map.set(codeKey, [...existing, ...pelaporanApproved]);
+      }
+    }
+    return map;
+  }, [categories]);
+
   // ==================== STATE GENERIK UNTUK SEMUA POS RAB (23 POS) ====================
   const [posDrafts, setPosDrafts] = useState<Record<string, GenericEvidenceDraft>>(() => {
     const map: Record<string, GenericEvidenceDraft> = {};
     for (const meta of RAB_POS_CATALOG) {
       if (meta.code === "4") continue;
       const freshDefault = buildDefaultRabPosDraft(meta.code, profile);
+      const isKorwilRealPos = isKorwilRealExpensePos(meta.code);
+      const realList = realExpensesByRabCode.get(meta.code.toLowerCase()) || [];
+      const realItems = isKorwilRealPos
+        ? buildRealExpenseLineItems(realList, meta.shortTitle, DEFAULT_SNT_KORWIL_PROFILE.nama)
+        : [];
+      const defaultWithReal: GenericEvidenceDraft =
+        isKorwilRealPos && realItems.length > 0
+          ? {
+              ...freshDefault,
+              items: realItems,
+              includeReceiptAttachments: true,
+              recipientMode: "MANUAL",
+              periodeLabel: "September – Desember 2026 (Data Pengeluaran Riil)",
+            }
+          : freshDefault;
+
       const saved = evidenceDrafts[`EVIDENCE_RAB_${meta.code}`];
       if (saved && typeof saved === "object" && Array.isArray((saved as Record<string, unknown>).items)) {
         const savedDraft = saved as unknown as GenericEvidenceDraft;
@@ -190,10 +245,33 @@ export function EvidenceDocsTab({
           meta.code === "3b" &&
           savedDraft.items.length <= 4 &&
           savedDraft.items.every((it) => !matchWilayah2LocationId(it.lokasi));
+        // Auto-upgrade Pos B.2a (Tiket) & B.2c (Penginapan) ke data pengeluaran riil jika draft lama belum memuat transaksi riil
+        const isLegacyGenericKorwilTravel =
+          isKorwilRealPos &&
+          realItems.length > 0 &&
+          !savedDraft.items.some((it) => it.id.startsWith("real-") || (it.receiptUrls && it.receiptUrls.length > 0));
+
+        const baseItems = isLegacyCombinedSewa
+          ? freshDefault.items
+          : isLegacyGenericKorwilTravel
+            ? realItems
+            : savedDraft.items.map((it) => {
+                if (!isKorwilRealPos || !it.id.startsWith("real-")) return it;
+                const live = realItems.find((r) => r.id === it.id);
+                if (!live) return it;
+                return {
+                  ...it,
+                  receiptUrls:
+                    it.receiptUrls && it.receiptUrls.length > 0 ? it.receiptUrls : live.receiptUrls,
+                };
+              });
+
         const mergedDraft: GenericEvidenceDraft = {
-          ...freshDefault,
+          ...defaultWithReal,
           ...savedDraft,
-          items: isLegacyCombinedSewa ? freshDefault.items : savedDraft.items,
+          items: baseItems,
+          includeReceiptAttachments:
+            savedDraft.includeReceiptAttachments ?? (isKorwilRealPos ? true : defaultWithReal.includeReceiptAttachments),
         };
         // Pastikan default profil & tujuan rekening Korwil (dan Admin untuk A.5) terisi bila draft lama masih kosong/lama
         const isBlank = (v?: string) => !v || v.trim() === "" || v.trim() === "-";
@@ -223,7 +301,7 @@ export function EvidenceDocsTab({
         }
         map[meta.code] = mergedDraft;
       } else {
-        map[meta.code] = freshDefault;
+        map[meta.code] = defaultWithReal;
       }
     }
     return map;
@@ -239,24 +317,6 @@ export function EvidenceDocsTab({
       [activeRabCode]: updater(prev[activeRabCode] || buildDefaultRabPosDraft(activeRabCode, profile)),
     }));
   };
-
-  // ==================== INDEKS PELAPORAN DB PER KODE RAB ====================
-  const pelaporanExpensesByRabCode = useMemo(() => {
-    const map = new Map<string, SntExpenseRecord[]>();
-    for (const cat of categories || []) {
-      for (const item of cat.items || []) {
-        const codeKey = (item.code || "").trim().toLowerCase();
-        const existing = map.get(codeKey) || [];
-        const pelaporanApproved = (item.expenses || []).filter(
-          (e) =>
-            (!e.status || e.status === "APPROVED") &&
-            normalizeExpenseRealizationType(e.realizationType) === "PELAPORAN"
-        );
-        map.set(codeKey, [...existing, ...pelaporanApproved]);
-      }
-    }
-    return map;
-  }, [categories]);
 
   // ==================== FILTER SIDEBAR 23 POS RAB ====================
   const filteredCatalog = useMemo(() => {
@@ -607,6 +667,7 @@ export function EvidenceDocsTab({
       Boolean(currentDraft.includeDaftarTandaTerima) ||
       Boolean(currentDraft.includeSlipGaji) ||
       Boolean(currentDraft.includeKwitansi) ||
+      Boolean(currentDraft.includeReceiptAttachments && activeReceiptUrls.length > 0) ||
       (activeRabCode === "3b" && sewaIncludeKontrak);
 
     if (!anyDocChecked) {
@@ -673,6 +734,34 @@ export function EvidenceDocsTab({
     openHtmlWindow(html);
   };
 
+  const handlePullRealFromDb = () => {
+    const list = realExpensesByRabCode.get(activeRabCode.toLowerCase()) || [];
+    if (list.length === 0) {
+      setBanner({
+        type: "err",
+        text: `Belum ada transaksi pengeluaran RIIL (APPROVED) di Pos ${activeMeta.displayCode}.`,
+      });
+      return;
+    }
+    const pulled = buildRealExpenseLineItems(
+      list,
+      activeMeta.shortTitle,
+      currentDraft.slipNamaPenerima || DEFAULT_SNT_KORWIL_PROFILE.nama
+    );
+    const totalReceipts = normalizeReceiptUrlList(pulled.flatMap((it) => it.receiptUrls || [])).length;
+    updateCurrentDraft((p) => ({
+      ...p,
+      items: pulled,
+      recipientMode: "MANUAL",
+      includeReceiptAttachments: totalReceipts > 0 ? true : p.includeReceiptAttachments,
+      periodeLabel: "September – Desember 2026 (Data Pengeluaran Riil)",
+    }));
+    setBanner({
+      type: "ok",
+      text: `Berhasil memuat ${pulled.length} transaksi pengeluaran RIIL Pos ${activeMeta.displayCode} (${formatCurrency(pulled.reduce((s, it) => s + it.nominal, 0))}) beserta ${totalReceipts} lampiran receipt terupload.`,
+    });
+  };
+
   const handlePullPelaporanFromDb = () => {
     const list = pelaporanExpensesByRabCode.get(activeRabCode.toLowerCase()) || [];
     if (list.length === 0) {
@@ -694,6 +783,7 @@ export function EvidenceDocsTab({
         satuan: "paket",
         hargaSatuan: Number(exp.amount) || 0,
         nominal: Number(exp.amount) || 0,
+        receiptUrls: getExpenseReceiptUrls(exp),
       };
     });
     updateCurrentDraft((p) => ({ ...p, items: pulled }));
@@ -703,8 +793,17 @@ export function EvidenceDocsTab({
     });
   };
 
+  const activeReceiptUrls =
+    activeRabCode === "4"
+      ? []
+      : normalizeReceiptUrlList(currentDraft.items.flatMap((it) => it.receiptUrls || []));
+
+  const showReceiptCheckbox =
+    activeRabCode !== "4" &&
+    (isKorwilRealExpensePos(activeRabCode) || activeReceiptUrls.length > 0);
+
   // Ringkasan label dokumen yang dicentang untuk preview tombol Cetak
-  const activeCheckedLabels = useMemo(() => {
+  const activeCheckedLabels = (() => {
     const arr: string[] = [];
     if (activeRabCode === "4") {
       if (a4IncludeInvoice) arr.push("Invoice");
@@ -718,19 +817,11 @@ export function EvidenceDocsTab({
     if (currentDraft.includeDaftarTandaTerima) arr.push("Tanda Terima");
     if (currentDraft.includeSlipGaji) arr.push("Slip Gaji");
     if (currentDraft.includeKwitansi) arr.push("Kwitansi");
+    if (currentDraft.includeReceiptAttachments && activeReceiptUrls.length > 0) {
+      arr.push(`Lampiran Receipt (${activeReceiptUrls.length})`);
+    }
     return arr;
-  }, [
-    activeRabCode,
-    a4IncludeInvoice,
-    a4IncludeTandaTerima,
-    a4IncludeSlipGaji,
-    a4IncludeKwitansi,
-    sewaIncludeKontrak,
-    currentDraft.includeInvoice,
-    currentDraft.includeDaftarTandaTerima,
-    currentDraft.includeSlipGaji,
-    currentDraft.includeKwitansi,
-  ]);
+  })();
 
   const renderSidebarCard = (meta: (typeof RAB_POS_CATALOG)[number]) => {
     const isActive = meta.code === activeRabCode;
@@ -959,8 +1050,12 @@ export function EvidenceDocsTab({
                 </div>
               </div>
 
-              {/* 4 Checklist Utama (+ Kontrak Sewa khusus B.3b) */}
-              <div className={`grid grid-cols-2 ${activeRabCode === "3b" ? "sm:grid-cols-5" : "sm:grid-cols-4"} gap-2 text-xs`}>
+              {/* 4 Checklist Utama (+ Kontrak Sewa khusus B.3b / Lampiran Receipt untuk B.2a, B.2c & pos berlampiran) */}
+              <div
+                className={`grid grid-cols-2 ${
+                  activeRabCode === "3b" || showReceiptCheckbox ? "sm:grid-cols-5" : "sm:grid-cols-4"
+                } gap-2 text-xs`}
+              >
                 <label
                   className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-all ${
                     (activeRabCode === "4" ? a4IncludeInvoice : Boolean(currentDraft.includeInvoice))
@@ -1052,6 +1147,29 @@ export function EvidenceDocsTab({
                       className="accent-white"
                     />
                     <span>Kontrak Sewa</span>
+                  </label>
+                )}
+
+                {showReceiptCheckbox && (
+                  <label
+                    className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-all ${
+                      currentDraft.includeReceiptAttachments
+                        ? "bg-amber-600 text-white border-amber-700 font-bold shadow-xs"
+                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 font-medium"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={Boolean(currentDraft.includeReceiptAttachments)}
+                      onChange={(e) =>
+                        updateCurrentDraft((p) => ({
+                          ...p,
+                          includeReceiptAttachments: e.target.checked,
+                        }))
+                      }
+                      className="accent-white"
+                    />
+                    <span className="truncate">Lampiran Receipt ({activeReceiptUrls.length})</span>
                   </label>
                 )}
               </div>
@@ -1583,9 +1701,31 @@ export function EvidenceDocsTab({
             ) : (
               /* ==================== EDITOR STANDAR 22 POS RAB LAINNYA (A.1–A.3, A.5, B.1a–B.7d) ==================== */
               <div className="space-y-4">
+                {/* Info khusus Pos B.2a (Tiket) & B.2c (Penginapan) — menggunakan data pengeluaran riil + lampiran receipt */}
+                {isKorwilRealExpensePos(activeRabCode) && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-[11px] text-amber-950 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <strong>Basis Pengeluaran Riil ({activeMeta.displayCode}):</strong>{" "}
+                      Menggunakan data pengeluaran riil terverifikasi ({(realExpensesByRabCode.get(activeRabCode.toLowerCase()) || []).length} transaksi) beserta{" "}
+                      <strong>{activeReceiptUrls.length} dokumen receipt terupload</strong> (otomatis terlampir saat cetak PDF).
+                    </div>
+                  </div>
+                )}
+
                 {/* Bar Sumber Data Pelaporan Khusus Pos Ini */}
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs">
                   <div className="flex flex-wrap items-center gap-1.5">
+                    {isKorwilRealExpensePos(activeRabCode) && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handlePullRealFromDb}
+                        className="h-8 bg-amber-600 hover:bg-amber-700 text-white text-[11px] gap-1"
+                      >
+                        <Download className="w-3.5 h-3.5" /> Muat Data Riil DB ({(realExpensesByRabCode.get(activeRabCode.toLowerCase()) || []).length} tx)
+                      </Button>
+                    )}
+
                     <Button
                       type="button"
                       size="sm"
@@ -2329,6 +2469,25 @@ export function EvidenceDocsTab({
                                   }
                                   className="w-full border rounded px-1.5 py-0.5 text-[11px] text-slate-600"
                                 />
+                                {it.receiptUrls && it.receiptUrls.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 pt-0.5">
+                                    {normalizeReceiptUrlList(it.receiptUrls).map((url, rIdx) => {
+                                      const isPdf = url.toLowerCase().split("?")[0].endsWith(".pdf");
+                                      return (
+                                        <a
+                                          key={url}
+                                          href={url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 hover:bg-amber-100 border border-amber-200 text-[10px] font-semibold text-amber-900"
+                                        >
+                                          <Paperclip className="w-2.5 h-2.5" />
+                                          Receipt {rIdx + 1} ({isPdf ? "PDF" : "Foto"})
+                                        </a>
+                                      );
+                                    })}
+                                  </div>
+                                )}
                               </td>
                               <td className="py-1.5 px-1 text-center space-y-1">
                                 <div className="flex items-center gap-1 justify-center">

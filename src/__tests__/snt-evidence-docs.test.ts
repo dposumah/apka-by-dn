@@ -30,6 +30,7 @@ import {
 } from "../lib/snt-evidence-pdf";
 import {
   buildDefaultRabPosDraft,
+  buildRealExpenseLineItems,
   buildTahap1RabPosDraft,
   normalizeRabPosCode,
   RAB_POS_CATALOG,
@@ -601,6 +602,57 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
     expect(b3b.items.reduce((s, it) => s + it.nominal, 0)).toBe(48000000);
     expect(b3b.items.filter((it) => it.lokasi === "Kab. Kupang")).toHaveLength(4);
     expect(b3b.items.filter((it) => it.lokasi === "Kota Tidore Kepulauan")).toHaveLength(4);
+
+    // Pos B.2a (Tiket) & B.2c (Penginapan): data riil + lampiran receipt (PDF & Foto); B.2b (Uang Harian): RAB Rp14.400.000
+    const b2b = buildDefaultRabPosDraft("2b", profile);
+    expect(b2b.items).toHaveLength(6);
+    expect(b2b.items.reduce((s, it) => s + it.nominal, 0)).toBe(14400000);
+
+    const b2aRealItems = buildRealExpenseLineItems(
+      [
+        {
+          id: "e-tiket-1",
+          rabItemId: "rab-2a",
+          amount: 3316331,
+          description: "Perjalanan Dinas Korwil Jakarta - Makassar - Baubau",
+          date: "2026-09-28",
+          status: "APPROVED",
+          realizationType: "REAL",
+          receiptUrl: "https://example.com/tiket-baubau.pdf",
+        },
+        {
+          id: "e-tiket-2",
+          rabItemId: "rab-2a",
+          amount: 182000,
+          description: "Biaya Perjalanan Dinas Korwil SNT Kupang",
+          date: "2026-10-17",
+          status: "APPROVED",
+          realizationType: "REAL",
+          receiptUrl: "https://example.com/receipt-kupang.jpeg",
+        },
+      ],
+      "Perjadin Korwil — Transportasi"
+    );
+    expect(b2aRealItems).toHaveLength(2);
+    expect(b2aRealItems[0].lokasi).toBe("Kab. Buton Tengah");
+    expect(b2aRealItems[1].lokasi).toBe("Kab. Kupang");
+    expect(b2aRealItems[0].receiptUrls).toEqual(["https://example.com/tiket-baubau.pdf"]);
+
+    const b2aHtml = renderGenericEvidencePdfHtml({
+      type: "KORWIL_TRANSPORT",
+      draft: {
+        ...buildDefaultRabPosDraft("2a", profile),
+        items: b2aRealItems,
+        includeReceiptAttachments: true,
+      },
+      profile,
+      includeKwitansiSlips: true,
+    });
+    expect(b2aHtml).toContain("LAMPIRAN BUKTI PENDUKUNG (1 DARI 2)");
+    expect(b2aHtml).toContain("LAMPIRAN BUKTI PENDUKUNG (2 DARI 2)");
+    expect(b2aHtml).toContain('data-pdf-url="https://example.com/tiket-baubau.pdf"');
+    expect(b2aHtml).toContain("pdf.min.js");
+    expect(b2aHtml).toContain('src="https://example.com/receipt-kupang.jpeg"');
 
     // Pos A.4 mendukung ke-4 checklist secara independen
     const a4All4Html = renderMonthlyFacilitatorHonorPdfHtml({

@@ -1,4 +1,5 @@
 import { formatCurrency, terbilangRupiah } from "./format";
+import { normalizeReceiptUrlList } from "./expense-receipts";
 import {
   DEFAULT_ROBOTIC_PREPARER_LABEL,
   DEFAULT_SLIP_KEGIATAN_LABEL,
@@ -910,6 +911,69 @@ function buildGenericEvidencePages(
     }
   }
 
+  // 4. Lampiran Dokumen Pendukung (Receipt Tiket / Bill Hotel / Bukti Upload per transaksi)
+  if (draft.includeReceiptAttachments) {
+    const attachmentEntries: Array<{
+      url: string;
+      tanggal: string;
+      lokasi: string;
+      uraian: string;
+      nominal: number;
+    }> = [];
+    const seenUrls = new Set<string>();
+    for (const it of draft.items) {
+      const urls = normalizeReceiptUrlList(it.receiptUrls || []);
+      for (const u of urls) {
+        if (seenUrls.has(u)) continue;
+        seenUrls.add(u);
+        attachmentEntries.push({
+          url: u,
+          tanggal: it.tanggal,
+          lokasi: it.lokasi,
+          uraian: it.uraian,
+          nominal: Number(it.nominal) || 0,
+        });
+      }
+    }
+
+    attachmentEntries.forEach((att, idx) => {
+      const cleanUrl = att.url;
+      const isPdf = cleanUrl.toLowerCase().split("?")[0].endsWith(".pdf");
+      const headerHtml = `
+        <div class="receipt-att-head">
+          <div class="receipt-att-badge">LAMPIRAN BUKTI PENDUKUNG (${idx + 1} DARI ${attachmentEntries.length}) · POS RAB ${esc(rabLabel)}</div>
+          <div class="receipt-att-title">${esc(att.uraian)}</div>
+          <div class="receipt-att-meta">
+            Tanggal: <strong>${esc(formatDateId(att.tanggal))}</strong> · Lokasi: <strong>${esc(att.lokasi || "Wilayah 2")}</strong> · Nominal: <strong>${esc(formatCurrency(att.nominal))}</strong>
+          </div>
+        </div>
+      `;
+
+      if (isPdf) {
+        pages.push(`
+          <div class="receipt-att-page">
+            ${headerHtml}
+            <div class="pdf-receipt-host" data-pdf-url="${esc(cleanUrl)}" data-att-index="${idx + 1}">
+              <div class="pdf-receipt-loading">Memuat lampiran PDF (${idx + 1}/${attachmentEntries.length})...</div>
+              <div class="pdf-receipt-fallback">
+                <a href="${esc(cleanUrl)}" target="_blank" rel="noopener noreferrer">Buka / Unduh File PDF Asli</a>
+              </div>
+            </div>
+          </div>
+        `);
+      } else {
+        pages.push(`
+          <div class="receipt-att-page">
+            ${headerHtml}
+            <div class="receipt-img-wrap">
+              <img src="${esc(cleanUrl)}" alt="Bukti ${esc(att.uraian)}" class="receipt-img" />
+            </div>
+          </div>
+        `);
+      }
+    });
+  }
+
   return pages;
 }
 
@@ -968,6 +1032,71 @@ export function renderMultiBundleGenericEvidencePdfHtml(
 }
 
 function wrapPrintableHtml(title: string, innerHtml: string): string {
+  const hasPdfReceipts = innerHtml.includes("pdf-receipt-host");
+  const pdfJsScript = hasPdfReceipts
+    ? `
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    (async function renderPdfReceiptAttachments() {
+      const hosts = Array.from(document.querySelectorAll(".pdf-receipt-host"));
+      if (hosts.length === 0) return;
+      const statusEl = document.getElementById("pdf-att-status");
+      const printBtn = document.getElementById("btn-print-doc");
+      if (!window.pdfjsLib) {
+        if (statusEl) statusEl.textContent = "PDF.js tidak tersedia — gunakan tautan pada tiap lampiran PDF.";
+        return;
+      }
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      if (printBtn) {
+        printBtn.disabled = true;
+        printBtn.textContent = "Memuat " + hosts.length + " Lampiran PDF...";
+      }
+      let done = 0;
+      for (const host of hosts) {
+        const url = host.getAttribute("data-pdf-url");
+        if (!url) continue;
+        try {
+          const pdf = await window.pdfjsLib.getDocument({ url: url, withCredentials: false }).promise;
+          host.innerHTML = "";
+          for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+            const page = await pdf.getPage(pageNum);
+            const viewport = page.getViewport({ scale: 1.75 });
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d");
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+            const imgWrap = document.createElement("div");
+            imgWrap.className = pageNum > 1 ? "receipt-img-wrap page-break" : "receipt-img-wrap";
+            const img = document.createElement("img");
+            img.src = canvas.toDataURL("image/jpeg", 0.92);
+            img.className = "receipt-img";
+            img.alt = "Lampiran PDF Halaman " + pageNum;
+            imgWrap.appendChild(img);
+            host.appendChild(imgWrap);
+          }
+          done++;
+          if (statusEl) statusEl.textContent = "Lampiran PDF termuat: " + done + "/" + hosts.length;
+        } catch (err) {
+          console.error("Gagal render PDF lampiran:", url, err);
+          host.innerHTML =
+            '<div class="pdf-receipt-error">Lampiran PDF tidak dapat dirender otomatis. <a href="' +
+            url +
+            '" target="_blank" rel="noopener noreferrer">Klik di sini untuk membuka PDF asli</a></div>';
+        }
+      }
+      if (printBtn) {
+        printBtn.disabled = false;
+        printBtn.textContent = "Cetak / Simpan PDF (A4)";
+      }
+      if (statusEl) {
+        statusEl.textContent = "Semua lampiran siap dicetak (" + done + "/" + hosts.length + " PDF).";
+      }
+    })();
+  </script>`
+    : "";
+
   return `<!DOCTYPE html>
 <html lang="id">
 <head>
@@ -1011,6 +1140,8 @@ function wrapPrintableHtml(title: string, innerHtml: string): string {
       font-size: 12px;
       cursor: pointer;
     }
+    .toolbar button:disabled { opacity: 0.6; cursor: wait; }
+    .toolbar-status { font-size: 11px; color: #a7f3d0; margin-top: 2px; }
     .sheet {
       max-width: 210mm;
       margin: 0 auto;
@@ -1019,6 +1150,23 @@ function wrapPrintableHtml(title: string, innerHtml: string): string {
       box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
     }
     .page-break { page-break-before: always; break-before: page; padding-top: 8px; }
+    .receipt-att-page { page-break-inside: avoid; }
+    .receipt-att-head {
+      border: 1px solid #cbd5e1;
+      border-left: 4px solid #00ADB5;
+      background: #f8fafc;
+      padding: 8px 12px;
+      margin-bottom: 10px;
+      border-radius: 4px;
+    }
+    .receipt-att-badge { font-size: 9px; font-weight: 800; color: #0f766e; letter-spacing: 0.5px; }
+    .receipt-att-title { font-size: 12px; font-weight: 700; color: #0f172a; margin-top: 2px; }
+    .receipt-att-meta { font-size: 10px; color: #475569; margin-top: 2px; }
+    .receipt-img-wrap { text-align: center; padding: 6px 0; }
+    .receipt-img { max-width: 100%; max-height: 235mm; object-fit: contain; border: 1px solid #cbd5e1; border-radius: 4px; }
+    .pdf-receipt-loading { padding: 18px; text-align: center; color: #475569; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px; }
+    .pdf-receipt-fallback, .pdf-receipt-error { margin-top: 8px; padding: 10px; text-align: center; font-size: 11px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; }
+    .pdf-receipt-fallback a, .pdf-receipt-error a { color: #0369a1; font-weight: 700; text-decoration: underline; }
     .kop-wrap { border-bottom: 3px solid #1e293b; padding-bottom: 8px; margin-bottom: 12px; text-align: center; }
     .kop-img { width: 100%; max-height: 95px; object-fit: contain; }
     .doc-head { text-align: center; margin-bottom: 14px; }
@@ -1061,15 +1209,20 @@ function wrapPrintableHtml(title: string, innerHtml: string): string {
       body { background: #fff; padding: 0; }
       .toolbar { display: none !important; }
       .sheet { max-width: none; box-shadow: none; padding: 0; }
+      .pdf-receipt-fallback { display: none !important; }
     }
   </style>
 </head>
 <body>
   <div class="toolbar">
-    <strong>${esc(title)}</strong>
-    <button type="button" onclick="window.print()">Cetak / Simpan PDF (A4)</button>
+    <div>
+      <strong>${esc(title)}</strong>
+      ${hasPdfReceipts ? `<div id="pdf-att-status" class="toolbar-status">Menyiapkan lampiran PDF bukti pengeluaran...</div>` : ""}
+    </div>
+    <button id="btn-print-doc" type="button" onclick="window.print()">Cetak / Simpan PDF (A4)</button>
   </div>
   <div class="sheet">${innerHtml}</div>
+  ${pdfJsScript}
 </body>
 </html>`;
 }

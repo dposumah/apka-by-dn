@@ -3,20 +3,25 @@ import {
   DEFAULT_SLIP_KEGIATAN_LABEL,
   resolvePersonnelRoleFromRab,
 } from "./snt-brand-kop";
+import { getExpenseReceiptUrls } from "./expense-receipts";
 import {
   buildDraftFromDriveMockupPreset,
   buildMonthlyPersonnelDraft,
   DEFAULT_SNT_ADMIN_PROFILE,
   DEFAULT_SNT_KORWIL_PROFILE,
   EvidenceDocType,
+  EvidenceLineItem,
   GenericEvidenceDraft,
   getDefaultGenericEvidenceDraft,
   getHonorTimPresetByRabCode,
+  matchWilayah2LocationId,
   SNT_HONOR_MONTH_OPTIONS,
 } from "./snt-evidence-docs";
 import {
+  getValidKwitansiNumber,
   KopSuratOption,
   SNT_WILAYAH_2_LOCATIONS,
+  SntExpenseRecord,
   SntReportProfile,
 } from "./snt-report-templates";
 
@@ -477,6 +482,59 @@ function defaultSlipProfileForPos(meta: RabPosCatalogMeta) {
   };
 }
 
+export function buildRealExpenseLineItems(
+  expenses: SntExpenseRecord[],
+  fallbackTitle: string,
+  defaultPenerima: string = DEFAULT_SNT_KORWIL_PROFILE.nama
+): EvidenceLineItem[] {
+  const sorted = [...(expenses || [])].sort((a, b) => {
+    const da = new Date(a.date || a.createdAt || 0).getTime();
+    const db = new Date(b.date || b.createdAt || 0).getTime();
+    return da - db;
+  });
+
+  return sorted.map((exp) => {
+    const d = exp.date || exp.createdAt;
+    const tanggal = d ? new Date(d).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+    const desc = (exp.description || "").trim() || fallbackTitle;
+    const matchedLocId =
+      matchWilayah2LocationId(exp.fasilitator?.lokasiSNT) || matchWilayah2LocationId(desc);
+    const matchedLocLabel = matchedLocId
+      ? SNT_WILAYAH_2_LOCATIONS.find((l) => l.id === matchedLocId)?.label
+      : undefined;
+    const lokasi =
+      exp.fasilitator?.lokasiSNT ||
+      matchedLocLabel ||
+      (/baubau|bau-bau|buton/i.test(desc)
+        ? "Kab. Buton Tengah"
+        : /ternate|tidore/i.test(desc)
+          ? "Kota Tidore Kepulauan"
+          : /kupang/i.test(desc)
+            ? "Kab. Kupang"
+            : "Wilayah 2");
+    const receiptUrls = getExpenseReceiptUrls(exp);
+    const noDokumen = getValidKwitansiNumber(exp) || undefined;
+    return {
+      id: `real-${exp.id}`,
+      tanggal,
+      lokasi,
+      uraian: desc,
+      penerima: exp.fasilitator?.namaLengkap || defaultPenerima,
+      volume: 1,
+      satuan: "transaksi",
+      hargaSatuan: Number(exp.amount) || 0,
+      nominal: Number(exp.amount) || 0,
+      noDokumen,
+      receiptUrls,
+    };
+  });
+}
+
+export function isKorwilRealExpensePos(code: string): boolean {
+  const c = String(code || "").trim().toLowerCase();
+  return c === "2a" || c === "2c";
+}
+
 /**
  * Membangun draft pelaporan standar berbasis Rincian Pagu RAB untuk setiap Pos RAB (23 pos).
  */
@@ -672,23 +730,24 @@ export function buildDefaultRabPosDraft(
     return {
       ...baseFlags,
       ...defaultBank,
+      includeReceiptAttachments: true,
       ditagihkanKepada: maleoName,
       programLabel: "Sekolah Nasional Terintegrasi (SNT) 2026 — Wilayah 2",
       ppnPct: 0,
       signerName,
       signerTitle: "Koordinator Wilayah 2",
-      recipientMode: "BLANK",
+      recipientMode: "MANUAL",
       judulDokumen: meta.fullTitle,
-      periodeLabel: "September – Desember 2026 (2 Putaran Kunjungan)",
+      periodeLabel: "September – Desember 2026 (Data Pengeluaran Riil)",
       tanggalDokumen: "2026-10-31",
       sudahTerimaDari: maleoName,
-      catatan: `Pagu RAB ${meta.displayCode}: ${meta.rabFormula}`,
+      catatan: `Pos ${meta.displayCode}: Menggunakan data pengeluaran riil tiket transportasi Korwil beserta lampiran receipt.`,
       items: SNT_WILAYAH_2_LOCATIONS.map((loc, idx) => ({
         id: `b2a-${idx + 1}`,
         tanggal: "2026-10-31",
         lokasi: loc.label,
         uraian: `Transportasi PP Perjalanan Dinas Monev Korwil — ${loc.label} (2 kunjungan × Rp7.500.000)`,
-        penerima: "",
+        penerima: signerName,
         volume: 2,
         satuan: "kunjungan",
         hargaSatuan: 7500000,
@@ -706,18 +765,18 @@ export function buildDefaultRabPosDraft(
       ppnPct: 0,
       signerName,
       signerTitle: "Koordinator Wilayah 2",
-      recipientMode: "BLANK",
+      recipientMode: "MANUAL",
       judulDokumen: meta.fullTitle,
-      periodeLabel: "September – Desember 2026 (2 Putaran Kunjungan)",
+      periodeLabel: "September – Desember 2026 (2 Putaran Kunjungan — Sesuai RAB)",
       tanggalDokumen: "2026-10-31",
       sudahTerimaDari: maleoName,
-      catatan: `Pagu RAB ${meta.displayCode}: ${meta.rabFormula}`,
+      catatan: `Pagu RAB ${meta.displayCode}: ${meta.rabFormula} = Rp14.400.000`,
       items: SNT_WILAYAH_2_LOCATIONS.map((loc, idx) => ({
         id: `b2b-${idx + 1}`,
         tanggal: "2026-10-31",
         lokasi: loc.label,
         uraian: `Uang Harian Perjalanan Dinas Monev Korwil — ${loc.label} (3 hari × 2 kunjungan × Rp400.000)`,
-        penerima: "",
+        penerima: signerName,
         volume: 6,
         satuan: "hari",
         hargaSatuan: 400000,
@@ -730,23 +789,24 @@ export function buildDefaultRabPosDraft(
     return {
       ...baseFlags,
       ...defaultBank,
+      includeReceiptAttachments: true,
       ditagihkanKepada: maleoName,
       programLabel: "Sekolah Nasional Terintegrasi (SNT) 2026 — Wilayah 2",
       ppnPct: 0,
       signerName,
       signerTitle: "Koordinator Wilayah 2",
-      recipientMode: "BLANK",
+      recipientMode: "MANUAL",
       judulDokumen: meta.fullTitle,
-      periodeLabel: "September – Desember 2026 (2 Putaran Kunjungan)",
+      periodeLabel: "September – Desember 2026 (Data Pengeluaran Riil)",
       tanggalDokumen: "2026-10-31",
       sudahTerimaDari: maleoName,
-      catatan: `Pagu RAB ${meta.displayCode}: ${meta.rabFormula}`,
+      catatan: `Pos ${meta.displayCode}: Menggunakan data pengeluaran riil penginapan Korwil beserta lampiran bill/receipt hotel.`,
       items: SNT_WILAYAH_2_LOCATIONS.map((loc, idx) => ({
         id: `b2c-${idx + 1}`,
         tanggal: "2026-10-31",
         lokasi: loc.label,
         uraian: `Penginapan Hotel Perjalanan Dinas Monev Korwil — ${loc.label} (2 malam × 2 kunjungan × Rp600.000)`,
-        penerima: "",
+        penerima: signerName,
         volume: 4,
         satuan: "malam",
         hargaSatuan: 600000,

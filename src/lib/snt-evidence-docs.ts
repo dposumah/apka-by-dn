@@ -363,6 +363,7 @@ export interface EvidenceLineItem {
   nominal: number;
   noDokumen?: string;
   catatan?: string;
+  receiptUrls?: string[];
 }
 
 export interface SewaRumahContractDraft {
@@ -406,6 +407,7 @@ export interface GenericEvidenceDraft {
   includeDaftarTandaTerima?: boolean;
   includeSlipGaji?: boolean;
   includeKwitansi?: boolean;
+  includeReceiptAttachments?: boolean;
   tandaTerimaDibayarkanOleh?: string;
   slipNamaPenerima?: string;
   slipPeranJabatan?: string;
