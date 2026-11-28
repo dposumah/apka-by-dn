@@ -3,6 +3,7 @@ import {
   DEFAULT_SLIP_KEGIATAN_LABEL,
   SlipHonorariumInput,
 } from "./snt-brand-kop";
+import { formatKwitansiNumber } from "./snt-doc-numbering";
 import {
   KopSuratOption,
   RabRealizationSummary,
@@ -596,7 +597,7 @@ export function buildDraftFromDriveMockupPreset(
       includeInvoice: true,
       includeDaftarTandaTerima: false,
       invoiceNo: "INV/LPD/SNT-W2/001/XI/2026",
-      kuitansiNoPrefix: "KW/LPD/SNT-W2/001/XI/2026",
+      kuitansiNoPrefix: formatKwitansiNumber(tgl, 1),
       jatuhTempo,
       ditagihkanKepada: maleoName,
       alamatTagihan: maleoAddr,
@@ -625,7 +626,7 @@ export function buildDraftFromDriveMockupPreset(
           satuan: "paket",
           hargaSatuan: 32018823,
           nominal: 32018823,
-          noDokumen: "KW/LPD/SNT-W2/001/XI/2026",
+          noDokumen: formatKwitansiNumber(tgl, 1),
         },
       ],
     };
@@ -640,7 +641,7 @@ export function buildDraftFromDriveMockupPreset(
       includeInvoice: true,
       includeDaftarTandaTerima: false,
       invoiceNo: "INV/LPD/SNT-W2/002/XI/2026",
-      kuitansiNoPrefix: "KW/LPD/SNT-W2/002/XI/2026",
+      kuitansiNoPrefix: formatKwitansiNumber(tgl, 2),
       jatuhTempo,
       ditagihkanKepada: maleoName,
       alamatTagihan: maleoAddr,
@@ -669,7 +670,7 @@ export function buildDraftFromDriveMockupPreset(
           satuan: "paket",
           hargaSatuan: 9987397,
           nominal: 9987397,
-          noDokumen: "KW/LPD/SNT-W2/002/XI/2026",
+          noDokumen: formatKwitansiNumber(tgl, 2),
         },
       ],
     };
@@ -684,7 +685,7 @@ export function buildDraftFromDriveMockupPreset(
       includeInvoice: true,
       includeDaftarTandaTerima: false,
       invoiceNo: "INV/LPD/SNT-W2/003/XI/2026",
-      kuitansiNoPrefix: "KW/LPD/SNT-W2/003/XI/2026",
+      kuitansiNoPrefix: formatKwitansiNumber(tgl, 3),
       jatuhTempo,
       ditagihkanKepada: maleoName,
       alamatTagihan: maleoAddr,
@@ -713,7 +714,7 @@ export function buildDraftFromDriveMockupPreset(
           satuan: "salinan",
           hargaSatuan: 200000,
           nominal: 200000,
-          noDokumen: "KW/LPD/SNT-W2/003/XI/2026",
+          noDokumen: formatKwitansiNumber(tgl, 3),
         },
         {
           id: "lpd-b1b",
@@ -725,7 +726,7 @@ export function buildDraftFromDriveMockupPreset(
           satuan: "laporan",
           hargaSatuan: 160000,
           nominal: 2880000,
-          noDokumen: "KW/LPD/SNT-W2/003/XI/2026",
+          noDokumen: formatKwitansiNumber(tgl, 4),
         },
       ],
     };
@@ -740,7 +741,7 @@ export function buildDraftFromDriveMockupPreset(
       includeInvoice: true,
       includeDaftarTandaTerima: false,
       invoiceNo: "INV/RE/SNT-W2/001/XI/2026",
-      kuitansiNoPrefix: "KW/RE/SNT-W2/001/XI/2026",
+      kuitansiNoPrefix: formatKwitansiNumber(tgl, 1),
       jatuhTempo,
       ditagihkanKepada: maleoName,
       alamatTagihan: maleoAddr,
@@ -769,7 +770,7 @@ export function buildDraftFromDriveMockupPreset(
           satuan: "jam",
           hargaSatuan: 200000,
           nominal: 17600000,
-          noDokumen: "KW/RE/SNT-W2/001/XI/2026",
+          noDokumen: formatKwitansiNumber(tgl, 1),
         },
       ],
     };
@@ -784,7 +785,7 @@ export function buildDraftFromDriveMockupPreset(
       includeInvoice: true,
       includeDaftarTandaTerima: true,
       invoiceNo: "INV/RE/SNT-W2-A2/001/XI/2026",
-      kuitansiNoPrefix: "KW/RE/SNT-W2-A2/001/XI/2026",
+      kuitansiNoPrefix: formatKwitansiNumber(tgl, 1),
       jatuhTempo,
       ditagihkanKepada: maleoName,
       alamatTagihan: maleoAddr,
@@ -813,7 +814,7 @@ export function buildDraftFromDriveMockupPreset(
           satuan: "paket",
           hargaSatuan: 112941177,
           nominal: 112941177,
-          noDokumen: "KW/RE/SNT-W2-A2/001/XI/2026",
+          noDokumen: formatKwitansiNumber(tgl, 1),
         },
       ],
     };
@@ -827,8 +828,8 @@ export function buildDraftFromDriveMockupPreset(
       showRabCode: true,
       includeInvoice: true,
       includeDaftarTandaTerima: false,
-      invoiceNo: "INV/MTC/SNT-W2-B5/001/XI/2026",
-      kuitansiNoPrefix: "KW/MTC/SNT-W2-B5/001/XI/2026",
+      invoiceNo: "INV.2026.11.26.001",
+      kuitansiNoPrefix: formatKwitansiNumber(tgl, 1),
       jatuhTempo,
       ditagihkanKepada: maleoName,
       alamatTagihan: maleoAddr,
@@ -859,7 +860,7 @@ export function buildDraftFromDriveMockupPreset(
           satuan: "paket",
           hargaSatuan: 84480000,
           nominal: 84480000,
-          noDokumen: "KW/MTC/SNT-W2-B5/001/XI/2026",
+          noDokumen: formatKwitansiNumber(tgl, 1),
         },
       ],
     };
@@ -874,7 +875,7 @@ export function buildDraftFromDriveMockupPreset(
       includeInvoice: true,
       includeDaftarTandaTerima: false,
       invoiceNo: "INV/LPD/SNT-W2-B7A/001/XI/2026",
-      kuitansiNoPrefix: "KW/LPD/SNT-W2-B7A/001/XI/2026",
+      kuitansiNoPrefix: formatKwitansiNumber(tgl, 1),
       jatuhTempo,
       ditagihkanKepada: maleoName,
       alamatTagihan: maleoAddr,
@@ -903,7 +904,7 @@ export function buildDraftFromDriveMockupPreset(
           satuan: "paket",
           hargaSatuan: 4044720,
           nominal: 24268320,
-          noDokumen: "KW/LPD/SNT-W2-B7A/001/XI/2026",
+          noDokumen: formatKwitansiNumber(tgl, 1),
         },
       ],
     };
@@ -918,7 +919,7 @@ export function buildDraftFromDriveMockupPreset(
       includeInvoice: true,
       includeDaftarTandaTerima: true,
       invoiceNo: "INV/LPD/SNT-W2-B7C/001/XI/2026",
-      kuitansiNoPrefix: "KW/LPD/SNT-W2-B7C/001/XI/2026",
+      kuitansiNoPrefix: formatKwitansiNumber(tgl, 1),
       jatuhTempo,
       ditagihkanKepada: maleoName,
       alamatTagihan: maleoAddr,
@@ -947,7 +948,7 @@ export function buildDraftFromDriveMockupPreset(
           satuan: "unit",
           hargaSatuan: 3000000,
           nominal: 18000000,
-          noDokumen: "KW/LPD/SNT-W2-B7C/001/XI/2026",
+          noDokumen: formatKwitansiNumber(tgl, 1),
         },
       ],
     };
@@ -962,7 +963,7 @@ export function buildDraftFromDriveMockupPreset(
       includeInvoice: true,
       includeDaftarTandaTerima: false,
       invoiceNo: "INV/RE/SNT-W2/002/XI/2026",
-      kuitansiNoPrefix: "KW/RE/SNT-W2/002/XI/2026",
+      kuitansiNoPrefix: formatKwitansiNumber(tgl, 2),
       jatuhTempo,
       ditagihkanKepada: maleoName,
       alamatTagihan: maleoAddr,
@@ -991,7 +992,7 @@ export function buildDraftFromDriveMockupPreset(
           satuan: "paket",
           hargaSatuan: 2000000,
           nominal: 2000000,
-          noDokumen: "KW/RE/SNT-W2/002/XI/2026",
+          noDokumen: formatKwitansiNumber(tgl, 2),
         },
       ],
     };
@@ -1015,7 +1016,7 @@ export function buildDraftFromDriveMockupPreset(
     includeInvoice: false,
     includeDaftarTandaTerima: true,
     invoiceNo: "",
-    kuitansiNoPrefix: "KW/RE/SNT-W2-B6a",
+    kuitansiNoPrefix: formatKwitansiNumber(tgl, 1),
     jatuhTempo,
     ditagihkanKepada: maleoName,
     alamatTagihan: maleoAddr,
@@ -1043,7 +1044,7 @@ export function buildDraftFromDriveMockupPreset(
       satuan: "pertemuan",
       hargaSatuan: 700000,
       nominal: 16800000,
-      noDokumen: `KW/RE/SNT-W2-B6a/${String(idx + 1).padStart(3, "0")}/XI/2026`,
+      noDokumen: formatKwitansiNumber(tgl, idx + 1),
       catatan: `Fasilitator, ${r.snt}`,
     })),
   };
@@ -1277,7 +1278,7 @@ export function buildMonthlyPersonnelDraft(
       includeInvoice: true,
       includeDaftarTandaTerima: true,
       invoiceNo: "INV/LPD/SNT-W2-A3",
-      kuitansiNoPrefix: "KW/LPD/SNT-W2-A3",
+      kuitansiNoPrefix: "",
       jatuhTempo: korwilMonths[korwilMonths.length - 1].defaultDue,
       ditagihkanKepada: maleoName,
       alamatTagihan: profile?.alamatYayasanMaleo || "",
@@ -1307,7 +1308,7 @@ export function buildMonthlyPersonnelDraft(
         satuan: isLpdSim ? "bulan" : "jam",
         hargaSatuan: isLpdSim ? 10672941 : SNT_KORWIL_HOURLY_RATE,
         nominal: isLpdSim ? 10672941 : m.nominal,
-        noDokumen: `KW/LPD/SNT-W2-A3/${m.seq}/${m.roman}/2026`,
+        noDokumen: formatKwitansiNumber(m.defaultDate, Number(m.seq) || 1),
       })),
     };
   }
@@ -1327,7 +1328,7 @@ export function buildMonthlyPersonnelDraft(
     includeInvoice: true,
     includeDaftarTandaTerima: true,
     invoiceNo: "INV/LPD/SNT-W2-A5",
-    kuitansiNoPrefix: "KW/LPD/SNT-W2-A5",
+    kuitansiNoPrefix: "",
     jatuhTempo: adminMonths[adminMonths.length - 1].defaultDue,
     ditagihkanKepada: maleoName,
     alamatTagihan: profile?.alamatYayasanMaleo || "",
@@ -1360,7 +1361,7 @@ export function buildMonthlyPersonnelDraft(
         satuan: "bulan",
         hargaSatuan: isLpdSim ? amt : SNT_RAB_TENAGA_ADMIN_UNIT_PRICE,
         nominal: amt,
-        noDokumen: `KW/LPD/SNT-W2-A5/${m.seq}/${m.roman}/2026`,
+        noDokumen: formatKwitansiNumber(m.defaultDate, Number(m.seq) || 1),
       };
     }),
   };
@@ -1388,9 +1389,13 @@ export function expandDraftIntoMonthlySlices(
     m: (typeof SNT_HONOR_MONTH_OPTIONS)[number],
     matchedItems: EvidenceLineItem[]
   ): GenericEvidenceDraft => {
-    const invNo = `INV/${brandCode}/SNT-W2-${rabTag}/${m.seq}/${m.roman}/2026`;
-    const kwtNo = `KW/${brandCode}/SNT-W2-${rabTag}/${m.seq}/${m.roman}/2026`;
     const tglDok = matchedItems[0]?.tanggal || m.defaultDate;
+    const invDateDot = tglDok.replace(/-/g, ".");
+    const invNo =
+      brandCode === "MTC"
+        ? `INV.${invDateDot}.${m.seq}`
+        : `INV/${brandCode}/SNT-W2-${rabTag}/${m.seq}/${m.roman}/2026`;
+    const kwtNo = formatKwitansiNumber(tglDok, Number(m.seq) || 1);
 
     return {
       ...draft,
@@ -1400,14 +1405,18 @@ export function expandDraftIntoMonthlySlices(
       jatuhTempo: m.defaultDue,
       invoiceNo: invNo,
       kuitansiNoPrefix: kwtNo,
-      items: matchedItems.map((it, idx) => ({
-        ...it,
-        noDokumen:
-          it.noDokumen ||
-          (matchedItems.length === 1
-            ? kwtNo
-            : `KW/${brandCode}/SNT-W2-${rabTag}/${String(idx + 1).padStart(3, "0")}/${m.roman}/2026`),
-      })),
+      items: matchedItems.map((it, idx) => {
+        const existingDoc = (it.noDokumen || "").trim();
+        const isValidKwtDot = /^KWT\.\d{4}\.\d{2}\.\d{2}\.\d{1,5}$/i.test(existingDoc);
+        return {
+          ...it,
+          noDokumen: isValidKwtDot
+            ? existingDoc
+            : matchedItems.length === 1
+              ? kwtNo
+              : formatKwitansiNumber(it.tanggal || tglDok, idx + 1),
+        };
+      }),
     };
   };
 

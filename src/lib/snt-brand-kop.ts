@@ -294,16 +294,16 @@ export function renderModernKuitansiHtml(params: ModernKuitansiInput): string {
       <div style="background:#fff; border:1px solid #cbd5e1; border-radius:4px; padding:22px 26px; max-width:860px; margin:0 auto; box-sizing:border-box; font-family:'Open Sans','Segoe UI',Arial,sans-serif; color:#0f172a; page-break-inside:avoid;">
         ${renderBrandKopHtml(params.kopSurat, params.profile, params.originPrefix || "")}
 
-        <div style="text-align:center; font-size:20px; font-weight:800; color:#009999; letter-spacing:2px; margin:8px 0 12px;">
+        <div style="text-align:center; font-size:20px; font-weight:800; color:#243b55; letter-spacing:1.5px; margin:8px 0 12px;">
           KWITANSI
         </div>
 
-        <table style="width:100%; border-collapse:collapse; font-size:11.5px; margin-bottom:14px;">
+        <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:14px; background:#529495; color:#ffffff; border-radius:2px; -webkit-print-color-adjust:exact; print-color-adjust:exact;">
           <tr>
-            <td style="border:none; padding:4px 0; font-weight:700; color:#0f172a;">
-              Kwitansi No. <span style="color:#009999;">${esc(params.noKwitansi || "KWT.2026.__.__.___")}</span>
+            <td style="border:none; padding:7px 14px; font-weight:700; color:#ffffff; background:#529495;">
+              Kwitansi No. ${esc(params.noKwitansi || "KWT.2026.__.__.___")}
             </td>
-            <td style="border:none; padding:4px 0; text-align:right; font-weight:600; color:#334155;">
+            <td style="border:none; padding:7px 14px; text-align:right; font-weight:700; color:#ffffff; background:#529495; white-space:nowrap;">
               Tanggal : ${esc(formatDateSlashOrId(params.tanggal, "long"))}
             </td>
           </tr>
@@ -376,14 +376,20 @@ export function renderModernKuitansiHtml(params: ModernKuitansiInput): string {
     <div style="background:#fff; border:1px solid #cbd5e1; border-radius:4px; padding:20px 24px; max-width:860px; margin:0 auto; box-sizing:border-box; font-family:'Segoe UI',Arial,sans-serif; color:#0f172a; page-break-inside:avoid;">
       ${renderBrandKopHtml(params.kopSurat, params.profile, params.originPrefix || "")}
 
-      <div style="text-align:center; font-size:18px; font-weight:800; color:${theme.primaryColor}; letter-spacing:2px; margin:8px 0 6px;">
-        KUITANSI
+      <div style="text-align:center; font-size:20px; font-weight:800; color:#243b55; letter-spacing:1.5px; margin:8px 0 12px;">
+        KWITANSI
       </div>
 
-      <div style="display:flex; justify-content:flex-end; align-items:center; gap:14px; font-size:11.5px; margin-bottom:14px;">
-        <span style="font-weight:700; color:#334155;">No. Kuitansi</span>
-        <span style="font-weight:700; color:${theme.primaryColor};">${esc(params.noKwitansi || "................................")}</span>
-      </div>
+      <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:14px; background:#529495; color:#ffffff; border-radius:2px; -webkit-print-color-adjust:exact; print-color-adjust:exact;">
+        <tr>
+          <td style="border:none; padding:7px 14px; font-weight:700; color:#ffffff; background:#529495;">
+            Kwitansi No. ${esc(params.noKwitansi || "KWT.2026.__.__.___")}
+          </td>
+          <td style="border:none; padding:7px 14px; text-align:right; font-weight:700; color:#ffffff; background:#529495; white-space:nowrap;">
+            Tanggal : ${esc(formatDateSlashOrId(params.tanggal, "long"))}
+          </td>
+        </tr>
+      </table>
 
       <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:18px;">
         <tr>

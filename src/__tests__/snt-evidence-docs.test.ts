@@ -468,7 +468,8 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
       penerimaRole: "Fasilitator,",
     });
     expect(maleoKwt).toContain("#009999");
-    expect(maleoKwt).toContain("KWT.2026.11.27.001");
+    expect(maleoKwt).toContain("#529495");
+    expect(maleoKwt).toContain("Kwitansi No. KWT.2026.11.27.001");
     expect(maleoKwt).toContain("Total Pembayaran");
     expect(maleoKwt).toContain("PT Jully Tjindrawan Robotik (Robotic Explorer)");
     expect(maleoKwt).toContain("Mutiara Hikma Mahendradatta, BBA., MBA.");
@@ -560,6 +561,8 @@ describe("snt-evidence-docs & target > 80% strategy", () => {
     expect(all4Html).toContain("TANDA TERIMA");
     expect(all4Html).toContain("SLIP HONORARIUM");
     expect(all4Html).toContain("KWITANSI");
+    expect(all4Html).toContain("Kwitansi No. KWT.2026.10.31.002");
+    expect(all4Html).toContain("#529495");
     expect(all4Html).toContain("3173010101800001");
 
     const a5 = buildDefaultRabPosDraft("5", profile);

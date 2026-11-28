@@ -1,5 +1,6 @@
 import { formatCurrency, terbilangRupiah } from "./format";
 import { normalizeReceiptUrlList } from "./expense-receipts";
+import { formatKwitansiNumber, resolveKwitansiNumberForRow } from "./snt-doc-numbering";
 import {
   DEFAULT_ROBOTIC_PREPARER_LABEL,
   DEFAULT_SLIP_KEGIATAN_LABEL,
@@ -251,11 +252,10 @@ function buildMonthlyFacilitatorHonorBodyHtml(input: MonthlyFacilitatorHonorPdfI
   const kwitansiPages: string[] = emitKwitansi
     ? sheet.rows.map((r, idx) => {
         const displayName = resolveRecipientDisplay(recipientMode, r.nama);
-        const kwtDatePart = (tanggalCetak || monthMeta?.defaultDate || "2026-10-31").replace(/-/g, ".");
-        const kwtNo =
-          activeKop === "maleo"
-            ? `KWT.${kwtDatePart}.${String(idx + 1).padStart(3, "0")}`
-            : `KW/${brandCode}/SNT-W2-A4/${String(idx + 1).padStart(3, "0")}/${monthMeta?.roman || "X"}/2026`;
+        const kwtNo = formatKwitansiNumber(
+          tanggalCetak || monthMeta?.defaultDate || "2026-10-31",
+          idx + 1
+        );
         return renderKwitansiSlipHtml({
           kopSurat: activeKop,
           profile,
@@ -485,7 +485,7 @@ export function renderSewaRumahPdfHtml(input: {
           ${renderKwitansiSlipHtml({
             kopSurat: profile.kopSurat,
             profile,
-            noKwitansi: `${draft.nomorKontrak || "KWT-SEWA"}/BLN-${String(idx + 1).padStart(2, "0")}`,
+            noKwitansi: formatKwitansiNumber(draft.tanggalKontrak || "2026-09-30", idx + 1),
             sudahTerimaDari,
             amount: draft.tarifPerBulan,
             untukPembayaran: `Pembayaran Bantuan Sewa Rumah/Kost Fasilitator SNT (${draft.lokasiSnt}) — Periode ${bulanLabel}`,
@@ -868,7 +868,11 @@ function buildGenericEvidencePages(
         renderKwitansiSlipHtml({
           kopSurat: activeKop,
           profile,
-          noKwitansi: draft.kuitansiNoPrefix || draft.items[0]?.noDokumen || `KW/${rabLabel}/001`,
+          noKwitansi: resolveKwitansiNumberForRow(
+            draft.kuitansiNoPrefix || draft.items[0]?.noDokumen,
+            draft.tanggalDokumen || draft.items[0]?.tanggal,
+            0
+          ),
           sudahTerimaDari: draft.sudahTerimaDari || draft.ditagihkanKepada || "Yayasan Maleo Talenta Cendekia",
           amount: grandTotal,
           untukPembayaran: kwtUntuk,
@@ -887,22 +891,24 @@ function buildGenericEvidencePages(
           ? (Number(it.nominal) || 0) - Math.round(((Number(it.nominal) || 0) * pphPct) / 100)
           : Number(it.nominal) || 0;
         const invRef = includeInvoice && draft.invoiceNo ? ` sesuai Invoice No. ${draft.invoiceNo}` : "";
+        const itemDate = it.tanggal || draft.tanggalDokumen;
+        const explicitItemNo = (it.noDokumen || "").trim();
+        const kwtNo =
+          explicitItemNo && !/^KWT?\//i.test(explicitItemNo)
+            ? resolveKwitansiNumberForRow(explicitItemNo, itemDate, 0)
+            : resolveKwitansiNumberForRow(draft.kuitansiNoPrefix, itemDate, idx);
         pages.push(
           renderKwitansiSlipHtml({
             kopSurat: activeKop,
             profile,
-            noKwitansi:
-              it.noDokumen ||
-              (draft.kuitansiNoPrefix
-                ? `${draft.kuitansiNoPrefix}/${String(idx + 1).padStart(3, "0")}/XI/2026`
-                : `KWT/${draft.rabCode.toUpperCase()}/${String(idx + 1).padStart(3, "0")}`),
+            noKwitansi: kwtNo,
             sudahTerimaDari: draft.sudahTerimaDari || profile.namaYayasan,
             amount: amountItem,
             untukPembayaran: `${it.uraian}${invRef}`,
             rabCode: rabLabel,
             showRabCode,
             kota: profile.kotaPengesahan || "Jakarta",
-            tanggal: it.tanggal || draft.tanggalDokumen,
+            tanggal: itemDate,
             penerimaDisplay: recDisplay,
             penerimaRole: isBillHotel ? "Pengelola Hotel / Penginapan," : "Yang menerima,",
           })

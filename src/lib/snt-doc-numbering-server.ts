@@ -28,11 +28,11 @@ export async function allocateNextSntDocNumber(
 ): Promise<{ docNumber: string; seq: number; entityCode: SntEntityCode; defaultOwner: string }> {
   const entity = normalizeEntityCode(params.entityCode);
   const prefix =
-    entity === "MTC"
-      ? params.kind === "INV"
+    params.kind === "KW"
+      ? "KWT."
+      : entity === "MTC"
         ? "INV."
-        : "KWT."
-      : `${params.kind}/${entity}/SNT-W2`;
+        : `INV/${entity}/SNT-W2`;
 
   const existingNumbers =
     params.kind === "KW"

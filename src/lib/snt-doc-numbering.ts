@@ -99,14 +99,89 @@ export function suggestEntityCodeForRabCode(rabCode?: string | null): SntEntityC
   return "MTC";
 }
 
+function parseDatePartsSafe(dateInput?: Date | string | null): {
+  yyyy: number;
+  mm: string;
+  dd: string;
+  monthNum: number;
+} {
+  if (typeof dateInput === "string") {
+    const trimmed = dateInput.trim();
+    const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) {
+      return {
+        yyyy: Number(isoMatch[1]),
+        mm: isoMatch[2],
+        dd: isoMatch[3],
+        monthNum: Number(isoMatch[2]),
+      };
+    }
+  }
+  const d = dateInput instanceof Date ? dateInput : dateInput ? new Date(dateInput) : new Date();
+  const safeDate = Number.isNaN(d.getTime()) ? new Date() : d;
+  const monthNum = safeDate.getMonth() + 1;
+  return {
+    yyyy: safeDate.getFullYear(),
+    mm: String(monthNum).padStart(2, "0"),
+    dd: String(safeDate.getDate()).padStart(2, "0"),
+    monthNum,
+  };
+}
+
 /**
- * Format resmi standar per Entitas:
- * - Yayasan Maleo (MTC) — sesuai Format Administrasi Yayasan Maleo:
- *   - Invoice  : INV.YYYY.MM.DD.NNN  (contoh: INV.2026.11.27.001)
- *   - Kwitansi : KWT.YYYY.MM.DD.NNN  (contoh: KWT.2026.11.27.001)
- * - LPD & Robotic Explorer (LPD / RE) — sesuai Mockup Drive:
- *   - Invoice  : INV/{LPD|RE}/SNT-W2/{NNN}/{ROMAWI}/{YYYY}
- *   - Kuitansi : KW/{LPD|RE}/SNT-W2/{NNN}/{ROMAWI}/{YYYY}
+ * Format standar resmi Nomor Kwitansi:
+ * `KWT.Tahun.Bulan.Tanggal.Nomor` (contoh: `KWT.2026.10.31.001`).
+ */
+export function formatKwitansiNumber(
+  dateInput?: Date | string | null,
+  seq = 1
+): string {
+  const { yyyy, mm, dd } = parseDatePartsSafe(dateInput);
+  const nnn = String(Math.max(1, Math.floor(seq))).padStart(3, "0");
+  return `KWT.${yyyy}.${mm}.${dd}.${nnn}`;
+}
+
+/**
+ * Menyelesaikan nomor kwitansi per baris agar selalu mengikuti format `KWT.YYYY.MM.DD.NNN`:
+ * - Jika `explicitOrPrefix` sudah berbentuk `KWT.YYYY.MM.DD.NNN`, baris berikutnya menaikkan nomor urut.
+ * - Jika berbentuk `KWT.YYYY.MM.DD`, melengkapi `.NNN`.
+ * - Jika kosong atau memakai format garis miring lama (`KW/...` / `KWT/...`), otomatis membentuk `KWT.YYYY.MM.DD.NNN` dari tanggal.
+ */
+export function resolveKwitansiNumberForRow(
+  explicitOrPrefix?: string | null,
+  dateInput?: Date | string | null,
+  rowIndex = 0
+): string {
+  const raw = String(explicitOrPrefix || "").trim();
+  const safeIdx = Math.max(0, Math.floor(rowIndex));
+
+  if (!raw || /^KWT?\//i.test(raw)) {
+    return formatKwitansiNumber(dateInput, safeIdx + 1);
+  }
+
+  const fullDotMatch = raw.match(/^KWT\.(\d{4})\.(\d{2})\.(\d{2})\.(\d{1,5})$/i);
+  if (fullDotMatch) {
+    const baseSeq = Number.parseInt(fullDotMatch[4], 10) || 1;
+    const nextSeq = String(baseSeq + safeIdx).padStart(3, "0");
+    return `KWT.${fullDotMatch[1]}.${fullDotMatch[2]}.${fullDotMatch[3]}.${nextSeq}`;
+  }
+
+  const dateOnlyDotMatch = raw.match(/^KWT\.(\d{4})\.(\d{2})\.(\d{2})$/i);
+  if (dateOnlyDotMatch) {
+    const nextSeq = String(safeIdx + 1).padStart(3, "0");
+    return `KWT.${dateOnlyDotMatch[1]}.${dateOnlyDotMatch[2]}.${dateOnlyDotMatch[3]}.${nextSeq}`;
+  }
+
+  return safeIdx === 0 ? raw : `${raw}.${String(safeIdx + 1).padStart(3, "0")}`;
+}
+
+/**
+ * Format resmi standar per Jenis & Entitas:
+ * - Kwitansi (semua entitas MTC / LPD / RE):
+ *   - `KWT.YYYY.MM.DD.NNN` (contoh: `KWT.2026.11.27.001`)
+ * - Invoice:
+ *   - Yayasan Maleo (MTC): `INV.YYYY.MM.DD.NNN` (contoh: `INV.2026.11.27.001`)
+ *   - LPD & Robotic Explorer (LPD / RE): `INV/{LPD|RE}/SNT-W2/{NNN}/{ROMAWI}/{YYYY}`
  */
 export function formatSntDocumentNumber(
   kind: SntDocKind,
@@ -114,28 +189,28 @@ export function formatSntDocumentNumber(
   seq: number,
   dateInput: Date | string = new Date()
 ): string {
-  const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
-  const safeDate = Number.isNaN(d.getTime()) ? new Date() : d;
-  const yyyy = safeDate.getFullYear();
-  const mm = String(safeDate.getMonth() + 1).padStart(2, "0");
-  const dd = String(safeDate.getDate()).padStart(2, "0");
+  if (kind === "KW") {
+    return formatKwitansiNumber(dateInput, seq);
+  }
+
+  const { yyyy, mm, dd, monthNum } = parseDatePartsSafe(dateInput);
   const nnn = String(Math.max(1, Math.floor(seq))).padStart(3, "0");
 
   if (entity === "MTC") {
-    const prefix = kind === "INV" ? "INV" : "KWT";
-    return `${prefix}.${yyyy}.${mm}.${dd}.${nnn}`;
+    return `INV.${yyyy}.${mm}.${dd}.${nnn}`;
   }
 
-  const roman = getRomanMonth(safeDate.getMonth() + 1);
-  return `${kind}/${entity}/SNT-W2/${nnn}/${roman}/${yyyy}`;
+  const roman = getRomanMonth(monthNum);
+  return `INV/${entity}/SNT-W2/${nnn}/${roman}/${yyyy}`;
 }
 
 /**
- * Mengekstrak nomor urut {NNN} dari nomor dokumen berformat standar per entitas:
- * - MTC : `INV.2026.11.27.001` -> 1, `KWT.2026.11.27.004` -> 4
- * - LPD / RE : `INV/LPD/SNT-W2/001/XI/2026` -> 1, `KW/RE/SNT-W2-B6a/006/XI/2026` -> 6
- * Mengembalikan 0 jika nomor memakai format lama (mis. KWC/MTC/2026.10.09.001)
- * agar seri format baru tiap entitas mulai rapi dari 001 tanpa mengganggu nomor lama.
+ * Mengekstrak nomor urut {NNN} dari nomor dokumen berformat standar:
+ * - Kwitansi (semua entitas): `KWT.2026.11.27.004` -> 4
+ * - Invoice MTC: `INV.2026.11.27.001` -> 1
+ * - Invoice LPD / RE: `INV/LPD/SNT-W2/001/XI/2026` -> 1
+ * Mengembalikan 0 jika nomor memakai format lama (mis. KWC/MTC/2026.10.09.001 atau KW/...)
+ * agar seri format baru mulai rapi dari 001 tanpa mengganggu nomor lama.
  */
 export function extractSeqFromSntDocNumber(
   docNo: string,
@@ -143,16 +218,23 @@ export function extractSeqFromSntDocNumber(
   entity: SntEntityCode
 ): number {
   const raw = String(docNo || "").trim().toUpperCase();
-  if (entity === "MTC") {
-    const prefix = kind === "INV" ? "INV." : "KWT.";
-    if (!raw.startsWith(prefix)) return 0;
-    const match = raw.match(/^(?:INV|KWT)\.\d{4}\.\d{2}\.\d{2}\.(\d{1,5})$/);
+  if (kind === "KW") {
+    if (!raw.startsWith("KWT.")) return 0;
+    const match = raw.match(/^KWT\.\d{4}\.\d{2}\.\d{2}\.(\d{1,5})$/);
     if (!match) return 0;
     const n = Number.parseInt(match[1], 10);
     return Number.isFinite(n) && n > 0 ? n : 0;
   }
 
-  const prefix = `${kind}/${entity}/SNT-W2`;
+  if (entity === "MTC") {
+    if (!raw.startsWith("INV.")) return 0;
+    const match = raw.match(/^INV\.\d{4}\.\d{2}\.\d{2}\.(\d{1,5})$/);
+    if (!match) return 0;
+    const n = Number.parseInt(match[1], 10);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  }
+
+  const prefix = `INV/${entity}/SNT-W2`;
   if (!raw.startsWith(prefix)) return 0;
   const match = raw.match(/\/SNT-W2(?:-[A-Z0-9]+)?\/(\d{1,5})\//);
   if (!match) return 0;

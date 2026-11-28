@@ -28,7 +28,7 @@ import {
   recordEvidenceToRabExpense,
   saveSntReportDraft,
 } from "@/app/actions/snt-reports";
-import { resolveEntityCodeFromKop } from "@/lib/snt-doc-numbering";
+import { formatKwitansiNumber, resolveEntityCodeFromKop } from "@/lib/snt-doc-numbering";
 import {
   buildMonthlyFacilitatorHonorReceipt,
   buildMonthlyRabUnitHonorReceipt,
@@ -93,6 +93,11 @@ interface EvidenceDocsTabProps {
 }
 
 const HONOR_MONTHS = ["2026-09", "2026-10", "2026-11", "2026-12"] as const;
+
+const TANDA_TERIMA_PAYER_OPTIONS = [
+  DEFAULT_ROBOTIC_PREPARER_LABEL,
+  "Yayasan Maleo Talenta Cendekia",
+] as const;
 
 export function EvidenceDocsTab({
   activeRabCode,
@@ -299,6 +304,15 @@ export function EvidenceDocsTab({
             penerima: isBlank(it.penerima) ? mergedDraft.slipNamaPenerima || "" : it.penerima,
           }));
         }
+        // Auto-upgrade nomor kwitansi format garis miring lama (KW/... atau KWT/...) ke format resmi KWT.YYYY.MM.DD.NNN
+        if (mergedDraft.kuitansiNoPrefix && /^KWT?\//i.test(mergedDraft.kuitansiNoPrefix.trim())) {
+          mergedDraft.kuitansiNoPrefix = formatKwitansiNumber(mergedDraft.tanggalDokumen, 1);
+        }
+        mergedDraft.items = mergedDraft.items.map((it, idx) =>
+          it.noDokumen && /^KWT?\//i.test(it.noDokumen.trim())
+            ? { ...it, noDokumen: formatKwitansiNumber(it.tanggal || mergedDraft.tanggalDokumen, idx + 1) }
+            : it
+        );
         map[meta.code] = mergedDraft;
       } else {
         map[meta.code] = defaultWithReal;
@@ -1449,16 +1463,45 @@ export function EvidenceDocsTab({
                 </div>
 
                 {a4IncludeTandaTerima && (
-                  <div className="rounded-lg border border-cyan-200 bg-cyan-50/40 p-3 text-xs">
-                    <label className="block text-[11px] font-semibold text-cyan-950 mb-1">
-                      Dibayarkan oleh (pada Tanda Terima Pos A.4)
-                    </label>
-                    <Input
-                      value={a4DibayarkanOleh}
-                      onChange={(e) => setA4DibayarkanOleh(e.target.value)}
-                      placeholder="PT Jully Tjindrawan Robotik (Robotic Explorer)"
-                      className="h-8 text-xs bg-white"
-                    />
+                  <div className="rounded-lg border border-cyan-200 bg-cyan-50/40 p-3 space-y-2 text-xs">
+                    <div className="font-bold text-cyan-950">Pengaturan Tanda Terima (Pos A.4)</div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-cyan-950 mb-1">
+                        Dibayarkan oleh (Teks Penandatangan Kiri)
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mb-2">
+                        {TANDA_TERIMA_PAYER_OPTIONS.map((opt) => {
+                          const isSelected = a4DibayarkanOleh.trim() === opt;
+                          return (
+                            <button
+                              key={opt}
+                              type="button"
+                              onClick={() => setA4DibayarkanOleh(opt)}
+                              className={`text-left px-2.5 py-1.5 rounded-md border text-[11px] font-semibold transition-colors flex items-center gap-2 ${
+                                isSelected
+                                  ? "bg-cyan-700 text-white border-cyan-800 shadow-xs"
+                                  : "bg-white text-slate-700 border-cyan-200 hover:bg-cyan-50"
+                              }`}
+                            >
+                              <span
+                                className={`w-3 h-3 rounded-full border shrink-0 flex items-center justify-center ${
+                                  isSelected ? "border-white bg-white" : "border-slate-400"
+                                }`}
+                              >
+                                {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-cyan-700" />}
+                              </span>
+                              <span className="truncate">{opt}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <Input
+                        value={a4DibayarkanOleh}
+                        onChange={(e) => setA4DibayarkanOleh(e.target.value)}
+                        placeholder={DEFAULT_ROBOTIC_PREPARER_LABEL}
+                        className="h-8 text-xs bg-white"
+                      />
+                    </div>
                   </div>
                 )}
 
@@ -2141,7 +2184,7 @@ export function EvidenceDocsTab({
                       <Input
                         value={currentDraft.kuitansiNoPrefix || ""}
                         onChange={(e) => updateCurrentDraft((p) => ({ ...p, kuitansiNoPrefix: e.target.value }))}
-                        placeholder="Otomatis / klik + No. Resmi"
+                        placeholder="KWT.2026.MM.DD.001 / + No. Resmi"
                         className="h-8 text-xs font-mono"
                       />
                     </div>
@@ -2287,10 +2330,46 @@ export function EvidenceDocsTab({
                         Pengaturan Tanda Terima
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        <div>
-                          <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                        <div className="space-y-1.5">
+                          <label className="block text-[11px] font-semibold text-slate-700">
                             Dibayarkan oleh (Teks Penandatangan Kiri)
                           </label>
+                          <div className="grid grid-cols-1 gap-1.5">
+                            {TANDA_TERIMA_PAYER_OPTIONS.map((opt) => {
+                              const currentPayer = (
+                                currentDraft.tandaTerimaDibayarkanOleh ??
+                                currentDraft.slipDisiapkanOleh ??
+                                DEFAULT_ROBOTIC_PREPARER_LABEL
+                              ).trim();
+                              const isSelected = currentPayer === opt;
+                              return (
+                                <button
+                                  key={opt}
+                                  type="button"
+                                  onClick={() =>
+                                    updateCurrentDraft((p) => ({
+                                      ...p,
+                                      tandaTerimaDibayarkanOleh: opt,
+                                    }))
+                                  }
+                                  className={`text-left px-2.5 py-1.5 rounded-md border text-[11px] font-semibold transition-colors flex items-center gap-2 ${
+                                    isSelected
+                                      ? "bg-cyan-700 text-white border-cyan-800 shadow-xs"
+                                      : "bg-white text-slate-700 border-cyan-200 hover:bg-cyan-50"
+                                  }`}
+                                >
+                                  <span
+                                    className={`w-3 h-3 rounded-full border shrink-0 flex items-center justify-center ${
+                                      isSelected ? "border-white bg-white" : "border-slate-400"
+                                    }`}
+                                  >
+                                    {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-cyan-700" />}
+                                  </span>
+                                  <span className="truncate">{opt}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
                           <Input
                             value={
                               currentDraft.tandaTerimaDibayarkanOleh ??
@@ -2300,12 +2379,12 @@ export function EvidenceDocsTab({
                             onChange={(e) =>
                               updateCurrentDraft((p) => ({ ...p, tandaTerimaDibayarkanOleh: e.target.value }))
                             }
-                            placeholder="PT Jully Tjindrawan Robotik (Robotic Explorer)"
+                            placeholder={DEFAULT_ROBOTIC_PREPARER_LABEL}
                             className="h-8 text-xs"
                           />
                         </div>
                         <div>
-                          <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                          <label className="block text-[11px] font-semibold text-slate-700 mb-1">
                             Catatan Tanda Terima / Invoice
                           </label>
                           <Input

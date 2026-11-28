@@ -3,20 +3,25 @@ import {
   buildDocumentRegisterCsv,
   computeNextSeqForEntity,
   extractSeqFromSntDocNumber,
+  formatKwitansiNumber,
   formatSntDocumentNumber,
   renderDocumentRegisterPdfHtml,
   resolveEntityCodeFromKop,
   resolveEntityCodeFromOwner,
+  resolveKwitansiNumberForRow,
   suggestEntityCodeForRabCode,
 } from "../lib/snt-doc-numbering";
 
 describe("snt-doc-numbering centralized entity register", () => {
-  it("formats official Invoice and Kwitansi numbers per entity (Maleo dot-date vs LPD/RE SNT-W2 Roman)", () => {
+  it("formats official Kwitansi (KWT.YYYY.MM.DD.NNN for all entities) and Invoice numbers per entity", () => {
     expect(formatSntDocumentNumber("INV", "LPD", 1, "2026-11-25")).toBe(
       "INV/LPD/SNT-W2/001/XI/2026"
     );
     expect(formatSntDocumentNumber("KW", "RE", 12, "2026-10-31")).toBe(
-      "KW/RE/SNT-W2/012/X/2026"
+      "KWT.2026.10.31.012"
+    );
+    expect(formatSntDocumentNumber("KW", "LPD", 2, "2026-11-26")).toBe(
+      "KWT.2026.11.26.002"
     );
     expect(formatSntDocumentNumber("KW", "MTC", 3, "2026-09-30")).toBe(
       "KWT.2026.09.30.003"
@@ -24,24 +29,34 @@ describe("snt-doc-numbering centralized entity register", () => {
     expect(formatSntDocumentNumber("INV", "MTC", 1, "2026-11-27")).toBe(
       "INV.2026.11.27.001"
     );
+    expect(formatKwitansiNumber("2026-10-31", 1)).toBe("KWT.2026.10.31.001");
+    expect(resolveKwitansiNumberForRow("KWT.2026.11.27.005", "2026-11-27", 0)).toBe(
+      "KWT.2026.11.27.005"
+    );
+    expect(resolveKwitansiNumberForRow("KWT.2026.11.27.005", "2026-11-27", 2)).toBe(
+      "KWT.2026.11.27.007"
+    );
+    expect(resolveKwitansiNumberForRow("KW/LPD/SNT-W2/001/XI/2026", "2026-11-26", 1)).toBe(
+      "KWT.2026.11.26.002"
+    );
   });
 
-  it("keeps sequence counters independent per entity and ignores legacy KWC/MTC format", () => {
+  it("keeps sequence counters monotonic for KWT.YYYY.MM.DD.NNN and independent per entity for Invoice", () => {
     const existing = [
       "KWC/MTC/2026.11.10.024",
       "KWT.2026.11.27.002",
       "INV.2026.11.27.004",
       "KW/LPD/SNT-W2/001/IX/2026",
-      "KW/LPD/SNT-W2/002/X/2026",
-      "KW/RE/SNT-W2/005/XI/2026",
+      "KWT.2026.10.31.005",
       "INV/LPD/SNT-W2/003/XI/2026",
     ];
 
     expect(extractSeqFromSntDocNumber("KWC/MTC/2026.11.10.024", "KW", "MTC")).toBe(0);
-    expect(computeNextSeqForEntity(existing, "KW", "MTC")).toBe(3);
-    expect(computeNextSeqForEntity(existing, "INV", "MTC")).toBe(5);
-    expect(computeNextSeqForEntity(existing, "KW", "LPD")).toBe(3);
+    expect(extractSeqFromSntDocNumber("KW/LPD/SNT-W2/001/IX/2026", "KW", "LPD")).toBe(0);
+    expect(computeNextSeqForEntity(existing, "KW", "MTC")).toBe(6);
+    expect(computeNextSeqForEntity(existing, "KW", "LPD")).toBe(6);
     expect(computeNextSeqForEntity(existing, "KW", "RE")).toBe(6);
+    expect(computeNextSeqForEntity(existing, "INV", "MTC")).toBe(5);
     expect(computeNextSeqForEntity(existing, "INV", "LPD")).toBe(4);
     expect(computeNextSeqForEntity(existing, "INV", "RE")).toBe(1);
   });
